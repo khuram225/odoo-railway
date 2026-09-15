@@ -4,7 +4,7 @@
 # stable branch's .deb -- the date IS the version. `latest`, `19`, `19.0` and
 # `19.0-20260723` were the same digest when this was pinned.
 FROM odoo:19.0-20260723
-COPY ../addons /mnt/extra-addons
+COPY ./addons /mnt/extra-addons
 
 # The upstream image ends with `USER odoo`. Railway mounts volumes root-owned,
 # so the entrypoint needs root to chown the filestore; it drops back to `odoo`
