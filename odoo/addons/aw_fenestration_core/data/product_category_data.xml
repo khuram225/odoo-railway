@@ -2,10 +2,12 @@
 <odoo>
     <data noupdate="1">
 
-        <!-- Root -->
+        <!-- Root: no parent_id, a top-level category on its own. product.category
+             has no mandatory single "All" root in this Odoo version, product's
+             own seed data (product_category_goods, _expenses, _services) creates
+             several independent top-level categories the same way. -->
         <record id="product_category_fenestration" model="product.category">
             <field name="name">Fenestration</field>
-            <field name="parent_id" ref="product.product_category_all"/>
         </record>
 
         <!-- Profiles branch: one child per Window Type -->
