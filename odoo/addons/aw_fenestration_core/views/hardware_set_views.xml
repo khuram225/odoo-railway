@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_hardware_set_list" model="ir.ui.view">
+        <field name="name">aw.hardware.set.list</field>
+        <field name="model">aw.hardware.set</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="window_type_id"/>
+                <field name="name"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_hardware_set_form" model="ir.ui.view">
+        <field name="name">aw.hardware.set.form</field>
+        <field name="model">aw.hardware.set</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="window_type_id"/>
+                            <field name="name"/>
+                        </group>
+                    </group>
+                    <field name="line_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="product_id"/>
+                            <field name="qty"/>
+                            <field name="applies_to"/>
+                            <field name="is_optional"/>
+                        </list>
+                    </field>
+                    <group>
+                        <field name="notes" placeholder="Internal notes..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_hardware_set" model="ir.actions.act_window">
+        <field name="name">Hardware Sets</field>
+        <field name="res_model">aw.hardware.set</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Hardware Set</p>
+            <p>A named hardware bundle for a Window Type — roller, lock, handle, hinge,
+               gasket. Every line can be marked optional so a sales user can drop or
+               swap it per quote.</p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Thickness: Dynamic variant creation (see aw_fenestration_core Task 1) -->
+        <!-- Generated from chawla_pricelist_melted_2026-01-01.csv, the single -->
+        <!-- source of truth for this import, do not hand-edit, regenerate. -->
+        <record id="aw_attribute_thickness" model="product.attribute">
+            <field name="name">Thickness</field>
+            <field name="create_variant">dynamic</field>
+        </record>
+
+        <record id="aw_attr_val_thickness_1_2mm" model="product.attribute.value">
+            <field name="name">1.2MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_1_4mm" model="product.attribute.value">
+            <field name="name">1.4MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_1_5mm" model="product.attribute.value">
+            <field name="name">1.5MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_1_6mm" model="product.attribute.value">
+            <field name="name">1.6MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_1_8mm" model="product.attribute.value">
+            <field name="name">1.8MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_10mm" model="product.attribute.value">
+            <field name="name">10MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_13mm" model="product.attribute.value">
+            <field name="name">13MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_16mm" model="product.attribute.value">
+            <field name="name">16MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_2_2mm" model="product.attribute.value">
+            <field name="name">2.2MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_2_5mm" model="product.attribute.value">
+            <field name="name">2.5MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_2_6mm" model="product.attribute.value">
+            <field name="name">2.6MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_2_7mm" model="product.attribute.value">
+            <field name="name">2.7MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_20mm" model="product.attribute.value">
+            <field name="name">20MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_21_5mm" model="product.attribute.value">
+            <field name="name">21.5MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_2mm" model="product.attribute.value">
+            <field name="name">2MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_3_2mm" model="product.attribute.value">
+            <field name="name">3.2MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_3_5mm" model="product.attribute.value">
+            <field name="name">3.5MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_3mm" model="product.attribute.value">
+            <field name="name">3MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_4mm" model="product.attribute.value">
+            <field name="name">4MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_5_3mm" model="product.attribute.value">
+            <field name="name">5.3MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_5_5mm" model="product.attribute.value">
+            <field name="name">5.5MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_5mm" model="product.attribute.value">
+            <field name="name">5MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_6_3mm" model="product.attribute.value">
+            <field name="name">6.3MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_6_5mm" model="product.attribute.value">
+            <field name="name">6.5MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_6mm" model="product.attribute.value">
+            <field name="name">6MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_8mm" model="product.attribute.value">
+            <field name="name">8MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_9_6mm" model="product.attribute.value">
+            <field name="name">9.6MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_9mm" model="product.attribute.value">
+            <field name="name">9MM</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_normal" model="product.attribute.value">
+            <field name="name">Normal</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+        <record id="aw_attr_val_thickness_standard" model="product.attribute.value">
+            <field name="name">Standard</field>
+            <field name="attribute_id" ref="aw_attribute_thickness"/>
+        </record>
+
+        <!-- Finish: Dynamic variant creation -->
+        <record id="aw_attribute_finish" model="product.attribute">
+            <field name="name">Finish</field>
+            <field name="create_variant">dynamic</field>
+        </record>
+
+        <record id="aw_attr_val_finish_natural" model="product.attribute.value">
+            <field name="name">Natural</field>
+            <field name="attribute_id" ref="aw_attribute_finish"/>
+        </record>
+        <record id="aw_attr_val_finish_h23_pc_ral" model="product.attribute.value">
+            <field name="name">H23 PC RAL</field>
+            <field name="attribute_id" ref="aw_attribute_finish"/>
+        </record>
+        <record id="aw_attr_val_finish_brown_pc_sahara" model="product.attribute.value">
+            <field name="name">Brown PC Sahara</field>
+            <field name="attribute_id" ref="aw_attribute_finish"/>
+        </record>
+        <record id="aw_attr_val_finish_black_multi_ss_dull" model="product.attribute.value">
+            <field name="name">Black Multi SS Dull</field>
+            <field name="attribute_id" ref="aw_attribute_finish"/>
+        </record>
+        <record id="aw_attr_val_finish_designer" model="product.attribute.value">
+            <field name="name">Designer</field>
+            <field name="attribute_id" ref="aw_attribute_finish"/>
+        </record>
+        <record id="aw_attr_val_finish_c_shine" model="product.attribute.value">
+            <field name="name">C-Shine</field>
+            <field name="attribute_id" ref="aw_attribute_finish"/>
+        </record>
+
+    </data>
+</odoo>

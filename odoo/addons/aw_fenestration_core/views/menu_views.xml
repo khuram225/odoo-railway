@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <menuitem id="menu_aw_fenestration_root"
+              name="Fenestration"
+              sequence="45"/>
+    <!-- add web_icon="aw_fenestration_core,static/description/icon.png" once
+         you've dropped an icon.png into that folder -->
+
+    <menuitem id="menu_aw_fenestration_master_data"
+              name="Master Data"
+              parent="menu_aw_fenestration_root"
+              sequence="10"/>
+
+    <menuitem id="menu_aw_window_type"
+              name="Window Types"
+              parent="menu_aw_fenestration_master_data"
+              action="action_aw_window_type"
+              sequence="10"/>
+
+    <menuitem id="menu_aw_profile_section"
+              name="Profile Sections"
+              parent="menu_aw_fenestration_master_data"
+              action="action_aw_profile_section"
+              sequence="20"/>
+
+    <menuitem id="menu_aw_hardware_set"
+              name="Hardware Sets"
+              parent="menu_aw_fenestration_master_data"
+              action="action_aw_hardware_set"
+              sequence="30"/>
+
+    <menuitem id="menu_aw_glass_spec"
+              name="Glass Specs"
+              parent="menu_aw_fenestration_master_data"
+              action="action_aw_glass_spec"
+              sequence="40"/>
+
+    <menuitem id="menu_aw_window_template"
+              name="Window Templates"
+              parent="menu_aw_fenestration_master_data"
+              action="action_aw_window_template"
+              sequence="50"/>
+
+</odoo>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_glass_spec_list" model="ir.ui.view">
+        <field name="name">aw.glass.spec.list</field>
+        <field name="model">aw.glass.spec</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="product_id"/>
+                <field name="thickness_mm"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_glass_spec_form" model="ir.ui.view">
+        <field name="name">aw.glass.spec.form</field>
+        <field name="model">aw.glass.spec</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="product_id"/>
+                        <field name="thickness_mm"/>
+                    </group>
+                    <group>
+                        <field name="notes" placeholder="e.g. build-up description for a DGU..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_glass_spec" model="ir.actions.act_window">
+        <field name="name">Glass Specs</field>
+        <field name="res_model">aw.glass.spec</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Glass Spec</p>
+            <p>A named glass option pointing at one glass product, e.g.
+               "8mm Clear Toughened" or "24mm DGU 6+12+6".</p>
+        </field>
+    </record>
+
+</odoo>

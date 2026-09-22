@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_profile_section_list" model="ir.ui.view">
+        <field name="name">aw.profile.section.list</field>
+        <field name="model">aw.profile.section</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="window_type_id"/>
+                <field name="name"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_profile_section_form" model="ir.ui.view">
+        <field name="name">aw.profile.section.form</field>
+        <field name="model">aw.profile.section</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="window_type_id"/>
+                            <field name="name"/>
+                        </group>
+                    </group>
+                    <field name="line_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="role"/>
+                            <field name="product_id"/>
+                            <field name="is_optional"/>
+                        </list>
+                    </field>
+                    <group>
+                        <field name="notes" placeholder="Internal notes..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_profile_section" model="ir.actions.act_window">
+        <field name="name">Profile Sections</field>
+        <field name="res_model">aw.profile.section</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Profile Section</p>
+            <p>A Profile Section maps every structural role (Frame, Sash, Interlock,
+               Glazing Bead, Mesh) to a real profile product, for one Window Type.</p>
+        </field>
+    </record>
+
+</odoo>

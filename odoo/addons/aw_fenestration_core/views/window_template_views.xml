@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_window_template_list" model="ir.ui.view">
+        <field name="name">aw.window.template.list</field>
+        <field name="model">aw.window.template</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="window_type_id"/>
+                <field name="name"/>
+                <field name="profile_section_id"/>
+                <field name="hardware_set_id"/>
+                <field name="glass_spec_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_window_template_form" model="ir.ui.view">
+        <field name="name">aw.window.template.form</field>
+        <field name="model">aw.window.template</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="window_type_id"/>
+                            <field name="name"/>
+                            <field name="code"/>
+                        </group>
+                        <group>
+                            <field name="profile_section_id"/>
+                            <field name="hardware_set_id"/>
+                            <field name="glass_spec_id"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="notes" placeholder="e.g. Standard / Heavy Duty / Economy..."/>
+                    </group>
+                    <field name="active" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_window_template" model="ir.actions.act_window">
+        <field name="name">Window Templates</field>
+        <field name="res_model">aw.window.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Window Template</p>
+            <p>A Template assembles one Profile Section + one Hardware Set + one Glass
+               Spec for a Window Type. This is what a quote position starts from.</p>
+        </field>
+    </record>
+
+</odoo>

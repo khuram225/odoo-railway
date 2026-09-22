@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_production_lot_form_inherit_aluminum" model="ir.ui.view">
+        <field name="name">stock.lot.form.inherit.aluminum.inventory</field>
+        <field name="model">stock.lot</field>
+        <field name="inherit_id" ref="stock.view_production_lot_form"/>
+        <field name="arch" type="xml">
+            <group name="inventory_group" position="after">
+                <group string="Aluminum Profile" name="aluminum_profile_group">
+                    <field name="length_mm"/>
+                    <field name="profile_source"/>
+                    <field name="parent_lot_id"
+                           invisible="profile_source != 'leftover_return'"/>
+                </group>
+            </group>
+        </field>
+    </record>
+</odoo>
