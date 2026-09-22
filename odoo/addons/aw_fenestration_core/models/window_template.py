@@ -14,24 +14,26 @@ class AwWindowTemplate(models.Model):
     Economy) — nothing here forces a 1:1.
     """
     _name = 'aw.window.template'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Fenestration Window Template'
     _order = 'window_type_id, name'
 
-    name = fields.Char(required=True)
+    name = fields.Char(required=True, tracking=True)
     code = fields.Char()
     active = fields.Boolean(default=True)
 
     window_type_id = fields.Many2one(
-        'aw.window.type', required=True, ondelete='restrict', index=True)
+        'aw.window.type', required=True, ondelete='restrict', index=True,
+        tracking=True)
 
     profile_section_id = fields.Many2one(
         'aw.profile.section', required=True, ondelete='restrict',
-        domain="[('window_type_id', '=', window_type_id)]")
+        domain="[('window_type_id', '=', window_type_id)]", tracking=True)
     hardware_set_id = fields.Many2one(
         'aw.hardware.set', required=True, ondelete='restrict',
-        domain="[('window_type_id', '=', window_type_id)]")
+        domain="[('window_type_id', '=', window_type_id)]", tracking=True)
     glass_spec_id = fields.Many2one(
-        'aw.glass.spec', required=True, ondelete='restrict')
+        'aw.glass.spec', required=True, ondelete='restrict', tracking=True)
 
     notes = fields.Text()
 

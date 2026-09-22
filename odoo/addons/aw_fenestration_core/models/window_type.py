@@ -12,16 +12,17 @@ class AwWindowType(models.Model):
     prototype 1:1.
     """
     _name = 'aw.window.type'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Fenestration Window Type (System)'
     _order = 'sequence, name'
 
-    name = fields.Char(required=True)
-    code = fields.Char(help="Short code, e.g. BOX, COLLAR, ROUND, GSL, HINGED, CURTAIN")
+    name = fields.Char(required=True, tracking=True)
+    code = fields.Char(tracking=True, help="Short code, e.g. BOX, COLLAR, ROUND, GSL, HINGED, CURTAIN")
     kind = fields.Selection([
         ('sliding', 'Sliding'),
         ('hinged', 'Hinged / Casement'),
         ('fixed', 'Fixed only'),
-    ], required=True, default='sliding',
+    ], required=True, default='sliding', tracking=True,
        help="Which leaf types this system can host. Sliding systems take "
             "Fixed/Slider/Mesh leaves; Hinged systems take Fixed/Casement/"
             "Awning/Hopper/Mesh leaves.")

@@ -36,6 +36,7 @@
                         <field name="notes" placeholder="Internal notes..."/>
                     </group>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>

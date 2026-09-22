@@ -29,7 +29,7 @@ aw_fenestration_stock) that depend on this one.
     'author': 'Khurram',
     'website': 'https://mycrewvault.com',
     'license': 'LGPL-3',
-    'depends': ['product', 'stock'],
+    'depends': ['product', 'stock', 'mail'],
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',

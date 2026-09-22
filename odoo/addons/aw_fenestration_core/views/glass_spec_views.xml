@@ -28,6 +28,7 @@
                         <field name="notes" placeholder="e.g. build-up description for a DGU..."/>
                     </group>
                 </sheet>
+                <chatter/>
             </form>
         </field>
     </record>

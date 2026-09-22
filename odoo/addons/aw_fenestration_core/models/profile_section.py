@@ -22,12 +22,14 @@ class AwProfileSection(models.Model):
     have several sections (Standard / Heavy Duty / Economy) to choose from.
     """
     _name = 'aw.profile.section'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Fenestration Profile Section'
     _order = 'window_type_id, name'
 
-    name = fields.Char(required=True)
+    name = fields.Char(required=True, tracking=True)
     window_type_id = fields.Many2one(
-        'aw.window.type', required=True, ondelete='restrict', index=True)
+        'aw.window.type', required=True, ondelete='restrict', index=True,
+        tracking=True)
     active = fields.Boolean(default=True)
     notes = fields.Text()
 

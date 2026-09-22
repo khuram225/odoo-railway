@@ -10,12 +10,13 @@ class AwGlassSpec(models.Model):
     with a line table then; don't build it speculatively now.
     """
     _name = 'aw.glass.spec'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Fenestration Glass Specification'
     _order = 'name'
 
-    name = fields.Char(required=True)
+    name = fields.Char(required=True, tracking=True)
     product_id = fields.Many2one(
-        'product.product', required=True, ondelete='restrict',
+        'product.product', required=True, ondelete='restrict', tracking=True,
         domain=lambda self: [(
             'categ_id', 'child_of',
             self.env.ref('aw_fenestration_core.product_category_glass').id,

@@ -18,12 +18,14 @@ class AwHardwareSet(models.Model):
     here too, per the decision to fold them into hardware rather than glass.
     """
     _name = 'aw.hardware.set'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Fenestration Hardware Set'
     _order = 'window_type_id, name'
 
-    name = fields.Char(required=True)
+    name = fields.Char(required=True, tracking=True)
     window_type_id = fields.Many2one(
-        'aw.window.type', required=True, ondelete='restrict', index=True)
+        'aw.window.type', required=True, ondelete='restrict', index=True,
+        tracking=True)
     active = fields.Boolean(default=True)
     notes = fields.Text()
 
