@@ -1,0 +1,14 @@
+#!/bin/sh
+# Blocks commits that introduce "--" inside an XML comment (illegal XML,
+# breaks well-formedness -- see scripts/check_xml_comments.py).
+#
+# Not active by default: git only runs hooks from .git/hooks, which isn't
+# tracked. One-time setup per clone:
+#   git config core.hooksPath .githooks
+
+staged_xml=$(git diff --cached --name-only --diff-filter=ACM -- '*.xml')
+if [ -z "$staged_xml" ]; then
+    exit 0
+fi
+
+python scripts/check_xml_comments.py $staged_xml
