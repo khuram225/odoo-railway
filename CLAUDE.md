@@ -273,3 +273,15 @@ git config core.hooksPath .githooks
 
 Until that's run, check manually before committing XML: `python
 scripts/check_xml_comments.py && python scripts/check_load_order.py`.
+
+## Hard-won lessons
+
+- The boot warning "Missing not-null constraint on X.y" does NOT prove
+  column y exists — it fires for missing columns too.
+- A normal deploy does not create columns for new fields; only
+  Upgrade/-u does. Never add a stored field to a core model read on
+  every request (res.company, res.users) — a single request before
+  Upgrade takes the whole site down. Use ir.config_parameter for
+  settings.
+- A plain deploy also doesn't load XML (views, menus, data) — always
+  Upgrade after deploying view changes.
