@@ -17,6 +17,23 @@ class SaleOrder(models.Model):
              "blank to be asked each time. A position's own Series can "
              "always be changed afterwards on the design itself.")
 
+    def _confirmation_error_message(self):
+        """Core's own pre-confirmation hook (sale.order.action_confirm
+        loops over it and raises whatever it returns), so this rides
+        along with core's "some lines are missing a product" check
+        rather than wrapping action_confirm itself."""
+        self.ensure_one()
+        error = super()._confirmation_error_message()
+        if error:
+            return error
+        incomplete = self.aw_design_ids._incomplete_dimension_designs()
+        if incomplete:
+            return _(
+                "These positions still need a width and a height before "
+                "the order can be confirmed:\n%s",
+                '\n'.join('- %s' % d.display_name for d in incomplete))
+        return False
+
     def _create_fenestration_position(self, series, name=None, location=None):
         """Create the quote line and its design together. The line comes
         first because aw.design.sale_order_line_id is what ties the two

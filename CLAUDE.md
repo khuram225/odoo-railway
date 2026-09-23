@@ -191,10 +191,26 @@ Settings → Fenestration → Configuration → Settings) picks one of
 `ftin`/`in`/`mm`, stored via `config_parameter='aw_fenestration.length_uom'`
 — **deliberately not a field on `res.company`**, see the near-outage note
 below. On `aw.design` (width+height), `aw.design.row` (height),
-`aw.design.leaf` (width): `*_mm` is the real required stored field;
+`aw.design.leaf` (width): `*_mm` is the real stored field;
 `*_ft`+`*_in` and `*_inch_total` are compute+inverse pairs reading from
 and writing back to it (1 ft = 304.8mm, 1 in = 25.4mm) — editing in any
 unit recomputes the other two, since all three `@api.depends('*_mm')`.
+
+**`*_mm` is deliberately NOT `required=True`** (it was, and that was a
+bug). A required stored field can't coexist with entry through a
+non-stored inverse: the NOT NULL constraint fires at INSERT, before the
+inverse that would populate `*_mm` ever runs, so typing into the ft/in
+pair on a *new* row/leaf/design fails with "Missing required value for
+the field 'Width (mm)'". Add Position hits the same thing from the
+other direction, creating the design before any dimension is known by
+design. Zero means "not filled in yet", and the constraint lives where
+it actually matters instead: `aw.design._check_dimensions_set()` is
+called by `action_explode()` (no cut list from a zero-sized opening)
+and, via `_incomplete_dimension_designs()`, by
+`sale.order._confirmation_error_message()` — core's own
+pre-confirmation hook, which `action_confirm` loops over and raises,
+so this rides along with core's checks rather than wrapping
+`action_confirm`.
 Each model has a non-stored `length_uom` field: `aw.design`'s reads
 `ir.config_parameter` directly (`@api.depends()` with no args — a real,
 used-in-core pattern for a compute that depends on context rather than

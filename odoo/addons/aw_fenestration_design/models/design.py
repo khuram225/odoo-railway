@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 
 class AwDesign(models.Model):
@@ -39,11 +40,22 @@ class AwDesign(models.Model):
     ], compute='_compute_length_uom', string='Length Unit')
 
     # -- geometry, overall opening --------------------------------------
-    # mm is the stored source of truth (required); ft/in and inch_total
-    # are compute+inverse display/entry pairs that read from and write
-    # back to it, so editing in ANY unit keeps all three in sync and the
-    # view can show only the pair matching length_uom.
-    width_mm = fields.Float(string='Width (mm)', required=True, tracking=True)
+    # mm is the stored source of truth; ft/in and inch_total are
+    # compute+inverse display/entry pairs that read from and write back
+    # to it, so editing in ANY unit keeps all three in sync and the view
+    # can show only the pair matching length_uom.
+    #
+    # Deliberately NOT required=True. Two separate paths create a design
+    # before any dimension is known: Add Position (which creates the
+    # design, then opens its form to be filled in), and a new design form
+    # where the user types into the ft/in pair -- those are non-stored
+    # inverse fields, and the NOT NULL constraint fires at INSERT, before
+    # the inverse that would populate *_mm ever runs. Both hit
+    # "Missing required value for the field 'Width (mm)'". Zero is a
+    # legitimate not-yet-filled-in state here; see
+    # _check_dimensions_set(), which enforces real dimensions at the two
+    # points where they actually have to exist.
+    width_mm = fields.Float(string='Width (mm)', default=0.0, tracking=True)
     width_ft = fields.Integer(string='Width (ft)',
         compute='_compute_width_ftin', inverse='_inverse_width_ftin')
     width_in = fields.Float(string='Width (in)',
@@ -52,7 +64,7 @@ class AwDesign(models.Model):
     width_inch_total = fields.Float(string='Width (in)',
         compute='_compute_width_inch_total', inverse='_inverse_width_inch_total')
 
-    height_mm = fields.Float(string='Height (mm)', required=True, tracking=True)
+    height_mm = fields.Float(string='Height (mm)', default=0.0, tracking=True)
     height_ft = fields.Integer(string='Height (ft)',
         compute='_compute_height_ftin', inverse='_inverse_height_ftin')
     height_in = fields.Float(string='Height (in)',
@@ -283,6 +295,21 @@ class AwDesign(models.Model):
             'target': 'current',
         }
 
+    def _incomplete_dimension_designs(self):
+        """Designs still sitting at a zero width or height. Dimensions
+        are allowed to be unset while a position is being configured --
+        this is what the two points that genuinely need real numbers
+        (exploding a BOM, confirming the order) check instead of a
+        required= flag that would block creation itself."""
+        return self.filtered(lambda d: not d.width_mm or not d.height_mm)
+
+    def _check_dimensions_set(self):
+        incomplete = self._incomplete_dimension_designs()
+        if incomplete:
+            raise UserError(_(
+                "These positions still need a width and a height:\n%s",
+                '\n'.join('- %s' % d.display_name for d in incomplete)))
+
     def action_explode(self):
         """Placeholder for the explosion engine — the Python port of the
         prototype's explode() function, reading real aw.profile.section.line
@@ -291,6 +318,10 @@ class AwDesign(models.Model):
         not implemented in this pass; this module is the data model only.
         Raises NotImplementedError rather than silently doing nothing, so
         it's obvious in testing that this step hasn't landed yet."""
+        # In place ahead of the engine itself: a cut list can't be
+        # generated from a zero-sized opening, so this is one of the two
+        # points where dimensions stop being optional.
+        self._check_dimensions_set()
         raise NotImplementedError(
             "Explosion engine not yet ported — this method will read "
             "self.window_series_id's Profile Section / Hardware Set lines "

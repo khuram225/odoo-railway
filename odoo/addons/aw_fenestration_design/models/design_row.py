@@ -25,7 +25,10 @@ class AwDesignRow(models.Model):
     sequence = fields.Integer(default=10)
     length_uom = fields.Selection(related='design_id.length_uom', string='Length Unit')
 
-    height_mm = fields.Float(string='Height (mm)', required=True)
+    # Not required, same reason as aw.design.width_mm: a new row entered
+    # in the ft/in pair would trip the NOT NULL constraint at INSERT,
+    # before the inverse that fills this in gets to run.
+    height_mm = fields.Float(string='Height (mm)', default=0.0)
     height_ft = fields.Integer(string='Height (ft)',
         compute='_compute_height_ftin', inverse='_inverse_height_ftin')
     height_in = fields.Float(string='Height (in)',

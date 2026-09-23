@@ -22,7 +22,10 @@ class AwDesignLeaf(models.Model):
     sequence = fields.Integer(default=10)
     length_uom = fields.Selection(related='row_id.length_uom', string='Length Unit')
 
-    width_mm = fields.Float(string='Width (mm)', required=True)
+    # Not required, same reason as aw.design.width_mm: a new leaf entered
+    # in the ft/in pair would trip the NOT NULL constraint at INSERT,
+    # before the inverse that fills this in gets to run.
+    width_mm = fields.Float(string='Width (mm)', default=0.0)
     width_ft = fields.Integer(string='Width (ft)',
         compute='_compute_width_ftin', inverse='_inverse_width_ftin')
     width_in = fields.Float(string='Width (in)',
