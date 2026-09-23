@@ -174,10 +174,11 @@ see the core module's gaps list above).
 `aw.leaf.type` (dynamic, not a hardcoded Selection, since the consolidation
 round). The row form's nested leaf list pulls in `leaf_has_hinge_side`/
 `leaf_has_slide_dir` as hidden (`column_invisible="1"`) related passthrough
-fields specifically so the direction columns' own `column_invisible` can
-reference them as plain sibling fields — no hardcoded leaf-type string list
-in the view, and no `parent.` prefix (that was the original, real bug here;
-see below).
+fields specifically so the direction columns can reference them as plain
+sibling fields — no hardcoded leaf-type string list in the view. Those
+direction columns use **`invisible=`, not `column_invisible=`**: which
+of them apply depends on each leaf's own `leaf_type_id`, so it's a
+per-row decision. See the `column_invisible` lesson below.
 
 `aw.design.window_series_id`/`template_id` point at `aw.window.series`/
 `aw.window.template`; `finish_id`/`thickness_id` are `product.attribute.value`
@@ -337,3 +338,16 @@ scripts/check_xml_comments.py && python scripts/check_load_order.py`.
   settings.
 - A plain deploy also doesn't load XML (views, menus, data) — always
   Upgrade after deploying view changes.
+- `column_invisible` in a list is evaluated **once for the whole list,
+  against the parent record/context — never per row**. It therefore
+  cannot reference the row's own fields: doing so raises OwlError
+  "Name 'x' is not defined". Use `column_invisible="parent.x"` for a
+  whole-column decision (requires `x` to be an active field on the
+  parent form), and plain `invisible=` for anything that varies per
+  row. `invisible=`, `readonly=` and `required=` on a list field *are*
+  per-row and can use the row's own fields freely — which is why a list
+  can legitimately carry a field used only by a per-row `readonly=`.
+  A read-only list with no parent record to read (a top-level list
+  view, or an embedded one whose parent lacks the field) can't switch
+  columns at all — give it one preformatted column instead, the way
+  `aw.design.size_display` handles unit switching.

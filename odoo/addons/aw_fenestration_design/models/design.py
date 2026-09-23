@@ -198,27 +198,34 @@ class AwDesign(models.Model):
     @api.depends('width_mm', 'height_mm', 'length_uom')
     def _compute_size_display(self):
         for rec in self:
-            rec.size_display = '%s × %s' % (
-                rec._format_length(rec.width_mm),
-                rec._format_length(rec.height_mm),
-            )
+            if rec.length_uom == 'mm':
+                # One trailing unit reads better when both numbers carry
+                # the same one; ft/in can't do that, each part needs its own.
+                rec.size_display = '%s × %s mm' % (
+                    rec._trim(rec.width_mm), rec._trim(rec.height_mm))
+            else:
+                rec.size_display = '%s × %s' % (
+                    rec._format_length(rec.width_mm),
+                    rec._format_length(rec.height_mm),
+                )
+
+    @staticmethod
+    def _trim(value):
+        # 6.0 -> "6", 6.5 -> "6.5" — no trailing ".0" in a quote line
+        return ('%.2f' % value).rstrip('0').rstrip('.') or '0'
 
     def _format_length(self, mm):
         """One length, rendered in whatever unit the Fenestration setting
         is currently on. Used for the sale line description and the Sale
         Order's Fenestration tab, so both always speak the same unit the
         design form is being edited in."""
-        def trim(value):
-            # 6.0 -> "6", 6.5 -> "6.5" — no trailing ".0" in a quote line
-            return ('%.2f' % value).rstrip('0').rstrip('.') or '0'
-
         if self.length_uom == 'mm':
-            return '%s mm' % trim(mm)
+            return '%s mm' % self._trim(mm)
         total_in = mm / 25.4
         if self.length_uom == 'in':
-            return '%s in' % trim(total_in)
+            return '%s in' % self._trim(total_in)
         ft = int(total_in // 12)
-        return '%s ft %s in' % (ft, trim(total_in - ft * 12))
+        return '%s ft %s in' % (ft, self._trim(total_in - ft * 12))
 
     @api.depends('width_mm', 'height_mm')
     def _compute_area(self):

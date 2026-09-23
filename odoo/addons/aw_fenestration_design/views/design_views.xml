@@ -45,21 +45,32 @@
                     <field name="leaf_ids">
                         <list editable="bottom">
                             <field name="sequence" widget="handle"/>
+                            <!-- length_uom stays in the list because the *_mm
+                                 readonly= below is a per-ROW modifier and
+                                 needs the row's own value. The column_invisible
+                                 below must use parent.* instead: it's evaluated
+                                 once per list against the parent record, never
+                                 per row. Parent here is the aw.design.row. -->
                             <field name="length_uom" column_invisible="1"/>
-                            <field name="width_ft" column_invisible="length_uom != 'ftin'"/>
-                            <field name="width_in" column_invisible="length_uom != 'ftin'"/>
-                            <field name="width_inch_total" string="Width (in)" column_invisible="length_uom != 'in'"/>
+                            <field name="width_ft" column_invisible="parent.length_uom != 'ftin'"/>
+                            <field name="width_in" column_invisible="parent.length_uom != 'ftin'"/>
+                            <field name="width_inch_total" string="Width (in)" column_invisible="parent.length_uom != 'in'"/>
                             <field name="width_mm" readonly="length_uom != 'mm'"/>
                             <field name="is_auto"/>
                             <field name="leaf_type_id"/>
                             <field name="leaf_has_hinge_side" column_invisible="1"/>
                             <field name="leaf_has_slide_dir" column_invisible="1"/>
+                            <!-- invisible=, not column_invisible=: which
+                                 direction fields apply depends on each leaf's
+                                 own leaf_type_id, so this is per-row. The
+                                 columns stay present; individual cells blank
+                                 out. -->
                             <field name="hinge_side"
-                                   column_invisible="not leaf_has_hinge_side"/>
+                                   invisible="not leaf_has_hinge_side"/>
                             <field name="swing"
-                                   column_invisible="not leaf_has_hinge_side"/>
+                                   invisible="not leaf_has_hinge_side"/>
                             <field name="slide_dir"
-                                   column_invisible="not leaf_has_slide_dir"/>
+                                   invisible="not leaf_has_slide_dir"/>
                         </list>
                     </field>
                 </sheet>
@@ -145,10 +156,14 @@
                             <field name="row_ids">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
+                                    <!-- Same as the leaves list: length_uom
+                                         stays for the per-row readonly= below,
+                                         column_invisible goes through parent.*
+                                         (here the aw.design). -->
                                     <field name="length_uom" column_invisible="1"/>
-                                    <field name="height_ft" column_invisible="length_uom != 'ftin'"/>
-                                    <field name="height_in" column_invisible="length_uom != 'ftin'"/>
-                                    <field name="height_inch_total" string="Height (in)" column_invisible="length_uom != 'in'"/>
+                                    <field name="height_ft" column_invisible="parent.length_uom != 'ftin'"/>
+                                    <field name="height_in" column_invisible="parent.length_uom != 'ftin'"/>
+                                    <field name="height_inch_total" string="Height (in)" column_invisible="parent.length_uom != 'in'"/>
                                     <field name="height_mm" readonly="length_uom != 'mm'"/>
                                     <field name="is_auto"/>
                                     <field name="leaf_count" readonly="1"/>
@@ -185,8 +200,11 @@
                 <field name="location"/>
                 <field name="qty"/>
                 <field name="window_series_id"/>
-                <field name="width_mm"/>
-                <field name="height_mm"/>
+                <!-- One preformatted column rather than a unit-switching pair:
+                     this list has no parent record for column_invisible to
+                     read, and it's read-only anyway. size_display is a
+                     non-stored compute, so no DB column. -->
+                <field name="size_display"/>
                 <field name="area_sqft"/>
                 <field name="sale_order_id"/>
             </list>
