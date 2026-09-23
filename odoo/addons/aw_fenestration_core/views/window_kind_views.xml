@@ -27,7 +27,7 @@
             <form>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
-                        <button type="object" name="%(action_aw_window_type)d"
+                        <button type="action" name="%(action_aw_window_type)d"
                                 class="oe_stat_button" icon="fa-th-large"
                                 context="{'search_default_kind_id': id}">
                             <field name="window_type_count" widget="statinfo" string="Window Types"/>
