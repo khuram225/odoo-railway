@@ -288,6 +288,38 @@ own pricelist value is left alone — real pricing is Step 3).
 `aw.design.unlink()` removes its line; the reverse needs no code, since
 `sale_order_line_id` is `ondelete='cascade'`.
 
+**Visual configurator** (`static/src/design_configurator/`, OWL client
+action `aw_design_configurator`). Reads and writes the existing
+design/row/leaf records — no new geometry model. Two server methods
+carry it: `get_configurator_data()` (header, geometry, unit, the
+Series' leaf types, allowed presets — one round trip) and
+`save_layout(payload)` (replaces the whole grid plus header in a single
+transaction, so a layout can't land half-rebuilt). `save_layout`
+filters the header against an explicit allow-list — it's a public RPC,
+and passing the dict to `write()` as-is would let a crafted call set
+`sale_order_line_id` and re-point a design at another quote's line.
+
+The SVG is a port of `docs/prototype/fenestration-quote-demo.html`'s
+`draw()`/`leafGlyph()`/`drawDim()` (kept in-repo as the reference
+spec), with one structural change: the prototype builds SVG nodes
+imperatively via `createElementNS`, whereas the OWL version computes a
+plain `scene` object and renders it declaratively, so it re-renders
+reactively instead of being torn down and rebuilt. `frameFace` is a
+drawing-only constant here — the prototype reads it from its `SERIES`
+table, which is master data we don't port, and `aw.window.series` has
+no equivalent field. **The scene returns `null` when width or height is
+0**: designs legitimately start at 0×0 (see the `required=` note
+above), and the prototype's scale factor would be `Infinity` there,
+putting `NaN` into every coordinate.
+
+`aw.layout.preset` seeds from the prototype's `ROWS`/`PRESET_CATS`/
+`PRESETS`. All weights are 1 because the prototype's templates carry no
+sizes at all — `normaliseRows()` splits equally — and equal weights
+reproduce that while leaving unequal presets expressible. Its `kinds`
+filtering is deliberately not ported: that keyed off the prototype's
+series-kind concept, and presets are now filtered by whether the
+design's Series can host every leaf type they need.
+
 New group: `group_fenestration_sales` ("Fenestration / Sales"), separate
 from core's `group_fenestration_manager` — quote-level Design access and
 master-BOM-data access are two different grants. `security.xml` extends

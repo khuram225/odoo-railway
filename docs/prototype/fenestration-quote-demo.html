@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fenestration Quoting — Odoo 19 module prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14181b; --ink-2:#4a5358; --ink-3:#727c82;
+  --paper:#eef1f3; --card:#ffffff; --line:#d7dde1; --line-2:#e8edef;
+  --mill:#8a9095; --mill-d:#6a7075; --glass:#c3dce3; --glass-d:#9dbfc9;
+  --brand:#6b4a63; --brand-d:#4e3549; --brand-l:#f2ecf0;
+  --ok:#2f6b4f; --ok-l:#eaf3ee;
+  --warn:#8d6210; --warn-l:#fdf3e0;
+  --err:#8f2c2c; --err-l:#fbeceb;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e8ecee; --ink-2:#aab3b8; --ink-3:#8b959b;
+    --paper:#15191c; --card:#1d2225; --line:#2f363a; --line-2:#262c30;
+    --mill:#7c8489; --mill-d:#5d656a; --glass:#33505a; --glass-d:#486975;
+    --brand:#b58aab; --brand-d:#c9a6c1; --brand-l:#2a2028;
+    --ok:#7fc39f; --ok-l:#1b2a22; --warn:#d9ab5c; --warn-l:#2b2318;
+    --err:#e09393; --err-l:#2b1c1c;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e8ecee; --ink-2:#aab3b8; --ink-3:#8b959b;
+  --paper:#15191c; --card:#1d2225; --line:#2f363a; --line-2:#262c30;
+  --mill:#7c8489; --mill-d:#5d656a; --glass:#33505a; --glass-d:#486975;
+  --brand:#b58aab; --brand-d:#c9a6c1; --brand-l:#2a2028;
+  --ok:#7fc39f; --ok-l:#1b2a22; --warn:#d9ab5c; --warn-l:#2b2318;
+  --err:#e09393; --err-l:#2b1c1c;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:var(--sans);background:var(--paper);color:var(--ink);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+input,select{font-family:inherit;font-size:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+.nav{background:var(--brand-d);color:#fff;display:flex;align-items:center;gap:22px;padding:0 16px;height:44px;flex-wrap:wrap}
+.nav .app{font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+.nav menu{display:flex;gap:18px;margin:0;padding:0;list-style:none;font-size:13px}
+.nav menu a{color:#e4d6e0;text-decoration:none;padding:2px 0;border-bottom:2px solid transparent}
+.nav menu a[aria-current]{color:#fff;border-bottom-color:#c9a6c1}
+.nav .who{margin-left:auto;font-size:12px;color:#d3bfcc;display:flex;align-items:center;gap:10px}
+.nav .badge{background:#5b3d55;border-radius:3px;padding:2px 7px;font-size:11px}
+
+.cp{background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;align-items:flex-end;gap:18px;flex-wrap:wrap}
+.crumb{font-size:12px;color:var(--ink-3)}
+.crumb b{color:var(--ink);font-weight:600;font-size:15px;display:block;letter-spacing:-.01em}
+.tabs{display:flex;gap:2px;margin-left:8px}
+.tabs button{background:none;border:none;border-bottom:2px solid transparent;padding:6px 12px;color:var(--ink-2);border-radius:3px 3px 0 0}
+.tabs button[aria-selected="true"]{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+.tabs button:hover{background:var(--line-2)}
+.total{margin-left:auto;text-align:right}
+.total .v{font-family:var(--mono);font-size:19px;font-weight:600;letter-spacing:-.02em}
+.total .l{font-size:11px;color:var(--ink-3)}
+.unitbtn{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:3px 3px;display:flex;font-size:11px;color:var(--ink-2);margin-left:10px}
+.unitbtn button{border:none;background:none;padding:3px 9px;border-radius:11px;color:inherit}
+.unitbtn button[aria-pressed="true"]{background:var(--brand);color:#fff}
+
+.wrap{padding:14px;max-width:1620px;margin:0 auto}
+.cols{display:grid;grid-template-columns:210px minmax(0,1fr) 350px;gap:14px;align-items:start}
+@media(max-width:1220px){.cols{grid-template-columns:190px minmax(0,1fr)}.insp{grid-column:1/-1}}
+@media(max-width:760px){.cols{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:5px}
+.card>h3{margin:0;padding:9px 12px;font-size:12px;font-weight:600;color:var(--ink-2);border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:8px}
+.card>h3 .r{margin-left:auto;font-weight:400;color:var(--ink-3);font-size:11px}
+.pad{padding:12px}
+
+.pos{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line-2);padding:9px 12px;color:inherit}
+.pos:hover{background:var(--line-2)}
+.pos[aria-current]{background:var(--brand-l);box-shadow:inset 3px 0 0 var(--brand)}
+.pos .t{display:flex;align-items:baseline;gap:6px}
+.pos .ref{font-family:var(--mono);font-weight:600;font-size:13px}
+.pos .q{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:auto}
+.pos .d{font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pos .p{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-top:2px}
+.addpos{width:100%;background:none;border:none;padding:10px;color:var(--brand);font-weight:500;font-size:13px}
+.addpos:hover{background:var(--brand-l)}
+
+.stage{background:var(--card);border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.drawing{display:block;width:100%;height:auto;background:var(--card);touch-action:none}
+.ctrls{border-top:1px solid var(--line-2);padding:11px 12px;display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.f{display:flex;flex-direction:column;gap:3px}
+.f label{font-size:11px;color:var(--ink-3)}
+.f input,.f select{border:1px solid var(--line);background:var(--card);border-radius:4px;padding:5px 7px;min-width:0}
+.f input[type=number]{width:72px;font-family:var(--mono)}
+.f select{max-width:220px}
+.chips{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink-2);border-radius:4px;padding:5px 9px;font-size:12px;display:flex;align-items:center;gap:6px}
+.chip:hover{border-color:var(--brand);color:var(--brand)}
+.chip[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
+.chip.sm{padding:3px 7px;font-size:11px}
+.hint{font-size:11px;color:var(--ink-3);padding:0 12px 11px}
+.sep{width:1px;align-self:stretch;background:var(--line-2);margin:0 2px}
+
+.itabs{display:flex;border-bottom:1px solid var(--line-2)}
+.itabs button{flex:1;background:none;border:none;padding:8px 4px;font-size:11.5px;color:var(--ink-2);border-bottom:2px solid transparent}
+.itabs button[aria-selected="true"]{color:var(--brand);border-bottom-color:var(--brand);font-weight:600}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;font-weight:600;color:var(--ink-3);font-size:11px;padding:6px 10px;border-bottom:1px solid var(--line-2);white-space:nowrap}
+td{padding:5px 10px;border-bottom:1px solid var(--line-2);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.n,th.n{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.code{font-family:var(--mono);font-size:11.5px;font-weight:500}
+.role{font-size:10.5px;color:var(--ink-3)}
+tr.sum td{border-top:1px solid var(--line);font-weight:600;background:var(--line-2)}
+tr.head td{font-weight:600;background:var(--line-2);color:var(--ink-2);font-size:11px}
+
+.msg{display:flex;gap:9px;padding:9px 11px;border-bottom:1px solid var(--line-2);font-size:12px}
+.msg .ic{flex:none;width:16px;height:16px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;margin-top:1px}
+.msg.ok .ic{background:var(--ok-l);color:var(--ok)}
+.msg.warn .ic{background:var(--warn-l);color:var(--warn)}
+.msg.err .ic{background:var(--err-l);color:var(--err)}
+.msg b{display:block;font-weight:600}
+.msg span{color:var(--ink-2)}
+
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line-2)}
+.kpi{background:var(--card);padding:10px 11px}
+.kpi .v{font-family:var(--mono);font-size:16px;font-weight:600;letter-spacing:-.02em}
+.kpi .l{font-size:10.5px;color:var(--ink-3)}
+.kpi.good .v{color:var(--ok)} .kpi.poor .v{color:var(--warn)}
+
+.two{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
+@media(max-width:1000px){.two{grid-template-columns:1fr}}
+.rate{width:74px;border:1px solid var(--line);background:var(--card);border-radius:4px;padding:3px 6px;text-align:right;font-family:var(--mono);font-size:12px}
+.vis{font-size:10.5px;color:var(--ink-3);border:1px solid var(--line);border-radius:3px;padding:1px 5px;background:none}
+.vis[aria-pressed="true"]{background:var(--brand-l);border-color:var(--brand);color:var(--brand)}
+.sumbox{padding:2px 0}
+.sumrow{display:flex;justify-content:space-between;gap:10px;padding:6px 12px;font-size:12.5px}
+.sumrow span{color:var(--ink-2)}
+.sumrow b{font-family:var(--mono);font-weight:500}
+.sumrow.big{border-top:1px solid var(--line);margin-top:4px;padding-top:9px;font-size:15px}
+.sumrow.big b{font-weight:700}
+.bar{height:5px;border-radius:3px;background:var(--line-2);overflow:hidden;display:flex;margin:0 12px 10px}
+.bar i{display:block;height:100%}
+
+.doc{background:var(--card);border:1px solid var(--line);border-radius:5px;padding:26px;max-width:900px;margin:0 auto}
+.doc h1{font-size:15px;letter-spacing:.14em;text-align:center;margin:0 0 18px;font-weight:600}
+.dochead{display:grid;grid-template-columns:1fr 1fr;gap:4px 22px;font-size:12px;border:1px solid var(--line);padding:11px 13px;margin-bottom:16px}
+.dochead div{display:flex;gap:6px}
+.dochead b{font-weight:600;color:var(--ink-2);min-width:74px}
+.line{display:grid;grid-template-columns:120px minmax(0,1fr);gap:16px;border:1px solid var(--line);padding:12px;margin-bottom:10px}
+.line .sp{font-size:11.5px;color:var(--ink-2);display:grid;gap:2px}
+.line .sp b{color:var(--ink);font-weight:600}
+.line .amt{margin-top:7px;padding-top:7px;border-top:1px solid var(--line-2);display:flex;gap:16px;font-family:var(--mono);font-size:12px;flex-wrap:wrap}
+.line svg{width:100%;height:auto;border:1px solid var(--line-2)}
+.note{font-size:11px;color:var(--ink-3);margin-top:14px;padding-top:10px;border-top:1px solid var(--line-2)}
+.flagbar{display:flex;gap:9px;align-items:flex-start;background:var(--warn-l);border:1px solid var(--warn);border-radius:4px;padding:9px 11px;font-size:12px;margin-bottom:14px;color:var(--warn)}
+.flagbar b{display:block}
+.cmp td.win{color:var(--ok);font-weight:600}
+.tag{font-size:10px;font-family:var(--mono);border:1px solid var(--line);border-radius:3px;padding:0 4px;color:var(--ink-3)}
+.foot{max-width:1620px;margin:16px auto 30px;padding:0 14px;font-size:11.5px;color:var(--ink-3);display:flex;gap:18px;flex-wrap:wrap}
+
+/* Level-2 leaf layout editor */
+.rowcard{border:1px solid var(--line);border-radius:4px;margin:8px 12px}
+.rowcard>.rh{display:flex;align-items:center;gap:8px;padding:6px 9px;background:var(--line-2);border-radius:4px 4px 0 0;font-size:11.5px}
+.rowcard>.rh b{font-weight:600}
+.rowcard>.rh input{width:60px}
+.rowcard>.rh .del{margin-left:auto;color:var(--err);background:none;border:none;font-size:11px}
+.leafrow{display:grid;grid-template-columns:56px 1fr auto auto 24px;gap:6px;align-items:center;padding:6px 9px;border-top:1px solid var(--line-2)}
+.leafrow select{font-size:11.5px;padding:3px 4px}
+.leafrow .del{color:var(--err);background:none;border:none;font-size:13px}
+.addrow,.addleaf{font-size:11.5px;color:var(--brand);background:none;border:1px dashed var(--line);border-radius:4px;padding:5px 8px;margin:6px 12px;display:block;width:calc(100% - 24px)}
+.addleaf{margin:6px 9px 8px;width:calc(100% - 18px)}
+@media print{.nav,.tabs,.foot{display:none}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="app">
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1.5" y="2.5" width="15" height="13" rx="1" fill="none" stroke="#c9a6c1" stroke-width="1.6"/><line x1="9" y1="2.5" x2="9" y2="15.5" stroke="#c9a6c1" stroke-width="1.2"/><rect x="3.6" y="4.6" width="3.4" height="8.8" fill="#8f6a86"/></svg>
+    Fenestration
+  </div>
+  <menu>
+    <li><a href="#" aria-current="page">Quotes</a></li>
+    <li><a href="#">Designs</a></li>
+    <li><a href="#">Series</a></li>
+    <li><a href="#">Rates</a></li>
+    <li><a href="#">Surveys</a></li>
+  </menu>
+  <div class="who"><span class="badge">Odoo 19 · Community</span> erp.mycrewvault.com</div>
+</nav>
+
+<div class="cp">
+  <div class="crumb">Quotes / 169 M1 — Lake City, Lahore<b id="qtno">QT-00014</b></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-view="design">Design</button>
+    <button role="tab" aria-selected="false" data-view="pricing">Pricing</button>
+    <button role="tab" aria-selected="false" data-view="report">Report</button>
+  </div>
+  <div class="total"><div class="v" id="grand">—</div><div class="l" id="grandl">quote total incl. tax</div></div>
+</div>
+
+<div class="wrap">
+
+<section id="v-design">
+  <div class="cols">
+    <div class="card">
+      <h3>Positions <span class="r" id="poscount"></span></h3>
+      <div style="padding:8px 12px;border-bottom:1px solid var(--line-2)">
+        <label style="font-size:10.5px;color:var(--ink-3)">Project default System</label>
+        <select id="idefser" style="width:100%;margin-top:3px;font-size:12px;border:1px solid var(--line);border-radius:4px;padding:4px"></select>
+      </div>
+      <div id="poslist"></div>
+      <button class="addpos" id="addpos">+ Add position</button>
+    </div>
+
+    <div>
+      <div class="stage">
+        <svg id="dwg" class="drawing" viewBox="0 0 700 460" role="img" aria-labelledby="dwgt"></svg>
+        <div class="ctrls">
+          <div class="f"><label for="iw">Width <span id="uw">in</span></label><input id="iw" type="number" step="0.25"></div>
+          <div class="f"><label for="ih">Height <span id="uh">in</span></label><input id="ih" type="number" step="0.25"></div>
+          <div class="f"><label for="iq">Qty</label><input id="iq" type="number" step="1" min="1" style="width:50px"></div>
+          <div class="f"><label for="iloc">Location</label><input id="iloc" type="text" style="width:120px"></div>
+          <div class="sep"></div>
+          <div class="f"><label for="itype">Window type</label><select id="itype"></select></div>
+          <div class="f"><label for="iser">System <span class="tag" style="font-size:9px">was "Outer"</span></label><select id="iser"></select></div>
+          <div class="f"><label for="ithk">Thickness</label><select id="ithk"></select></div>
+          <div class="sep"></div>
+          <div class="f"><label for="igl">Glazing</label><select id="igl"></select></div>
+          <div class="f"><label for="ifin">Finish</label><select id="ifin"></select></div>
+          <div class="unitbtn" role="group" aria-label="units" id="unitToggle">
+            <button data-u="in" aria-pressed="true">in</button><button data-u="mm" aria-pressed="false">mm</button>
+          </div>
+        </div>
+        <div class="ctrls" style="border-top:1px dashed var(--line-2)">
+          <div class="f"><label>Layout preset</label><div class="chips" id="presets"></div></div>
+        </div>
+        <div class="ctrls" style="border-top:1px dashed var(--line-2)">
+          <div class="f" style="flex:1"><label id="selleaflabel">Selected leaf</label><div class="chips" id="ptypes"></div></div>
+          <div class="f" id="dirwrap"><label>Direction</label><div class="chips" id="dirchips"></div></div>
+        </div>
+        <p class="hint" id="hint"></p>
+      </div>
+    </div>
+
+    <div class="card insp">
+      <div class="itabs" role="tablist">
+        <button role="tab" aria-selected="true" data-itab="bom">BOM</button>
+        <button role="tab" aria-selected="false" data-itab="layout">Layout (2)</button>
+        <button role="tab" aria-selected="false" data-itab="check">Checks</button>
+      </div>
+      <div id="i-bom"></div>
+      <div id="i-layout" hidden></div>
+      <div id="i-check" hidden></div>
+    </div>
+  </div>
+</section>
+
+<section id="v-pricing" hidden>
+  <div class="two">
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <h3>Project price structure <span class="r">applies to all positions</span></h3>
+        <table id="cascade"></table>
+      </div>
+      <div class="card">
+        <h3>Rate per position <span class="r">calculated vs manual override</span></h3>
+        <table id="manual"></table>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <h3>Quote summary</h3>
+        <div class="sumbox" id="summary"></div>
+        <div class="bar" id="mixbar"></div>
+      </div>
+      <div class="card">
+        <h3>Series comparison <span class="r">same geometry, one design</span></h3>
+        <table class="cmp" id="cmp"></table>
+        <p class="hint">Compares the current position only, across every series of the same kind (sliding vs hinged).</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="v-report" hidden>
+  <div class="two">
+    <div id="docwrap"></div>
+    <div>
+      <div class="card" style="margin-bottom:14px">
+        <h3>Cutting yield <span class="r">14 / 16 / 18 ft bars</span></h3>
+        <div class="kpis" id="yieldkpi"></div>
+        <table id="cutlist"></table>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <h3>Wastage — measured, not assumed</h3>
+        <div class="sumbox" id="recon"></div>
+      </div>
+      <div class="card">
+        <h3>Reusable offcuts <span class="r">returned to stock</span></h3>
+        <table id="offcuts"></table>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="foot">
+  <span>Prototype — geometry from real project drawings. Glass/hardware rates and leaf size/weight limits are illustrative placeholders, not sourced from Chawla.</span>
+  <span>Aluminium rates: Chawla price list, PKR/ft, eff. 1-Jan-2026.</span>
+  <span>Currency PKR · sales tax 18% · stock bars 14 / 16 / 18 ft</span>
+</div>
+
+<script>
+"use strict";
+const F=(n,d=2)=>n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const I=n=>Math.round(n).toLocaleString('en-US');
+const el=id=>document.getElementById(id);
+
+/* ================= units ================= */
+const MM_PER_IN=25.4, FT=304.8, KERF=5, OFFCUT_MIN=400;
+let UNIT='in';
+const toDisp=mm=>UNIT==='in'?mm/MM_PER_IN:mm;
+const fromDisp=v=>UNIT==='in'?v*MM_PER_IN:v;
+const dimTxt=mm=>UNIT==='in'?(Math.round(mm/MM_PER_IN*100)/100)+'"':Math.round(mm)+'';
+
+/* ================= masters ================= */
+/* Rates PKR per running foot — Chawla price list, eff. 1-Jan-2026.
+   FINISHES column order matches the price list exactly. */
+const FINISHES=["Natural","H23 / PC RAL","Brown / PC Sahara","Black / Multi / SS Dull","Designer","C.Shine"];
+const RATE={
+ "DC-30 BA 100MM":{"NOR":[555,559,597,625,698,703],"1.6MM":[676,678,726,761,849,854],"2MM":[799,802,858,898,1002,1007]},
+ "DC-26 F":{"NOR":[728,731,781,817,911,916],"1.6MM":[868,872,932,977,1090,1095],"2MM":[1023,1026,1097,1149,1281,1286]},
+ "DC-30 C 100MM":{"NOR":[555,559,597,625,698,703],"1.6MM":[676,678,726,761,849,854],"2MM":[799,802,858,898,1002,1007]},
+ "M-23":{"NOR":[291,293,314,329,369,374],"1.6MM":[366,369,396,416,463,468],"2MM":[447,449,483,506,565,570]},
+ "M-24":{"NOR":[345,348,373,391,436,441],"1.6MM":[408,411,439,460,512,517],"2MM":[481,483,517,542,604,609]},
+ "M-26":{"NOR":[482,484,517,542,604,609],"1.6MM":[586,588,632,662,739,744],"2MM":[689,691,741,776,865,870]},
+ "M-28":{"NOR":[354,356,382,399,446,451],"1.6MM":[440,442,475,497,552,557],"2MM":[515,517,553,580,647,652]},
+ "M-28 A":{"NOR":[360,362,392,410,457,462],"1.6MM":[448,453,483,506,565,570],"2MM":[531,534,572,599,668,673]},
+ "D-29":{"NOR":[226,227,244,254,285,290],"1.6MM":[288,292,310,326,366,371],"2MM":[332,334,359,376,422,427]},
+ "D-29 A":{"NOR":[273,274,294,307,344,349]},
+ "EM-29":{"NOR":[226,227,244,254,285,290]},
+ "GSL-01T":{"1.6MM":[926,928,996,1042,1163,1168],"2MM":[1111,1114,1193,1248,1392,1397]},
+ "GSL-02":{"1.6MM":[570,572,615,644,719,724],"2MM":[678,680,726,761,849,854]},
+ "GSL-03":{"1.6MM":[517,520,557,583,651,656],"2MM":[627,630,663,692,772,777]},
+ "GSL-31":{"STD":[280,282,302,316,352,357]},
+ "GSL-04":{"STD":[221,226,239,252,299,304]},
+ "D-51 A":{"NOR":[374,376,402,421,470,475],"1.6MM":[463,465,499,522,581,586],"2MM":[555,559,599,626,698,703]},
+ "D-45 A":{"NOR":[354,356,382,399,446,451],"1.6MM":[448,453,483,506,565,570],"2MM":[539,542,579,608,677,682]},
+ "D-54 A":{"NOR":[327,329,352,370,414,419],"1.6MM":[398,400,428,448,502,507],"2MM":[479,481,515,539,601,606]},
+ "D-40":{"NOR":[395,397,425,444,499,504],"1.6MM":[447,449,480,502,560,565],"2MM":[515,517,553,579,647,652]},
+ "D-32 A":{"NOR":[156,158,168,177,198,203]},
+ "D-41 A":{"NOR":[122,123,131,137,153,158]},
+ "CW-01":{"2MM":[890,894,954,1001,1116,1121]}
+};
+const rateOf=(code,th,fin)=>{const r=RATE[code]; if(!r) return 0;
+  const row=r[th]||r[Object.keys(r)[0]]; return row[fin]!=null?row[fin]:row[0];};
+
+/* series 'kind' controls which leaf types it can host, matching the real
+   catalogue split between sliding systems and hinged systems */
+const SERIES={
+  box:{name:'Box Series',kind:'sliding',maxLeafW:900,maxLeafH:2400,maxLeafKg:55,frameFace:100,
+    roles:{frame:{code:'DC-30 BA 100MM',th:'1.6MM',sec:'100×30'},sash:{code:'M-23',th:'1.6MM',sec:'25×45'},
+      interlock:{code:'M-28',th:'1.6MM',sec:'35×45'},bead:{code:'D-29',th:'NOR',sec:'43×13.6'},
+      mesh:{code:'EM-29',th:'NOR',sec:'43×13.6'}}},
+  round:{name:'Round Series',kind:'sliding',maxLeafW:900,maxLeafH:2400,maxLeafKg:55,frameFace:100,
+    roles:{frame:{code:'DC-30 C 100MM',th:'1.6MM',sec:'100×30'},sash:{code:'M-26',th:'1.6MM',sec:'75×32'},
+      interlock:{code:'M-28 A',th:'1.6MM',sec:'35×45'},bead:{code:'D-29',th:'NOR',sec:'43×13.6'},
+      mesh:{code:'EM-29',th:'NOR',sec:'43×13.6'}}},
+  collar:{name:'Collar Box Series',kind:'sliding',maxLeafW:1000,maxLeafH:2600,maxLeafKg:70,frameFace:100,
+    roles:{frame:{code:'DC-26 F',th:'1.6MM',sec:'100×60'},sash:{code:'M-24',th:'1.6MM',sec:'22.5×58'},
+      interlock:{code:'M-28 A',th:'1.6MM',sec:'35×45'},bead:{code:'D-29 A',th:'NOR',sec:'43×15'},
+      mesh:{code:'EM-29',th:'NOR',sec:'43×13.6'}}},
+  gsl:{name:'Double Glaze Slim — GSL',kind:'sliding',maxLeafW:1100,maxLeafH:2800,maxLeafKg:95,frameFace:100,
+    roles:{frame:{code:'GSL-01T',th:'1.6MM',sec:'100×41'},sash:{code:'GSL-03',th:'1.6MM',sec:'30.5×70'},
+      interlock:{code:'GSL-02',th:'1.6MM',sec:'30.5×65'},bead:{code:'GSL-31',th:'STD',sec:'41×18'},
+      mesh:{code:'GSL-04',th:'STD',sec:'22×41'}}},
+  hinged:{name:'Hinged / Casement Window',kind:'hinged',maxLeafW:600,maxLeafH:1350,maxLeafKg:30,frameFace:90,
+    roles:{frame:{code:'D-51 A',th:'1.6MM',sec:'100×35'},sash:{code:'D-40',th:'1.6MM',sec:'42×45'},
+      bead:{code:'D-32 A',th:'NOR',sec:'42.2×17.7'},mesh:{code:'EM-29',th:'NOR',sec:'43×13.6'}}},
+  curtain:{name:'Curtain Wall',kind:'hinged',maxLeafW:2000,maxLeafH:3000,maxLeafKg:400,frameFace:150,
+    roles:{frame:{code:'CW-01',th:'2MM',sec:'127×64'},sash:{code:'D-40',th:'1.6MM',sec:'42×45'},
+      bead:{code:'D-29',th:'NOR',sec:'43×13.6'},mesh:{code:'EM-29',th:'NOR',sec:'43×13.6'}}}
+};
+/* role variant groups — same physical role, a different real code from the
+   price list. Confirmed pattern: Logikal/EvA both expand one role into a
+   swappable set rather than hard-coding a single profile per role. */
+const ROLE_VARIANTS={
+  box:   {frame:['DC-30 BA 100MM','DC-30 C 100MM'], sash:['M-23','M-26']},
+  round: {frame:['DC-30 C 100MM','DC-30 BA 100MM'], sash:['M-26','M-23']},
+  collar:{frame:['DC-26 F'], sash:['M-24']},
+  gsl:   {frame:['GSL-01T'], sash:['GSL-03']},
+  hinged:{frame:['D-51 A','D-45 A','D-54 A'], sash:['D-40']},
+  curtain:{frame:['CW-01'], sash:['D-40']}
+};
+/* thickness options actually priced for a given profile code */
+const thicknessOptionsFor=code=>Object.keys(RATE[code]||{NOR:1});
+/* roles a sales user may drop entirely (never frame/sash/bead/mesh — those
+   are structural to the leaf that owns them) */
+const OPTIONAL_ROLES=['interlock'];
+const GLASS={
+  cl6 :{name:'6 mm clear toughened (rate not sourced)',rate:520 ,kgm2:15,mm:6},
+  tg8 :{name:'8 mm clear toughened (rate not sourced)',rate:740 ,kgm2:20,mm:8},
+  dgu :{name:'24 mm DGU 6+12+6 (rate not sourced)'   ,rate:1650,kgm2:30,mm:24}
+};
+const HW={roller:450,meshRoller:280,lock:380,handle:220,hinge:260,stay:210}; // placeholder, not sourced
+const STOCK=[{n:'14 ft',mm:14*FT,ft:14},{n:'16 ft',mm:16*FT,ft:16},{n:'18 ft',mm:18*FT,ft:18}];
+
+/* leaf types: which series 'kind' can host them, default direction */
+const PT={
+  fixed   :{name:'Fixed'            ,operable:false,glazed:true ,kinds:['sliding','hinged','fixed'],dir:null},
+  slider  :{name:'Slider'           ,operable:true ,glazed:true ,kinds:['sliding']                  ,dir:'slide'},
+  mesh    :{name:'Mesh'             ,operable:true ,glazed:false,kinds:['sliding','hinged']          ,dir:'slide'},
+  casement:{name:'Casement'         ,operable:true ,glazed:true ,kinds:['hinged']                    ,dir:'hinge',defHinge:'left'},
+  awning  :{name:'Awning (top-hung)',operable:true ,glazed:true ,kinds:['hinged']                    ,dir:'hinge',defHinge:'top'},
+  hopper  :{name:'Hopper (btm-hung)',operable:true ,glazed:true ,kinds:['hinged']                    ,dir:'hinge',defHinge:'bottom'}
+};
+const leafTypesFor=kind=>Object.entries(PT).filter(([k,v])=>v.kinds.includes(kind)).map(([k])=>k);
+
+/* window type: a label the salesperson picks first; sets a sensible
+   default series + starter grid. Series stays independently changeable. */
+const WTYPE={
+  fixw    :{name:'Fix Window',series:'box',mk:()=>ROWS.fixed1()},
+  fixslide:{name:'Fix + Sliding Window',series:'box',mk:()=>ROWS.fixSlide()},
+  slidew  :{name:'Sliding Window',series:'box',mk:()=>ROWS.slide2()},
+  fixopen :{name:'Fix + Openable Window',series:'hinged',mk:()=>ROWS.fixCasement()},
+  openw   :{name:'Openable Window',series:'hinged',mk:()=>ROWS.casement1()},
+  curtw   :{name:'Fix Window — Curtain Wall',series:'curtain',mk:()=>ROWS.stack3()}
+};
+
+/* row/leaf grid templates — every shape below is taken from the
+   169 M1 Lake City drawing set */
+const ROWS={
+  fixed1     :()=>[{leaves:[{t:'fixed'}]}],
+  fixSlide   :()=>[{leaves:[{t:'fixed'},{t:'slider',slideDir:'left'}]}],
+  slide2     :()=>[{leaves:[{t:'slider',slideDir:'right'},{t:'slider',slideDir:'left'}]}],
+  slide3mesh :()=>[{leaves:[{t:'slider',slideDir:'right'},{t:'slider',slideDir:'left'},{t:'mesh',slideDir:'left'}]}],
+  frenchDoor :()=>[{leaves:[{t:'casement',hinge:'left',swing:'in'},{t:'fixed'},{t:'casement',hinge:'right',swing:'in'}]}],
+  casement1  :()=>[{leaves:[{t:'casement',hinge:'left',swing:'out'}]}],
+  fixCasement:()=>[{leaves:[{t:'fixed'},{t:'casement',hinge:'right',swing:'out'}]}],
+  hopperFix  :()=>[{leaves:[{t:'hopper',hinge:'bottom',swing:'out'}]},{leaves:[{t:'fixed'}]}],
+  topPairBtm :()=>[{leaves:[{t:'casement',hinge:'left',swing:'out'},{t:'fixed'}]},{leaves:[{t:'fixed'}]}],
+  stack3     :()=>[{leaves:[{t:'fixed'}]},{leaves:[{t:'fixed'}]},{leaves:[{t:'fixed'}]}]
+};
+/* Template library, organised the way both EvA and Logikal actually group
+   it: by category first (Openable / Sliding by track count / Mesh /
+   Curtain Wall), a specific shape second. */
+const PRESET_CATS=[
+  {key:'openable',label:'Openable Designs',kinds:['hinged']},
+  {key:'sliding' ,label:'Sliding Designs' ,kinds:['sliding']},
+  {key:'mesh'    ,label:'Add-on Mesh Sash',kinds:['sliding','hinged']},
+  {key:'curtain' ,label:'Stick Curtain Wall Designs',kinds:['hinged']}
+];
+const PRESETS={
+  fixw1  :{cat:'openable',label:'Fixed'              ,kinds:['sliding','hinged','fixed'],mk:ROWS.fixed1},
+  case1  :{cat:'openable',label:'Casement'           ,kinds:['hinged'],mk:ROWS.casement1},
+  fixcs  :{cat:'openable',label:'Fix + Casement'     ,kinds:['hinged'],mk:ROWS.fixCasement},
+  frdoor :{cat:'openable',label:'Twin Sash: case+fix+case',kinds:['hinged'],mk:ROWS.frenchDoor},
+  hopfix :{cat:'openable',label:'Hopper over Fixed'  ,kinds:['hinged'],mk:ROWS.hopperFix},
+  toppair:{cat:'openable',label:'2-across / 1 below' ,kinds:['hinged'],mk:ROWS.topPairBtm},
+  fixsl2 :{cat:'sliding' ,label:'2 Track 2 Panel (Fix+Slide)',kinds:['sliding'],mk:ROWS.fixSlide},
+  sl2    :{cat:'sliding' ,label:'2 Track 2 Panel'    ,kinds:['sliding'],mk:ROWS.slide2},
+  sl3m   :{cat:'mesh'    ,label:'3 Track + Mesh'     ,kinds:['sliding'],mk:ROWS.slide3mesh},
+  stack3 :{cat:'curtain' ,label:'3-tier fixed stack' ,kinds:['fixed','hinged'],mk:ROWS.stack3},
+  cwcase :{cat:'curtain' ,label:'Curtain wall + vent',kinds:['hinged'],mk:ROWS.fixCasement}
+};
+
+/* normalise a freshly-picked template's relative weights to the design's
+   actual W/H in mm (equal split within each row/leaf unless overridden) */
+function normaliseRows(rows,Wmm,Hmm){
+  const rh=Hmm/rows.length;
+  return rows.map(r=>{
+    const n=r.leaves.length, lw=Wmm/n;
+    return {h:rh,leaves:r.leaves.map(l=>({w:lw,...l}))};
+  });
+}
+
+/* ================= quote state ================= */
+let CASCADE=[
+  {k:'profile'  ,n:'Profile cost (feet used)' ,t:'calc'},
+  {k:'glass'    ,n:'Glass cost'               ,t:'calc'},
+  {k:'glassW'   ,n:'Glass wastage'            ,t:'pct',v:5},
+  {k:'hw'       ,n:'Hardware cost'            ,t:'calc'},
+  {k:'raw'      ,n:'Raw material total'       ,t:'sub'},
+  {k:'fab'      ,n:'Fabrication labour'       ,t:'m2',v:95},
+  {k:'inst'     ,n:'Installation labour'      ,t:'m2',v:70},
+  {k:'subtot'   ,n:'Subtotal including labour',t:'sub'},
+  {k:'profit'   ,n:'Profit'                   ,t:'pct',v:35},
+  {k:'basic'    ,n:'Basic value'              ,t:'sub',show:true}
+];
+const IN=v=>v*MM_PER_IN;
+const QUOTE={ref:'QT-00014',project:'169 M1, Lake City — Lahore',client:'Mr. Muaaz',
+  discount:0,transport:1200,loading:800,vat:18,minMargin:20,defaultSeries:'box',
+  designs:[
+    {ref:'D1',loc:'Drawing room',qty:1,W:IN(102),H:IN(99),series:'hinged',wtype:'fixopen',
+     glass:'tg8',finish:2,manual:null,
+     rows:[{h:IN(99),leaves:[{t:'casement',w:IN(30),hinge:'left',swing:'in'},{t:'fixed',w:IN(42)},{t:'casement',w:IN(30),hinge:'right',swing:'in'}]}]},
+    {ref:'D2',loc:'Bathroom',qty:1,W:IN(24),H:IN(48),series:'hinged',wtype:'fixopen',
+     glass:'cl6',finish:0,manual:null,
+     rows:[{h:IN(24),leaves:[{t:'hopper',w:IN(24),hinge:'top',swing:'out'}]},{h:IN(24),leaves:[{t:'fixed',w:IN(24)}]}]},
+    {ref:'D3',loc:'Basement',qty:1,W:IN(122),H:IN(22),series:'box',wtype:'fixslide',
+     glass:'tg8',finish:2,manual:null,
+     rows:[{h:IN(22),leaves:[{t:'fixed',w:IN(61)},{t:'slider',w:IN(61),slideDir:'left'}]}]},
+    {ref:'D4',loc:'First floor — curtain wall',qty:1,W:IN(79),H:IN(229),series:'curtain',wtype:'curtw',
+     glass:'dgu',finish:0,manual:null,
+     rows:[{h:IN(76.3),leaves:[{t:'fixed',w:IN(79)}]},{h:IN(76.3),leaves:[{t:'fixed',w:IN(79)}]},{h:IN(76.3),leaves:[{t:'fixed',w:IN(79)}]}]}
+  ]};
+let cur=0, selRow=0, selLeaf=0, view='design', itab='bom';
+
+/* ================= explosion engine ================= */
+function leaf(d,ri,li){return d.rows[ri].leaves[li];}
+function rowH(d,ri){return d.rows[ri].h;}
+
+/* per-design overrides — this is the "choose or drop" mechanism:
+   roleOverrides: {role: profile code}  — swap within ROLE_VARIANTS
+   thickness:     profile thickness applied to every role's rate lookup
+   dropRoles:     Set of OPTIONAL_ROLES the user removed from this design
+   hwRemoved:     Set of hardware line keys removed
+   hwExtra:       [{name,qty,rate}] user-added hardware lines            */
+function ensureOverrides(d){
+  d.roleOverrides=d.roleOverrides||{};
+  d.thickness=d.thickness||null;
+  d.dropRoles=d.dropRoles||new Set();
+  d.hwRemoved=d.hwRemoved||new Set();
+  d.hwExtra=d.hwExtra||[];
+}
+function roleCode(d,S,role){
+  const ov=d.roleOverrides[role];
+  const base=S.roles[role]; if(!base) return null;
+  const code=ov||base.code;
+  const th=d.thickness&&RATE[code]&&RATE[code][d.thickness] ? d.thickness : base.th;
+  return {code,th,sec:base.sec};
+}
+function explode(d){
+  ensureOverrides(d);
+  const S=SERIES[d.series], fin=d.finish, G=GLASS[d.glass];
+  const prof=[], glass=[], hw=[];
+  const push=(role,len,qty,tag)=>{
+    if(d.dropRoles.has(role)) return;
+    const r=roleCode(d,S,role); if(!r) return;
+    prof.push({role,code:r.code,th:r.th,sec:r.sec,len,qty,rate:rateOf(r.code,r.th,fin),
+      tag:{ref:d.ref,loc:d.loc,...tag}})};
+  const addHW=(key,name,qty,rate)=>{ if(d.hwRemoved.has(key)) return; hw.push({key,name,qty,rate}); };
+
+  push('frame',d.W,2,{where:'outer frame (top/bottom)'});
+  push('frame',d.H,2,{where:'outer frame (jambs)'});
+  if(d.rows.length>1) push('frame',d.W,d.rows.length-1,{where:'transom'});
+
+  d.rows.forEach((row,ri)=>{
+    const rh=row.h;
+    if(row.leaves.length>1){
+      const role=row.leaves.some(l=>l.t==='slider')?'interlock':'frame';
+      push(role,rh,row.leaves.length-1,{row:ri+1,where:'vertical mullion'});
+    }
+    row.leaves.forEach((lf,li)=>{
+      const t=PT[lf.t], lw=Math.max(10,lf.w-10), lh=Math.max(10,rh-10);
+      const where={row:ri+1,leaf:li+1,role_:lf.t};
+      if(lf.t==='mesh'){
+        push('mesh',lw,2,{...where,where:'mesh top/bottom'}); push('mesh',lh,2,{...where,where:'mesh sides'});
+      } else if(lf.t==='fixed'){
+        push('bead',lw,2,{...where,where:'fixed bead top/bottom'}); push('bead',lh,2,{...where,where:'fixed bead sides'});
+      } else {
+        push('sash',lw,2,{...where,where:'sash top/bottom'}); push('sash',lh,2,{...where,where:'sash sides'});
+      }
+      if(t.glazed){
+        const gw=(lf.w-60)/1000, gh=(rh-60)/1000;
+        glass.push({name:G.name,w:Math.round(lf.w-60),h:Math.round(rh-60),m2:Math.max(0,gw*gh),rate:G.rate});
+      }
+      const k=`r${ri}l${li}`;
+      if(lf.t==='slider') addHW(k+'roller','Slider roller set',1,HW.roller);
+      if(lf.t==='mesh')   addHW(k+'mroller','Mesh roller set',1,HW.meshRoller);
+      if(lf.t==='casement'||lf.t==='awning'||lf.t==='hopper'){
+        const n=rh>1200?3:2;
+        addHW(k+'hinge',`Hinge (×${n})`,n,HW.hinge);
+        addHW(k+'handle','Handle',1,HW.handle);
+        if(lf.t!=='casement') addHW(k+'stay','Friction stay',1,HW.stay);
+      }
+    });
+    if(row.leaves.filter(l=>l.t==='slider').length>=2) addHW('r'+ri+'lock','Sliding lock',1,HW.lock);
+  });
+  d.hwExtra.forEach((x,i)=>hw.push({key:'extra'+i,name:x.name,qty:x.qty,rate:x.rate,extra:true}));
+
+  const ft=prof.reduce((s,p)=>s+p.len/FT*p.qty,0);
+  const profileCost=prof.reduce((s,p)=>s+p.len/FT*p.qty*p.rate,0);
+  const glassM2=glass.reduce((s,g)=>s+g.m2,0);
+  const glassCost=glass.reduce((s,g)=>s+g.m2*g.rate,0);
+  const hwCost=hw.reduce((s,h)=>s+h.qty*h.rate,0);
+  const m2=d.W/1000*d.H/1000, sqft=m2*10.7639;
+  return {S,G,prof,glass,hw,ft,profileCost,glassCost,hwCost,glassM2,m2,sqft};
+}
+
+/* ---- nesting: cheapest mix of 14/16/18 ft bars ----
+   pieces are {len,tag} so the cut list stays traceable to a window/row/leaf,
+   satisfying the cumulative "where does this piece go" requirement. */
+function packInto(barMM,pcs){let r=barMM,take=[];
+  pcs.forEach(p=>{if(p.len+KERF<=r){take.push(p);r-=(p.len+KERF);}});
+  return {take,rem:r};}
+function nest(pieces){
+  const maxBar=STOCK[STOCK.length-1].mm;
+  const oversize=pieces.filter(p=>p.len+KERF>maxBar);
+  const fitting=pieces.filter(p=>p.len+KERF<=maxBar);
+  const total=fitting.reduce((a,b)=>a+b.len,0), plans=[];
+  STOCK.forEach(st=>{
+    let left=[...fitting].sort((a,b)=>b.len-a.len), bars=[];
+    while(left.length){const {take,rem}=packInto(st.mm,left);
+      if(!take.length){left.shift();continue;}
+      bars.push({len:st,cuts:take,rem}); take.forEach(p=>left.splice(left.indexOf(p),1));}
+    plans.push({label:st.n,bars});
+  });
+  {let left=[...fitting].sort((a,b)=>b.len-a.len), bars=[];
+   while(left.length){let best=null;
+     STOCK.forEach(st=>{const {take,rem}=packInto(st.mm,left);
+       if(!take.length)return; const sc=rem/take.length;
+       if(!best||sc<best.sc) best={sc,st,take,rem};});
+     if(!best){left.shift();continue;}
+     bars.push({len:best.st,cuts:best.take,rem:best.rem});
+     best.take.forEach(p=>left.splice(left.indexOf(p),1));}
+   plans.push({label:'Mixed',bars});}
+  plans.forEach(p=>{p.ft=p.bars.reduce((s,b)=>s+b.len.ft,0); p.yield=p.ft?total/FT/p.ft*100:0;});
+  plans.sort((a,b)=>a.ft-b.ft);
+  const best=plans[0];
+  const byRef={}; fitting.forEach(p=>{byRef[p.tag.ref]=(byRef[p.tag.ref]||0)+1;});
+  return {best,plans,totalMM:total,usedFt:total/FT,oversizeN:oversize.length,byRef,
+    offs:best.bars.map(b=>b.rem).filter(r=>r>=OFFCUT_MIN)};
+}
+function cutPlan(){
+  const need={};
+  QUOTE.designs.forEach(d=>{const x=explode(d);
+    x.prof.forEach(p=>{const k=p.code+'|'+p.th+'|'+d.finish;
+      (need[k]=need[k]||{code:p.code,th:p.th,sec:p.sec,rate:p.rate,pcs:[]});
+      for(let i=0;i<p.qty*d.qty;i++) need[k].pcs.push({len:Math.round(p.len),tag:p.tag});});});
+  const plan=[], t={ft:0,usedFt:0,cost:0,bars:0,off:0,theo:0};
+  Object.values(need).forEach(g=>{
+    const r=nest(g.pcs);
+    const row={...g,pcsN:g.pcs.length,bars:r.best.bars.length,mix:r.best.label,
+      ft:r.best.ft,usedFt:r.usedFt,yield:r.best.yield,offs:r.offs,oversizeN:r.oversizeN,
+      byRef:r.byRef,cost:r.best.ft*g.rate, theo:r.usedFt*g.rate, plans:r.plans};
+    plan.push(row);
+    t.ft+=row.ft; t.usedFt+=row.usedFt; t.cost+=row.cost; t.theo+=row.theo;
+    t.bars+=row.bars; t.off+=row.offs.reduce((s,v)=>s+v,0);
+  });
+  plan.sort((a,b)=>b.cost-a.cost);
+  t.yield=t.ft?t.usedFt/t.ft*100:0;
+  t.wastagePct=t.theo?(t.cost-t.theo)/t.theo*100:0;
+  return {plan,t};
+}
+
+/* ================= cost cascade ================= */
+function costOne(d){
+  const x=explode(d), g=k=>{const r=CASCADE.find(c=>c.k===k);return r?+r.v||0:0};
+  const rows=[], add=(n,val,k)=>{rows.push({n,val,k});return val};
+  let profile=add('Profile cost',x.profileCost,'profile');
+  let glass=add('Glass cost',x.glassCost,'glass');
+  let gw=add('Glass wastage',glass*g('glassW')/100,'glassW');
+  let hw=add('Hardware cost',x.hwCost,'hw');
+  const raw=profile+glass+gw+hw; add('Raw material total',raw,'raw');
+  const fab=add('Fabrication labour',x.m2*g('fab'),'fab');
+  const inst=add('Installation labour',x.m2*g('inst'),'inst');
+  const sub=raw+fab+inst; add('Subtotal including labour',sub,'subtot');
+  const profit=add('Profit',sub*g('profit')/100,'profit');
+  const basic=sub+profit; add('Basic value',basic,'basic');
+  return {x,rows,raw,sub,cost:sub,basic};
+}
+function priceOne(d){
+  const c=costOne(d);
+  const basic=d.manual!=null?d.manual*c.x.sqft:c.basic;
+  const margin=basic>0?(basic-c.cost)/basic*100:0;
+  return {...c,basic,rate:basic/Math.max(c.x.sqft,.001),margin,overridden:d.manual!=null};
+}
+function quoteTotals(){
+  let basic=0,cost=0,sqft=0,units=0,prof=0,gl=0,hw=0,lab=0;
+  QUOTE.designs.forEach(d=>{const p=priceOne(d);
+    basic+=p.basic*d.qty; cost+=p.cost*d.qty; sqft+=p.x.sqft*d.qty; units+=d.qty;
+    prof+=p.x.profileCost*d.qty; gl+=p.x.glassCost*d.qty; hw+=p.x.hwCost*d.qty;
+    lab+=(p.rows.find(r=>r.k==='fab').val+p.rows.find(r=>r.k==='inst').val)*d.qty;});
+  const afterDisc=basic-QUOTE.discount;
+  const project=afterDisc+QUOTE.transport+QUOTE.loading;
+  const vat=project*QUOTE.vat/100;
+  return {basic,cost,sqft,units,prof,gl,hw,lab,afterDisc,project,vat,grand:project+vat,
+    margin:basic>0?(basic-cost)/basic*100:0};
+}
+
+/* ================= validation ================= */
+function checks(d){
+  const S=SERIES[d.series], out=[];
+  const maxBar=STOCK[STOCK.length-1].mm;   // longest stock length actually sold, 18 ft
+  // the continuous outer-frame jambs/rails span the OVERALL opening, not any one row/leaf
+  if(d.W>maxBar) out.push(['err','Width exceeds longest stock bar',
+    `${dimTxt(d.W)} top/bottom rail needs a continuous member longer than an ${STOCK[STOCK.length-1].n} bar (${dimTxt(maxBar)}). Split with a coupler so each half is within stock length.`,
+    {label:'Split with coupler',fn:()=>splitWithCoupler(d,'W')}]);
+  if(d.H>maxBar) out.push(['err','Height exceeds longest stock bar',
+    `${dimTxt(d.H)} vertical jamb needs a continuous member longer than an ${STOCK[STOCK.length-1].n} bar (${dimTxt(maxBar)}). Split with a coupler so each half is within stock length.`,
+    {label:'Split with coupler',fn:()=>splitWithCoupler(d,'H')}]);
+  d.rows.forEach((row,ri)=>row.leaves.forEach((lf,li)=>{
+    const t=PT[lf.t];
+    if(!t.kinds.includes(S.kind)) out.push(['err',`Row ${ri+1} leaf ${li+1}`,`${t.name} isn't available on ${S.name} — that leaf type belongs to a different series kind.`]);
+    if(lf.t==='mesh') return;
+    if(lf.w>S.maxLeafW) out.push(['warn',`Row ${ri+1} leaf ${li+1} width`,`${dimTxt(lf.w)} exceeds ${dimTxt(S.maxLeafW)} for ${S.name}.`]);
+    if(row.h>S.maxLeafH) out.push(['warn',`Row ${ri+1} height`,`${dimTxt(row.h)} exceeds ${dimTxt(S.maxLeafH)} for ${S.name}.`]);
+    if(t.glazed){
+      const kg=(lf.w-60)/1000*(row.h-60)/1000*GLASS[d.glass].kgm2;
+      if(kg>S.maxLeafKg) out.push(['warn',`Row ${ri+1} leaf ${li+1} weight`,`${F(kg,1)} kg of ${GLASS[d.glass].name.split(' (')[0]} is over the ${S.maxLeafKg} kg rating.`]);
+    }
+  }));
+  ensureOverrides(d);
+  if(d.dropRoles.has('interlock') && d.rows.some(r=>r.leaves.length>1 && r.leaves.some(l=>l.t==='slider')))
+    out.push(['warn','Interlock dropped','No interlock profile at the meeting rail — leaves may not seal. Only drop this if the sashes self-mate.']);
+  const p=priceOne(d);
+  if(p.margin<QUOTE.minMargin) out.push(['err','Below minimum margin',`${F(p.margin,1)}% against a floor of ${QUOTE.minMargin}%. Needs approval before sending.`]);
+  if(p.overridden) out.push(['warn','Manual rate in use',`Priced at ${I(d.manual)}/sqft instead of the calculated rate.`]);
+  if(!out.length) out.push(['ok','Manufacturable','Every leaf is inside the series limits and margin is above the floor.']);
+  return out;
+}
+/* Coupler: split an oversized run into two positions, each within stock
+   length, joined conceptually by a coupler mullion. Confirmed real
+   terminology (Logikal's "Couplings" tool). */
+function splitWithCoupler(d,axis){
+  const i=QUOTE.designs.indexOf(d); if(i<0) return;
+  const clone=JSON.parse(JSON.stringify(d));
+  const maxBar=STOCK[STOCK.length-1].mm-200; // leave room for the coupler mullion itself
+  if(axis==='W'){
+    const halfA=Math.min(Math.round(d.W/2),maxBar), halfB=d.W-halfA;
+    d.W=halfA; clone.W=halfB;
+    d.rows.forEach(r=>{const sw=r.leaves.reduce((s,l)=>s+l.w,0); r.leaves.forEach(l=>l.w=l.w/sw*halfA);});
+    clone.rows.forEach(r=>{const sw=r.leaves.reduce((s,l)=>s+l.w,0); r.leaves.forEach(l=>l.w=l.w/sw*halfB);});
+  } else {
+    const halfA=Math.min(Math.round(d.H/2),maxBar), halfB=d.H-halfA;
+    d.H=halfA; clone.H=halfB;
+    const sh=d.rows.reduce((s,r)=>s+r.h,0); d.rows.forEach(r=>r.h=r.h/sh*halfA);
+    const sh2=clone.rows.reduce((s,r)=>s+r.h,0); clone.rows.forEach(r=>r.h=r.h/sh2*halfB);
+  }
+  d.ref=d.ref+'A'; d.loc=d.loc+' (coupled A)';
+  clone.ref=clone.ref.replace(/A?$/,'')+'B'; clone.loc=clone.loc.replace(' (coupled A)','')+' (coupled B)';
+  QUOTE.designs.splice(i+1,0,clone);
+  cur=i; selRow=0; selLeaf=0;
+}
+
+/* ================= drawing ================= */
+const SVGNS='http://www.w3.org/2000/svg';
+function mk(t,a){const e=document.createElementNS(SVGNS,t);for(const k in a)e.setAttribute(k,a[k]);return e}
+function drawDim(g,x1,y1,x2,y2,txt,vert){
+  const c='var(--ink-2)';
+  g.appendChild(mk('line',{x1,y1,x2,y2,stroke:c,'stroke-width':.8}));
+  [[x1,y1],[x2,y2]].forEach(([x,y])=>{
+    g.appendChild(vert?mk('line',{x1:x-3.5,y1:y,x2:x+3.5,y2:y,stroke:c,'stroke-width':.8})
+                      :mk('line',{x1:x,y1:y-3.5,x2:x,y2:y+3.5,stroke:c,'stroke-width':.8}));});
+  const mx=(x1+x2)/2,my=(y1+y2)/2;
+  const t=mk('text',{x:mx,y:my,fill:'var(--ink)','font-size':10,'font-family':'IBM Plex Mono, monospace',
+    'text-anchor':'middle','dominant-baseline':'middle'});
+  if(vert)t.setAttribute('transform',`rotate(-90 ${mx} ${my})`);
+  t.textContent=txt;
+  const bw=String(txt).length*6.1+6;
+  g.appendChild(mk('rect',vert?{x:mx-6,y:my-bw/2,width:12,height:bw,fill:'var(--card)'}
+                             :{x:mx-bw/2,y:my-7,width:bw,height:14,fill:'var(--card)'}));
+  g.appendChild(t);
+}
+function leafGlyph(g,x,y,w,h,lf){
+  const t=PT[lf.t];
+  if(lf.t==='slider'){
+    const dir=lf.slideDir==='left'?-1:1, cx=x+w/2, cy=y+h/2, aw=Math.min(w*.32,24);
+    g.appendChild(mk('path',{d:`M${cx-aw*dir},${cy} L${cx+aw*dir},${cy} M${cx+aw*dir},${cy} l${-5*dir},-4 M${cx+aw*dir},${cy} l${-5*dir},4`,
+      stroke:'var(--ink-2)','stroke-width':1.1,fill:'none'}));
+  } else if(t.dir==='hinge'){
+    const hp={left:[x,y+h/2],right:[x+w,y+h/2],top:[x+w/2,y],bottom:[x+w/2,y+h]}[lf.hinge||t.defHinge];
+    const corners=[[x+2,y+2],[x+w-2,y+2],[x+w-2,y+h-2],[x+2,y+h-2]];
+    corners.forEach(([cx,cy])=>g.appendChild(mk('line',{x1:hp[0],y1:hp[1],x2:cx,y2:cy,
+      stroke:'var(--ink-2)','stroke-width':.6,'stroke-dasharray':'3 2'})));
+    g.appendChild(mk('circle',{cx:hp[0],cy:hp[1],r:2.6,fill:'var(--brand)'}));
+    const tag=mk('text',{x:x+w/2,y:y+h-6,fill:'var(--ink-2)','font-size':8.5,'text-anchor':'middle',
+      'font-family':'IBM Plex Mono, monospace'}); tag.textContent=(lf.swing||'out').toUpperCase();
+    g.appendChild(tag);
+  }
+  if(lf.t==='mesh'){
+    const lb=mk('text',{x:x+w/2,y:y+12,fill:'var(--ink-2)','font-size':9,'text-anchor':'middle',
+      'font-family':'IBM Plex Mono, monospace'}); lb.textContent='MESH'; g.appendChild(lb);
+  }
+}
+let dragging=null;
+function draw(){
+  const svg=el('dwg'); svg.innerHTML=''; const d=QUOTE.designs[cur];
+  const defs=mk('defs',{});
+  const pat=mk('pattern',{id:'mesh',width:5,height:5,patternUnits:'userSpaceOnUse'});
+  pat.appendChild(mk('rect',{width:5,height:5,fill:'var(--glass)','fill-opacity':.35}));
+  pat.appendChild(mk('path',{d:'M0,5 L5,0',stroke:'var(--mill-d)','stroke-width':.7}));
+  defs.appendChild(pat); svg.appendChild(defs);
+  const ti=mk('title',{id:'dwgt'}); ti.textContent=`${d.ref} ${dimTxt(d.W)}×${dimTxt(d.H)} ${SERIES[d.series].name}`; svg.appendChild(ti);
+
+  const L=64,T=30,AW=700-L-64,AH=460-T-108;
+  const s=Math.min(AW/d.W,AH/d.H), w=d.W*s, h=d.H*s, x0=L+(AW-w)/2, y0=T+(AH-h)/2;
+  const g=mk('g',{}); svg.appendChild(g);
+  const ff=Math.max(4,SERIES[d.series].frameFace*s*.4);
+  g.appendChild(mk('rect',{x:x0,y:y0,width:w,height:h,fill:'var(--mill)',stroke:'var(--mill-d)','stroke-width':1}));
+
+  const totH=d.rows.reduce((a,r)=>a+r.h,0);
+  let ry=y0+ff;
+  d.rows.forEach((row,ri)=>{
+    const rh=(row.h/totH)*(h-2*ff);
+    let rx=x0+ff; const totW=row.leaves.reduce((a,l)=>a+l.w,0), iw=w-2*ff;
+    row.leaves.forEach((lf,li)=>{
+      const lw=(lf.w/totW)*iw, sw=Math.max(3,7*s);
+      const gA=mk('g',{style:'cursor:pointer'});
+      gA.addEventListener('click',()=>{selRow=ri;selLeaf=li;render()});
+      gA.appendChild(mk('rect',{x:rx,y:ry,width:lw,height:rh,fill:'var(--mill)','fill-opacity':.55,stroke:'var(--mill-d)','stroke-width':.7}));
+      gA.appendChild(mk('rect',{x:rx+sw,y:ry+sw,width:Math.max(1,lw-2*sw),height:Math.max(1,rh-2*sw),
+        fill:lf.t==='mesh'?'url(#mesh)':'var(--glass)',stroke:'var(--glass-d)','stroke-width':.6}));
+      if(ri===selRow&&li===selLeaf) gA.appendChild(mk('rect',{x:rx+1,y:ry+1,width:lw-2,height:rh-2,fill:'none',
+        stroke:'var(--brand)','stroke-width':1.8,'stroke-dasharray':'4 3'}));
+      leafGlyph(gA,rx,ry,lw,rh,lf);
+      g.appendChild(gA);
+      // vertical divider drag (within row)
+      if(li<row.leaves.length-1){
+        const dx=rx+lw;
+        const hit=mk('rect',{x:dx-6,y:ry,width:12,height:rh,fill:'transparent',style:'cursor:col-resize'});
+        hit.addEventListener('pointerdown',ev=>{ev.preventDefault();dragging={kind:'v',ri,li,startX:ev.clientX,
+          a:row.leaves[li].w,b:row.leaves[li+1].w,pxPerMM:w/d.W};hit.setPointerCapture(ev.pointerId);});
+        g.appendChild(mk('line',{x1:dx,y1:ry+3,x2:dx,y2:ry+rh-3,stroke:'var(--brand)','stroke-width':1.2,'stroke-opacity':.45}));
+        g.appendChild(hit);
+      }
+      rx+=lw;
+    });
+    // horizontal row-divider drag
+    if(ri<d.rows.length-1){
+      const dy=ry+rh;
+      const hit=mk('rect',{x:x0+ff,y:dy-6,width:w-2*ff,height:12,fill:'transparent',style:'cursor:row-resize'});
+      hit.addEventListener('pointerdown',ev=>{ev.preventDefault();dragging={kind:'h',ri,startY:ev.clientY,
+        a:d.rows[ri].h,b:d.rows[ri+1].h,pxPerMM:h/d.H};hit.setPointerCapture(ev.pointerId);});
+      g.appendChild(mk('line',{x1:x0+ff+3,y1:dy,x2:x0+w-ff-3,y2:dy,stroke:'var(--brand)','stroke-width':1.2,'stroke-opacity':.45}));
+      g.appendChild(hit);
+    }
+    ry+=rh;
+  });
+
+  const dg=mk('g',{}); svg.appendChild(dg);
+  // per-row leaf widths (drawn under the widest / bottom-most row for clarity, or each row if leaves differ)
+  let dy0=y0+h+18;
+  d.rows.forEach((row,ri)=>{
+    if(row.leaves.length>1){
+      let cx=x0+ff; const totW=row.leaves.reduce((a,l)=>a+l.w,0), iw=w-2*ff;
+      row.leaves.forEach(lf=>{const lw=lf.w/totW*iw; drawDim(dg,cx,dy0,cx+lw,dy0,dimTxt(lf.w)); cx+=lw;});
+      dy0+=20;
+    }
+  });
+  drawDim(dg,x0,dy0,x0+w,dy0,dimTxt(d.W));
+  // row heights on the right if >1 row, else single H on the left
+  if(d.rows.length>1){
+    let ry2=y0+ff;
+    d.rows.forEach(row=>{const rh=row.h/totH*(h-2*ff);
+      drawDim(dg,x0-22,ry2,x0-22,ry2+rh,dimTxt(row.h),true); ry2+=rh;});
+  } else {
+    drawDim(dg,x0-22,y0,x0-22,y0+h,dimTxt(d.H),true);
+  }
+  svg.appendChild(mk('line',{x1:x0-10,y1:y0+h+8,x2:x0+w+10,y2:y0+h+8,stroke:'var(--ink-3)','stroke-width':1}));
+}
+window.addEventListener('pointermove',ev=>{
+  if(!dragging)return; const d=QUOTE.designs[cur];
+  if(dragging.kind==='v'){
+    const row=d.rows[dragging.ri];
+    let dmm=(ev.clientX-dragging.startX)/dragging.pxPerMM;
+    const min=IN(4);
+    dmm=Math.max(min-dragging.a,Math.min(dragging.b-min,dmm));
+    row.leaves[dragging.li].w=Math.round(dragging.a+dmm);
+    row.leaves[dragging.li+1].w=Math.round(dragging.b-dmm);
+  } else {
+    let dmm=(ev.clientY-dragging.startY)/dragging.pxPerMM;
+    const min=IN(4);
+    dmm=Math.max(min-dragging.a,Math.min(dragging.b-min,dmm));
+    d.rows[dragging.ri].h=Math.round(dragging.a+dmm);
+    d.rows[dragging.ri+1].h=Math.round(dragging.b-dmm);
+  }
+  render();
+});
+window.addEventListener('pointerup',()=>{dragging=null});
+
+function thumb(d){
+  const W=118,Hpx=82, s=Math.min(W/d.W,Hpx/d.H), w=d.W*s,h=d.H*s, x0=(W-w)/2,y0=(Hpx-h)/2, ff=3;
+  const totH=d.rows.reduce((a,r)=>a+r.h,0);
+  let p=`<rect x="${x0}" y="${y0}" width="${w}" height="${h}" fill="var(--mill)" stroke="var(--mill-d)" stroke-width=".8"/>`;
+  let ry=y0+ff;
+  d.rows.forEach(row=>{const rh=row.h/totH*(h-2*ff);
+    let rx=x0+ff; const totW=row.leaves.reduce((a,l)=>a+l.w,0), iw=w-2*ff;
+    row.leaves.forEach(lf=>{const lw=lf.w/totW*iw;
+      p+=`<rect x="${rx}" y="${ry}" width="${lw}" height="${rh}" fill="${lf.t==='mesh'?'url(#mesh)':'var(--glass)'}" stroke="var(--glass-d)" stroke-width=".5"/>`;rx+=lw;});
+    ry+=rh;});
+  return `<svg viewBox="0 0 ${W} ${Hpx}" role="img" aria-label="${d.ref} elevation">
+    <defs><pattern id="mesh" width="4" height="4" patternUnits="userSpaceOnUse">
+    <rect width="4" height="4" fill="var(--glass)" fill-opacity=".35"/><path d="M0,4 L4,0" stroke="var(--mill-d)" stroke-width=".6"/></pattern></defs>${p}</svg>`;
+}
+
+/* ================= Level-2 layout editor ================= */
+/* Dimension lock, matching Logikal's real mechanism: exactly one row is
+   "Automatic" (its height absorbs whatever the others don't use), and
+   within each row exactly one leaf is "Automatic" likewise. Editing a
+   locked field is disallowed — it always shows the computed remainder in
+   parentheses — so an inconsistent layout is structurally impossible
+   instead of being caught after the fact. This replaces the old
+   proportional-rescale-on-every-keystroke behaviour. */
+function ensureAuto(d){
+  if(d.autoRow==null || d.autoRow>=d.rows.length) d.autoRow=d.rows.length-1;
+  d.rows.forEach(r=>{ if(r.autoLeaf==null || r.autoLeaf>=r.leaves.length) r.autoLeaf=r.leaves.length-1; });
+}
+function recomputeAuto(d){
+  ensureAuto(d);
+  const fixedSum=d.rows.reduce((s,r,i)=>i===d.autoRow?s:s+r.h,0);
+  d.rows[d.autoRow].h=Math.max(IN(2),d.H-fixedSum);
+  d.rows.forEach(r=>{
+    const fs2=r.leaves.reduce((s,l,i)=>i===r.autoLeaf?s:s+l.w,0);
+    r.leaves[r.autoLeaf].w=Math.max(IN(2),d.W-fs2);
+  });
+}
+function renderLayout(){
+  const d=QUOTE.designs[cur]; ensureAuto(d); recomputeAuto(d);
+  let html='';
+  d.rows.forEach((row,ri)=>{
+    const rowAuto=ri===d.autoRow;
+    html+=`<div class="rowcard">
+      <div class="rh"><b>Row ${ri+1}</b> height
+        <input type="number" step="0.25" class="mono" data-rh="${ri}" value="${F(toDisp(row.h),2)}" ${rowAuto?'disabled title="Automatic — absorbs the remainder"':''}>${UNIT}
+        <label style="font-size:10.5px;display:flex;align-items:center;gap:3px;margin-left:4px">
+          <input type="radio" name="autorow" data-autorow="${ri}" ${rowAuto?'checked':''}> Auto</label>
+        ${d.rows.length>1?`<button class="del" data-rmrow="${ri}">remove row</button>`:''}
+      </div>`;
+    row.leaves.forEach((lf,li)=>{
+      const kind=SERIES[d.series].kind, opts=leafTypesFor(kind);
+      const leafAuto=li===row.autoLeaf;
+      html+=`<div class="leafrow">
+        <input type="number" step="0.25" class="mono" data-lw="${ri}:${li}" value="${F(toDisp(lf.w),2)}" ${leafAuto?'disabled title="Automatic — absorbs the remainder"':''}>
+        <select data-lt="${ri}:${li}">${opts.map(k=>`<option value="${k}" ${k===lf.t?'selected':''}>${PT[k].name}</option>`).join('')}</select>
+        ${PT[lf.t].dir==='hinge'?`<select data-lh="${ri}:${li}">${['left','right','top','bottom'].map(h=>`<option value="${h}" ${h===(lf.hinge||PT[lf.t].defHinge)?'selected':''}>${h}</option>`).join('')}</select>
+          <select data-ls="${ri}:${li}">${['in','out'].map(sw=>`<option value="${sw}" ${sw===(lf.swing||'out')?'selected':''}>${sw}</option>`).join('')}</select>`
+          :PT[lf.t].dir==='slide'?`<select data-ld="${ri}:${li}">${['left','right'].map(sd=>`<option value="${sd}" ${sd===(lf.slideDir||'left')?'selected':''}>slides ${sd}</option>`).join('')}</select>
+          <label style="font-size:10px;display:flex;align-items:center;gap:2px"><input type="radio" name="autoleaf${ri}" data-autoleaf="${ri}:${li}" ${leafAuto?'checked':''}>Auto</label>`
+          :`<label style="font-size:10px;display:flex;align-items:center;gap:2px"><input type="radio" name="autoleaf${ri}" data-autoleaf="${ri}:${li}" ${leafAuto?'checked':''}>Auto</label><span></span>`}
+        <button class="del" data-rmleaf="${ri}:${li}" ${row.leaves.length<=1?'disabled style="opacity:.3"':''}>×</button>
+      </div>`;
+    });
+    html+=`<button class="addleaf" data-addleaf="${ri}">+ leaf in row ${ri+1}</button></div>`;
+  });
+  html+=`<button class="addrow" id="addrow">+ add row (stack another band)</button>
+    <p class="hint">Exactly one row and one leaf per row is marked <b>Auto</b> — it silently takes whatever width/height the others don't use, shown disabled. Pick a different Auto field to free up the one you want to type into.</p>`;
+  el('i-layout').innerHTML=html;
+
+  el('i-layout').querySelectorAll('[data-rh]').forEach(inp=>inp.onchange=()=>{
+    const ri=+inp.dataset.rh; d.rows[ri].h=Math.max(IN(2),fromDisp(+inp.value||0)); recomputeAuto(d); render();});
+  el('i-layout').querySelectorAll('[data-lw]').forEach(inp=>inp.onchange=()=>{
+    const [ri,li]=inp.dataset.lw.split(':').map(Number); d.rows[ri].leaves[li].w=Math.max(IN(2),fromDisp(+inp.value||0)); recomputeAuto(d); render();});
+  el('i-layout').querySelectorAll('[data-autorow]').forEach(r=>r.onchange=()=>{d.autoRow=+r.dataset.autorow; recomputeAuto(d); render();});
+  el('i-layout').querySelectorAll('[data-autoleaf]').forEach(r=>r.onchange=()=>{
+    const [ri,li]=r.dataset.autoleaf.split(':').map(Number); d.rows[ri].autoLeaf=li; recomputeAuto(d); render();});
+  el('i-layout').querySelectorAll('[data-lt]').forEach(s=>s.onchange=()=>{
+    const [ri,li]=s.dataset.lt.split(':').map(Number); const lf=d.rows[ri].leaves[li];
+    lf.t=s.value; if(PT[lf.t].dir==='hinge'){lf.hinge=lf.hinge||PT[lf.t].defHinge;lf.swing=lf.swing||'out';}
+    if(PT[lf.t].dir==='slide') lf.slideDir=lf.slideDir||'left';
+    selRow=ri;selLeaf=li; render();});
+  el('i-layout').querySelectorAll('[data-lh]').forEach(s=>s.onchange=()=>{const [ri,li]=s.dataset.lh.split(':').map(Number); d.rows[ri].leaves[li].hinge=s.value; render();});
+  el('i-layout').querySelectorAll('[data-ls]').forEach(s=>s.onchange=()=>{const [ri,li]=s.dataset.ls.split(':').map(Number); d.rows[ri].leaves[li].swing=s.value; render();});
+  el('i-layout').querySelectorAll('[data-ld]').forEach(s=>s.onchange=()=>{const [ri,li]=s.dataset.ld.split(':').map(Number); d.rows[ri].leaves[li].slideDir=s.value; render();});
+  el('i-layout').querySelectorAll('[data-rmrow]').forEach(b=>b.onclick=()=>{
+    const ri=+b.dataset.rmrow; d.rows.splice(ri,1); d.autoRow=d.rows.length-1; recomputeAuto(d); selRow=0;selLeaf=0; render();});
+  el('i-layout').querySelectorAll('[data-rmleaf]').forEach(b=>b.onclick=()=>{
+    const [ri,li]=b.dataset.rmleaf.split(':').map(Number);
+    if(d.rows[ri].leaves.length>1){d.rows[ri].leaves.splice(li,1); d.rows[ri].autoLeaf=d.rows[ri].leaves.length-1; recomputeAuto(d);} selLeaf=0; render();});
+  el('i-layout').querySelectorAll('[data-addleaf]').forEach(b=>b.onclick=()=>{
+    const ri=+b.dataset.addleaf, kind=SERIES[d.series].kind, t=leafTypesFor(kind)[0];
+    d.rows[ri].leaves.push({t,w:IN(12),...(PT[t].dir==='hinge'?{hinge:PT[t].defHinge,swing:'out'}:{}),...(PT[t].dir==='slide'?{slideDir:'left'}:{})});
+    d.rows[ri].autoLeaf=d.rows[ri].leaves.length-1; recomputeAuto(d); render();});
+  const ar=el('addrow'); if(ar) ar.onclick=()=>{
+    const kind=SERIES[d.series].kind, t=leafTypesFor(kind)[0];
+    d.rows.push({h:IN(12),autoLeaf:0,leaves:[{t,w:d.W,...(PT[t].dir==='hinge'?{hinge:PT[t].defHinge,swing:'out'}:{}),...(PT[t].dir==='slide'?{slideDir:'left'}:{})}]});
+    d.autoRow=d.rows.length-1; recomputeAuto(d); render();};
+}
+
+/* ================= render ================= */
+function render(){
+  const d=QUOTE.designs[cur];
+  if(selRow>=d.rows.length) selRow=0;
+  if(selLeaf>=d.rows[selRow].leaves.length) selLeaf=0;
+  const t=quoteTotals();
+  el('grand').textContent='PKR '+I(t.grand);
+  el('grandl').textContent=`${t.units} units · ${F(t.sqft,0)} sqft · ${F(t.margin,1)}% margin`;
+  el('poscount').textContent=QUOTE.designs.length+' of '+QUOTE.designs.length;
+  el('uw').textContent=UNIT; el('uh').textContent=UNIT;
+
+  el('poslist').innerHTML=QUOTE.designs.map((x,i)=>{const p=priceOne(x);
+    return `<button class="pos" data-i="${i}" ${i===cur?'aria-current="true"':''}>
+      <span class="t"><span class="ref">${x.ref}</span><span class="q mono">×${x.qty}</span></span>
+      <span class="d">${x.loc||'—'}</span>
+      <span class="p">${dimTxt(x.W)}×${dimTxt(x.H)} · PKR ${I(p.basic*x.qty)}${p.overridden?' <span class="tag">manual</span>':''}</span>
+    </button>`}).join('');
+  el('poslist').querySelectorAll('.pos').forEach(b=>b.onclick=()=>{cur=+b.dataset.i;selRow=0;selLeaf=0;render()});
+
+  el('iw').value=F(toDisp(d.W),2); el('ih').value=F(toDisp(d.H),2);
+  el('iq').value=d.qty; el('iloc').value=d.loc;
+  el('itype').innerHTML=Object.entries(WTYPE).map(([k,v])=>`<option value="${k}" ${k===d.wtype?'selected':''}>${v.name}</option>`).join('');
+  el('iser').innerHTML=Object.entries(SERIES).map(([k,v])=>`<option value="${k}" ${k===d.series?'selected':''}>${v.name}</option>`).join('');
+  el('igl').innerHTML=Object.entries(GLASS).map(([k,v])=>`<option value="${k}" ${k===d.glass?'selected':''}>${v.name}</option>`).join('');
+  el('ifin').innerHTML=FINISHES.map((v,i)=>`<option value="${i}" ${i===d.finish?'selected':''}>${v}</option>`).join('');
+  ensureOverrides(d);
+  {const frameCode=(d.roleOverrides.frame||SERIES[d.series].roles.frame.code);
+   const opts=thicknessOptionsFor(frameCode), cur=d.thickness&&opts.includes(d.thickness)?d.thickness:SERIES[d.series].roles.frame.th;
+   el('ithk').innerHTML=opts.map(t=>`<option value="${t}" ${t===cur?'selected':''}>${t}</option>`).join('');}
+  el('idefser').innerHTML=Object.entries(SERIES).map(([k,v])=>`<option value="${k}" ${k===QUOTE.defaultSeries?'selected':''}>${v.name}</option>`).join('');
+
+  const kind=SERIES[d.series].kind;
+  el('presets').innerHTML=PRESET_CATS.filter(c=>c.kinds.includes(kind)).map(c=>{
+    const items=Object.entries(PRESETS).filter(([k,v])=>v.cat===c.key&&v.kinds.includes(kind));
+    if(!items.length) return '';
+    return `<div style="width:100%;font-size:10px;color:var(--ink-3);margin:4px 0 2px">${c.label}</div>`
+      +items.map(([k,v])=>`<button class="chip sm" data-pre="${k}" title="${v.label}">${v.label}</button>`).join('');
+  }).join('');
+  el('presets').querySelectorAll('[data-pre]').forEach(b=>b.onclick=()=>{
+    d.rows=normaliseRows(PRESETS[b.dataset.pre].mk(),d.W,d.H); d.autoRow=null; selRow=0;selLeaf=0; render()});
+
+  const curLeaf=d.rows[selRow].leaves[selLeaf];
+  el('selleaflabel').textContent=`Row ${selRow+1} · leaf ${selLeaf+1}`;
+  el('ptypes').innerHTML=leafTypesFor(kind).map(k=>
+    `<button class="chip sm" data-pt="${k}" aria-pressed="${curLeaf.t===k}">${PT[k].name}</button>`).join('');
+  el('ptypes').querySelectorAll('[data-pt]').forEach(b=>b.onclick=()=>{
+    curLeaf.t=b.dataset.pt;
+    if(PT[curLeaf.t].dir==='hinge'){curLeaf.hinge=curLeaf.hinge||PT[curLeaf.t].defHinge;curLeaf.swing=curLeaf.swing||'out';}
+    if(PT[curLeaf.t].dir==='slide') curLeaf.slideDir=curLeaf.slideDir||'left';
+    render();});
+  const dw=el('dirwrap'), dc=el('dirchips');
+  if(PT[curLeaf.t].dir==='hinge'){
+    dw.style.display=''; dc.innerHTML=
+      ['left','right','top','bottom'].map(h=>`<button class="chip sm" data-hinge="${h}" aria-pressed="${(curLeaf.hinge||PT[curLeaf.t].defHinge)===h}">${h}</button>`).join('')
+      +`<span class="sep"></span>`
+      +['in','out'].map(sw=>`<button class="chip sm" data-swing="${sw}" aria-pressed="${(curLeaf.swing||'out')===sw}">${sw}</button>`).join('');
+    dc.querySelectorAll('[data-hinge]').forEach(b=>b.onclick=()=>{curLeaf.hinge=b.dataset.hinge;render();});
+    dc.querySelectorAll('[data-swing]').forEach(b=>b.onclick=()=>{curLeaf.swing=b.dataset.swing;render();});
+  } else if(PT[curLeaf.t].dir==='slide'){
+    dw.style.display=''; dc.innerHTML=['left','right'].map(sd=>
+      `<button class="chip sm" data-sd="${sd}" aria-pressed="${(curLeaf.slideDir||'left')===sd}">slides ${sd}</button>`).join('');
+    dc.querySelectorAll('[data-sd]').forEach(b=>b.onclick=()=>{curLeaf.slideDir=b.dataset.sd;render();});
+  } else { dw.style.display='none'; }
+  el('hint').textContent=`${d.rows.length} row${d.rows.length>1?'s':''}, ${d.rows.reduce((a,r)=>a+r.leaves.length,0)} leaves total. Click a leaf to select, drag a divider to resize, or use the Layout tab for exact numbers.`;
+
+  draw();
+  if(itab==='layout') renderLayout();
+
+  const x=explode(d), p=priceOne(d);
+  const byRole={}; x.prof.forEach(r=>{const k=r.role+r.code+r.th;(byRole[k]=byRole[k]||{...r,ft:0,pcs:0});
+    byRole[k].ft+=r.len/FT*r.qty; byRole[k].pcs+=r.qty;});
+  const roleRow=r=>{
+    const variants=ROLE_VARIANTS[d.series]&&ROLE_VARIANTS[d.series][r.role];
+    const canDrop=OPTIONAL_ROLES.includes(r.role);
+    return `<tr><td><span class="code">${r.code}</span><div class="role">${r.role} · ${r.th} · ${r.sec}</div>
+      ${variants&&variants.length>1?`<select data-roleov="${r.role}" style="margin-top:3px;font-size:11px;padding:1px 3px">
+        ${variants.map(v=>`<option value="${v}" ${((d.roleOverrides||{})[r.role]||variants[0])===v?'selected':''}>${v}</option>`).join('')}</select>`:''}
+      ${canDrop?`<button class="chip sm" data-droprole="${r.role}" style="margin-top:3px" aria-pressed="${d.dropRoles&&d.dropRoles.has(r.role)}">${d.dropRoles&&d.dropRoles.has(r.role)?'dropped — restore':'drop this role'}</button>`:''}
+      </td>
+      <td class="n">${r.pcs}</td><td class="n">${F(r.ft)}</td><td class="n">${r.rate}</td>
+      <td class="n">${I(r.ft*r.rate)}</td></tr>`;
+  };
+  el('i-bom').innerHTML=`<table>
+    <tr><th>Profile</th><th class="n">Pcs</th><th class="n">ft</th><th class="n">PKR/ft</th><th class="n">PKR</th></tr>
+    ${Object.values(byRole).map(roleRow).join('')}
+    <tr class="sum"><td>Aluminium — ${FINISHES[d.finish]}</td><td class="n"></td>
+      <td class="n">${F(x.ft)}</td><td class="n"></td><td class="n">${I(x.profileCost)}</td></tr>
+    ${x.glass.length?`<tr class="head"><td colspan="5">Glazing — rate not sourced, placeholder</td></tr>`+x.glass.map(g=>
+      `<tr><td><span class="code">${g.w}×${g.h}</span><div class="role">${g.name}</div></td><td class="n">1</td>
+       <td class="n">${F(g.m2)} m²</td><td class="n">${g.rate}</td><td class="n">${I(g.m2*g.rate)}</td></tr>`).join('')
+      +`<tr class="sum"><td>Glass</td><td class="n"></td><td class="n">${F(x.glassM2)} m²</td><td class="n"></td><td class="n">${I(x.glassCost)}</td></tr>`:''}
+    <tr class="head"><td colspan="5">Hardware — rate not sourced, placeholder</td></tr>
+    ${x.hw.map(h=>`<tr><td>${h.name}${h.extra?' <span class="tag">added</span>':''}</td><td class="n">${h.qty}</td><td class="n"></td><td class="n">${h.rate}</td>
+      <td class="n" style="display:flex;justify-content:flex-end;gap:6px;align-items:center">${I(h.qty*h.rate)}
+      <button class="chip sm" data-hwrm="${h.key}" title="Remove this item">×</button></td></tr>`).join('')}
+    <tr><td colspan="5"><button class="chip sm" id="hwadd">+ add hardware item</button></td></tr>
+    <tr class="sum"><td>Hardware</td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n">${I(x.hwCost)}</td></tr>
+    </table>
+    <div class="kpis">
+      <div class="kpi"><div class="v">${F(x.sqft,1)}</div><div class="l">sqft per unit</div></div>
+      <div class="kpi"><div class="v">${I(p.rate)}</div><div class="l">PKR / sqft</div></div>
+      <div class="kpi"><div class="v">${I(p.basic)}</div><div class="l">basic value / unit</div></div>
+      <div class="kpi ${p.margin<QUOTE.minMargin?'poor':'good'}"><div class="v">${F(p.margin,1)}%</div><div class="l">margin</div></div>
+    </div>`;
+  el('i-bom').querySelectorAll('[data-roleov]').forEach(s=>s.onchange=()=>{
+    ensureOverrides(d); d.roleOverrides[s.dataset.roleov]=s.value; render();});
+  el('i-bom').querySelectorAll('[data-droprole]').forEach(b=>b.onclick=()=>{
+    ensureOverrides(d); const role=b.dataset.droprole;
+    d.dropRoles.has(role)?d.dropRoles.delete(role):d.dropRoles.add(role); render();});
+  el('i-bom').querySelectorAll('[data-hwrm]').forEach(b=>b.onclick=()=>{
+    ensureOverrides(d); const k=b.dataset.hwrm;
+    if(k.startsWith('extra')) d.hwExtra.splice(+k.replace('extra',''),1); else d.hwRemoved.add(k);
+    render();});
+  const hwa=el('hwadd'); if(hwa) hwa.onclick=()=>{
+    ensureOverrides(d);
+    const name=prompt('Item name?','Extra item'); if(!name) return;
+    const rate=+prompt('Rate, PKR?','0')||0;
+    d.hwExtra.push({name,qty:1,rate}); render();};
+
+  el('i-check').innerHTML=checks(d).map(([k,t2,m,action])=>
+    `<div class="msg ${k}"><span class="ic">${k==='ok'?'✓':k==='warn'?'!':'×'}</span><span><b>${t2}</b>${m}
+      ${action?`<div style="margin-top:5px"><button class="chip sm" data-checkfix="1">${action.label}</button></div>`:''}</span></div>`).join('');
+  checks(d).forEach(([,,,action],i)=>{
+    if(!action) return;
+    const btns=el('i-check').querySelectorAll('[data-checkfix]');
+    if(btns[i]) btns[i].onclick=()=>{action.fn(); render();};
+  });
+
+  const c=costOne(d);
+  el('cascade').innerHTML=`<tr><th>#</th><th>Cost head</th><th>Type</th><th class="n">Rate</th><th class="n">${d.ref} / unit</th><th>Show</th></tr>`+
+    CASCADE.map((r,i)=>{const row=c.rows.find(q=>q.k===r.k);
+      const ti={calc:'Calculated',pct:'Percentage',m2:'Per m²',sub:'Subtotal'}[r.t];
+      return `<tr><td class="n" style="color:var(--ink-3)">${i+1}</td><td>${r.n}</td><td style="color:var(--ink-3)">${ti}</td>
+      <td class="n">${r.t==='pct'||r.t==='m2'?`<input class="rate" type="number" step="1" data-ck="${r.k}" value="${r.v}">`:'—'}</td>
+      <td class="n" ${r.t==='sub'?'style="font-weight:600"':''}>${I(row?row.val:0)}</td>
+      <td><button class="vis" data-vk="${r.k}" aria-pressed="${!!r.show}">${r.show?'shown':'hidden'}</button></td></tr>`}).join('');
+  el('cascade').querySelectorAll('.rate').forEach(i=>i.oninput=()=>{const r=CASCADE.find(c2=>c2.k===i.dataset.ck); r.v=+i.value||0; render()});
+  el('cascade').querySelectorAll('.vis').forEach(b=>b.onclick=()=>{const r=CASCADE.find(c2=>c2.k===b.dataset.vk); r.show=!r.show; render()});
+
+  el('manual').innerHTML=`<tr><th>Ref</th><th class="n">sqft</th><th class="n">Calculated</th><th class="n">Manual PKR/sqft</th><th class="n">Margin</th></tr>`+
+    QUOTE.designs.map((y,i)=>{const cc=costOne(y),pp=priceOne(y);
+      return `<tr><td><span class="code">${y.ref}</span><div class="role">${y.loc}</div></td>
+      <td class="n">${F(y.qty*cc.x.sqft,1)}</td><td class="n">${I(cc.basic/cc.x.sqft)}</td>
+      <td class="n"><input class="rate" type="number" step="10" data-mi="${i}" placeholder="${I(cc.basic/cc.x.sqft)}" value="${y.manual!=null?y.manual:''}"></td>
+      <td class="n" style="color:${pp.margin<QUOTE.minMargin?'var(--err)':'var(--ok)'}">${F(pp.margin,1)}%</td></tr>`}).join('');
+  el('manual').querySelectorAll('[data-mi]').forEach(i=>i.oninput=()=>{QUOTE.designs[+i.dataset.mi].manual=i.value===''?null:+i.value; render()});
+
+  el('summary').innerHTML=[['Basic value',t.basic],['Discount',-QUOTE.discount],['Subtotal',t.afterDisc],
+    ['Transportation',QUOTE.transport],['Loading and unloading',QUOTE.loading],
+    ['Total project cost',t.project],[`Sales tax ${QUOTE.vat}%`,t.vat]]
+    .map(([n,v])=>`<div class="sumrow"><span>${n}</span><b>${I(v)}</b></div>`).join('')
+   +`<div class="sumrow big"><span>Grand total</span><b>PKR ${I(t.grand)}</b></div>
+     <div class="sumrow"><span>Cost of production</span><b>${I(t.cost)}</b></div>
+     <div class="sumrow"><span>Gross margin</span><b style="color:${t.margin<QUOTE.minMargin?'var(--err)':'var(--ok)'}">${F(t.margin,1)}%</b></div>`;
+  const mixTot=t.prof+t.gl+t.hw+t.lab;
+  el('mixbar').innerHTML=[[t.prof,'var(--mill)','Aluminium'],[t.gl,'var(--glass-d)','Glass'],
+    [t.hw,'var(--brand)','Hardware'],[t.lab,'var(--ok)','Labour']]
+    .map(([v,c2,n])=>`<i style="width:${v/Math.max(mixTot,1)*100}%;background:${c2}" title="${n} ${I(v)}"></i>`).join('');
+
+  el('cmp').innerHTML=`<tr><th>Series</th><th class="n">Basic value</th><th class="n">PKR/sqft</th><th class="n">Δ</th></tr>`+
+    Object.entries(SERIES).filter(([k,v])=>v.kind===kind).map(([k,v])=>{
+      const saved=d.series; d.series=k; const pp=priceOne(d); d.series=saved;
+      const base=priceOne(d).basic, delta=pp.basic-base;
+      return `<tr><td>${v.name}</td><td class="n ${delta<0?'win':''}">${I(pp.basic)}</td>
+        <td class="n">${I(pp.rate)}</td><td class="n">${delta===0?'—':(delta>0?'+':'')+I(delta)}</td></tr>`}).join('');
+
+  const over=QUOTE.designs.filter(y=>y.manual!=null);
+  el('docwrap').innerHTML=`<div class="doc">
+    ${over.length?`<div class="flagbar"><span>!</span><span><b>Quotation generated with manual rates</b>
+      ${over.map(o=>`${o.ref} at PKR ${I(o.manual)}/sqft`).join(' · ')}</span></div>`:''}
+    <h1>QUOTATION</h1>
+    <div class="dochead">
+      <div><b>Quote no.</b><span class="mono">${QUOTE.ref}</span></div>
+      <div><b>Date</b><span class="mono">21 Sep 2026</span></div>
+      <div><b>Project</b><span>${QUOTE.project}</span></div>
+      <div><b>Stage</b><span>Quoted</span></div>
+      <div><b>Client</b><span>${QUOTE.client}</span></div>
+      <div><b>Validity</b><span>30 days</span></div>
+    </div>
+    ${QUOTE.designs.map((y,i)=>{const pp=priceOne(y),xx=pp.x, leafCount=y.rows.reduce((a,r)=>a+r.leaves.length,0);
+      const types=[...new Set(y.rows.flatMap(r=>r.leaves.map(l=>PT[l.t].name)))];
+      return `<div class="line">
+        <div>${thumb(y)}</div>
+        <div class="sp">
+          <b>${i+1}. ${dimTxt(y.W)} × ${dimTxt(y.H)} — ${WTYPE[y.wtype].name}</b>
+          <span>Layout: ${y.rows.length} row${y.rows.length>1?'s':''} · ${leafCount} leaves · ${types.join(' + ')}</span>
+          <span>System: ${SERIES[y.series].name}</span>
+          <span>Glazing: ${xx.G.name}</span>
+          <span>Finish: ${FINISHES[y.finish]}</span>
+          <span>Location: ${y.loc}</span>
+          <div class="amt"><span>Qty ${y.qty}</span><span>${F(xx.sqft*y.qty,2)} sqft</span>
+            <span>PKR ${I(pp.rate)}/sqft</span><span><b>PKR ${I(pp.basic*y.qty)}</b></span></div>
+        </div></div>`}).join('')}
+    <div class="sumbox" style="border:1px solid var(--line);margin-top:6px">
+      ${[['Basic value',t.basic],['Transportation',QUOTE.transport],['Loading and unloading',QUOTE.loading],
+         ['Total project cost',t.project],[`Sales tax ${QUOTE.vat}%`,t.vat]]
+        .map(([n,v])=>`<div class="sumrow"><span>${n}</span><b>${I(v)}</b></div>`).join('')}
+      <div class="sumrow big"><span>Grand total</span><b>PKR ${I(t.grand)}</b></div>
+    </div>
+    <div class="note">Drawings, site survey and installation included. ${t.units} units · ${F(t.sqft,2)} sqft · average PKR ${I(t.grand/Math.max(t.sqft,1))}/sqft.
+      Payment 70% with order, 20% before dispatch, 10% on completion.</div>
+  </div>`;
+
+  const cp=cutPlan();
+  const oversizeTotal=cp.plan.reduce((a,r)=>a+(r.oversizeN||0),0);
+  el('yieldkpi').innerHTML=`
+    <div class="kpi"><div class="v">${cp.t.bars}</div><div class="l">bars to issue</div></div>
+    <div class="kpi ${cp.t.yield>85?'good':'poor'}"><div class="v">${F(cp.t.yield,1)}%</div><div class="l">material yield</div></div>
+    <div class="kpi"><div class="v">${F(cp.t.ft,0)}</div><div class="l">running ft purchased</div></div>
+    <div class="kpi ${cp.t.wastagePct>10?'poor':'good'}"><div class="v">${F(cp.t.wastagePct,1)}%</div><div class="l">measured wastage</div></div>`;
+  el('cutlist').innerHTML=(oversizeTotal?`<tr><td colspan="7" style="background:var(--err-l);color:var(--err);font-size:11.5px;padding:8px 10px">
+      ⚠ ${oversizeTotal} piece(s) exceed the longest stock bar (${STOCK[STOCK.length-1].n}) and are excluded from this cut plan — see Checks on the Design tab. They need a splice joint and cannot be costed as a single run.</td></tr>`:'')
+    +`<tr><th>Profile</th><th class="n">Pcs</th><th>Bar mix</th><th class="n">ft</th><th class="n">Yield</th><th class="n">PKR</th><th>Where used</th></tr>`+
+    cp.plan.map(r=>{const counts={};(r.plans.find(q=>q.label===r.mix)||{bars:[]}).bars.forEach(b=>counts[b.len.n]=(counts[b.len.n]||0)+1);
+      const where=Object.entries(r.byRef||{}).map(([ref,n])=>`${ref}×${n}`).join(', ');
+      return `<tr><td><span class="code">${r.code}</span><div class="role">${r.th} · ${r.sec}</div></td>
+      <td class="n">${r.pcsN}</td><td class="mono" style="font-size:11px">${Object.entries(counts).map(([k,v])=>v+'×'+k).join('<br>')}</td>
+      <td class="n">${F(r.ft,0)}</td><td class="n" style="color:${r.yield>85?'var(--ok)':'var(--warn)'}">${F(r.yield,1)}%</td>
+      <td class="n">${I(r.cost)}</td><td style="font-size:11px;color:var(--ink-2)">${where}</td></tr>`}).join('')+
+    `<tr class="sum"><td>Total</td><td class="n"></td><td></td><td class="n">${F(cp.t.ft,0)}</td><td class="n">${F(cp.t.yield,1)}%</td><td class="n">${I(cp.t.cost)}</td><td></td></tr>`;
+  el('recon').innerHTML=`
+    <div class="sumrow"><span>Aluminium in the windows</span><b>${F(cp.t.usedFt,0)} ft · ${I(cp.t.theo)}</b></div>
+    <div class="sumrow"><span>Aluminium actually bought</span><b>${F(cp.t.ft,0)} ft · ${I(cp.t.cost)}</b></div>
+    <div class="sumrow"><span>Offcut cost carried</span><b>${I(cp.t.cost-cp.t.theo)}</b></div>
+    <div class="sumrow" style="border-top:1px solid var(--line);padding-top:8px"><span>Measured wastage</span><b>${F(cp.t.wastagePct,1)}%</b></div>`;
+  el('offcuts').innerHTML=`<tr><th>Profile</th><th class="n">Length</th><th class="n">Pcs</th></tr>`+
+    (cp.plan.flatMap(r=>{const b={};r.offs.forEach(o=>b[Math.round(o)]=(b[Math.round(o)]||0)+1);
+      return Object.entries(b).map(([L,q])=>`<tr><td class="code">${r.code}</td><td class="n">${dimTxt(+L)}</td><td class="n">${q}</td></tr>`)}).join('')
+      ||`<tr><td colspan="3" style="color:var(--ink-3)">No offcut over ${dimTxt(OFFCUT_MIN)} — nothing to book back.</td></tr>`);
+}
+
+/* ================= wiring ================= */
+el('iw').oninput=e=>{const d=QUOTE.designs[cur],v=Math.max(IN(6),fromDisp(+e.target.value||0)),k=v/d.W; d.W=v;
+  d.rows.forEach(r=>r.leaves.forEach(l=>l.w*=k)); render()};
+el('ih').oninput=e=>{const d=QUOTE.designs[cur],v=Math.max(IN(6),fromDisp(+e.target.value||0)),k=v/d.H; d.H=v;
+  d.rows.forEach(r=>r.h*=k); render()};
+el('iq').oninput=e=>{QUOTE.designs[cur].qty=Math.max(1,+e.target.value||1);render()};
+el('iloc').oninput=e=>{QUOTE.designs[cur].loc=e.target.value;render()};
+el('itype').onchange=e=>{const d=QUOTE.designs[cur]; d.wtype=e.target.value;
+  const wt=WTYPE[d.wtype]; d.series=wt.series; d.rows=normaliseRows(wt.mk(),d.W,d.H); selRow=0;selLeaf=0; render()};
+el('iser').onchange=e=>{const d=QUOTE.designs[cur]; d.series=e.target.value;
+  const kind=SERIES[d.series].kind;
+  if(!d.rows.every(r=>r.leaves.every(l=>PT[l.t].kinds.includes(kind)))){
+    d.rows=normaliseRows(PRESETS[Object.keys(PRESETS).find(k=>PRESETS[k].kinds.includes(kind))].mk(),d.W,d.H);
+  }
+  selRow=0;selLeaf=0; render()};
+el('igl').onchange=e=>{QUOTE.designs[cur].glass=e.target.value;render()};
+el('ifin').onchange=e=>{QUOTE.designs[cur].finish=+e.target.value;render()};
+el('ithk').onchange=e=>{QUOTE.designs[cur].thickness=e.target.value;render()};
+el('idefser').onchange=e=>{QUOTE.defaultSeries=e.target.value;render()};
+el('addpos').onclick=()=>{const n=QUOTE.designs.length+1, s=QUOTE.defaultSeries||'box',
+  kind=SERIES[s].kind, presetKey=Object.keys(PRESETS).find(k=>PRESETS[k].kinds.includes(kind));
+  QUOTE.designs.push({ref:'D'+n,loc:'',qty:1,W:IN(36),H:IN(48),series:s,
+    wtype:Object.keys(WTYPE).find(k=>WTYPE[k].series===s)||'fixw',
+    glass:'tg8',finish:0,manual:null,rows:normaliseRows(PRESETS[presetKey].mk(),IN(36),IN(48))});
+  cur=QUOTE.designs.length-1;selRow=0;selLeaf=0;render()};
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{
+  view=b.dataset.view;
+  document.querySelectorAll('[data-view]').forEach(x=>x.setAttribute('aria-selected',x===b));
+  ['design','pricing','report'].forEach(v=>el('v-'+v).hidden=(v!==view));});
+document.querySelectorAll('[data-itab]').forEach(b=>b.onclick=()=>{
+  itab=b.dataset.itab;
+  document.querySelectorAll('[data-itab]').forEach(x=>x.setAttribute('aria-selected',x===b));
+  el('i-bom').hidden=itab!=='bom'; el('i-layout').hidden=itab!=='layout'; el('i-check').hidden=itab!=='check';
+  if(itab==='layout') renderLayout();});
+el('unitToggle').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+  UNIT=b.dataset.u; el('unitToggle').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b)); render();});
+
+render();
+</script>
+</body>
+</html>

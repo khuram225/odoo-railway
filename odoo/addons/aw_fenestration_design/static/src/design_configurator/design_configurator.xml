@@ -70,34 +70,113 @@
                 <div class="d-flex flex-grow-1 overflow-auto">
                     <!-- Drawing -->
                     <div class="flex-grow-1 d-flex flex-column p-3">
-                        <div class="o_aw_cfg_canvas flex-grow-1 d-flex align-items-center justify-content-center border rounded bg-white text-muted">
-                            <!-- Stage C replaces this with the ported SVG. -->
-                            <div class="text-center">
-                                <div class="fs-5 mb-1">Drawing lands in Stage C</div>
-                                <div class="small">
-                                    <t t-esc="state.data.rows.length"/> row(s),
-                                    <t t-esc="state.data.rows.reduce((n, r) => n + r.leaves.length, 0)"/> leaf/leaves
-                                    &#8212; <t t-esc="state.data.size_display"/>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="o_aw_cfg_canvas flex-grow-1 d-flex align-items-center justify-content-center border rounded bg-white"
+                             t-on-pointermove="onPointerMove" t-on-pointerup="onPointerUp">
 
-                        <!-- Interim leaf picker, so leaves are selectable before
-                             the SVG exists. Stage C selects by clicking the drawing. -->
-                        <div class="mt-3">
-                            <div class="small text-muted mb-1">Leaves</div>
-                            <t t-foreach="state.data.rows" t-as="row" t-key="row_index">
-                                <div class="d-flex gap-1 mb-1 align-items-center">
-                                    <span class="small text-muted me-1">Row <t t-esc="row_index + 1"/></span>
-                                    <t t-foreach="row.leaves" t-as="leaf" t-key="leaf_index">
-                                        <button class="btn btn-sm"
-                                                t-att-class="state.selected and state.selected.row === row_index and state.selected.leaf === leaf_index ? 'btn-primary' : 'btn-outline-secondary'"
-                                                t-on-click="() => this.selectLeaf(row_index, leaf_index)">
-                                            <t t-esc="leaf.leaf_type_code or '?'"/>
-                                        </button>
+                            <div t-if="!scene" class="text-muted text-center p-4">
+                                <div class="fs-5 mb-1">No drawing yet</div>
+                                <div class="small">Set a width and a height above to draw this position.</div>
+                            </div>
+
+                            <svg t-else="" class="o_aw_cfg_svg w-100 h-100"
+                                 t-att-viewBox="scene.viewBox"
+                                 preserveAspectRatio="xMidYMid meet">
+                                <defs>
+                                    <pattern id="aw_mesh" width="5" height="5" patternUnits="userSpaceOnUse">
+                                        <rect width="5" height="5" fill="#c3dce3" fill-opacity="0.35"/>
+                                        <path d="M0,5 L5,0" stroke="#6a7075" stroke-width="0.7"/>
+                                    </pattern>
+                                </defs>
+
+                                <!-- outer frame -->
+                                <rect t-att-x="scene.frame.x" t-att-y="scene.frame.y"
+                                      t-att-width="scene.frame.w" t-att-height="scene.frame.h"
+                                      fill="#8a9095" stroke="#6a7075" stroke-width="1"/>
+
+                                <!-- leaves -->
+                                <t t-foreach="scene.leaves" t-as="leaf" t-key="leaf.key">
+                                    <g style="cursor: pointer"
+                                       t-on-click="() => this.selectLeaf(leaf.ri, leaf.li)">
+                                        <rect t-att-x="leaf.x" t-att-y="leaf.y"
+                                              t-att-width="leaf.w" t-att-height="leaf.h"
+                                              fill="#8a9095" fill-opacity="0.55"
+                                              stroke="#6a7075" stroke-width="0.7"/>
+                                        <rect t-att-x="leaf.glassX" t-att-y="leaf.glassY"
+                                              t-att-width="leaf.glassW" t-att-height="leaf.glassH"
+                                              t-att-fill="leaf.isMesh ? 'url(#aw_mesh)' : '#c3dce3'"
+                                              stroke="#9dbfc9" stroke-width="0.6"/>
+
+                                        <path t-if="leaf.glyph.arrow" t-att-d="leaf.glyph.arrow"
+                                              stroke="#4a5358" stroke-width="1.1" fill="none"/>
+
+                                        <t t-if="leaf.glyph.fan">
+                                            <t t-foreach="leaf.glyph.fan.lines" t-as="fl" t-key="fl.key">
+                                                <line t-att-x1="fl.x1" t-att-y1="fl.y1"
+                                                      t-att-x2="fl.x2" t-att-y2="fl.y2"
+                                                      stroke="#4a5358" stroke-width="0.6"
+                                                      stroke-dasharray="3 2"/>
+                                            </t>
+                                            <circle t-att-cx="leaf.glyph.fan.cx" t-att-cy="leaf.glyph.fan.cy"
+                                                    r="2.6" fill="#6b4a63"/>
+                                            <text t-att-x="leaf.glyph.fan.tagX" t-att-y="leaf.glyph.fan.tagY"
+                                                  fill="#4a5358" font-size="8.5" text-anchor="middle"
+                                                  font-family="monospace">
+                                                <t t-esc="leaf.glyph.fan.tag"/>
+                                            </text>
+                                        </t>
+
+                                        <text t-if="leaf.glyph.label"
+                                              t-att-x="leaf.glyph.label.x" t-att-y="leaf.glyph.label.y"
+                                              fill="#4a5358" font-size="9" text-anchor="middle"
+                                              font-family="monospace">
+                                            <t t-esc="leaf.glyph.label.text"/>
+                                        </text>
+
+                                        <rect t-if="leaf.selected"
+                                              t-att-x="leaf.x + 1" t-att-y="leaf.y + 1"
+                                              t-att-width="leaf.w - 2" t-att-height="leaf.h - 2"
+                                              fill="none" stroke="#6b4a63" stroke-width="1.8"
+                                              stroke-dasharray="4 3"/>
+                                    </g>
+                                </t>
+
+                                <!-- draggable dividers -->
+                                <t t-foreach="scene.dividers" t-as="divider" t-key="divider.key">
+                                    <line t-att-x1="divider.x1" t-att-y1="divider.y1"
+                                          t-att-x2="divider.x2" t-att-y2="divider.y2"
+                                          stroke="#6b4a63" stroke-width="1.2" stroke-opacity="0.45"/>
+                                    <rect t-att-x="divider.hitX" t-att-y="divider.hitY"
+                                          t-att-width="divider.hitW" t-att-height="divider.hitH"
+                                          fill="transparent"
+                                          t-att-style="divider.kind === 'v' ? 'cursor: col-resize' : 'cursor: row-resize'"
+                                          t-on-pointerdown="(ev) => this.onDividerPointerDown(divider, ev)"/>
+                                </t>
+
+                                <!-- dimension lines -->
+                                <t t-foreach="scene.dims" t-as="dim" t-key="dim.key">
+                                    <line t-att-x1="dim.x1" t-att-y1="dim.y1"
+                                          t-att-x2="dim.x2" t-att-y2="dim.y2"
+                                          stroke="#4a5358" stroke-width="0.8"/>
+                                    <t t-foreach="dim.ticks" t-as="tick" t-key="tick.key">
+                                        <line t-att-x1="tick.x1" t-att-y1="tick.y1"
+                                              t-att-x2="tick.x2" t-att-y2="tick.y2"
+                                              stroke="#4a5358" stroke-width="0.8"/>
                                     </t>
-                                </div>
-                            </t>
+                                    <rect t-att-x="dim.boxX" t-att-y="dim.boxY"
+                                          t-att-width="dim.boxW" t-att-height="dim.boxH"
+                                          fill="#ffffff"/>
+                                    <text t-att-x="dim.textX" t-att-y="dim.textY"
+                                          t-att-transform="dim.transform"
+                                          fill="#14181b" font-size="10" font-family="monospace"
+                                          text-anchor="middle" dominant-baseline="middle">
+                                        <t t-esc="dim.text"/>
+                                    </text>
+                                </t>
+
+                                <line t-att-x1="scene.baseline.x1" t-att-y1="scene.baseline.y1"
+                                      t-att-x2="scene.baseline.x2" t-att-y2="scene.baseline.y2"
+                                      stroke="#727c82" stroke-width="1"/>
+                            </svg>
                         </div>
                     </div>
 
