@@ -302,6 +302,118 @@ class AwDesign(models.Model):
             'target': 'current',
         }
 
+    # -- visual configurator -----------------------------------------------
+    # Everything the configurator can write, as an explicit allow-list.
+    # save_layout() is a public RPC method any sales user can call with an
+    # arbitrary dict, so the header payload is filtered against this rather
+    # than passed to write() as-is -- otherwise a crafted call could set
+    # sale_order_line_id and re-point a design at someone else's quote line.
+    CONFIGURATOR_HEADER_FIELDS = (
+        'name', 'location', 'qty', 'width_mm', 'height_mm',
+        'window_series_id', 'glass_spec_id', 'finish_id', 'thickness_id',
+        'manual_rate',
+    )
+
+    def action_open_configurator(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'aw_design_configurator',
+            'name': self.display_name,
+            'params': {'design_id': self.id},
+            'context': {'active_id': self.id, 'active_model': 'aw.design'},
+        }
+
+    def get_configurator_data(self):
+        """Everything the configurator needs, in one round trip: header,
+        geometry, the unit setting, the Series' allowed leaf types, and
+        the presets that Series can actually host."""
+        self.ensure_one()
+        series = self.window_series_id
+        leaf_types = series.leaf_type_ids
+        presets = self.env['aw.layout.preset'].search(
+            [])._allowed_for_series(series)
+        return {
+            'id': self.id,
+            'length_uom': self.length_uom,
+            'header': {
+                'name': self.name or '',
+                'location': self.location or '',
+                'qty': self.qty,
+                'width_mm': self.width_mm,
+                'height_mm': self.height_mm,
+                'window_series_id': series.id,
+                'window_series_name': series.display_name or '',
+                'glass_spec_id': self.glass_spec_id.id,
+                'finish_id': self.finish_id.id,
+                'thickness_id': self.thickness_id.id,
+            },
+            'size_display': self.size_display,
+            'rows': [{
+                'height_mm': row.height_mm,
+                'is_auto': row.is_auto,
+                'leaves': [{
+                    'width_mm': leaf.width_mm,
+                    'is_auto': leaf.is_auto,
+                    'leaf_type_id': leaf.leaf_type_id.id,
+                    'leaf_type_code': leaf.leaf_type_id.code or '',
+                    'hinge_side': leaf.hinge_side or '',
+                    'swing': leaf.swing or '',
+                    'slide_dir': leaf.slide_dir or '',
+                } for leaf in row.leaf_ids],
+            } for row in self.row_ids],
+            'leaf_types': [{
+                'id': lt.id,
+                'code': lt.code or '',
+                'name': lt.display_name,
+                'has_hinge_side': lt.has_hinge_side,
+                'has_slide_dir': lt.has_slide_dir,
+            } for lt in leaf_types],
+            'presets': [{
+                'id': p.id,
+                'name': p.name,
+                'category': p.category or '',
+                'layout': p._layout(),
+            } for p in presets],
+        }
+
+    def save_layout(self, payload):
+        """Replace the whole row/leaf grid and the header in ONE call, so
+        it's one transaction: either the new layout lands complete or the
+        old one is untouched. The client sends the finished state rather
+        than a stream of small ORM writes, which would leave a design
+        half-rebuilt if the browser died midway.
+
+        Leaf-type legality against the Series is deliberately NOT enforced
+        here -- that stays with the checks/validation step, consistent with
+        how aw.design.leaf has always treated it. The chips in the UI are
+        filtered; this is not a security boundary, only a business rule.
+        """
+        self.ensure_one()
+        header = {
+            key: value for key, value in (payload.get('header') or {}).items()
+            if key in self.CONFIGURATOR_HEADER_FIELDS
+        }
+        if header:
+            self.write(header)
+
+        self.row_ids.unlink()
+        for row in payload.get('rows') or []:
+            self.env['aw.design.row'].create({
+                'design_id': self.id,
+                'height_mm': row.get('height_mm') or 0.0,
+                'is_auto': row.get('is_auto', False),
+                'leaf_ids': [(0, 0, {
+                    'width_mm': leaf.get('width_mm') or 0.0,
+                    'is_auto': leaf.get('is_auto', False),
+                    'leaf_type_id': leaf.get('leaf_type_id'),
+                    'hinge_side': leaf.get('hinge_side') or False,
+                    'swing': leaf.get('swing') or False,
+                    'slide_dir': leaf.get('slide_dir') or False,
+                }) for leaf in row.get('leaves') or []],
+            })
+        return self.get_configurator_data()
+
     def _incomplete_dimension_designs(self):
         """Designs still sitting at a zero width or height. Dimensions
         are allowed to be unset while a position is being configured --

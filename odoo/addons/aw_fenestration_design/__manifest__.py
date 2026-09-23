@@ -44,6 +44,12 @@ row/leaf grid shape:
         'views/sale_order_views.xml',
         'views/menu_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'aw_fenestration_design/static/src/**/*.js',
+            'aw_fenestration_design/static/src/**/*.xml',
+        ],
+    },
     'installable': True,
     'application': False,
 }

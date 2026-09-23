@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="aw_fenestration_design.DesignConfigurator">
+        <div class="o_aw_configurator d-flex flex-column h-100">
+
+            <div t-if="state.loading" class="d-flex h-100 align-items-center justify-content-center text-muted">
+                Loading design...
+            </div>
+
+            <t t-else="">
+                <!-- Header -->
+                <div class="o_aw_cfg_header border-bottom bg-view p-3">
+                    <div class="d-flex flex-wrap gap-3 align-items-end">
+                        <div>
+                            <label class="form-label small text-muted mb-0">Position</label>
+                            <input type="text" class="form-control form-control-sm"
+                                   t-att-value="state.data.header.name"
+                                   t-on-change="(ev) => this.onHeaderChange('name', ev.target.value)"/>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">Qty</label>
+                            <input type="number" min="1" class="form-control form-control-sm"
+                                   style="width: 5rem;"
+                                   t-att-value="state.data.header.qty"
+                                   t-on-change="(ev) => this.onHeaderChange('qty', parseInt(ev.target.value) || 1)"/>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">Location</label>
+                            <input type="text" class="form-control form-control-sm"
+                                   t-att-value="state.data.header.location"
+                                   t-on-change="(ev) => this.onHeaderChange('location', ev.target.value)"/>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">
+                                Width (<t t-esc="uomLabel"/>)
+                            </label>
+                            <input type="text" class="form-control form-control-sm"
+                                   style="width: 9rem;"
+                                   t-att-value="formatLength(state.data.header.width_mm)"
+                                   t-on-change="(ev) => this.onDimensionChange('width_mm', ev.target.value)"/>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">
+                                Height (<t t-esc="uomLabel"/>)
+                            </label>
+                            <input type="text" class="form-control form-control-sm"
+                                   style="width: 9rem;"
+                                   t-att-value="formatLength(state.data.header.height_mm)"
+                                   t-on-change="(ev) => this.onDimensionChange('height_mm', ev.target.value)"/>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">Series</label>
+                            <div class="form-control form-control-sm bg-light">
+                                <t t-esc="state.data.header.window_series_name"/>
+                            </div>
+                        </div>
+                        <div class="ms-auto d-flex gap-2">
+                            <button class="btn btn-sm btn-secondary" t-on-click="openForm">
+                                Open Form
+                            </button>
+                            <button class="btn btn-sm btn-primary" t-on-click="save"
+                                    t-att-disabled="!state.dirty">
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-grow-1 overflow-auto">
+                    <!-- Drawing -->
+                    <div class="flex-grow-1 d-flex flex-column p-3">
+                        <div class="o_aw_cfg_canvas flex-grow-1 d-flex align-items-center justify-content-center border rounded bg-white text-muted">
+                            <!-- Stage C replaces this with the ported SVG. -->
+                            <div class="text-center">
+                                <div class="fs-5 mb-1">Drawing lands in Stage C</div>
+                                <div class="small">
+                                    <t t-esc="state.data.rows.length"/> row(s),
+                                    <t t-esc="state.data.rows.reduce((n, r) => n + r.leaves.length, 0)"/> leaf/leaves
+                                    &#8212; <t t-esc="state.data.size_display"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Interim leaf picker, so leaves are selectable before
+                             the SVG exists. Stage C selects by clicking the drawing. -->
+                        <div class="mt-3">
+                            <div class="small text-muted mb-1">Leaves</div>
+                            <t t-foreach="state.data.rows" t-as="row" t-key="row_index">
+                                <div class="d-flex gap-1 mb-1 align-items-center">
+                                    <span class="small text-muted me-1">Row <t t-esc="row_index + 1"/></span>
+                                    <t t-foreach="row.leaves" t-as="leaf" t-key="leaf_index">
+                                        <button class="btn btn-sm"
+                                                t-att-class="state.selected and state.selected.row === row_index and state.selected.leaf === leaf_index ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-on-click="() => this.selectLeaf(row_index, leaf_index)">
+                                            <t t-esc="leaf.leaf_type_code or '?'"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
+                    </div>
+
+                    <!-- Side panel: intentionally empty, see Stage F scope note -->
+                    <div class="o_aw_cfg_side border-start bg-view p-3" style="width: 18rem;">
+                        <div class="small text-muted">
+                            BOM, pricing, checks and the cut list land here later.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chips -->
+                <div class="o_aw_cfg_chips border-top bg-view p-3">
+                    <t t-foreach="presetsByCategory" t-as="group" t-key="group.category">
+                        <div class="mb-2">
+                            <div class="small text-muted mb-1"><t t-esc="group.category"/></div>
+                            <div class="d-flex flex-wrap gap-1">
+                                <t t-foreach="group.presets" t-as="preset" t-key="preset.id">
+                                    <button class="btn btn-sm btn-outline-primary"
+                                            t-on-click="() => this.applyPreset(preset)">
+                                        <t t-esc="preset.name"/>
+                                    </button>
+                                </t>
+                            </div>
+                        </div>
+                    </t>
+                    <div t-if="!state.data.presets.length" class="small text-muted mb-2">
+                        No layout presets available for this Series yet.
+                    </div>
+
+                    <t t-if="selectedLeaf">
+                        <div class="border-top pt-2 mt-2">
+                            <div class="small text-muted mb-1">Leaf type</div>
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                <t t-foreach="state.data.leaf_types" t-as="lt" t-key="lt.id">
+                                    <button class="btn btn-sm"
+                                            t-att-class="selectedLeaf.leaf_type_id === lt.id ? 'btn-primary' : 'btn-outline-secondary'"
+                                            t-on-click="() => this.setLeafType(lt.id)">
+                                        <t t-esc="lt.name"/>
+                                    </button>
+                                </t>
+                            </div>
+
+                            <t t-if="selectedLeafType and selectedLeafType.has_hinge_side">
+                                <div class="small text-muted mb-1">Hinge / swing</div>
+                                <div class="d-flex flex-wrap gap-1 mb-2">
+                                    <t t-foreach="['left', 'right', 'top', 'bottom']" t-as="side" t-key="side">
+                                        <button class="btn btn-sm"
+                                                t-att-class="selectedLeaf.hinge_side === side ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-on-click="() => this.setDirection('hinge_side', side)">
+                                            <t t-esc="side"/>
+                                        </button>
+                                    </t>
+                                    <span class="mx-1"/>
+                                    <t t-foreach="['in', 'out']" t-as="sw" t-key="sw">
+                                        <button class="btn btn-sm"
+                                                t-att-class="selectedLeaf.swing === sw ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-on-click="() => this.setDirection('swing', sw)">
+                                            <t t-esc="sw"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
+
+                            <t t-if="selectedLeafType and selectedLeafType.has_slide_dir">
+                                <div class="small text-muted mb-1">Slide direction</div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <t t-foreach="['left', 'right']" t-as="dir" t-key="dir">
+                                        <button class="btn btn-sm"
+                                                t-att-class="selectedLeaf.slide_dir === dir ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-on-click="() => this.setDirection('slide_dir', dir)">
+                                            <t t-esc="dir"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
+                        </div>
+                    </t>
+                </div>
+            </t>
+        </div>
+    </t>
+
+</templates>

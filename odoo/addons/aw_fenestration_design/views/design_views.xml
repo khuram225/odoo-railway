@@ -91,8 +91,10 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <button name="action_open_configurator" type="object"
+                            string="Open Configurator" class="btn-primary"/>
                     <button name="action_explode" type="object"
-                            string="Explode BOM" class="btn-primary"/>
+                            string="Explode BOM"/>
                 </header>
                 <sheet>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
