@@ -235,6 +235,29 @@ model's schema at all.** `ir.config_parameter` via `config_parameter=`
 on a `res.config.settings` field needs no schema change whatsoever, so
 this whole failure class doesn't apply to it.
 
+**Sale Order link (Step 1 of the quoting flow).** Every design prices
+onto one `sale.order.line` whose product is a single generic seeded
+product, `product_fenestration_position` ("Fenestration Position",
+`consu`, not storable, list price 0, `noupdate="1"`) — the line's
+*description* carries the real content (`"D1 — Drawing room — 8 ft 6 in
+× 6 ft 0 in — Double Glaze Sliding"`, size rendered in the configured
+length unit via `aw.design._format_length()`), not the product. The
+Sale Order form gets a "Fenestration" notebook page listing
+`aw_design_ids` plus an "Add Position" button (draft/sent only) that
+creates line + design together and opens the design form; the order
+line list gets a row button back to its design.
+
+**The design → line sync lives in `create()`/`write()`, not an
+onchange** — deliberately, and confirmed against core: a design is
+edited on its own form, never embedded in the Sale Order form, so
+there's no in-memory parent record an onchange could write back into.
+`repair.repair.write()` → `_update_sale_order_line_price()` is the same
+shape in core. Sync sets the description and `product_uom_qty`, and
+sets `price_unit` **only** when `manual_rate` is set (otherwise Odoo's
+own pricelist value is left alone — real pricing is Step 3).
+`aw.design.unlink()` removes its line; the reverse needs no code, since
+`sale_order_line_id` is `ondelete='cascade'`.
+
 New group: `group_fenestration_sales` ("Fenestration / Sales"), separate
 from core's `group_fenestration_manager` — quote-level Design access and
 master-BOM-data access are two different grants. `security.xml` extends

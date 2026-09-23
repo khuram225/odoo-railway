@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+    Both xpaths verified against odoo-src's
+    addons/sale/views/sale_order_views.xml (record id="view_order_form",
+    the v19 sale.order form): the notebook is a plain single <notebook>
+    with named pages, and order_line's embedded arch is a standard
+    <list editable="bottom"> despite the sol_o2m widget on the field.
+    Targeting //notebook rather than a specific page so a reordering of
+    core's pages can't break this.
+    -->
+    <record id="view_order_form_aw_fenestration" model="ir.ui.view">
+        <field name="name">sale.order.form.inherit.aw_fenestration_design</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//notebook" position="inside">
+                <page string="Fenestration" name="aw_fenestration">
+                    <button name="action_add_position" type="object"
+                            string="Add Position" class="btn-primary"
+                            invisible="state not in ('draft', 'sent')"/>
+                    <field name="aw_design_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="location"/>
+                            <field name="window_series_id"/>
+                            <field name="size_display"/>
+                            <field name="qty"/>
+                            <field name="area_sqft"/>
+                            <button name="action_open_design" type="object"
+                                    icon="fa-external-link" title="Open Design"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+
+            <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="after">
+                <field name="aw_design_ids" column_invisible="1"/>
+                <button name="action_open_design" type="object"
+                        icon="fa-external-link" title="Open Design"
+                        invisible="not aw_design_ids"/>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

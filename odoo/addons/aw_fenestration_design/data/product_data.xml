@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- The single generic product every design's sale.order.line
+             points at. It carries no pricing and no description of its
+             own on purpose: the line's name is rewritten from the design
+             (position ref, location, size, series) and its price comes
+             from the design's manual_rate for now, from the real cost
+             cascade in Step 3. noupdate so a user renaming it or setting
+             a default price isn't silently reverted on every upgrade. -->
+        <record id="product_fenestration_position" model="product.template">
+            <field name="name">Fenestration Position</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="False"/>
+            <field name="sale_ok" eval="True"/>
+            <field name="purchase_ok" eval="False"/>
+            <field name="list_price">0.0</field>
+            <field name="categ_id" ref="aw_fenestration_core.product_category_fenestration"/>
+            <field name="description_sale">Configured window/door position. See the linked Design for geometry.</field>
+        </record>
+
+    </data>
+</odoo>

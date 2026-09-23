@@ -37,7 +37,9 @@ row/leaf grid shape:
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
+        'data/product_data.xml',
         'views/design_views.xml',
+        'views/sale_order_views.xml',
         'views/menu_views.xml',
     ],
     'installable': True,

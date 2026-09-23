@@ -124,6 +124,7 @@ class AwDesign(models.Model):
 
     row_count = fields.Integer(compute='_compute_counts')
     leaf_count = fields.Integer(compute='_compute_counts')
+    size_display = fields.Char(compute='_compute_size_display', string='Size')
     area_sqm = fields.Float(compute='_compute_area', store=True, string='Area (m²)')
     area_sqft = fields.Float(compute='_compute_area', store=True, string='Area (sqft)')
 
@@ -182,12 +183,105 @@ class AwDesign(models.Model):
         for rec in self:
             rec.height_mm = rec.height_inch_total * 25.4
 
+    @api.depends('width_mm', 'height_mm', 'length_uom')
+    def _compute_size_display(self):
+        for rec in self:
+            rec.size_display = '%s × %s' % (
+                rec._format_length(rec.width_mm),
+                rec._format_length(rec.height_mm),
+            )
+
+    def _format_length(self, mm):
+        """One length, rendered in whatever unit the Fenestration setting
+        is currently on. Used for the sale line description and the Sale
+        Order's Fenestration tab, so both always speak the same unit the
+        design form is being edited in."""
+        def trim(value):
+            # 6.0 -> "6", 6.5 -> "6.5" — no trailing ".0" in a quote line
+            return ('%.2f' % value).rstrip('0').rstrip('.') or '0'
+
+        if self.length_uom == 'mm':
+            return '%s mm' % trim(mm)
+        total_in = mm / 25.4
+        if self.length_uom == 'in':
+            return '%s in' % trim(total_in)
+        ft = int(total_in // 12)
+        return '%s ft %s in' % (ft, trim(total_in - ft * 12))
+
     @api.depends('width_mm', 'height_mm')
     def _compute_area(self):
         for rec in self:
             m2 = (rec.width_mm / 1000.0) * (rec.height_mm / 1000.0)
             rec.area_sqm = m2
             rec.area_sqft = m2 * 10.7639
+
+    # -- sale.order.line sync ----------------------------------------------
+    # Done in create()/write(), NOT onchange: a design is edited on its own
+    # form, not embedded in the Sale Order form, so there's no in-memory
+    # parent record for an onchange to write back into. Confirmed this is
+    # how core handles the same shape -- repair.repair.write() calls
+    # _update_sale_order_line_price() to push onto its own sale_line_id
+    # after super(), rather than relying on any onchange.
+    SALE_LINE_SYNC_FIELDS = (
+        'name', 'location', 'window_series_id', 'width_mm', 'height_mm',
+        'qty', 'manual_rate', 'sale_order_line_id',
+    )
+
+    def _prepare_sale_line_description(self):
+        self.ensure_one()
+        parts = [self.name or '', self.location or '', self.size_display or '']
+        if self.window_series_id:
+            parts.append(self.window_series_id.display_name)
+        return ' — '.join(p for p in parts if p)
+
+    def _sync_sale_order_line(self):
+        for rec in self:
+            line = rec.sale_order_line_id
+            if not line:
+                continue
+            vals = {
+                'name': rec._prepare_sale_line_description(),
+                'product_uom_qty': rec.qty,
+            }
+            # Only touch price_unit when there's an explicit manual rate --
+            # otherwise leave whatever Odoo's own pricelist logic put there
+            # alone. Real cost-cascade pricing is Step 3, not this one.
+            if rec.manual_rate:
+                vals['price_unit'] = rec.manual_rate * rec.area_sqft
+            line.write(vals)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        designs = super().create(vals_list)
+        designs._sync_sale_order_line()
+        return designs
+
+    def write(self, vals):
+        res = super().write(vals)
+        if any(f in vals for f in self.SALE_LINE_SYNC_FIELDS):
+            self._sync_sale_order_line()
+        return res
+
+    def unlink(self):
+        # Deleting a design removes the quote line it priced onto. The
+        # reverse already works without any code: sale_order_line_id is
+        # ondelete='cascade', so deleting the line drops the design at the
+        # DB level. Lines are collected before super() so the cascade has
+        # nothing left to chase by the time they're unlinked.
+        lines = self.sale_order_line_id
+        res = super().unlink()
+        lines.unlink()
+        return res
+
+    def action_open_design(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'aw.design',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
 
     def action_explode(self):
         """Placeholder for the explosion engine — the Python port of the
