@@ -96,7 +96,9 @@ the consolidation commit for the full reasoning):
   is currently no post_init_hook and no auto-seeded Profile Section in
   this module — rebuild that manually once the sash/interlock → position
   question is settled (either map them onto existing positions or add new
-  position rows for them).
+  position rows for them). (What `post_init_hook` did by hand for those 5
+  cases is now handled generally, for any of the 491 imported profiles —
+  see `aw.profile.section.line` below.)
 - `aw_fenestration_design`'s `aw.design.bom.line` still has its own
   separate `ROLE_SELECTION`/`role` field (frame/sash/interlock/bead/mesh)
   — not touched by this consolidation since it wasn't in scope and is
@@ -110,6 +112,27 @@ cross-references, safe to load early), then `data/product_category_data.xml`
 `data/chawla_attributes_data.xml` + `data/chawla_profiles_data.xml` (the
 Chawla pricelist import — regenerate both from the melt CSV with
 `scripts/rebuild_melt_and_import.py`, never hand-edit them).
+
+**`aw.profile.section.line` resolves its own `product.product` variant
+on demand.** Thickness/Finish are Dynamic-creation attributes on all 491
+imported profile templates, so no variant exists for any of them until a
+specific combination is requested — a general problem, not something
+specific to any one profile. The line now has `product_tmpl_id` +
+`thickness_id`/`finish_id` (domained to that template's own attribute
+line values via computed `thickness_attribute_value_ids`/
+`finish_attribute_value_ids` — a domain string can't call `.filtered()`
+client-side, so those have to be real computed sibling fields, not an
+inline expression) and a stored computed `product_id` that calls
+`product.template._create_product_variant(combination)` — Odoo's own
+get-or-create API, verified against `odoo-src`'s
+`product_template.py` before use (`combination` must be a recordset of
+`product.template.attribute.value`, the template-scoped wrapper around
+`product.attribute.value` — not the same model, mapped via
+`attribute_line_ids.product_template_value_ids.filtered(lambda v:
+v.product_attribute_value_id == wanted)`). Changing `product_tmpl_id`
+after `thickness_id`/`finish_id` are already set clears both via
+`@api.onchange` — the domain only restricts new picks, it doesn't
+retroactively invalidate an already-set value from the old template.
 
 This module has been uninstall/reinstalled rather than live-migrated
 multiple times now (Kind field-type change, the Type-layer insertion, and
