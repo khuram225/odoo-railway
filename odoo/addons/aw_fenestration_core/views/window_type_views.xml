@@ -9,7 +9,7 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="kind"/>
+                <field name="kind_id"/>
                 <field name="profile_section_count" string="Sections"/>
                 <field name="hardware_set_count" string="Hardware Sets"/>
                 <field name="template_count" string="Templates"/>
@@ -43,7 +43,7 @@
                         <group>
                             <field name="name"/>
                             <field name="code"/>
-                            <field name="kind"/>
+                            <field name="kind_id"/>
                         </group>
                         <group>
                             <field name="product_category_id"/>

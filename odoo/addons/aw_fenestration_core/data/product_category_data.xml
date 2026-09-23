@@ -84,42 +84,42 @@
         <record id="window_type_box" model="aw.window.type">
             <field name="name">Box Series</field>
             <field name="code">BOX</field>
-            <field name="kind">sliding</field>
+            <field name="kind_id" ref="window_kind_sliding"/>
             <field name="sequence">10</field>
             <field name="product_category_id" ref="product_category_profiles_box"/>
         </record>
         <record id="window_type_round" model="aw.window.type">
             <field name="name">Round Series</field>
             <field name="code">ROUND</field>
-            <field name="kind">sliding</field>
+            <field name="kind_id" ref="window_kind_sliding"/>
             <field name="sequence">20</field>
             <field name="product_category_id" ref="product_category_profiles_round"/>
         </record>
         <record id="window_type_collar" model="aw.window.type">
             <field name="name">Collar Box Series</field>
             <field name="code">COLLAR</field>
-            <field name="kind">sliding</field>
+            <field name="kind_id" ref="window_kind_sliding"/>
             <field name="sequence">30</field>
             <field name="product_category_id" ref="product_category_profiles_collar"/>
         </record>
         <record id="window_type_gsl" model="aw.window.type">
             <field name="name">Double Glaze Slim (GSL)</field>
             <field name="code">GSL</field>
-            <field name="kind">sliding</field>
+            <field name="kind_id" ref="window_kind_sliding"/>
             <field name="sequence">40</field>
             <field name="product_category_id" ref="product_category_profiles_gsl"/>
         </record>
         <record id="window_type_hinged" model="aw.window.type">
             <field name="name">Hinged / Casement Window</field>
             <field name="code">HINGED</field>
-            <field name="kind">hinged</field>
+            <field name="kind_id" ref="window_kind_hinged"/>
             <field name="sequence">50</field>
             <field name="product_category_id" ref="product_category_profiles_hinged"/>
         </record>
         <record id="window_type_curtain" model="aw.window.type">
             <field name="name">Curtain Wall</field>
             <field name="code">CURTAIN</field>
-            <field name="kind">hinged</field>
+            <field name="kind_id" ref="window_kind_hinged"/>
             <field name="sequence">60</field>
             <field name="product_category_id" ref="product_category_profiles_curtain"/>
         </record>

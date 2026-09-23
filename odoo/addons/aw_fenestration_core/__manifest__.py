@@ -33,9 +33,11 @@ aw_fenestration_stock) that depend on this one.
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
+        'data/window_kind_data.xml',
         'data/product_category_data.xml',
         'data/chawla_attributes_data.xml',
         'data/chawla_profiles_data.xml',
+        'views/window_kind_views.xml',
         'views/window_type_views.xml',
         'views/profile_section_views.xml',
         'views/hardware_set_views.xml',

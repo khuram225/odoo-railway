@@ -6,10 +6,9 @@ class AwWindowType(models.Model):
     """A fenestration system family: Box Series, Collar Box Series, Round Series,
     GSL Slim, Hinged/Casement, Curtain Wall, etc.
 
-    'kind' governs which leaf types (fixed/slider/casement/awning/hopper/mesh)
-    are legal on a design built against this type — sliding systems can't host
-    a casement leaf and vice versa. This mirrors SERIES.kind from the
-    prototype 1:1.
+    'kind_id' governs which leaf types (fixed/slider/casement/awning/hopper/
+    mesh) are legal on a design built against this type — sliding systems
+    can't host a casement leaf and vice versa. See aw.window.kind.
     """
     _name = 'aw.window.type'
     _inherit = ['mail.thread', 'mail.activity.mixin']
@@ -18,14 +17,10 @@ class AwWindowType(models.Model):
 
     name = fields.Char(required=True, tracking=True)
     code = fields.Char(tracking=True, help="Short code, e.g. BOX, COLLAR, ROUND, GSL, HINGED, CURTAIN")
-    kind = fields.Selection([
-        ('sliding', 'Sliding'),
-        ('hinged', 'Hinged / Casement'),
-        ('fixed', 'Fixed only'),
-    ], required=True, default='sliding', tracking=True,
-       help="Which leaf types this system can host. Sliding systems take "
-            "Fixed/Slider/Mesh leaves; Hinged systems take Fixed/Casement/"
-            "Awning/Hopper/Mesh leaves.")
+    kind_id = fields.Many2one('aw.window.kind', required=True, tracking=True,
+        ondelete='restrict',
+        help="Which leaf types this system can host, and the rules for them "
+             "-- see aw.window.kind.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
     color = fields.Integer(string='Color Index')

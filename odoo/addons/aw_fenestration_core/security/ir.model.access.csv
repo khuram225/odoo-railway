@@ -1,4 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_aw_window_kind_user,aw.window.kind.user,model_aw_window_kind,base.group_user,1,0,0,0
+access_aw_window_kind_manager,aw.window.kind.manager,model_aw_window_kind,group_fenestration_manager,1,1,1,1
 access_aw_window_type_user,aw.window.type.user,model_aw_window_type,base.group_user,1,0,0,0
 access_aw_window_type_manager,aw.window.type.manager,model_aw_window_type,group_fenestration_manager,1,1,1,1
 access_aw_profile_section_user,aw.profile.section.user,model_aw_profile_section,base.group_user,1,0,0,0

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_window_kind_list" model="ir.ui.view">
+        <field name="name">aw.window.kind.list</field>
+        <field name="model">aw.window.kind</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="allow_fixed" widget="boolean_toggle"/>
+                <field name="allow_slider" widget="boolean_toggle"/>
+                <field name="allow_casement" widget="boolean_toggle"/>
+                <field name="allow_awning" widget="boolean_toggle"/>
+                <field name="allow_hopper" widget="boolean_toggle"/>
+                <field name="allow_mesh" widget="boolean_toggle"/>
+                <field name="window_type_count" string="Used by"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_window_kind_form" model="ir.ui.view">
+        <field name="name">aw.window.kind.form</field>
+        <field name="model">aw.window.kind</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button type="object" name="%(action_aw_window_type)d"
+                                class="oe_stat_button" icon="fa-th-large"
+                                context="{'search_default_kind_id': id}">
+                            <field name="window_type_count" widget="statinfo" string="Window Types"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="sequence"/>
+                        </group>
+                    </group>
+                    <group string="Leaf types this Kind allows">
+                        <group>
+                            <field name="allow_fixed"/>
+                            <field name="allow_slider"/>
+                        </group>
+                        <group>
+                            <field name="allow_casement"/>
+                            <field name="allow_awning"/>
+                            <field name="allow_hopper"/>
+                        </group>
+                        <group>
+                            <field name="allow_mesh"/>
+                        </group>
+                    </group>
+                    <field name="active" invisible="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_window_kind" model="ir.actions.act_window">
+        <field name="name">Window Kinds</field>
+        <field name="res_model">aw.window.kind</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Window Kind</p>
+            <p>A Kind defines which leaf types (Fixed, Slider, Casement, Awning,
+               Hopper, Mesh) a Window Type can host. Sliding, Hinged/Casement and
+               Fixed are seeded — add a new one only when it represents a genuinely
+               different combination of allowed leaf types.</p>
+        </field>
+    </record>
+
+</odoo>
