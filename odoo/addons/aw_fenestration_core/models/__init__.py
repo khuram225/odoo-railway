@@ -1,5 +1,3 @@
-from . import res_company
-from . import res_config_settings
 from . import leaf_type
 from . import profile_position
 from . import window_series

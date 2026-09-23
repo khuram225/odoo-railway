@@ -23,17 +23,7 @@ class AwDesignRow(models.Model):
 
     design_id = fields.Many2one('aw.design', required=True, ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
-    length_uom = fields.Selection(related='design_id.length_uom', string='Length Unit')
-
     height_mm = fields.Float(string='Height (mm)', required=True)
-    height_ft = fields.Integer(string='Height (ft)',
-        compute='_compute_height_ftin', inverse='_inverse_height_ftin')
-    height_in = fields.Float(string='Height (in)',
-        compute='_compute_height_ftin', inverse='_inverse_height_ftin',
-        help="Decimals allowed, e.g. 6.5.")
-    height_inch_total = fields.Float(string='Height (in)',
-        compute='_compute_height_inch_total', inverse='_inverse_height_inch_total')
-
     is_auto = fields.Boolean(
         string='Automatic',
         help="If checked, this row's height is the one that absorbs "
@@ -49,24 +39,3 @@ class AwDesignRow(models.Model):
     def _compute_leaf_count(self):
         for rec in self:
             rec.leaf_count = len(rec.leaf_ids)
-
-    @api.depends('height_mm')
-    def _compute_height_ftin(self):
-        for rec in self:
-            total_in = rec.height_mm / 25.4
-            ft = int(total_in // 12)
-            rec.height_ft = ft
-            rec.height_in = total_in - ft * 12
-
-    def _inverse_height_ftin(self):
-        for rec in self:
-            rec.height_mm = rec.height_ft * 304.8 + rec.height_in * 25.4
-
-    @api.depends('height_mm')
-    def _compute_height_inch_total(self):
-        for rec in self:
-            rec.height_inch_total = rec.height_mm / 25.4
-
-    def _inverse_height_inch_total(self):
-        for rec in self:
-            rec.height_mm = rec.height_inch_total * 25.4

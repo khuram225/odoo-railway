@@ -53,17 +53,4 @@
               action="action_aw_window_template"
               sequence="50"/>
 
-    <menuitem id="menu_aw_fenestration_config"
-              name="Configuration"
-              parent="menu_aw_fenestration_root"
-              sequence="100"
-              groups="group_fenestration_manager"/>
-
-    <menuitem id="menu_aw_fenestration_settings"
-              name="Settings"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_fenestration_config_settings"
-              sequence="0"
-              groups="group_fenestration_manager"/>
-
 </odoo>

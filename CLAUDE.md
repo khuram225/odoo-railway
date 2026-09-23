@@ -17,10 +17,9 @@ It is not part of this repo.
 - `odoo/addons/aluminum_inventory/` — first real business module, for an
   aluminum windows manufacturing operation. See below.
 - `odoo/addons/aw_fenestration_core/` — master data for the aluminum windows
-  business: `aw.leaf.type`, `aw.profile.position`, `aw.window.series`,
+  business: `aw.window.kind`, `aw.window.type`, `aw.window.series`,
   `aw.profile.section`, `aw.hardware.set`, `aw.glass.spec`,
-  `aw.window.template`, plus a company-level Fenestration Settings page
-  (`res.company.aw_length_uom`). See below.
+  `aw.window.template`. See below.
 - `odoo/addons/aw_fenestration_design/` — per-quote design geometry
   (`aw.design` → row → leaf), depends on `aw_fenestration_core` + `sale`.
   See below.
@@ -186,37 +185,15 @@ records domained by `ref()` to `aw_fenestration_core.aw_attribute_finish`/
 `aw_attribute_thickness` (not name-string matching — a renamed attribute
 would silently break that instead of erroring).
 
-**Configurable length unit, mm always the stored source of truth** (this
-superseded an earlier round where ft/in were briefly the stored fields and
-mm was the compute — if you see that description anywhere, it's stale).
-`res.company.aw_length_uom` (added by `aw_fenestration_core`; Settings →
-Fenestration → Configuration → Settings, or `res.config.settings`'s own
-`aw_length_uom` related field) picks one of `ftin`/`in`/`mm` company-wide.
-On `aw.design` (width+height), `aw.design.row` (height), `aw.design.leaf`
-(width): `*_mm` is the real required stored field; `*_ft`+`*_in` and
-`*_inch_total` are compute+inverse pairs that read from and write back to
-it (1 ft = 304.8mm, 1 in = 25.4mm) — editing in any unit recomputes the
-other two automatically, since all three `@api.depends('*_mm')`. Each
-model has a `length_uom` related field (`aw.design.length_uom` →
-`company_id.aw_length_uom` directly; `aw.design.row`/`aw.design.leaf`
-chain through their parent — `design_id.length_uom` / `row_id.length_uom`
-— rather than each holding their own `company_id`) driving `invisible=`/
-`column_invisible=` on the form/list so only the pair matching the setting
-is shown for editing. `*_mm` itself stays **always visible**, `readonly=
-"length_uom != 'mm'"` — editable only when that's the active setting,
-otherwise a read-only reference; this reconciles two instructions that
-read as contradictory in isolation (mm as *the* entry field when the
-setting is `'mm'`, vs. mm "stays visible but readonly" in general — true
-simultaneously once you make visibility unconditional and only readonly
-conditional). `product.attribute.value`-style computed-sibling-field
-domains don't apply here since these are plain Float/Integer, not
-Many2one — a domain string can't call `.filtered()` regardless of field
-type, but there's nothing to filter for a straight unit conversion.
-No `default=` on the ft/in/inch_total fields (there's nothing to
-default — they're always derived from `*_mm`), so upgrading resets any
-existing design's width/height to 0 rather than migrating a prior direct
-mm value forward through a guessed ft/in split. Fine for test data;
-re-enter by hand after upgrading.
+`aw.design.width_mm`/`height_mm` are no longer directly editable — they're
+`store=True` computes from `width_ft`+`width_in` / `height_ft`+`height_in`
+(feet/inches, since that's how site measurements are actually taken; 1 ft =
+304.8mm, 1 in = 25.4mm), kept as real stored fields so `area_sqm`/`area_sqft`'s
+existing `@api.depends('width_mm', 'height_mm')` needed no changes. No
+`default=` on the new ft/in fields, so upgrading an existing installed copy
+of this module resets any existing design's width/height to 0 rather than
+migrating it — there's no way to infer a sensible ft/in split from an old
+mm value. Fine for test data; re-enter by hand after upgrading.
 
 New group: `group_fenestration_sales` ("Fenestration / Sales"), separate
 from core's `group_fenestration_manager` — quote-level Design access and
