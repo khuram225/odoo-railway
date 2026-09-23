@@ -185,15 +185,55 @@ records domained by `ref()` to `aw_fenestration_core.aw_attribute_finish`/
 `aw_attribute_thickness` (not name-string matching — a renamed attribute
 would silently break that instead of erroring).
 
-`aw.design.width_mm`/`height_mm` are no longer directly editable — they're
-`store=True` computes from `width_ft`+`width_in` / `height_ft`+`height_in`
-(feet/inches, since that's how site measurements are actually taken; 1 ft =
-304.8mm, 1 in = 25.4mm), kept as real stored fields so `area_sqm`/`area_sqft`'s
-existing `@api.depends('width_mm', 'height_mm')` needed no changes. No
-`default=` on the new ft/in fields, so upgrading an existing installed copy
-of this module resets any existing design's width/height to 0 rather than
-migrating it — there's no way to infer a sensible ft/in split from an old
-mm value. Fine for test data; re-enter by hand after upgrading.
+**Configurable length unit, mm always the stored source of truth.**
+`res.config.settings.aw_length_uom` (added by `aw_fenestration_core`,
+Settings → Fenestration → Configuration → Settings) picks one of
+`ftin`/`in`/`mm`, stored via `config_parameter='aw_fenestration.length_uom'`
+— **deliberately not a field on `res.company`**, see the near-outage note
+below. On `aw.design` (width+height), `aw.design.row` (height),
+`aw.design.leaf` (width): `*_mm` is the real required stored field;
+`*_ft`+`*_in` and `*_inch_total` are compute+inverse pairs reading from
+and writing back to it (1 ft = 304.8mm, 1 in = 25.4mm) — editing in any
+unit recomputes the other two, since all three `@api.depends('*_mm')`.
+Each model has a non-stored `length_uom` field: `aw.design`'s reads
+`ir.config_parameter` directly (`@api.depends()` with no args — a real,
+used-in-core pattern for a compute that depends on context rather than
+other fields, confirmed in `odoo/addons/base/models/ir_model.py`);
+`aw.design.row`/`aw.design.leaf` chain through their parent
+(`design_id.length_uom` / `row_id.length_uom` — `related=` works fine
+against a non-stored target, no need to duplicate the parameter read in
+three places). Drives `invisible=`/`column_invisible=` so only the pair
+matching the setting is shown for editing; `*_mm` itself stays **always
+visible**, `readonly="length_uom != 'mm'"` rather than conditionally
+hidden — editable only when that's the active setting, a read-only
+reference otherwise. No `default=` on the ft/in/inch_total fields — there's
+nothing to default, they're always derived from `*_mm`.
+
+**Near-outage, worth internalizing:** the first version of this feature
+put `aw_length_uom` directly on `res.company` (`related=` from there on
+each model) and took the whole site down — every page 500'd, including
+`/odoo` after login. Root cause, verified against `odoo-src` before
+either building or fixing this: a plain container boot/restart **never**
+runs the schema DDL that adds a new column — `Registry.new()`/
+`load_modules()` both default `update_module=False`, and `init_models()`
+(the actual `ALTER TABLE`) only runs when that's `True`, i.e. only for
+`-i`/`-u` or clicking Install/Upgrade in the UI. The boot log's `Missing
+not-null constraint on res.company.aw_length_uom` warning looked like
+confirmation the column existed (that's what it means in every *other*
+case in this history) but doesn't: `registry.check_null_constraints()`
+only checks whether an *existing* column has the `NOT NULL` constraint
+set — a genuinely **missing** column produces the exact same warning
+text, no way to tell them apart from the log alone. `res.company` is
+read with a full-column prefetch on essentially every request, so the
+very first real page load after deploy (before anyone had clicked
+Upgrade) hit `UndefinedColumn` and aborted its DB transaction, cascading
+500s to everything downstream in that request. **Lesson: never add a
+required (or otherwise request-path-critical) stored field to a core
+model that's read on every request without either an immediate Upgrade
+right after deploy, or — better, as used here — not touching that
+model's schema at all.** `ir.config_parameter` via `config_parameter=`
+on a `res.config.settings` field needs no schema change whatsoever, so
+this whole failure class doesn't apply to it.
 
 New group: `group_fenestration_sales` ("Fenestration / Sales"), separate
 from core's `group_fenestration_manager` — quote-level Design access and
