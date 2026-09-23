@@ -3,9 +3,8 @@
 
     <menuitem id="menu_aw_fenestration_root"
               name="Fenestration"
-              sequence="45"/>
-    <!-- add web_icon="aw_fenestration_core,static/description/icon.png" once
-         you've dropped an icon.png into that folder -->
+              sequence="45"
+              web_icon="aw_fenestration_core,static/description/icon.png"/>
 
     <menuitem id="menu_aw_fenestration_master_data"
               name="Master Data"
