@@ -14,4 +14,13 @@
               action="action_aw_design"
               sequence="20"/>
 
+    <!-- menu_aw_fenestration_config is core's Configuration menu, added in
+         the units round. Same cross-module reasoning as above: the hard
+         dependency guarantees it exists by the time this loads. -->
+    <menuitem id="menu_aw_layout_preset"
+              name="Layout Presets"
+              parent="aw_fenestration_core.menu_aw_fenestration_config"
+              action="action_aw_layout_preset"
+              sequence="10"/>
+
 </odoo>

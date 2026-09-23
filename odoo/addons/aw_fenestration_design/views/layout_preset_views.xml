@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_layout_preset_list" model="ir.ui.view">
+        <field name="name">aw.layout.preset.list</field>
+        <field name="model">aw.layout.preset</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="category"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_layout_preset_form" model="ir.ui.view">
+        <field name="name">aw.layout.preset.form</field>
+        <field name="model">aw.layout.preset</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived"
+                            bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="category"/>
+                        </group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <separator string="Layout"/>
+                    <div class="text-muted mb-2">
+                        Rows top to bottom, leaves left to right.
+                        <code>h</code> and <code>w</code> are relative
+                        weights, not millimetres: a row with
+                        <code>h: 2</code> beside one with <code>h: 1</code>
+                        takes two thirds of whatever height the design has.
+                        <code>type</code> is a Leaf Type code (FIXED,
+                        SLIDER, CASEMENT, AWNING, HOPPER, MESH, TILTTURN).
+                    </div>
+                    <field name="layout_json" widget="ace"
+                           options="{'mode': 'json'}"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_layout_preset" model="ir.actions.act_window">
+        <field name="name">Layout Presets</field>
+        <field name="res_model">aw.layout.preset</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a layout preset</p>
+            <p>A preset is a reusable row/leaf grid shape — no absolute
+               sizes — that the design configurator can apply in one click.</p>
+        </field>
+    </record>
+
+</odoo>

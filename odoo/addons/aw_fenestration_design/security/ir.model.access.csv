@@ -8,3 +8,5 @@ access_aw_design_leaf_sales,aw.design.leaf.sales,model_aw_design_leaf,group_fene
 access_aw_design_bom_line_user,aw.design.bom.line.user,model_aw_design_bom_line,base.group_user,1,0,0,0
 access_aw_design_bom_line_sales,aw.design.bom.line.sales,model_aw_design_bom_line,group_fenestration_sales,1,1,1,1
 access_aw_design_position_wizard_sales,aw.design.position.wizard.sales,model_aw_design_position_wizard,group_fenestration_sales,1,1,1,1
+access_aw_layout_preset_user,aw.layout.preset.user,model_aw_layout_preset,base.group_user,1,0,0,0
+access_aw_layout_preset_manager,aw.layout.preset.manager,model_aw_layout_preset,aw_fenestration_core.group_fenestration_manager,1,1,1,1
