@@ -22,6 +22,12 @@
               name="Window Types"
               parent="menu_aw_fenestration_master_data"
               action="action_aw_window_type"
+              sequence="8"/>
+
+    <menuitem id="menu_aw_window_series"
+              name="Window Series"
+              parent="menu_aw_fenestration_master_data"
+              action="action_aw_window_series"
               sequence="10"/>
 
     <menuitem id="menu_aw_profile_section"

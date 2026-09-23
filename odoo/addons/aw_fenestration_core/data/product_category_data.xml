@@ -10,7 +10,7 @@
             <field name="name">Fenestration</field>
         </record>
 
-        <!-- Profiles branch: one child per Window Type -->
+        <!-- Profiles branch: one child per Window Series -->
         <record id="product_category_profiles" model="product.category">
             <field name="name">Profiles</field>
             <field name="parent_id" ref="product_category_fenestration"/>
@@ -80,46 +80,48 @@
             <field name="parent_id" ref="product_category_glass"/>
         </record>
 
-        <!-- Seed the six Window Types, linked to their Profile category -->
-        <record id="window_type_box" model="aw.window.type">
+        <!-- Seed the six Window Series, linked to their Profile category and
+             their Window Type. Series/Type mapping flagged for confirmation,
+             not silently assumed; see chat reply. -->
+        <record id="window_series_box" model="aw.window.series">
             <field name="name">Box Series</field>
             <field name="code">BOX</field>
-            <field name="kind_id" ref="window_kind_sliding"/>
+            <field name="window_type_id" ref="window_type_sliding"/>
             <field name="sequence">10</field>
             <field name="product_category_id" ref="product_category_profiles_box"/>
         </record>
-        <record id="window_type_round" model="aw.window.type">
+        <record id="window_series_round" model="aw.window.series">
             <field name="name">Round Series</field>
             <field name="code">ROUND</field>
-            <field name="kind_id" ref="window_kind_sliding"/>
+            <field name="window_type_id" ref="window_type_sliding"/>
             <field name="sequence">20</field>
             <field name="product_category_id" ref="product_category_profiles_round"/>
         </record>
-        <record id="window_type_collar" model="aw.window.type">
+        <record id="window_series_collar" model="aw.window.series">
             <field name="name">Collar Box Series</field>
             <field name="code">COLLAR</field>
-            <field name="kind_id" ref="window_kind_sliding"/>
+            <field name="window_type_id" ref="window_type_sliding"/>
             <field name="sequence">30</field>
             <field name="product_category_id" ref="product_category_profiles_collar"/>
         </record>
-        <record id="window_type_gsl" model="aw.window.type">
+        <record id="window_series_gsl" model="aw.window.series">
             <field name="name">Double Glaze Slim (GSL)</field>
             <field name="code">GSL</field>
-            <field name="kind_id" ref="window_kind_sliding"/>
+            <field name="window_type_id" ref="window_type_sliding"/>
             <field name="sequence">40</field>
             <field name="product_category_id" ref="product_category_profiles_gsl"/>
         </record>
-        <record id="window_type_hinged" model="aw.window.type">
+        <record id="window_series_hinged" model="aw.window.series">
             <field name="name">Hinged / Casement Window</field>
             <field name="code">HINGED</field>
-            <field name="kind_id" ref="window_kind_hinged"/>
+            <field name="window_type_id" ref="window_type_openable"/>
             <field name="sequence">50</field>
             <field name="product_category_id" ref="product_category_profiles_hinged"/>
         </record>
-        <record id="window_type_curtain" model="aw.window.type">
+        <record id="window_series_curtain" model="aw.window.series">
             <field name="name">Curtain Wall</field>
             <field name="code">CURTAIN</field>
-            <field name="kind_id" ref="window_kind_hinged"/>
+            <field name="window_type_id" ref="window_type_curtain_wall_fix"/>
             <field name="sequence">60</field>
             <field name="product_category_id" ref="product_category_profiles_curtain"/>
         </record>

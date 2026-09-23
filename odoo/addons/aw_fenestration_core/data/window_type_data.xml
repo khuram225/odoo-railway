@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Kind mapping: only Curtain Wall Fix Window -> hinged and Door -> none
+             were given explicitly. Sliding/Fix/Tilt & Turn map to the identically-
+             named Kind; Open-able -> hinged (matches Hinged/Casement's leaf set).
+             Flagged for confirmation, not silently assumed; see chat reply. -->
+        <record id="window_type_sliding" model="aw.window.type">
+            <field name="name">Sliding Window</field>
+            <field name="code">SLIDING</field>
+            <field name="kind_id" ref="window_kind_sliding"/>
+            <field name="sequence">10</field>
+        </record>
+
+        <record id="window_type_fix" model="aw.window.type">
+            <field name="name">Fix Window</field>
+            <field name="code">FIX</field>
+            <field name="kind_id" ref="window_kind_fixed"/>
+            <field name="sequence">20</field>
+        </record>
+
+        <record id="window_type_curtain_wall_fix" model="aw.window.type">
+            <field name="name">Curtain Wall Fix Window</field>
+            <field name="code">CURTAIN_FIX</field>
+            <field name="kind_id" ref="window_kind_hinged"/>
+            <field name="sequence">30</field>
+        </record>
+
+        <record id="window_type_openable" model="aw.window.type">
+            <field name="name">Open-able Window</field>
+            <field name="code">OPENABLE</field>
+            <field name="kind_id" ref="window_kind_hinged"/>
+            <field name="sequence">40</field>
+        </record>
+
+        <record id="window_type_tiltturn" model="aw.window.type">
+            <field name="name">Tilt &amp; Turn Window</field>
+            <field name="code">TILTTURN</field>
+            <field name="kind_id" ref="window_kind_tiltturn"/>
+            <field name="sequence">50</field>
+        </record>
+
+        <record id="window_type_door" model="aw.window.type">
+            <field name="name">Door</field>
+            <field name="code">DOOR</field>
+            <!-- no kind_id: Door doesn't have a leaf-type rule set yet -->
+            <field name="sequence">60</field>
+        </record>
+
+    </data>
+</odoo>

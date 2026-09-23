@@ -12,6 +12,7 @@
             <field name="allow_awning" eval="False"/>
             <field name="allow_hopper" eval="False"/>
             <field name="allow_mesh" eval="True"/>
+            <field name="allow_tiltturn" eval="False"/>
         </record>
 
         <record id="window_kind_hinged" model="aw.window.kind">
@@ -24,6 +25,7 @@
             <field name="allow_awning" eval="True"/>
             <field name="allow_hopper" eval="True"/>
             <field name="allow_mesh" eval="True"/>
+            <field name="allow_tiltturn" eval="False"/>
         </record>
 
         <record id="window_kind_fixed" model="aw.window.kind">
@@ -36,6 +38,20 @@
             <field name="allow_awning" eval="False"/>
             <field name="allow_hopper" eval="False"/>
             <field name="allow_mesh" eval="False"/>
+            <field name="allow_tiltturn" eval="False"/>
+        </record>
+
+        <record id="window_kind_tiltturn" model="aw.window.kind">
+            <field name="name">Tilt &amp; Turn</field>
+            <field name="code">TILTTURN</field>
+            <field name="sequence">40</field>
+            <field name="allow_fixed" eval="True"/>
+            <field name="allow_slider" eval="False"/>
+            <field name="allow_casement" eval="False"/>
+            <field name="allow_awning" eval="False"/>
+            <field name="allow_hopper" eval="False"/>
+            <field name="allow_mesh" eval="False"/>
+            <field name="allow_tiltturn" eval="True"/>
         </record>
 
     </data>

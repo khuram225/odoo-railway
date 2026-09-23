@@ -17,8 +17,9 @@ It is not part of this repo.
 - `odoo/addons/aluminum_inventory/` — first real business module, for an
   aluminum windows manufacturing operation. See below.
 - `odoo/addons/aw_fenestration_core/` — master data for the aluminum windows
-  business: `aw.window.kind`, `aw.window.type`, `aw.profile.section`,
-  `aw.hardware.set`, `aw.glass.spec`, `aw.window.template`. See below.
+  business: `aw.window.kind`, `aw.window.type`, `aw.window.series`,
+  `aw.profile.section`, `aw.hardware.set`, `aw.glass.spec`,
+  `aw.window.template`. See below.
 
 ## aluminum_inventory
 
@@ -52,8 +53,23 @@ key relations) on all 6 top-level models; the `.line` models (profile
 section lines, hardware set lines) don't get their own chatter, they're
 edited inline on the parent.
 
-Seeded via `data/product_category_data.xml` (Window Kinds, product category
-tree, the 6 Window Types) and `data/chawla_attributes_data.xml` +
+Three-layer master-data hierarchy: `aw.window.kind` (leaf-type rule set:
+Sliding, Hinged/Casement, Fixed only, Tilt & Turn) → `aw.window.type` (broad
+category: Sliding Window, Fix Window, Curtain Wall Fix Window, Open-able
+Window, Tilt & Turn Window, Door — `kind_id` optional here, e.g. Door has
+none) → `aw.window.series` (specific product family: Box Series, Collar Box,
+Round Series, GSL Slim, Hinged/Casement, Curtain Wall — `window_type_id`
+required, `kind_id` is a `related`+`store` passthrough of
+`window_type_id.kind_id`, not set directly). `aw.window.series` is what
+`aw.profile.section`/`aw.hardware.set`/`aw.window.template`'s
+`window_type_id` field actually points at (comodel `aw.window.series`,
+field name unchanged from before the Type layer existed — don't be misled
+by the field name into thinking it points at `aw.window.type`).
+
+Seeded via `data/window_kind_data.xml`, `data/window_type_data.xml`, then
+`data/product_category_data.xml` (product category tree + the 6 Window
+Series, which reference Type records from the file before it — that load
+order matters) and `data/chawla_attributes_data.xml` +
 `data/chawla_profiles_data.xml` (the Chawla pricelist import — regenerate
 both from the melt CSV with `scripts/rebuild_melt_and_import.py`, never
 hand-edit them).
@@ -65,16 +81,33 @@ variants it needs). That means:
   XML-declared records get deleted on uninstall.
 - `aw.profile.section.window_type_id` and `aw.profile.section.line.product_id`
   are both `ondelete='restrict'`, so this leftover section blocks deletion
-  of the Window Type and product variants it references.
+  of the Window Series and product variants it references.
 - **A straight uninstall will fail.** Before uninstalling, delete the
   "Box Series - Standard" Profile Section by hand first (cascades to its
   5 lines) — then uninstall, then reinstall. `post_init_hook` is
   idempotent and recreates it identically on reinstall.
 
-This came up concretely: `aw.window.type.kind` (Selection) was replaced with
-`kind_id` (Many2one to the new `aw.window.kind`) with no migration — decided
-against migrating the 6 live rows since this is still test data, chose
-uninstall+reinstall instead, which is why the sequence above matters.
+This module has been uninstall/reinstalled rather than live-migrated
+multiple times now (Kind field-type change, then the Type-layer insertion
+above) — this is still test data, so that's the deliberate choice each
+time rather than writing migration scripts, which is why the sequence
+above keeps mattering.
+
+**View/data load-order chains that broke a real install before** — two
+concrete Odoo-19 behaviors, not lazy: `%(xmlid)d` inside a `type="xml"`
+field is resolved *eagerly* during `convert_xml_import`, and `ref="..."`
+on a scalar field the same way. Both require the target to already exist
+in `ir.model.data` at that exact point in the manifest's `data` list, not
+just somewhere earlier. Current chains: `window_kind_data.xml` →
+`window_type_data.xml` → `product_category_data.xml` (Series refs Type
+and Kind); `window_series_views.xml` → `window_type_views.xml` (Type's
+stat button refs `action_aw_window_series`) → `window_kind_views.xml`
+(Kind's stat button refs `action_aw_window_type`). Adding a
+`%(xmlid)d`/cross-file `ref=` anywhere else in this module means adding
+to (or verifying against) this chain, not assuming render-time
+resolution — see `odoo/tools/convert.py`'s `_tag_record`/`_eval_xml`, not
+`ir_ui_view.py`'s `resolve_external_ids` (that one's for dev-mode
+re-reads, a different and later mechanism).
 
 ## XML comment check
 

@@ -3,69 +3,36 @@ from odoo import fields, models
 
 
 class AwWindowType(models.Model):
-    """A fenestration system family: Box Series, Collar Box Series, Round Series,
-    GSL Slim, Hinged/Casement, Curtain Wall, etc.
+    """The broad fenestration category a Series belongs to -- Sliding
+    Window, Fix Window, Curtain Wall Fix Window, Open-able Window,
+    Tilt & Turn Window, Door. Sits above aw.window.series: several Series
+    (e.g. Box Series, Round Series, Collar Box Series) can share one Type.
 
-    'kind_id' governs which leaf types (fixed/slider/casement/awning/hopper/
-    mesh) are legal on a design built against this type — sliding systems
-    can't host a casement leaf and vice versa. See aw.window.kind.
+    kind_id is intentionally NOT required -- Door doesn't have a leaf-type
+    rule set yet, and forcing one here would mean picking an arbitrary
+    Kind just to satisfy the field rather than leaving it genuinely unset.
     """
     _name = 'aw.window.type'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'Fenestration Window Type (System)'
+    _description = 'Fenestration Window Type'
     _order = 'sequence, name'
 
     name = fields.Char(required=True, tracking=True)
-    code = fields.Char(tracking=True, help="Short code, e.g. BOX, COLLAR, ROUND, GSL, HINGED, CURTAIN")
-    kind_id = fields.Many2one('aw.window.kind', required=True, tracking=True,
+    code = fields.Char(tracking=True)
+    kind_id = fields.Many2one('aw.window.kind', tracking=True,
         ondelete='restrict',
-        help="Which leaf types this system can host, and the rules for them "
-             "-- see aw.window.kind.")
+        help="Leaf-type rule set this Type uses, where applicable. Left "
+             "blank for Types like Door that don't have one yet.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
-    color = fields.Integer(string='Color Index')
 
-    product_category_id = fields.Many2one(
-        'product.category', string='Profile Product Category',
-        help="Where this type's profile products live in the Inventory "
-             "category tree, e.g. Fenestration / Profiles / Box Series.")
+    window_series_ids = fields.One2many(
+        'aw.window.series', 'window_type_id', string='Series')
+    window_series_count = fields.Integer(compute='_compute_window_series_count')
 
-    profile_section_ids = fields.One2many(
-        'aw.profile.section', 'window_type_id', string='Profile Sections')
-    hardware_set_ids = fields.One2many(
-        'aw.hardware.set', 'window_type_id', string='Hardware Sets')
-    template_ids = fields.One2many(
-        'aw.window.template', 'window_type_id', string='Templates')
-
-    profile_section_count = fields.Integer(compute='_compute_counts')
-    hardware_set_count = fields.Integer(compute='_compute_counts')
-    template_count = fields.Integer(compute='_compute_counts')
-
-    def _compute_counts(self):
+    def _compute_window_series_count(self):
         for rec in self:
-            rec.profile_section_count = len(rec.profile_section_ids)
-            rec.hardware_set_count = len(rec.hardware_set_ids)
-            rec.template_count = len(rec.template_ids)
-
-    def _view_related(self, model, name):
-        self.ensure_one()
-        return {
-            'type': 'ir.actions.act_window',
-            'name': name,
-            'res_model': model,
-            'view_mode': 'list,form',
-            'domain': [('window_type_id', '=', self.id)],
-            'context': {'default_window_type_id': self.id},
-        }
-
-    def action_view_profile_sections(self):
-        return self._view_related('aw.profile.section', 'Profile Sections')
-
-    def action_view_hardware_sets(self):
-        return self._view_related('aw.hardware.set', 'Hardware Sets')
-
-    def action_view_templates(self):
-        return self._view_related('aw.window.template', 'Templates')
+            rec.window_series_count = len(rec.window_series_ids)
 
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Window Type code must be unique.'),

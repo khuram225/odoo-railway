@@ -10,9 +10,14 @@ Fenestration Core
 Foundation module for the aluminium windows & doors ERP.
 
 Defines:
-- Window Types (Box Series, Collar Box, Round Series, GSL Slim, Hinged/Casement, Curtain Wall)
+- Window Kinds: which leaf types a system can host (Sliding, Hinged/Casement,
+  Fixed only, Tilt & Turn)
+- Window Types: the broad category a Series belongs to (Sliding Window, Fix
+  Window, Curtain Wall Fix Window, Open-able Window, Tilt & Turn Window, Door)
+- Window Series: the specific product family within a Type (Box Series,
+  Collar Box, Round Series, GSL Slim, Hinged/Casement, Curtain Wall)
 - Profile Sections: which profile product fills each structural role (frame/sash/interlock/bead/mesh)
-  for a given Window Type
+  for a given Window Series
 - Hardware Sets: named bundles of hardware products (roller, lock, handle, hinge...) for a Window Type
 - Glass Specs: named glass product references
 - Window Templates: the assembly of one Profile Section + one Hardware Set + one Glass Spec
@@ -34,9 +39,11 @@ aw_fenestration_stock) that depend on this one.
         'security/security.xml',
         'security/ir.model.access.csv',
         'data/window_kind_data.xml',
+        'data/window_type_data.xml',
         'data/product_category_data.xml',
         'data/chawla_attributes_data.xml',
         'data/chawla_profiles_data.xml',
+        'views/window_series_views.xml',
         'views/window_type_views.xml',
         'views/window_kind_views.xml',
         'views/profile_section_views.xml',

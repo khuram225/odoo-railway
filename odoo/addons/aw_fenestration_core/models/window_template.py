@@ -23,7 +23,7 @@ class AwWindowTemplate(models.Model):
     active = fields.Boolean(default=True)
 
     window_type_id = fields.Many2one(
-        'aw.window.type', required=True, ondelete='restrict', index=True,
+        'aw.window.series', required=True, ondelete='restrict', index=True,
         tracking=True)
 
     profile_section_id = fields.Many2one(

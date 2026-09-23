@@ -49,12 +49,12 @@ def post_init_hook(env):
 
     section = env['aw.profile.section'].search([
         ('name', '=', 'Box Series - Standard'),
-        ('window_type_id', '=', env.ref('aw_fenestration_core.window_type_box').id),
+        ('window_type_id', '=', env.ref('aw_fenestration_core.window_series_box').id),
     ], limit=1)
     if section:
         return
 
-    window_type_box = env.ref('aw_fenestration_core.window_type_box')
+    window_series_box = env.ref('aw_fenestration_core.window_series_box')
     line_vals = []
     for template_xmlid, role in BOX_SECTION_LINES:
         variant = _get_variant(env, template_xmlid, thickness_value, finish_value)
@@ -74,7 +74,7 @@ def post_init_hook(env):
 
     env['aw.profile.section'].create({
         'name': 'Box Series - Standard',
-        'window_type_id': window_type_box.id,
+        'window_type_id': window_series_box.id,
         'notes': (
             "Seeded from the Chawla 2026-01-01 pricelist import. Each line's "
             "variant is pinned to Thickness=Normal, Finish=Natural as a "

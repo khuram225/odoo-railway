@@ -24,7 +24,7 @@ class AwHardwareSet(models.Model):
 
     name = fields.Char(required=True, tracking=True)
     window_type_id = fields.Many2one(
-        'aw.window.type', required=True, ondelete='restrict', index=True,
+        'aw.window.series', required=True, ondelete='restrict', index=True,
         tracking=True)
     active = fields.Boolean(default=True)
     notes = fields.Text()

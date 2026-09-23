@@ -3,18 +3,20 @@ from odoo import fields, models
 
 
 class AwWindowKind(models.Model):
-    """Replaces the old free Selection field on aw.window.type.kind.
-    Where 'sliding'/'hinged'/'fixed' used to be a hard-coded string with
-    the leaf-type rule living only in JS/Python logic elsewhere, a Kind
-    is now a real record carrying which leaf types it allows — so adding
-    a new Kind from the UI is meaningful (you tick what it supports)
-    rather than a label the design engine has never heard of.
+    """Originally replaced a hard-coded Selection field on what was then
+    aw.window.type (now aw.window.type is the Type layer above
+    aw.window.series, and Kind hangs off Type via Type.kind_id). Where
+    'sliding'/'hinged'/'fixed' used to be a plain string with the leaf-
+    type rule living only in JS/Python logic elsewhere, a Kind is a real
+    record carrying which leaf types it allows — so adding a new Kind
+    from the UI is meaningful (you tick what it supports) rather than a
+    label the design engine has never heard of.
 
-    These booleans mirror the prototype's PT (panel type) keys exactly:
-    fixed / slider / casement / awning / hopper / mesh. That set is a
-    closed list of real mechanical opening methods, not something new
-    Kinds are expected to expand — a new Kind combines existing leaf
-    types differently, it doesn't invent a 7th one.
+    These booleans track real mechanical opening methods: fixed / slider
+    / casement / awning / hopper / mesh / tilt-turn. Tilt & Turn was
+    added alongside the Type layer since it's mechanically distinct from
+    Casement/Hopper (one sash, two opening modes via handle position) --
+    a genuinely new leaf type, not a recombination of the existing six.
     """
     _name = 'aw.window.kind'
     _inherit = ['mail.thread', 'mail.activity.mixin']
@@ -40,6 +42,9 @@ class AwWindowKind(models.Model):
     allow_mesh = fields.Boolean(default=True, tracking=True,
         help="Insect mesh leaf — allowed alongside either sliding or "
              "hinged systems.")
+    allow_tiltturn = fields.Boolean(tracking=True, help="One sash, "
+        "either full casement swing or top-tilt, selected by handle "
+        "position — mechanically distinct from Casement/Hopper.")
 
     window_type_ids = fields.One2many(
         'aw.window.type', 'kind_id', string='Window Types using this Kind')
