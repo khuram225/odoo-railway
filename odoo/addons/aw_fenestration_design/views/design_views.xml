@@ -40,11 +40,11 @@
                             <field name="is_auto"/>
                             <field name="leaf_type"/>
                             <field name="hinge_side"
-                                   column_invisible="parent.leaf_type not in ('casement','awning','hopper','tiltturn')"/>
+                                   column_invisible="leaf_type not in ('casement','awning','hopper','tiltturn')"/>
                             <field name="swing"
-                                   column_invisible="parent.leaf_type not in ('casement','awning','hopper','tiltturn')"/>
+                                   column_invisible="leaf_type not in ('casement','awning','hopper','tiltturn')"/>
                             <field name="slide_dir"
-                                   column_invisible="parent.leaf_type != 'slider'"/>
+                                   column_invisible="leaf_type != 'slider'"/>
                         </list>
                     </field>
                 </sheet>
