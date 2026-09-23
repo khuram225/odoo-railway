@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class AwDesignLeaf(models.Model):
@@ -20,7 +20,17 @@ class AwDesignLeaf(models.Model):
 
     row_id = fields.Many2one('aw.design.row', required=True, ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
+    length_uom = fields.Selection(related='row_id.length_uom', string='Length Unit')
+
     width_mm = fields.Float(string='Width (mm)', required=True)
+    width_ft = fields.Integer(string='Width (ft)',
+        compute='_compute_width_ftin', inverse='_inverse_width_ftin')
+    width_in = fields.Float(string='Width (in)',
+        compute='_compute_width_ftin', inverse='_inverse_width_ftin',
+        help="Decimals allowed, e.g. 6.5.")
+    width_inch_total = fields.Float(string='Width (in)',
+        compute='_compute_width_inch_total', inverse='_inverse_width_inch_total')
+
     is_auto = fields.Boolean(
         string='Automatic',
         help="Same mechanism as aw.design.row.is_auto, one level down: "
@@ -46,3 +56,24 @@ class AwDesignLeaf(models.Model):
     slide_dir = fields.Selection([
         ('left', 'Left'), ('right', 'Right'),
     ], help="Shown only for leaf types with has_slide_dir set.")
+
+    @api.depends('width_mm')
+    def _compute_width_ftin(self):
+        for rec in self:
+            total_in = rec.width_mm / 25.4
+            ft = int(total_in // 12)
+            rec.width_ft = ft
+            rec.width_in = total_in - ft * 12
+
+    def _inverse_width_ftin(self):
+        for rec in self:
+            rec.width_mm = rec.width_ft * 304.8 + rec.width_in * 25.4
+
+    @api.depends('width_mm')
+    def _compute_width_inch_total(self):
+        for rec in self:
+            rec.width_inch_total = rec.width_mm / 25.4
+
+    def _inverse_width_inch_total(self):
+        for rec in self:
+            rec.width_mm = rec.width_inch_total * 25.4

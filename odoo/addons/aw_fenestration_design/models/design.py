@@ -24,25 +24,31 @@ class AwDesign(models.Model):
              "design.ref, shown on the cumulative cut-list table.")
     location = fields.Char(tracking=True, help="e.g. 'Drawing room', "
         "'Bathroom' — matches the prototype's design.loc.")
-    qty = fields.Integer(default=1, required=True, tracking=True)
-    active = fields.Boolean(default=True)
+    company_id = fields.Many2one('res.company', default=lambda self: self.env.company)
+    length_uom = fields.Selection(related='company_id.aw_length_uom', string='Length Unit')
 
     # -- geometry, overall opening --------------------------------------
-    # Entered in feet/inches (site measurements are taken that way, not
-    # in mm) and converted to mm for storage/computation -- width_mm/
-    # height_mm stay real stored fields so area_sqm/area_sqft's existing
-    # @api.depends keeps working unchanged; they're just derived now
-    # instead of directly typed in.
-    width_ft = fields.Integer(required=True, tracking=True)
-    width_in = fields.Float(required=True, tracking=True,
+    # mm is the stored source of truth (required); ft/in and inch_total
+    # are compute+inverse display/entry pairs that read from and write
+    # back to it, so editing in ANY unit keeps all three in sync and the
+    # view can show only the pair matching company_id.aw_length_uom.
+    width_mm = fields.Float(string='Width (mm)', required=True, tracking=True)
+    width_ft = fields.Integer(string='Width (ft)',
+        compute='_compute_width_ftin', inverse='_inverse_width_ftin')
+    width_in = fields.Float(string='Width (in)',
+        compute='_compute_width_ftin', inverse='_inverse_width_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    width_mm = fields.Float(string='Width (mm)', compute='_compute_width_mm',
-        store=True, readonly=True, tracking=True)
-    height_ft = fields.Integer(required=True, tracking=True)
-    height_in = fields.Float(required=True, tracking=True,
+    width_inch_total = fields.Float(string='Width (in)',
+        compute='_compute_width_inch_total', inverse='_inverse_width_inch_total')
+
+    height_mm = fields.Float(string='Height (mm)', required=True, tracking=True)
+    height_ft = fields.Integer(string='Height (ft)',
+        compute='_compute_height_ftin', inverse='_inverse_height_ftin')
+    height_in = fields.Float(string='Height (in)',
+        compute='_compute_height_ftin', inverse='_inverse_height_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    height_mm = fields.Float(string='Height (mm)', compute='_compute_height_mm',
-        store=True, readonly=True, tracking=True)
+    height_inch_total = fields.Float(string='Height (in)',
+        compute='_compute_height_inch_total', inverse='_inverse_height_inch_total')
 
     # -- master-data links -----------------------------------------------
     # Confirmed against models/window_template.py: window_type_id is still
@@ -116,15 +122,47 @@ class AwDesign(models.Model):
             rec.row_count = len(rec.row_ids)
             rec.leaf_count = sum(len(r.leaf_ids) for r in rec.row_ids)
 
-    @api.depends('width_ft', 'width_in')
-    def _compute_width_mm(self):
+    @api.depends('width_mm')
+    def _compute_width_ftin(self):
+        for rec in self:
+            total_in = rec.width_mm / 25.4
+            ft = int(total_in // 12)
+            rec.width_ft = ft
+            rec.width_in = total_in - ft * 12
+
+    def _inverse_width_ftin(self):
         for rec in self:
             rec.width_mm = rec.width_ft * 304.8 + rec.width_in * 25.4
 
-    @api.depends('height_ft', 'height_in')
-    def _compute_height_mm(self):
+    @api.depends('width_mm')
+    def _compute_width_inch_total(self):
+        for rec in self:
+            rec.width_inch_total = rec.width_mm / 25.4
+
+    def _inverse_width_inch_total(self):
+        for rec in self:
+            rec.width_mm = rec.width_inch_total * 25.4
+
+    @api.depends('height_mm')
+    def _compute_height_ftin(self):
+        for rec in self:
+            total_in = rec.height_mm / 25.4
+            ft = int(total_in // 12)
+            rec.height_ft = ft
+            rec.height_in = total_in - ft * 12
+
+    def _inverse_height_ftin(self):
         for rec in self:
             rec.height_mm = rec.height_ft * 304.8 + rec.height_in * 25.4
+
+    @api.depends('height_mm')
+    def _compute_height_inch_total(self):
+        for rec in self:
+            rec.height_inch_total = rec.height_mm / 25.4
+
+    def _inverse_height_inch_total(self):
+        for rec in self:
+            rec.height_mm = rec.height_inch_total * 25.4
 
     @api.depends('width_mm', 'height_mm')
     def _compute_area(self):
