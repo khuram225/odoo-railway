@@ -243,9 +243,22 @@ product, `product_fenestration_position` ("Fenestration Position",
 × 6 ft 0 in — Double Glaze Sliding"`, size rendered in the configured
 length unit via `aw.design._format_length()`), not the product. The
 Sale Order form gets a "Fenestration" notebook page listing
-`aw_design_ids` plus an "Add Position" button (draft/sent only) that
-creates line + design together and opens the design form; the order
-line list gets a row button back to its design.
+`aw_design_ids` plus an "Add Position" button (draft/sent only); the
+order line list gets a row button back to its design.
+
+**Add Position always has to settle the Window Series up front**, since
+`aw.design.window_series_id` is required and the button opens the new
+design's form immediately — the record must be creatable before the
+user ever sees it. So: `sale.order.aw_default_series_id` (shown at the
+top of the Fenestration tab) is used when set; when it isn't, the
+button opens `aw.design.position.wizard`, which asks for the Series
+(required) plus optional ref/location and offers "use as default for
+this quote" (defaulting to checked, so it asks once per quote rather
+than once per position). Both paths funnel into
+`sale.order._create_fenestration_position()`. A design's own Series
+stays freely editable afterwards. The wizard's form view is referenced
+by `env.ref()` from Python at runtime, *not* by XML `ref=`, so it
+carries none of the parse-time load-order constraints described above.
 
 **The design → line sync lives in `create()`/`write()`, not an
 onchange** — deliberately, and confirmed against core: a design is

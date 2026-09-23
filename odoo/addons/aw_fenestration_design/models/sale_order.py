@@ -10,12 +10,18 @@ class SaleOrder(models.Model):
     # so it's a real column and can carry this One2many.
     aw_design_ids = fields.One2many(
         'aw.design', 'sale_order_id', string='Fenestration Designs')
+    aw_default_series_id = fields.Many2one(
+        'aw.window.series', string='Default Window Series',
+        ondelete='restrict',
+        help="Series every new position on this quote starts from. Leave "
+             "blank to be asked each time. A position's own Series can "
+             "always be changed afterwards on the design itself.")
 
-    def action_add_position(self):
-        """Create the quote line and its design together, then drop the
-        user straight into the design form to fill in the geometry. The
-        line is created first because aw.design.sale_order_line_id is
-        what ties the two together."""
+    def _create_fenestration_position(self, series, name=None, location=None):
+        """Create the quote line and its design together. The line comes
+        first because aw.design.sale_order_line_id is what ties the two
+        together. Shared by both entry points -- the direct button when
+        the quote has a default Series, and the wizard when it doesn't."""
         self.ensure_one()
         if self.state not in ('draft', 'sent'):
             raise UserError(_(
@@ -24,15 +30,6 @@ class SaleOrder(models.Model):
 
         product = self.env.ref(
             'aw_fenestration_design.product_fenestration_position')
-        # aw.design.window_series_id is required, and a design has to exist
-        # before the form can open on it -- so one has to be picked here.
-        # Erroring is better than inventing a Series record.
-        series = self.env['aw.window.series'].search([], limit=1)
-        if not series:
-            raise UserError(_(
-                "No Window Series exists yet. Create at least one under "
-                "Fenestration before adding positions to a quote."))
-
         # Counted before the line exists, and by search rather than off
         # self.aw_design_ids, so a stale cache can't hand two positions
         # the same ref.
@@ -45,13 +42,40 @@ class SaleOrder(models.Model):
             'product_id': product.product_variant_id.id,
             'product_uom_qty': 1,
         })
-        design = self.env['aw.design'].create({
-            'name': 'D%s' % position_no,
+        return self.env['aw.design'].create({
+            'name': name or 'D%s' % position_no,
+            'location': location or False,
             'qty': 1,
             'window_series_id': series.id,
             'sale_order_line_id': line.id,
         })
-        return design.action_open_design()
+
+    def action_add_position(self):
+        """Straight through when the quote has a default Series, otherwise
+        via the wizard -- aw.design.window_series_id is required and the
+        design has to exist before its form can open, so the Series has to
+        be settled one way or the other up front."""
+        self.ensure_one()
+        if self.aw_default_series_id:
+            design = self._create_fenestration_position(
+                self.aw_default_series_id)
+            return design.action_open_design()
+
+        if not self.env['aw.window.series'].search_count([]):
+            raise UserError(_(
+                "No Window Series exists yet. Create at least one under "
+                "Fenestration before adding positions to a quote."))
+
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Add Position"),
+            'res_model': 'aw.design.position.wizard',
+            'view_mode': 'form',
+            'view_id': self.env.ref(
+                'aw_fenestration_design.view_aw_design_position_wizard_form').id,
+            'target': 'new',
+            'context': {'default_order_id': self.id},
+        }
 
 
 class SaleOrderLine(models.Model):

@@ -7,3 +7,4 @@ access_aw_design_leaf_user,aw.design.leaf.user,model_aw_design_leaf,base.group_u
 access_aw_design_leaf_sales,aw.design.leaf.sales,model_aw_design_leaf,group_fenestration_sales,1,1,1,1
 access_aw_design_bom_line_user,aw.design.bom.line.user,model_aw_design_bom_line,base.group_user,1,0,0,0
 access_aw_design_bom_line_sales,aw.design.bom.line.sales,model_aw_design_bom_line,group_fenestration_sales,1,1,1,1
+access_aw_design_position_wizard_sales,aw.design.position.wizard.sales,model_aw_design_position_wizard,group_fenestration_sales,1,1,1,1

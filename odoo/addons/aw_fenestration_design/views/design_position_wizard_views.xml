@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+    No ir.actions.act_window record here on purpose: sale.order's
+    action_add_position builds the action dict in Python and points
+    view_id at this view by env.ref(). That's a runtime lookup, not the
+    parse-time kind that has broken installs in this repo before, so
+    there's no load-order constraint between this file and
+    sale_order_views.xml.
+    -->
+    <record id="view_aw_design_position_wizard_form" model="ir.ui.view">
+        <field name="name">aw.design.position.wizard.form</field>
+        <field name="model">aw.design.position.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Add Position">
+                <group>
+                    <field name="order_id" invisible="1"/>
+                    <field name="window_series_id"/>
+                    <field name="name" placeholder="Auto-numbered if blank"/>
+                    <field name="location" placeholder="e.g. Drawing room"/>
+                    <field name="set_as_default"/>
+                </group>
+                <footer>
+                    <button name="action_confirm" type="object"
+                            string="Create Position" class="btn-primary"
+                            data-hotkey="q"/>
+                    <button string="Cancel" class="btn-secondary"
+                            special="cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>
