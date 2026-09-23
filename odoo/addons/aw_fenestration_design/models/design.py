@@ -28,8 +28,21 @@ class AwDesign(models.Model):
     active = fields.Boolean(default=True)
 
     # -- geometry, overall opening --------------------------------------
-    width_mm = fields.Float(string='Width (mm)', required=True, tracking=True)
-    height_mm = fields.Float(string='Height (mm)', required=True, tracking=True)
+    # Entered in feet/inches (site measurements are taken that way, not
+    # in mm) and converted to mm for storage/computation -- width_mm/
+    # height_mm stay real stored fields so area_sqm/area_sqft's existing
+    # @api.depends keeps working unchanged; they're just derived now
+    # instead of directly typed in.
+    width_ft = fields.Integer(required=True, tracking=True)
+    width_in = fields.Float(required=True, tracking=True,
+        help="Decimals allowed, e.g. 6.5.")
+    width_mm = fields.Float(string='Width (mm)', compute='_compute_width_mm',
+        store=True, readonly=True, tracking=True)
+    height_ft = fields.Integer(required=True, tracking=True)
+    height_in = fields.Float(required=True, tracking=True,
+        help="Decimals allowed, e.g. 6.5.")
+    height_mm = fields.Float(string='Height (mm)', compute='_compute_height_mm',
+        store=True, readonly=True, tracking=True)
 
     # -- master-data links -----------------------------------------------
     # Confirmed against models/window_template.py: window_type_id is still
@@ -102,6 +115,16 @@ class AwDesign(models.Model):
         for rec in self:
             rec.row_count = len(rec.row_ids)
             rec.leaf_count = sum(len(r.leaf_ids) for r in rec.row_ids)
+
+    @api.depends('width_ft', 'width_in')
+    def _compute_width_mm(self):
+        for rec in self:
+            rec.width_mm = rec.width_ft * 304.8 + rec.width_in * 25.4
+
+    @api.depends('height_ft', 'height_in')
+    def _compute_height_mm(self):
+        for rec in self:
+            rec.height_mm = rec.height_ft * 304.8 + rec.height_in * 25.4
 
     @api.depends('width_mm', 'height_mm')
     def _compute_area(self):

@@ -185,6 +185,16 @@ records domained by `ref()` to `aw_fenestration_core.aw_attribute_finish`/
 `aw_attribute_thickness` (not name-string matching — a renamed attribute
 would silently break that instead of erroring).
 
+`aw.design.width_mm`/`height_mm` are no longer directly editable — they're
+`store=True` computes from `width_ft`+`width_in` / `height_ft`+`height_in`
+(feet/inches, since that's how site measurements are actually taken; 1 ft =
+304.8mm, 1 in = 25.4mm), kept as real stored fields so `area_sqm`/`area_sqft`'s
+existing `@api.depends('width_mm', 'height_mm')` needed no changes. No
+`default=` on the new ft/in fields, so upgrading an existing installed copy
+of this module resets any existing design's width/height to 0 rather than
+migrating it — there's no way to infer a sensible ft/in split from an old
+mm value. Fine for test data; re-enter by hand after upgrading.
+
 New group: `group_fenestration_sales` ("Fenestration / Sales"), separate
 from core's `group_fenestration_manager` — quote-level Design access and
 master-BOM-data access are two different grants. `security.xml` extends

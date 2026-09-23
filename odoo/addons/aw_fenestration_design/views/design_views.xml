@@ -89,8 +89,22 @@
                             <field name="template_id"/>
                         </group>
                         <group>
-                            <field name="width_mm"/>
-                            <field name="height_mm"/>
+                            <label for="width_ft" string="Width"/>
+                            <div class="o_row">
+                                <field name="width_ft"/>
+                                <span>'</span>
+                                <field name="width_in"/>
+                                <span>"</span>
+                            </div>
+                            <label for="height_ft" string="Height"/>
+                            <div class="o_row">
+                                <field name="height_ft"/>
+                                <span>'</span>
+                                <field name="height_in"/>
+                                <span>"</span>
+                            </div>
+                            <field name="width_mm" readonly="1"/>
+                            <field name="height_mm" readonly="1"/>
                             <field name="area_sqm" readonly="1"/>
                             <field name="area_sqft" readonly="1"/>
                         </group>
