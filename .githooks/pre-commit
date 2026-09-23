@@ -1,6 +1,8 @@
 #!/bin/sh
 # Blocks commits that introduce "--" inside an XML comment (illegal XML,
-# breaks well-formedness -- see scripts/check_xml_comments.py).
+# breaks well-formedness -- see scripts/check_xml_comments.py) or a
+# forward-reference in a module's data-loading order (ref=/%()d/parent=
+# resolved before the target is defined -- see scripts/check_load_order.py).
 #
 # Not active by default: git only runs hooks from .git/hooks, which isn't
 # tracked. One-time setup per clone:
@@ -11,4 +13,5 @@ if [ -z "$staged_xml" ]; then
     exit 0
 fi
 
-python scripts/check_xml_comments.py $staged_xml
+python scripts/check_xml_comments.py $staged_xml || exit 1
+python scripts/check_load_order.py

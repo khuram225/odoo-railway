@@ -29,7 +29,7 @@
                             <field name="sequence" widget="handle"/>
                             <field name="product_id"/>
                             <field name="qty"/>
-                            <field name="applies_to"/>
+                            <field name="leaf_type_id"/>
                             <field name="is_optional"/>
                         </list>
                     </field>
@@ -48,7 +48,7 @@
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first Hardware Set</p>
-            <p>A named hardware bundle for a Window Type — roller, lock, handle, hinge,
+            <p>A named hardware bundle for a Window Series — roller, lock, handle, hinge,
                gasket. Every line can be marked optional so a sales user can drop or
                swap it per quote.</p>
         </field>

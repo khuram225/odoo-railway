@@ -3,31 +3,25 @@ from odoo import fields, models
 
 
 class AwWindowSeries(models.Model):
-    """A specific product family within a Window Type: Box Series, Collar
-    Box Series, Round Series, GSL Slim, Hinged/Casement, Curtain Wall, etc.
-    This was the original 'aw.window.type' model -- renamed when a real
-    Type layer was inserted above it (aw.window.type is now the broader
-    category, e.g. 'Sliding Window', that several Series belong to).
+    """A specific product family: Double Glaze Sliding, Single Glaze Fix,
+    Curtain Wall Fix, Tilt & Turn Series, Casement Single Glaze, etc.
 
-    kind_id is no longer set directly here -- it's derived from
-    window_type_id.kind_id, since the leaf-type rule genuinely belongs to
-    the Type, not the Series.
+    Series is now the only classification layer -- the intermediate
+    aw.window.type/aw.window.kind layers were dropped per the structure
+    design consolidation. leaf_type_ids replaces that whole chain
+    directly: which leaf mechanisms (Fixed, Slider, Casement, ...) this
+    Series can host, a real Many2many to aw.leaf.type instead of an
+    inherited-through-two-models Kind lookup.
     """
     _name = 'aw.window.series'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _description = 'Fenestration Window Series'
-    _order = 'window_type_id, sequence, name'
+    _order = 'sequence, name'
 
     name = fields.Char(required=True, tracking=True)
     code = fields.Char(tracking=True, help="Short code, e.g. BOX, COLLAR, ROUND, GSL, HINGED, CURTAIN")
-    window_type_id = fields.Many2one('aw.window.type', required=True,
-        ondelete='restrict', tracking=True,
-        help="The broader category this Series belongs to, e.g. Sliding "
-             "Window, Curtain Wall Fix Window, Door.")
-    kind_id = fields.Many2one(related='window_type_id.kind_id', store=True,
-        string='Kind',
-        help="Which leaf types this system can host -- inherited from "
-             "the Window Type above, not set directly here.")
+    leaf_type_ids = fields.Many2many('aw.leaf.type', tracking=True,
+        help="Which leaf mechanisms this Series can host.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
     color = fields.Integer(string='Color Index')

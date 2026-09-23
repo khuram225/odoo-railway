@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- ===== aw.leaf.type — 7 rows ===== -->
+        <record id="leaf_type_fixed" model="aw.leaf.type">
+            <field name="name">Fixed</field><field name="code">FIXED</field>
+            <field name="sequence">10</field>
+            <field name="has_hinge_side" eval="False"/>
+            <field name="has_slide_dir" eval="False"/>
+            <field name="is_glazed" eval="True"/>
+        </record>
+        <record id="leaf_type_slider" model="aw.leaf.type">
+            <field name="name">Slider</field><field name="code">SLIDER</field>
+            <field name="sequence">20</field>
+            <field name="has_hinge_side" eval="False"/>
+            <field name="has_slide_dir" eval="True"/>
+            <field name="is_glazed" eval="True"/>
+        </record>
+        <record id="leaf_type_casement" model="aw.leaf.type">
+            <field name="name">Casement</field><field name="code">CASEMENT</field>
+            <field name="sequence">30</field>
+            <field name="has_hinge_side" eval="True"/>
+            <field name="has_slide_dir" eval="False"/>
+            <field name="is_glazed" eval="True"/>
+        </record>
+        <record id="leaf_type_awning" model="aw.leaf.type">
+            <field name="name">Awning (top-hung)</field><field name="code">AWNING</field>
+            <field name="sequence">40</field>
+            <field name="has_hinge_side" eval="True"/>
+            <field name="has_slide_dir" eval="False"/>
+            <field name="is_glazed" eval="True"/>
+        </record>
+        <record id="leaf_type_hopper" model="aw.leaf.type">
+            <field name="name">Hopper (bottom-hung)</field><field name="code">HOPPER</field>
+            <field name="sequence">50</field>
+            <field name="has_hinge_side" eval="True"/>
+            <field name="has_slide_dir" eval="False"/>
+            <field name="is_glazed" eval="True"/>
+        </record>
+        <record id="leaf_type_mesh" model="aw.leaf.type">
+            <field name="name">Mesh</field><field name="code">MESH</field>
+            <field name="sequence">60</field>
+            <field name="has_hinge_side" eval="False"/>
+            <field name="has_slide_dir" eval="True"/>
+            <field name="is_glazed" eval="False"/>
+        </record>
+        <record id="leaf_type_tiltturn" model="aw.leaf.type">
+            <field name="name">Tilt &amp; Turn</field><field name="code">TILTTURN</field>
+            <field name="sequence">70</field>
+            <field name="has_hinge_side" eval="True"/>
+            <field name="has_slide_dir" eval="False"/>
+            <field name="is_glazed" eval="True"/>
+        </record>
+
+        <!-- ===== aw.profile.position — 12 rows, exactly as given ===== -->
+        <record id="pos_frame_top" model="aw.profile.position">
+            <field name="name">Outer Frame - Top</field><field name="sequence">10</field>
+        </record>
+        <record id="pos_frame_bottom" model="aw.profile.position">
+            <field name="name">Outer Frame - Bottom</field><field name="sequence">20</field>
+        </record>
+        <record id="pos_frame_sides" model="aw.profile.position">
+            <field name="name">Outer Frame - Sides</field><field name="sequence">30</field>
+        </record>
+        <record id="pos_palay_top" model="aw.profile.position">
+            <field name="name">Palay - Top</field><field name="sequence">40</field>
+        </record>
+        <record id="pos_palay_bottom" model="aw.profile.position">
+            <field name="name">Palay - Bottom</field><field name="sequence">50</field>
+        </record>
+        <record id="pos_palay_sides" model="aw.profile.position">
+            <field name="name">Palay - Sides</field><field name="sequence">60</field>
+        </record>
+        <record id="pos_mesh_all" model="aw.profile.position">
+            <field name="name">Mesh - All Sides</field><field name="sequence">70</field>
+        </record>
+        <record id="pos_divider_vertical" model="aw.profile.position">
+            <field name="name">Divider - Vertical</field><field name="sequence">80</field>
+        </record>
+        <record id="pos_divider_horizontal" model="aw.profile.position">
+            <field name="name">Divider - Horizontal</field><field name="sequence">90</field>
+        </record>
+        <record id="pos_bead_top" model="aw.profile.position">
+            <field name="name">Fixed Bead - Top</field><field name="sequence">100</field>
+        </record>
+        <record id="pos_bead_bottom" model="aw.profile.position">
+            <field name="name">Fixed Bead - Bottom</field><field name="sequence">110</field>
+        </record>
+        <record id="pos_bead_sides" model="aw.profile.position">
+            <field name="name">Fixed Bead - Sides</field><field name="sequence">120</field>
+        </record>
+
+    </data>
+</odoo>

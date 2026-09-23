@@ -1,15 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import fields, models
 
-APPLIES_TO_SELECTION = [
-    ('all', 'Every leaf'),
-    ('slider', 'Slider leaf'),
-    ('casement', 'Casement leaf'),
-    ('awning', 'Awning leaf'),
-    ('hopper', 'Hopper leaf'),
-    ('mesh', 'Mesh leaf'),
-]
-
 
 class AwHardwareSet(models.Model):
     """A named hardware bundle for a Window Type, e.g. Logikal's
@@ -53,10 +44,9 @@ class AwHardwareSetLine(models.Model):
             self.env.ref('aw_fenestration_core.product_category_hardware').id,
         )])
     qty = fields.Float(default=1.0, required=True)
-    applies_to = fields.Selection(
-        APPLIES_TO_SELECTION, default='all', required=True,
-        help="Which leaf type in the design triggers this line. 'Every "
-             "leaf' means one per applicable leaf, e.g. a handle.")
+    leaf_type_id = fields.Many2one('aw.leaf.type',
+        help="Which leaf type in the design triggers this line. Blank "
+             "means every leaf, e.g. a handle.")
     is_optional = fields.Boolean(
         default=True,
         help="Hardware lines default to optional — a sales user can drop "

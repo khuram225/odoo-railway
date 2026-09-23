@@ -52,65 +52,89 @@ before adding these fields — no naming conflicts with core `stock.lot` fields.
 
 Master data only — no quoting, no geometry, no stock.lot length tracking.
 Chatter (`mail.thread` + `mail.activity.mixin`, `tracking=True` on names and
-key relations) on all 6 top-level models; the `.line` models (profile
-section lines, hardware set lines) don't get their own chatter, they're
-edited inline on the parent.
+key relations) on the top-level models; the `.line` models (profile section
+lines, hardware set lines) don't get their own chatter, they're edited
+inline on the parent.
 
-Three-layer master-data hierarchy: `aw.window.kind` (leaf-type rule set:
-Sliding, Hinged/Casement, Fixed only, Tilt & Turn) → `aw.window.type` (broad
-category: Sliding Window, Fix Window, Curtain Wall Fix Window, Open-able
-Window, Tilt & Turn Window, Door — `kind_id` optional here, e.g. Door has
-none) → `aw.window.series` (specific product family: Box Series, Collar Box,
-Round Series, GSL Slim, Hinged/Casement, Curtain Wall — `window_type_id`
-required, `kind_id` is a `related`+`store` passthrough of
-`window_type_id.kind_id`, not set directly). `aw.window.series` is what
+**Structure as of the "major consolidation" round** (this superseded an
+earlier 3-layer Kind → Type → Series hierarchy — if you see references to
+`aw.window.kind` or `aw.window.type` anywhere outside a historical
+docstring/commit message, that's stale, both were deleted entirely):
+
+- `aw.leaf.type` — single source of truth for leaf mechanisms (Fixed,
+  Slider, Casement, Awning, Hopper, Mesh, Tilt & Turn — 7 seeded rows).
+  Referenced by `aw.window.series.leaf_type_ids` (M2M, which this Series
+  can host), `aw.design.leaf.leaf_type_id` (design module), and
+  `aw.hardware.set.line.leaf_type_id` (blank = all leaves).
+- `aw.profile.position` — open-ended list of where a profile sits in the
+  frame (12 seeded rows: Outer Frame/Palay/Fixed Bead × Top/Bottom/Sides,
+  Mesh - All Sides, Divider Vertical/Horizontal). Replaces the old fixed
+  5-value `role` Selection (frame/sash/interlock/bead/mesh) on
+  `aw.profile.section.line` — add a row, no schema change.
+- `aw.window.series` — now the **only** classification layer (Double
+  Glaze Sliding, Single Glaze Fix, Curtain Wall Fix, Tilt & Turn Series,
+  Casement Single/Double Glaze, etc.). `leaf_type_ids` replaces the old
+  Type/Kind chain directly.
+
 `aw.profile.section`/`aw.hardware.set`/`aw.window.template`'s
-`window_type_id` field actually points at (comodel `aw.window.series`,
-field name unchanged from before the Type layer existed — don't be misled
-by the field name into thinking it points at `aw.window.type`).
+`window_type_id` field still points at `aw.window.series` (comodel, field
+name unchanged from the earlier Type-layer round — don't be misled by the
+field name).
 
-Seeded via `data/window_kind_data.xml`, `data/window_type_data.xml`, then
-`data/product_category_data.xml` (product category tree + the 6 Window
-Series, which reference Type records from the file before it — that load
-order matters) and `data/chawla_attributes_data.xml` +
-`data/chawla_profiles_data.xml` (the Chawla pricelist import — regenerate
-both from the melt CSV with `scripts/rebuild_melt_and_import.py`, never
-hand-edit them).
+**Two known gaps, deliberately left unresolved rather than guessed** (see
+the consolidation commit for the full reasoning):
+- The 8 real Series seeded in `product_category_data.xml`
+  (`window_series_dg_sliding` etc.) have `leaf_type_ids` and
+  `product_category_id` left **unset** — no mapping table or category
+  mapping was given for them. Set these once that's confirmed.
+- The old 5 roles (frame/sash/interlock/bead/mesh) don't map 1:1 onto the
+  12 seeded positions — `sash` and `interlock` have no equivalent at all
+  among them. Because of this, the old `post_init_hook`/`hooks.py` that
+  auto-seeded a "Box Series - Standard" Profile Section (frame/sash/
+  interlock/bead/mesh → 5 specific Chawla products) was **removed
+  entirely** rather than rewritten with a guessed position mapping. There
+  is currently no post_init_hook and no auto-seeded Profile Section in
+  this module — rebuild that manually once the sash/interlock → position
+  question is settled (either map them onto existing positions or add new
+  position rows for them).
+- `aw_fenestration_design`'s `aw.design.bom.line` still has its own
+  separate `ROLE_SELECTION`/`role` field (frame/sash/interlock/bead/mesh)
+  — not touched by this consolidation since it wasn't in scope and is
+  currently dormant (explosion-engine output, nothing generates it yet).
+  Same structural mismatch will need the same treatment once the
+  explosion engine actually gets built.
 
-**`hooks.py`'s `post_init_hook` creates records without an `ir.model.data`
-entry** (the "Box Series - Standard" `aw.profile.section` and the 5 product
-variants it needs). That means:
-- Module uninstall does **not** clean these up automatically — only
-  XML-declared records get deleted on uninstall.
-- `aw.profile.section.window_type_id` and `aw.profile.section.line.product_id`
-  are both `ondelete='restrict'`, so this leftover section blocks deletion
-  of the Window Series and product variants it references.
-- **A straight uninstall will fail.** Before uninstalling, delete the
-  "Box Series - Standard" Profile Section by hand first (cascades to its
-  5 lines) — then uninstall, then reinstall. `post_init_hook` is
-  idempotent and recreates it identically on reinstall.
+Seeded via `data/dynamic_seed_data.xml` (Leaf Type + Profile Position, no
+cross-references, safe to load early), then `data/product_category_data.xml`
+(product category tree + the 8 Window Series) and
+`data/chawla_attributes_data.xml` + `data/chawla_profiles_data.xml` (the
+Chawla pricelist import — regenerate both from the melt CSV with
+`scripts/rebuild_melt_and_import.py`, never hand-edit them).
 
 This module has been uninstall/reinstalled rather than live-migrated
-multiple times now (Kind field-type change, then the Type-layer insertion
-above) — this is still test data, so that's the deliberate choice each
-time rather than writing migration scripts, which is why the sequence
-above keeps mattering.
+multiple times now (Kind field-type change, the Type-layer insertion, and
+now dropping Type/Kind again in favor of Leaf Type/Profile Position) — deliberate
+each time, given this is still test data with nothing real built on top of it
+yet.
 
-**View/data load-order chains that broke a real install before** — two
-concrete Odoo-19 behaviors, not lazy: `%(xmlid)d` inside a `type="xml"`
-field is resolved *eagerly* during `convert_xml_import`, and `ref="..."`
-on a scalar field the same way. Both require the target to already exist
-in `ir.model.data` at that exact point in the manifest's `data` list, not
-just somewhere earlier. Current chains: `window_kind_data.xml` →
-`window_type_data.xml` → `product_category_data.xml` (Series refs Type
-and Kind); `window_series_views.xml` → `window_type_views.xml` (Type's
-stat button refs `action_aw_window_series`) → `window_kind_views.xml`
-(Kind's stat button refs `action_aw_window_type`). Adding a
-`%(xmlid)d`/cross-file `ref=` anywhere else in this module means adding
-to (or verifying against) this chain, not assuming render-time
-resolution — see `odoo/tools/convert.py`'s `_tag_record`/`_eval_xml`, not
-`ir_ui_view.py`'s `resolve_external_ids` (that one's for dev-mode
-re-reads, a different and later mechanism).
+**Load-order forward-references have broken a real install three separate
+times in this repo** (twice in `aw_fenestration_core`, once in
+`aw_fenestration_design`) — always the same root cause: `%(xmlid)d` inside a
+`type="xml"` field, `ref="..."` on a scalar field, and **`parent="..."`/
+`action="..."` on a `<menuitem>`** all resolve *eagerly* at XML-parse time
+(`odoo/tools/convert.py`'s `_tag_record`/`_eval_xml`/`_tag_menuitem`, all
+calling `self.id_get()`), not lazily at render time — despite
+`ir_ui_view.py`'s `resolve_external_ids` existing as a *separate*, later,
+dev-mode-only mechanism that made it look like this should be lazy. The
+target external ID must already exist in `ir.model.data` at that exact
+point in the manifest's `data` list. **`scripts/check_load_order.py`**
+checks this automatically for every module (walks each manifest's `data`
+list in order, flags any `ref=`/`%()d`/`parent=`/`action=` referencing an
+undefined same-module id) — run it after touching any XML in this repo,
+same habit as the comment checker. One concrete consequence: every menu in
+this module is centralized in `views/menu_views.xml` (loaded last) rather
+than inlined in each feature's own view file, specifically to sidestep this
+class of bug.
 
 ## aw_fenestration_design
 
@@ -120,7 +144,17 @@ checks, the coupler action, and the visual canvas are separate follow-on
 work, not in this module. `aw.design` (top-level, chatter, `active`) →
 `aw.design.row` → `aw.design.leaf` (both plain child models, no chatter,
 matching the `.line`-model convention) → `aw.design.bom.line` (explosion
-output, never hand-entered).
+output, never hand-entered — still has its own dormant `role` Selection,
+see the core module's gaps list above).
+
+`aw.design.leaf.leaf_type_id` is a Many2one to `aw_fenestration_core`'s
+`aw.leaf.type` (dynamic, not a hardcoded Selection, since the consolidation
+round). The row form's nested leaf list pulls in `leaf_has_hinge_side`/
+`leaf_has_slide_dir` as hidden (`column_invisible="1"`) related passthrough
+fields specifically so the direction columns' own `column_invisible` can
+reference them as plain sibling fields — no hardcoded leaf-type string list
+in the view, and no `parent.` prefix (that was the original, real bug here;
+see below).
 
 `aw.design.window_series_id`/`template_id` point at `aw.window.series`/
 `aw.window.template`; `finish_id`/`thickness_id` are `product.attribute.value`
@@ -144,17 +178,25 @@ and an action record defined *after* the view that references it via
 `%(xmlid)d` in the same file (that substitution resolves eagerly at parse
 time — see the load-order note above).
 
-## XML comment check
+## Static checks
 
-`scripts/check_xml_comments.py` rejects `--` inside `<!-- -->` comments —
-illegal XML, breaks well-formedness, and has broken a deploy from this repo
-twice already (both times in autogenerated `aw_fenestration_core` data files).
-Wired as a pre-commit hook in `.githooks/pre-commit`, but git only runs hooks
-from `.git/hooks` by default, which isn't tracked — enable it once per clone:
+Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
+from `.git/hooks` by default, which isn't tracked — enable once per clone):
+
+- `scripts/check_xml_comments.py` rejects `--` inside `<!-- -->` comments —
+  illegal XML, breaks well-formedness. Has broken a deploy from this repo
+  twice, and been caught pre-commit at least three more times since
+  (usually in a comment written to explain some *other* fix — worth
+  double-checking any comment you add while fixing something else, not
+  just autogenerated data files).
+- `scripts/check_load_order.py` catches the eager-`ref=`/`%()d`/`parent=`
+  forward-reference bug described above.
+
+Enable the hook once per clone:
 
 ```
 git config core.hooksPath .githooks
 ```
 
 Until that's run, check manually before committing XML: `python
-scripts/check_xml_comments.py`.
+scripts/check_xml_comments.py && python scripts/check_load_order.py`.

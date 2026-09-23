@@ -1,5 +1,5 @@
-from . import window_kind
-from . import window_type
+from . import leaf_type
+from . import profile_position
 from . import window_series
 from . import profile_section
 from . import hardware_set

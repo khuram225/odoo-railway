@@ -1,25 +1,19 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
-from odoo.exceptions import ValidationError
-
-ROLE_SELECTION = [
-    ('frame', 'Frame'),
-    ('sash', 'Sash'),
-    ('interlock', 'Interlock'),
-    ('bead', 'Glazing Bead'),
-    ('mesh', 'Mesh'),
-]
+from odoo import fields, models
 
 
 class AwProfileSection(models.Model):
-    """A named set of profile products covering every structural role for
-    one Window Type — e.g. 'Box Series - Standard' = DC-30 BA (frame) +
-    M-23 (sash) + M-28 (interlock) + D-29 (bead) + EM-29 (mesh).
+    """A named set of profile products covering every position needed for
+    one Window Series -- e.g. frame/sash/mesh/bead pieces, each tagged
+    with where in the frame it sits (aw.profile.position).
 
     This is the Odoo-native equivalent of the prototype's
     SERIES.roles / ROLE_VARIANTS: instead of a hard-coded JS object, each
-    role -> product mapping is a real, editable line, and a Window Type can
+    position -> product mapping is a real, editable line, and a Series can
     have several sections (Standard / Heavy Duty / Economy) to choose from.
+    aw.profile.position is open-ended (add a row, no schema change) --
+    replaces the earlier fixed 5-value role Selection, which couldn't
+    express e.g. a different drainage profile on the sill vs. head/jambs.
     """
     _name = 'aw.profile.section'
     _inherit = ['mail.thread', 'mail.activity.mixin']
@@ -50,34 +44,23 @@ class AwProfileSectionLine(models.Model):
     section_id = fields.Many2one(
         'aw.profile.section', required=True, ondelete='cascade')
     sequence = fields.Integer(default=10)
-    role = fields.Selection(ROLE_SELECTION, required=True)
+    position_id = fields.Many2one('aw.profile.position', required=True)
     product_id = fields.Many2one(
         'product.product', required=True, ondelete='restrict',
         domain=lambda self: [(
             'categ_id', 'child_of',
             self.env.ref('aw_fenestration_core.product_category_profiles').id,
         )],
-        help="The profile product filling this role. Thickness/Finish are "
-             "expected to be product variant attributes on this product.")
+        help="The profile product filling this position. Thickness/Finish "
+             "are expected to be product variant attributes on this "
+             "product.")
     is_optional = fields.Boolean(
         default=False,
-        help="If checked, a sales user may drop this role from a design "
-             "(e.g. Interlock on a single-slider + fixed layout, or Mesh "
-             "when no screen is wanted). Frame, Sash and Bead are normally "
-             "structural and should stay unchecked.")
+        help="If checked, a sales user may drop this position from a "
+             "design (e.g. an interlock on a single-slider + fixed "
+             "layout, or mesh when no screen is wanted).")
 
     _sql_constraints = [
-        ('section_role_uniq', 'unique(section_id, role)',
-         'Each role can only appear once per Profile Section.'),
+        ('section_position_uniq', 'unique(section_id, position_id)',
+         'Each position can only appear once per Profile Section.'),
     ]
-
-    @api.constrains('role', 'is_optional')
-    def _check_structural_roles(self):
-        for line in self:
-            if line.is_optional and line.role not in ('interlock', 'mesh'):
-                raise ValidationError(
-                    "Only Interlock and Mesh are normally optional — Frame, "
-                    "Sash and Bead are structural to the leaf that owns "
-                    "them. If this is a deliberate exception, remove "
-                    "this constraint or extend it for your use case."
-                )

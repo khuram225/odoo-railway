@@ -80,50 +80,46 @@
             <field name="parent_id" ref="product_category_glass"/>
         </record>
 
-        <!-- Seed the six Window Series, linked to their Profile category and
-             their Window Type. Series/Type mapping flagged for confirmation,
-             not silently assumed; see chat reply. -->
-        <record id="window_series_box" model="aw.window.series">
-            <field name="name">Box Series</field>
-            <field name="code">BOX</field>
-            <field name="window_type_id" ref="window_type_sliding"/>
+        <!-- Seed the 8 real Window Series (window_series.jpeg), replacing the
+             earlier 6 Chawla-derived placeholder names. leaf_type_ids
+             deliberately left unset: the Series->leaf-type mapping table
+             wasn't included with this round's instructions; flagged in chat
+             rather than guessed. product_category_id also left unset: no
+             mapping given from these 8 names to the existing Box/Round/
+             Collar/GSL/Hinged/Curtain product categories below, and inventing
+             one would be guessing too. Both are safe to add later without a
+             schema change. -->
+        <record id="window_series_dg_sliding" model="aw.window.series">
+            <field name="name">Double Glaze Sliding</field>
             <field name="sequence">10</field>
-            <field name="product_category_id" ref="product_category_profiles_box"/>
         </record>
-        <record id="window_series_round" model="aw.window.series">
-            <field name="name">Round Series</field>
-            <field name="code">ROUND</field>
-            <field name="window_type_id" ref="window_type_sliding"/>
+        <record id="window_series_dg_fix" model="aw.window.series">
+            <field name="name">Double Glaze Fix</field>
             <field name="sequence">20</field>
-            <field name="product_category_id" ref="product_category_profiles_round"/>
         </record>
-        <record id="window_series_collar" model="aw.window.series">
-            <field name="name">Collar Box Series</field>
-            <field name="code">COLLAR</field>
-            <field name="window_type_id" ref="window_type_sliding"/>
+        <record id="window_series_sg_sliding" model="aw.window.series">
+            <field name="name">Single Glaze Sliding</field>
             <field name="sequence">30</field>
-            <field name="product_category_id" ref="product_category_profiles_collar"/>
         </record>
-        <record id="window_series_gsl" model="aw.window.series">
-            <field name="name">Double Glaze Slim (GSL)</field>
-            <field name="code">GSL</field>
-            <field name="window_type_id" ref="window_type_sliding"/>
+        <record id="window_series_sg_fix" model="aw.window.series">
+            <field name="name">Single Glaze Fix</field>
             <field name="sequence">40</field>
-            <field name="product_category_id" ref="product_category_profiles_gsl"/>
         </record>
-        <record id="window_series_hinged" model="aw.window.series">
-            <field name="name">Hinged / Casement Window</field>
-            <field name="code">HINGED</field>
-            <field name="window_type_id" ref="window_type_openable"/>
+        <record id="window_series_curtain_wall_fix" model="aw.window.series">
+            <field name="name">Curtain Wall Fix</field>
             <field name="sequence">50</field>
-            <field name="product_category_id" ref="product_category_profiles_hinged"/>
         </record>
-        <record id="window_series_curtain" model="aw.window.series">
-            <field name="name">Curtain Wall</field>
-            <field name="code">CURTAIN</field>
-            <field name="window_type_id" ref="window_type_curtain_wall_fix"/>
+        <record id="window_series_tiltturn" model="aw.window.series">
+            <field name="name">Tilt &amp; Turn Series</field>
             <field name="sequence">60</field>
-            <field name="product_category_id" ref="product_category_profiles_curtain"/>
+        </record>
+        <record id="window_series_casement_sg" model="aw.window.series">
+            <field name="name">Casement Single Glaze</field>
+            <field name="sequence">70</field>
+        </record>
+        <record id="window_series_casement_dg" model="aw.window.series">
+            <field name="name">Casement Double Glaze</field>
+            <field name="sequence">80</field>
         </record>
 
     </data>

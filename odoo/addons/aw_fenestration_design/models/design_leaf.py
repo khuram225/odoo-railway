@@ -1,31 +1,18 @@
 # -*- coding: utf-8 -*-
 from odoo import fields, models
 
-LEAF_TYPE_SELECTION = [
-    ('fixed', 'Fixed'),
-    ('slider', 'Slider'),
-    ('casement', 'Casement'),
-    ('awning', 'Awning (top-hung)'),
-    ('hopper', 'Hopper (bottom-hung)'),
-    ('mesh', 'Mesh'),
-    ('tiltturn', 'Tilt & Turn'),
-]
-
 
 class AwDesignLeaf(models.Model):
-    """Direct port of the prototype's row.leaves[] entries. leaf_type
-    now includes 'tiltturn' — the 7th leaf type added when Window Kind
-    grew a 4th kind for the Tilt & Turn Window type. Legality (which
-    leaf types a given row's design.window_series_id actually allows) is
-    NOT enforced at this layer — that's a check against
-    window_series_id.window_type_id.kind_id.allow_* , which belongs in
-    the checks/validation step, not baked into this bare data model.
+    """Direct port of the prototype's row.leaves[] entries. leaf_type is
+    now a Many2one to aw.leaf.type (aw_fenestration_core) instead of a
+    hardcoded Selection — single source of truth, same table Window
+    Series and Hardware Set lines both reference. Adding a new leaf
+    mechanism no longer touches this file at all.
 
-    Direction fields are all optional and only meaningful for some leaf
-    types (hinge_side/swing for casement/awning/hopper/tiltturn,
-    slide_dir for slider) — same as the prototype's PT[type].dir lookup,
-    just not literally ported as a lookup table here since Python can
-    branch on leaf_type directly wherever this matters.
+    Legality (which leaf types a given row's design.window_series_id
+    actually allows, via window_series_id.leaf_type_ids) is still NOT
+    enforced at this layer — that's the checks/validation step, not
+    part of this bare data model.
     """
     _name = 'aw.design.leaf'
     _description = 'Fenestration Design Leaf'
@@ -41,15 +28,21 @@ class AwDesignLeaf(models.Model):
              "the row's leaf widths always sum to the design's overall "
              "Width. Not enforced at this layer yet.")
 
-    leaf_type = fields.Selection(LEAF_TYPE_SELECTION, required=True, default='fixed')
+    leaf_type_id = fields.Many2one(
+        'aw.leaf.type', required=True, ondelete='restrict')
+    # convenience related fields so the view can decide which direction
+    # fields to show without re-deriving the leaf-type -> field-visibility
+    # rule in XML — single source of truth stays on aw.leaf.type itself
+    leaf_has_hinge_side = fields.Boolean(related='leaf_type_id.has_hinge_side', readonly=True)
+    leaf_has_slide_dir = fields.Boolean(related='leaf_type_id.has_slide_dir', readonly=True)
 
     hinge_side = fields.Selection([
         ('left', 'Left'), ('right', 'Right'),
         ('top', 'Top'), ('bottom', 'Bottom'),
-    ], help="Casement/Awning/Hopper/Tilt & Turn only.")
+    ], help="Shown only for leaf types with has_hinge_side set.")
     swing = fields.Selection([
         ('in', 'In'), ('out', 'Out'),
-    ], help="Casement/Awning/Hopper/Tilt & Turn only.")
+    ], help="Shown only for leaf types with has_hinge_side set.")
     slide_dir = fields.Selection([
         ('left', 'Left'), ('right', 'Right'),
-    ], help="Slider only.")
+    ], help="Shown only for leaf types with has_slide_dir set.")

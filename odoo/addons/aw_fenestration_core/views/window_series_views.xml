@@ -9,8 +9,7 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="window_type_id"/>
-                <field name="kind_id"/>
+                <field name="leaf_type_ids" widget="many2many_tags"/>
                 <field name="profile_section_count" string="Sections"/>
                 <field name="hardware_set_count" string="Hardware Sets"/>
                 <field name="template_count" string="Templates"/>
@@ -44,8 +43,7 @@
                         <group>
                             <field name="name"/>
                             <field name="code"/>
-                            <field name="window_type_id"/>
-                            <field name="kind_id"/>
+                            <field name="leaf_type_ids" widget="many2many_tags"/>
                         </group>
                         <group>
                             <field name="product_category_id"/>
@@ -65,10 +63,10 @@
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first Window Series</p>
-            <p>A Window Series is a specific product family within a Window Type —
-               Box Series, Collar Box, Round Series, GSL Slim, Hinged/Casement,
-               Curtain Wall. Its Kind (which leaf types it can host) is inherited
-               from its Window Type.</p>
+            <p>A Window Series is a specific product family — Double Glaze Sliding,
+               Single Glaze Fix, Curtain Wall Fix, Tilt &amp; Turn Series, Casement
+               Single Glaze, etc. Leaf Types picks which leaf mechanisms it can
+               host.</p>
         </field>
     </record>
 

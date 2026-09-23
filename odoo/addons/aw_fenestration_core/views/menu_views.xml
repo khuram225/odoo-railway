@@ -11,17 +11,17 @@
               parent="menu_aw_fenestration_root"
               sequence="10"/>
 
-    <menuitem id="menu_aw_window_kind"
-              name="Window Kinds"
+    <menuitem id="menu_aw_leaf_type"
+              name="Leaf Types"
               parent="menu_aw_fenestration_master_data"
-              action="action_aw_window_kind"
-              sequence="5"/>
+              action="action_aw_leaf_type"
+              sequence="3"/>
 
-    <menuitem id="menu_aw_window_type"
-              name="Window Types"
+    <menuitem id="menu_aw_profile_position"
+              name="Profile Positions"
               parent="menu_aw_fenestration_master_data"
-              action="action_aw_window_type"
-              sequence="8"/>
+              action="action_aw_profile_position"
+              sequence="4"/>
 
     <menuitem id="menu_aw_window_series"
               name="Window Series"

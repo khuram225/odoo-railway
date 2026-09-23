@@ -7,8 +7,8 @@
     'description': """
 Fenestration Design
 ====================
-Depends on aw_fenestration_core (Window Kind/Type/Series, Profile Section,
-Hardware Set, Glass Spec) and Sale.
+Depends on aw_fenestration_core (Window Series, Leaf Type, Profile Position,
+Profile Section, Hardware Set, Glass Spec) and Sale.
 
 This module holds the DATA MODEL layer only, ported from the JS prototype's
 row/leaf grid shape:
@@ -19,8 +19,9 @@ row/leaf grid shape:
                           parallel quote document
   aw.design.row         = d.rows[]  — a horizontal band, has a height
   aw.design.leaf        = row.leaves[] — one opening within a row, has a
-                          width and a leaf type (fixed/slider/casement/
-                          awning/hopper/mesh/tiltturn)
+                          width and a leaf_type_id (Many2one to
+                          aw_fenestration_core's aw.leaf.type -- dynamic,
+                          not a hardcoded Selection)
   aw.design.bom.line    = explode()'s OUTPUT — profile pieces, one row per
                           cut length. Populated by the explosion engine,
                           not hand-entered. That engine is NOT part of this

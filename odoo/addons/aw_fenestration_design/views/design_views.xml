@@ -38,13 +38,15 @@
                             <field name="sequence" widget="handle"/>
                             <field name="width_mm"/>
                             <field name="is_auto"/>
-                            <field name="leaf_type"/>
+                            <field name="leaf_type_id"/>
+                            <field name="leaf_has_hinge_side" column_invisible="1"/>
+                            <field name="leaf_has_slide_dir" column_invisible="1"/>
                             <field name="hinge_side"
-                                   column_invisible="leaf_type not in ('casement','awning','hopper','tiltturn')"/>
+                                   column_invisible="not leaf_has_hinge_side"/>
                             <field name="swing"
-                                   column_invisible="leaf_type not in ('casement','awning','hopper','tiltturn')"/>
+                                   column_invisible="not leaf_has_hinge_side"/>
                             <field name="slide_dir"
-                                   column_invisible="leaf_type != 'slider'"/>
+                                   column_invisible="not leaf_has_slide_dir"/>
                         </list>
                     </field>
                 </sheet>
