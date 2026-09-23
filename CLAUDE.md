@@ -16,6 +16,9 @@ It is not part of this repo.
   only, no models/views). Confirms the addons path wiring works end to end.
 - `odoo/addons/aluminum_inventory/` — first real business module, for an
   aluminum windows manufacturing operation. See below.
+- `odoo/addons/aw_fenestration_core/` — master data for the aluminum windows
+  business: `aw.window.kind`, `aw.window.type`, `aw.profile.section`,
+  `aw.hardware.set`, `aw.glass.spec`, `aw.window.template`. See below.
 
 ## aluminum_inventory
 
@@ -40,6 +43,38 @@ Profile" group via xpath (`group[@name='inventory_group']`, position
 
 Confirmed against the Odoo 19.0 source (`../odoo-src/addons/stock/models/stock_lot.py`)
 before adding these fields — no naming conflicts with core `stock.lot` fields.
+
+## aw_fenestration_core
+
+Master data only — no quoting, no geometry, no stock.lot length tracking.
+Chatter (`mail.thread` + `mail.activity.mixin`, `tracking=True` on names and
+key relations) on all 6 top-level models; the `.line` models (profile
+section lines, hardware set lines) don't get their own chatter, they're
+edited inline on the parent.
+
+Seeded via `data/product_category_data.xml` (Window Kinds, product category
+tree, the 6 Window Types) and `data/chawla_attributes_data.xml` +
+`data/chawla_profiles_data.xml` (the Chawla pricelist import — regenerate
+both from the melt CSV with `scripts/rebuild_melt_and_import.py`, never
+hand-edit them).
+
+**`hooks.py`'s `post_init_hook` creates records without an `ir.model.data`
+entry** (the "Box Series - Standard" `aw.profile.section` and the 5 product
+variants it needs). That means:
+- Module uninstall does **not** clean these up automatically — only
+  XML-declared records get deleted on uninstall.
+- `aw.profile.section.window_type_id` and `aw.profile.section.line.product_id`
+  are both `ondelete='restrict'`, so this leftover section blocks deletion
+  of the Window Type and product variants it references.
+- **A straight uninstall will fail.** Before uninstalling, delete the
+  "Box Series - Standard" Profile Section by hand first (cascades to its
+  5 lines) — then uninstall, then reinstall. `post_init_hook` is
+  idempotent and recreates it identically on reinstall.
+
+This came up concretely: `aw.window.type.kind` (Selection) was replaced with
+`kind_id` (Many2one to the new `aw.window.kind`) with no migration — decided
+against migrating the 6 live rows since this is still test data, chose
+uninstall+reinstall instead, which is why the sequence above matters.
 
 ## XML comment check
 
