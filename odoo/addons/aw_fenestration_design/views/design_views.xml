@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+    Confirmed against aw_fenestration_core's own views before trusting
+    this: <chatter/> and the <list editable="bottom"> inline-edit pattern
+    both match what's already live and working there. Two real bugs
+    fixed in this file before it was committed, both matching mistakes
+    already made and fixed twice before in aw_fenestration_core; see
+    CLAUDE.md's load-order note: the "Rows" stat button was type="object"
+    with a %(xmlid)d action reference (needs type="action"), and
+    action_aw_design_row was defined AFTER the view that references it
+    via %()d, which resolves eagerly at parse time, not lazily.
+
+    Deliberately NOT built here, per the agreed scope (data model only):
+      - the row/leaf "Automatic" dimension-lock recompute logic (is_auto
+        exists as a field, nothing enforces or recomputes around it yet)
+      - the Explode BOM button's actual behavior — action_explode() is a
+        stub that raises NotImplementedError by design; the button below
+        calls it so that's visibly true in testing, not silently absent
+      - any Checks / manufacturability validation display
+      - the visual canvas — this is plain list-based row/leaf entry only
+    -->
+
+    <record id="view_aw_design_row_form" model="ir.ui.view">
+        <field name="name">aw.design.row.form</field>
+        <field name="model">aw.design.row</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="design_id" readonly="1"/>
+                        <field name="sequence"/>
+                        <field name="height_mm"/>
+                        <field name="is_auto"/>
+                    </group>
+                    <field name="leaf_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="width_mm"/>
+                            <field name="is_auto"/>
+                            <field name="leaf_type"/>
+                            <field name="hinge_side"
+                                   column_invisible="parent.leaf_type not in ('casement','awning','hopper','tiltturn')"/>
+                            <field name="swing"
+                                   column_invisible="parent.leaf_type not in ('casement','awning','hopper','tiltturn')"/>
+                            <field name="slide_dir"
+                                   column_invisible="parent.leaf_type != 'slider'"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_design_row" model="ir.actions.act_window">
+        <field name="name">Rows</field>
+        <field name="res_model">aw.design.row</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('design_id', '=', active_id)]</field>
+    </record>
+
+    <record id="view_aw_design_form" model="ir.ui.view">
+        <field name="name">aw.design.form</field>
+        <field name="model">aw.design</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_explode" type="object"
+                            string="Explode BOM" class="btn-primary"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_button_box" name="button_box">
+                        <button type="action" name="%(action_aw_design_row)d"
+                                class="oe_stat_button" icon="fa-bars"
+                                context="{'default_design_id': id, 'search_default_design_id': id}">
+                            <field name="row_count" widget="statinfo" string="Rows"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="location"/>
+                            <field name="qty"/>
+                            <field name="window_series_id"/>
+                            <field name="template_id"/>
+                        </group>
+                        <group>
+                            <field name="width_mm"/>
+                            <field name="height_mm"/>
+                            <field name="area_sqm" readonly="1"/>
+                            <field name="area_sqft" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Glazing / Finish">
+                            <field name="glass_spec_id"/>
+                            <field name="finish_id"/>
+                            <field name="thickness_id"/>
+                        </group>
+                        <group string="Pricing">
+                            <field name="manual_rate"/>
+                            <field name="sale_order_line_id"/>
+                            <field name="sale_order_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Rows" name="rows">
+                            <field name="row_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="height_mm"/>
+                                    <field name="is_auto"/>
+                                    <field name="leaf_count" readonly="1"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Bill of Materials" name="bom">
+                            <field name="bom_line_ids" readonly="1">
+                                <list>
+                                    <field name="sequence"/>
+                                    <field name="role"/>
+                                    <field name="product_id"/>
+                                    <field name="length_mm"/>
+                                    <field name="qty"/>
+                                    <field name="where"/>
+                                    <field name="unit_cost"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                    <field name="active" invisible="1"/>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_aw_design_list" model="ir.ui.view">
+        <field name="name">aw.design.list</field>
+        <field name="model">aw.design</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="location"/>
+                <field name="qty"/>
+                <field name="window_series_id"/>
+                <field name="width_mm"/>
+                <field name="height_mm"/>
+                <field name="area_sqft"/>
+                <field name="sale_order_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_aw_design" model="ir.actions.act_window">
+        <field name="name">Designs</field>
+        <field name="res_model">aw.design</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Design</p>
+            <p>A Design is one configured window/door position — width,
+               height, a row/leaf grid, and (once the explosion engine
+               lands) a generated profile cut list.</p>
+        </field>
+    </record>
+
+</odoo>

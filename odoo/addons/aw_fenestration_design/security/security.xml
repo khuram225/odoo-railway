@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <!-- Confirmed: aw_fenestration_core.fenestration_privilege exists
+             exactly under that external ID, in
+             aw_fenestration_core/security/security.xml. -->
+
+        <record id="group_fenestration_sales" model="res.groups">
+            <field name="name">Fenestration / Sales</field>
+            <field name="privilege_id" ref="aw_fenestration_core.fenestration_privilege"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+        <!-- Managers get Sales-level Design rights automatically, no dual
+             assignment needed. This UPDATES the existing group record
+             from aw_fenestration_core (standard Odoo pattern — a
+             dependent module extending a parent module's data by reusing
+             its external ID) rather than creating a new one. Command 4 is
+             additive/idempotent, safe to run on every install/upgrade.
+             Confirmed this cross-module record-extension pattern is
+             genuine core Odoo practice, not something to second-guess:
+             purchase/security/purchase_security.xml does the identical
+             thing to base.group_user. -->
+        <record id="aw_fenestration_core.group_fenestration_manager" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('group_fenestration_sales'))]"/>
+        </record>
+    </data>
+</odoo>

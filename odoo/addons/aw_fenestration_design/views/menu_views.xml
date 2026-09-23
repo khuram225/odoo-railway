@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Confirmed: menu_aw_fenestration_root exists in
+         aw_fenestration_core/views/menu_views.xml. A hard module
+         dependency (aw_fenestration_core is in this module's depends)
+         guarantees it's fully installed before this file loads, so no
+         same-module load-order fix is needed here the way there was in
+         design_views.xml. -->
+
+    <menuitem id="menu_aw_design"
+              name="Designs"
+              parent="aw_fenestration_core.menu_aw_fenestration_root"
+              action="action_aw_design"
+              sequence="20"/>
+
+</odoo>

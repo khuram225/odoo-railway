@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_aw_design_user,aw.design.user,model_aw_design,base.group_user,1,0,0,0
+access_aw_design_sales,aw.design.sales,model_aw_design,group_fenestration_sales,1,1,1,1
+access_aw_design_row_user,aw.design.row.user,model_aw_design_row,base.group_user,1,0,0,0
+access_aw_design_row_sales,aw.design.row.sales,model_aw_design_row,group_fenestration_sales,1,1,1,1
+access_aw_design_leaf_user,aw.design.leaf.user,model_aw_design_leaf,base.group_user,1,0,0,0
+access_aw_design_leaf_sales,aw.design.leaf.sales,model_aw_design_leaf,group_fenestration_sales,1,1,1,1
+access_aw_design_bom_line_user,aw.design.bom.line.user,model_aw_design_bom_line,base.group_user,1,0,0,0
+access_aw_design_bom_line_sales,aw.design.bom.line.sales,model_aw_design_bom_line,group_fenestration_sales,1,1,1,1

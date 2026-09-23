@@ -20,6 +20,9 @@ It is not part of this repo.
   business: `aw.window.kind`, `aw.window.type`, `aw.window.series`,
   `aw.profile.section`, `aw.hardware.set`, `aw.glass.spec`,
   `aw.window.template`. See below.
+- `odoo/addons/aw_fenestration_design/` — per-quote design geometry
+  (`aw.design` → row → leaf), depends on `aw_fenestration_core` + `sale`.
+  See below.
 
 ## aluminum_inventory
 
@@ -108,6 +111,38 @@ to (or verifying against) this chain, not assuming render-time
 resolution — see `odoo/tools/convert.py`'s `_tag_record`/`_eval_xml`, not
 `ir_ui_view.py`'s `resolve_external_ids` (that one's for dev-mode
 re-reads, a different and later mechanism).
+
+## aw_fenestration_design
+
+Data model only, deliberately — `aw.design.action_explode()` is a stub that
+raises `NotImplementedError`. The explosion engine, manufacturability
+checks, the coupler action, and the visual canvas are separate follow-on
+work, not in this module. `aw.design` (top-level, chatter, `active`) →
+`aw.design.row` → `aw.design.leaf` (both plain child models, no chatter,
+matching the `.line`-model convention) → `aw.design.bom.line` (explosion
+output, never hand-entered).
+
+`aw.design.window_series_id`/`template_id` point at `aw.window.series`/
+`aw.window.template`; `finish_id`/`thickness_id` are `product.attribute.value`
+records domained by `ref()` to `aw_fenestration_core.aw_attribute_finish`/
+`aw_attribute_thickness` (not name-string matching — a renamed attribute
+would silently break that instead of erroring).
+
+New group: `group_fenestration_sales` ("Fenestration / Sales"), separate
+from core's `group_fenestration_manager` — quote-level Design access and
+master-BOM-data access are two different grants. `security.xml` extends
+`aw_fenestration_core.group_fenestration_manager`'s `implied_ids` by its
+full external ID (cross-module record extension — confirmed genuine core
+Odoo practice, not a workaround: `purchase/security/purchase_security.xml`
+does the identical thing to `base.group_user`).
+
+Caught two real bugs before this ever reached a live install, both repeats
+of mistakes already made and fixed in `aw_fenestration_core` — worth
+knowing the pattern, since it'll happen again: a stat button using
+`type="object"` with a `%(xmlid)d` action reference (needs `type="action"`),
+and an action record defined *after* the view that references it via
+`%(xmlid)d` in the same file (that substitution resolves eagerly at parse
+time — see the load-order note above).
 
 ## XML comment check
 
