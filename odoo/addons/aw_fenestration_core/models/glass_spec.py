@@ -22,6 +22,10 @@ class AwGlassSpec(models.Model):
             self.env.ref('aw_fenestration_core.product_category_glass').id,
         )])
     thickness_mm = fields.Float(string='Thickness (mm)')
+    weight_kg_m2 = fields.Float(
+        string='Weight (kg/m²)',
+        help="Used by the manufacturability checks in Phase 4, e.g. sash "
+             "weight against the hardware's limit.")
     notes = fields.Text()
     active = fields.Boolean(default=True)
 

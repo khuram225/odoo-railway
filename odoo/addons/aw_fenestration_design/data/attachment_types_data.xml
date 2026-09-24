@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+        Mesh, infill and grid types from spec 5.1, 5.2 and 5.4.
+
+        line_ids are deliberately EMPTY. Every line needs a real product,
+        and the products for mesh sashes, louvre blades, fan cutouts and
+        Georgian bars aren't in the catalogue yet. Seeding lines pointing
+        at guessed products would put invented data into the BOM the
+        moment Phase 4 starts evaluating them. The tables exist and are
+        editable; fill them from the supplier list.
+
+        noupdate so names, mechanisms and lines stay editable.
+        -->
+
+        <!-- ===== Mesh types (5.1) ===== -->
+        <record id="mesh_type_fixed" model="aw.mesh.type">
+            <field name="code">MSH-FIX</field>
+            <field name="name">Fixed Mesh</field>
+            <field name="family_id" ref="layout_family_msh"/>
+            <field name="mechanism">fixed</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="mesh_type_hinged" model="aw.mesh.type">
+            <field name="code">MSH-HNG</field>
+            <field name="name">Hinged Mesh</field>
+            <field name="family_id" ref="layout_family_msh"/>
+            <field name="mechanism">hinged</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="mesh_type_pleated_l" model="aw.mesh.type">
+            <field name="code">PLT-SGL-L</field>
+            <field name="name">Pleated, single, opens left</field>
+            <field name="family_id" ref="layout_family_plt"/>
+            <field name="mechanism">pleated</field>
+            <field name="pull">left</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="mesh_type_pleated_r" model="aw.mesh.type">
+            <field name="code">PLT-SGL-R</field>
+            <field name="name">Pleated, single, opens right</field>
+            <field name="family_id" ref="layout_family_plt"/>
+            <field name="mechanism">pleated</field>
+            <field name="pull">right</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="mesh_type_pleated_dc" model="aw.mesh.type">
+            <field name="code">PLT-DBL-C</field>
+            <field name="name">Pleated, double, meets in the centre</field>
+            <field name="family_id" ref="layout_family_plt"/>
+            <field name="mechanism">pleated</field>
+            <field name="pull">center</field>
+            <field name="sequence">50</field>
+        </record>
+        <record id="mesh_type_pleated_ds" model="aw.mesh.type">
+            <field name="code">PLT-DBL-S</field>
+            <field name="name">Pleated, double, opens to the sides</field>
+            <field name="family_id" ref="layout_family_plt"/>
+            <field name="mechanism">pleated</field>
+            <field name="pull">sides</field>
+            <field name="sequence">60</field>
+        </record>
+        <record id="mesh_type_roller" model="aw.mesh.type">
+            <field name="code">PLT-ROL</field>
+            <field name="name">Roller Mesh</field>
+            <field name="family_id" ref="layout_family_plt"/>
+            <field name="mechanism">roller</field>
+            <field name="pull">vertical</field>
+            <field name="sequence">70</field>
+        </record>
+
+        <!-- ===== Infill types (5.2) ===== -->
+        <record id="infill_type_glass" model="aw.infill.type">
+            <field name="code">ADD-GLS</field>
+            <field name="name">Glass</field>
+            <field name="kind">glass</field>
+            <field name="uses_glass" eval="True"/>
+            <field name="sequence">10</field>
+        </record>
+        <record id="infill_type_panel" model="aw.infill.type">
+            <field name="code">ADD-INF</field>
+            <field name="name">Solid Panel</field>
+            <field name="kind">panel</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="infill_type_louvre_fixed" model="aw.infill.type">
+            <field name="code">ADD-LOUV-F</field>
+            <field name="name">Louvre, fixed</field>
+            <field name="kind">louvre</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="infill_type_louvre_adj" model="aw.infill.type">
+            <field name="code">ADD-LOUV-A</field>
+            <field name="name">Louvre, adjustable</field>
+            <field name="kind">louvre</field>
+            <field name="adjustable" eval="True"/>
+            <field name="sequence">40</field>
+        </record>
+        <record id="infill_type_fan" model="aw.infill.type">
+            <field name="code">ADD-FAN</field>
+            <field name="name">Exhaust Fan</field>
+            <field name="kind">fan</field>
+            <field name="sequence">50</field>
+        </record>
+        <record id="infill_type_ac" model="aw.infill.type">
+            <field name="code">ADD-AC</field>
+            <field name="name">AC Cutout</field>
+            <field name="kind">ac</field>
+            <field name="sequence">60</field>
+        </record>
+
+        <!-- ===== Grid patterns (5.4) ===== -->
+        <record id="grid_pattern_rect" model="aw.grid.pattern">
+            <field name="code">ADD-GRID-R</field>
+            <field name="name">Georgian bars, rectangular</field>
+            <field name="kind">rect</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="grid_pattern_perimeter" model="aw.grid.pattern">
+            <field name="code">ADD-GRID-P</field>
+            <field name="name">Georgian bars, perimeter</field>
+            <field name="kind">perimeter</field>
+            <field name="sequence">20</field>
+        </record>
+
+    </data>
+</odoo>

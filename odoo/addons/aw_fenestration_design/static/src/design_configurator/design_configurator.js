@@ -975,6 +975,12 @@ export class DesignConfigurator extends Component {
         for (const lt of this.state.data.leaf_types) {
             byCode[lt.code] = lt;
         }
+        const meshByCode = Object.fromEntries(
+            (this.state.data.mesh_types || []).map((m) => [m.code, m]));
+        const infillByCode = Object.fromEntries(
+            (this.state.data.infill_types || []).map((i) => [i.code, i]));
+        const gridByCode = Object.fromEntries(
+            (this.state.data.grid_patterns || []).map((g) => [g.code, g]));
         // Recursive: a preset row's leaf may itself carry `rows`, which
         // become a nested container sized against that leaf's share.
         const build = (rowList, boxW, boxH) => {
@@ -1010,6 +1016,23 @@ export class DesignConfigurator extends Component {
                                     : "",
                             junction_after: leaf.junction || "",
                             track_no: nested ? 0 : leaf.track || 0,
+                            // Attachments are named by CODE in a preset,
+                            // resolved to ids here against the current
+                            // catalogue.
+                            mesh_type_id: nested ? false : meshByCode[leaf.mesh]?.id || false,
+                            mesh_type_code: nested ? "" : leaf.mesh || "",
+                            mesh_hinge_side:
+                                !nested && leaf.mesh ? leaf.hinge || "" : "",
+                            infill_type_id: nested ? false : infillByCode[leaf.infill]?.id || false,
+                            infill_kind: nested ? "glass" : infillByCode[leaf.infill]?.kind || "glass",
+                            infill_uses_glass:
+                                nested || !leaf.infill
+                                    ? true
+                                    : !!infillByCode[leaf.infill]?.uses_glass,
+                            glass_spec_id: false,
+                            grid_pattern_id: nested ? false : gridByCode[leaf.grid?.pattern]?.id || false,
+                            grid_rows: nested ? 0 : leaf.grid?.rows || 0,
+                            grid_cols: nested ? 0 : leaf.grid?.cols || 0,
                             rows: nested ? build(leaf.rows, leafW, rowH) : [],
                         };
                     }),
@@ -1128,6 +1151,10 @@ export class DesignConfigurator extends Component {
                             isMesh,
                             selected: samePath(this.state.selected, leafPath),
                             glyph: this.leafGlyph(rx, ry, lw, rh, leaf),
+                            // Attachments: positions only, no stroke
+                            // widths -- those are screen-sized and live
+                            // in adornments, per the layering rule.
+                            attach: this.leafAttachments(rx, ry, lw, rh, leaf),
                         });
                     }
 
@@ -1366,6 +1393,85 @@ export class DesignConfigurator extends Component {
             key: side,
             points: pts.map((pt) => pt.join(",")).join(" "),
         };
+    }
+
+    /**
+     * Where a panel's mesh, infill and grid are drawn (spec 5.5).
+     *
+     * Geometry only: every stroke width and font size comes from the
+     * adornment layer, so these stay readable at any zoom, and so this
+     * never reads fitScale and re-creates the cycle that crashed the
+     * configurator once.
+     */
+    leafAttachments(x, y, w, h, leaf) {
+        const out = {
+            meshOverlay: null,
+            meshBadge: null,
+            infill: null,
+            grid: null,
+        };
+
+        if (leaf.mesh_type_id) {
+            out.meshOverlay = { x, y, w, h };
+            out.meshBadge = {
+                x: x + w - 4,
+                y: y + 4,
+                label: leaf.mesh_type_code || "MSH",
+            };
+        }
+
+        const kind = leaf.infill_kind || "glass";
+        const cx = x + w / 2;
+        const cy = y + h / 2;
+        if (kind === "panel") {
+            out.infill = { kind, x, y, w, h };
+        } else if (kind === "louvre") {
+            // Evenly spaced slats across the opening.
+            const count = Math.max(3, Math.min(9, Math.round(h / 60)));
+            const step = h / (count + 1);
+            out.infill = {
+                kind,
+                slats: Array.from({ length: count }, (_, i) => ({
+                    key: i,
+                    x1: x + w * 0.12,
+                    x2: x + w * 0.88,
+                    y: y + step * (i + 1),
+                })),
+            };
+        } else if (kind === "fan") {
+            out.infill = {
+                kind,
+                cx,
+                cy,
+                r: Math.min(w, h) * 0.26,
+            };
+        } else if (kind === "ac") {
+            const bw = w * 0.5;
+            const bh = h * 0.3;
+            out.infill = {
+                kind,
+                x: cx - bw / 2,
+                y: cy - bh / 2,
+                w: bw,
+                h: bh,
+            };
+        }
+
+        if (leaf.grid_pattern_id) {
+            const rows = Math.max(0, leaf.grid_rows || 0);
+            const cols = Math.max(0, leaf.grid_cols || 0);
+            const bars = [];
+            for (let i = 1; i < rows; i++) {
+                const gy = y + (h * i) / rows;
+                bars.push({ key: `r${i}`, x1: x, y1: gy, x2: x + w, y2: gy });
+            }
+            for (let i = 1; i < cols; i++) {
+                const gx = x + (w * i) / cols;
+                bars.push({ key: `c${i}`, x1: gx, y1: y, x2: gx, y2: y + h });
+            }
+            out.grid = { bars };
+        }
+        return out;
     }
 
     /** Port of leafGlyph(): slide arrow, opening triangle + IN/OUT tag. */
@@ -1670,6 +1776,13 @@ export class DesignConfigurator extends Component {
             // units these were drawn under a pixel wide at normal fit,
             // which is why the triangles looked absent rather than thin.
             glyphStroke: 1.2 * upp,
+            // Attachment strokes, all screen-constant for the same
+            // reason the triangles are.
+            meshStroke: 0.8 * upp,
+            louvreStroke: 1.1 * upp,
+            fanStroke: 1.2 * upp,
+            gridStroke: 2 * upp,
+            badgeFontSmall: 8 * upp,
             glyphDash: `${4 * upp} ${3 * upp}`,
             glyphFont: 10 * upp,
             arrowStroke: 1.6 * upp,
@@ -1907,6 +2020,169 @@ export class DesignConfigurator extends Component {
         const rows = this.rowsAt(path.slice(0, -1));
         const row = rows[path[path.length - 1][0]];
         return row ? this.formatLength(row.height_mm || 0) : "";
+    }
+
+    // -- attachments (spec 5.1-5.4) ----------------------------------------
+    get meshTypes() {
+        return this.state.data?.mesh_types || [];
+    }
+
+    get infillTypes() {
+        return this.state.data?.infill_types || [];
+    }
+
+    get glassSpecs() {
+        return this.state.data?.glass_specs || [];
+    }
+
+    get gridPatterns() {
+        return this.state.data?.grid_patterns || [];
+    }
+
+    /** Mesh families in the library, grouped like the layout ones. */
+    get meshByFamily() {
+        const groups = new Map();
+        for (const mesh of this.meshTypes) {
+            const key = mesh.family_name || _t("Mesh");
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    family: key,
+                    familyId: mesh.family_id || null,
+                    sequence: mesh.family_sequence ?? 999,
+                    items: [],
+                });
+            }
+            groups.get(key).items.push(mesh);
+        }
+        return [...groups.values()].sort((a, b) => a.sequence - b.sequence);
+    }
+
+    /**
+     * Mesh and infill APPLY TO A PANEL rather than replacing the layout,
+     * which is the whole difference between a layout family and a mesh
+     * or infill one (spec 4.1). With nothing selected there is nothing
+     * to apply them to, so say so rather than doing nothing.
+     */
+    requireSelectedPanel(what) {
+        if (this.selectedPanel) {
+            return true;
+        }
+        this.notification.add(
+            _t("Select a panel first, then apply the %s to it.", what),
+            { type: "warning" }
+        );
+        return false;
+    }
+
+    applyMesh(meshId) {
+        if (!this.requireSelectedPanel(_t("mesh"))) {
+            return;
+        }
+        const leaf = this.selectedPanel;
+        const mesh = this.meshTypes.find((m) => m.id === meshId) || null;
+        // Clicking the mesh already on the panel takes it off again.
+        const clearing = leaf.mesh_type_id === meshId;
+        leaf.mesh_type_id = clearing ? false : meshId;
+        leaf.mesh_type_code = clearing ? "" : mesh?.code || "";
+        // A hinged mesh follows the panel's own hinge unless changed.
+        leaf.mesh_hinge_side =
+            !clearing && mesh?.mechanism === "hinged"
+                ? leaf.hinge_side || "left"
+                : "";
+        this.state.dirty = true;
+    }
+
+    applyInfill(infillId) {
+        if (!this.requireSelectedPanel(_t("infill"))) {
+            return;
+        }
+        const leaf = this.selectedPanel;
+        const infill = this.infillTypes.find((i) => i.id === infillId) || null;
+        leaf.infill_type_id = infillId;
+        leaf.infill_kind = infill?.kind || "glass";
+        leaf.infill_uses_glass = infill ? !!infill.uses_glass : true;
+        // An unglazed infill has no glass to override, so drop any that
+        // was set rather than leaving it to be quietly applied later.
+        if (!leaf.infill_uses_glass) {
+            leaf.glass_spec_id = false;
+        }
+        this.state.dirty = true;
+    }
+
+    setPanelGlass(value) {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        leaf.glass_spec_id = parseInt(value, 10) || false;
+        this.state.dirty = true;
+    }
+
+    setPanelGrid(value) {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        const id = parseInt(value, 10) || false;
+        leaf.grid_pattern_id = id;
+        if (!id) {
+            leaf.grid_rows = 0;
+            leaf.grid_cols = 0;
+        } else if (!leaf.grid_rows && !leaf.grid_cols) {
+            leaf.grid_rows = 2;
+            leaf.grid_cols = 2;
+        }
+        this.state.dirty = true;
+    }
+
+    setPanelGridSize(field, value) {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        leaf[field] = Math.max(0, parseInt(value, 10) || 0);
+        this.state.dirty = true;
+    }
+
+    setMeshHinge(side) {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        leaf.mesh_hinge_side = side;
+        this.state.dirty = true;
+    }
+
+    onPanelGlassChange(ev) {
+        this.setPanelGlass(ev.target.value);
+    }
+
+    onPanelGridChange(ev) {
+        this.setPanelGrid(ev.target.value);
+    }
+
+    onGridRowsChange(ev) {
+        this.setPanelGridSize("grid_rows", ev.target.value);
+    }
+
+    onGridColsChange(ev) {
+        this.setPanelGridSize("grid_cols", ev.target.value);
+    }
+
+    get selectedMeshType() {
+        const leaf = this.selectedPanel;
+        return leaf
+            ? this.meshTypes.find((m) => m.id === leaf.mesh_type_id) || null
+            : null;
+    }
+
+    get selectedPanelUsesGlass() {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return false;
+        }
+        // No infill chosen means plain glass, which is the default.
+        return leaf.infill_type_id ? !!leaf.infill_uses_glass : true;
     }
 
     // -- sliding builder (spec 4.2) ----------------------------------------

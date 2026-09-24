@@ -23,6 +23,24 @@
               action="action_aw_layout_family"
               sequence="5"/>
 
+    <menuitem id="menu_aw_mesh_type"
+              name="Mesh Types"
+              parent="aw_fenestration_core.menu_aw_fenestration_config"
+              action="action_aw_mesh_type"
+              sequence="20"/>
+
+    <menuitem id="menu_aw_infill_type"
+              name="Infill Types"
+              parent="aw_fenestration_core.menu_aw_fenestration_config"
+              action="action_aw_infill_type"
+              sequence="30"/>
+
+    <menuitem id="menu_aw_grid_pattern"
+              name="Grid Patterns"
+              parent="aw_fenestration_core.menu_aw_fenestration_config"
+              action="action_aw_grid_pattern"
+              sequence="40"/>
+
     <menuitem id="menu_aw_layout_preset"
               name="Layout Presets"
               parent="aw_fenestration_core.menu_aw_fenestration_config"

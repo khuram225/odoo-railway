@@ -150,3 +150,31 @@
     margin: 0 auto;
     object-fit: contain;
 }
+
+// Attachment symbols (spec 5.5). Strokes come from the adornment layer,
+// so only colour and fill live here.
+.o_aw_infill_panel {
+    fill: #8a9095;
+    fill-opacity: 0.85;
+    pointer-events: none;
+}
+
+.o_aw_louvre,
+.o_aw_fan,
+.o_aw_ac {
+    stroke: #4a5358;
+    fill: none;
+    pointer-events: none;
+}
+
+.o_aw_grid_bar {
+    stroke: #8a9095;
+    pointer-events: none;
+}
+
+.o_aw_mesh_badge {
+    fill: #4a5358;
+    font-family: var(--bs-font-monospace, monospace);
+    pointer-events: none;
+    user-select: none;
+}

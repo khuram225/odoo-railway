@@ -83,6 +83,30 @@ class AwDesignLeaf(models.Model):
         ('left', 'Left'), ('right', 'Right'),
     ], help="Shown only for leaf types with has_slide_dir set.")
 
+    # -- attachments (spec 5.1-5.4) ----------------------------------------
+    # All optional. A panel with none of these is plain glass, which is
+    # why infill_type_id being empty means Glass rather than nothing.
+    mesh_type_id = fields.Many2one(
+        'aw.mesh.type', string='Mesh', ondelete='restrict',
+        help="Mesh fitted onto this panel. Separate from the Mesh LEAF "
+             "type, which is a sliding panel of its own on a mesh track.")
+    mesh_hinge_side = fields.Selection([
+        ('left', 'Left'), ('right', 'Right'),
+        ('top', 'Top'), ('bottom', 'Bottom'),
+    ], help="For a hinged mesh. Defaults to the panel's own hinge side "
+            "when the mesh is applied.")
+    infill_type_id = fields.Many2one(
+        'aw.infill.type', string='Infill', ondelete='restrict',
+        help="What fills this panel. Empty means glass.")
+    glass_spec_id = fields.Many2one(
+        'aw.glass.spec', string='Glass override', ondelete='restrict',
+        help="Overrides the design's glass for this panel only. Empty "
+             "means the design's glass.")
+    grid_pattern_id = fields.Many2one(
+        'aw.grid.pattern', string='Grid', ondelete='restrict')
+    grid_rows = fields.Integer(string='Grid Rows', default=0)
+    grid_cols = fields.Integer(string='Grid Columns', default=0)
+
     track_no = fields.Integer(
         string='Track',
         help="Which track a sliding panel runs on, counting 1 from the "

@@ -61,6 +61,19 @@ function make(rows, W = 2438.4, H = 3200.4) {
             header: { name: "D1", location: "", qty: 1, width_mm: W, height_mm: H,
                       window_series_id: 1, window_series_name: "Casement Single Glaze" },
             rows, leaf_types: LEAF_TYPES, presets: [],
+            mesh_types: [
+                { id: 11, code: "MSH-FIX", name: "Fixed Mesh", mechanism: "fixed",
+                  family_id: 6, family_name: "Add-on Mesh", family_sequence: 60 },
+                { id: 12, code: "MSH-HNG", name: "Hinged Mesh", mechanism: "hinged",
+                  family_id: 6, family_name: "Add-on Mesh", family_sequence: 60 },
+            ],
+            infill_types: [
+                { id: 21, code: "ADD-GLS", name: "Glass", kind: "glass", uses_glass: true },
+                { id: 22, code: "ADD-LOUV-F", name: "Louvre", kind: "louvre", uses_glass: false },
+                { id: 23, code: "ADD-FAN", name: "Fan", kind: "fan", uses_glass: false },
+            ],
+            glass_specs: [{ id: 31, name: "Frosted 6mm" }],
+            grid_patterns: [{ id: 41, code: "ADD-GRID-R", name: "Georgian", kind: "rect" }],
             series_options: [
                 { id: 1, name: "Casement Single Glaze",
                   leaf_type_codes: ["FIXED", "CASEMENT", "MESH"] },
@@ -667,6 +680,107 @@ console.log("\n  library grouped by family:");
     c.state.data.presets.push({ id: 4, name: "D", layout: one });
     ok(c.presetsByFamily.length === 3,
        "a preset with no family still lands in a group");
+}
+
+console.log("\nATTACHMENTS (spec 5.1-5.5):");
+{
+    const mk = () => {
+        const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+            panel(600, "CASEMENT", { hinge_side: "left", swing: "out" }),
+            panel(600, "FIXED"),
+        ] }], 1200, 1500);
+        c.notification = { add: (m) => { c._warned = (c._warned || 0) + 1; } };
+        return c;
+    };
+
+    console.log("  applying with nothing selected:");
+    const none = mk();
+    none.applyMesh(11);
+    ok(none._warned === 1, "mesh with no panel selected warns");
+    none.applyInfill(22);
+    ok(none._warned === 2, "infill with no panel selected warns");
+    ok(!none.state.dirty, "and nothing was changed");
+
+    console.log("\n  mesh on a panel:");
+    const c = mk();
+    c.selectLeaf([[0, 0]]);
+    c.applyMesh(12); // hinged
+    const leaf = c.state.data.rows[0].leaves[0];
+    ok(leaf.mesh_type_id === 12, "mesh applied to the selected panel");
+    ok(leaf.mesh_hinge_side === "left",
+       "hinged mesh defaults to the panel's own hinge side");
+    ok(!!c.scene.leaves[0].attach.meshOverlay, "drawing gets a hatch overlay");
+    ok(c.scene.leaves[0].attach.meshBadge.label === "MSH-HNG",
+       "and a badge with the code");
+    c.applyMesh(12);
+    ok(!c.state.data.rows[0].leaves[0].mesh_type_id,
+       "clicking the same mesh again takes it off");
+
+    console.log("\n  infill hides the glass override when unglazed:");
+    const g = mk();
+    g.selectLeaf([[0, 1]]);
+    ok(g.selectedPanelUsesGlass, "no infill set means glass, so override shown");
+    g.setPanelGlass("31");
+    ok(g.selectedPanel.glass_spec_id === 31, "glass override set");
+    g.applyInfill(22); // louvre, uses_glass false
+    ok(!g.selectedPanelUsesGlass, "louvre is not glazed, so no override offered");
+    ok(!g.selectedPanel.glass_spec_id,
+       "and the override that was set is cleared, not left to apply silently");
+    g.applyInfill(21); // back to glass
+    ok(g.selectedPanelUsesGlass, "back to Glass, override offered again");
+
+    console.log("\n  infill symbols differ per kind:");
+    const sym = mk();
+    sym.selectLeaf([[0, 1]]);
+    sym.applyInfill(22);
+    const louvre = sym.scene.leaves[1].attach.infill;
+    ok(louvre.kind === "louvre" && louvre.slats.length >= 3,
+       `louvre drawn as ${louvre.slats.length} slats`);
+    sym.applyInfill(23);
+    const fan = sym.scene.leaves[1].attach.infill;
+    ok(fan.kind === "fan" && fan.r > 0, "fan drawn as a circle");
+    ok(JSON.stringify(louvre) !== JSON.stringify(fan),
+       "the two symbols are genuinely different");
+
+    console.log("\n  Georgian bars:");
+    const grid = mk();
+    grid.selectLeaf([[0, 1]]);
+    grid.setPanelGrid("41");
+    ok(grid.selectedPanel.grid_rows === 2 && grid.selectedPanel.grid_cols === 2,
+       "picking a pattern seeds a sensible 2x2");
+    grid.setPanelGridSize("grid_rows", "2");
+    grid.setPanelGridSize("grid_cols", "3");
+    const bars = grid.scene.leaves[1].attach.grid.bars;
+    ok(bars.length === 1 + 2, `2 rows x 3 cols -> ${bars.length} bars (1 horizontal, 2 vertical)`);
+    grid.setPanelGrid("");
+    ok(!grid.scene.leaves[1].attach.grid, "clearing the pattern removes the bars");
+
+    console.log("\n  attachment strokes are screen-constant:");
+    const z = mk();
+    for (const zoom of [0.25, 1, 4]) {
+        z.state.zoom = zoom;
+        const px = z.adornments.gridStroke * z.fitScale * zoom;
+        near(px, 2, `zoom ${zoom * 100}%: grid bar = ${px.toFixed(2)}px`);
+    }
+    z.state.zoom = 1;
+}
+
+console.log("\n  TWN presets carry mesh through applyPreset:");
+{
+    const c = make([{ height_mm: 1500, is_auto: false,
+                      leaves: [panel(1200, "FIXED")] }], 1200, 1500);
+    c.notification = { add: () => {} };
+    c.applyPreset({
+        id: 99, name: "Twin Sash: Casement left + Mesh",
+        family_name: "Twin Sash Designs", family_sequence: 30,
+        layout: { rows: [{ h: 1, leaves: [
+            { w: 1, type: "CASEMENT", hinge: "left", swing: "out", mesh: "MSH-HNG" },
+        ] }] },
+    });
+    const leaf = c.state.data.rows[0].leaves[0];
+    ok(leaf.leaf_type_code === "CASEMENT", "panel type applied");
+    ok(leaf.mesh_type_id === 12, "mesh code resolved to its id");
+    ok(leaf.mesh_hinge_side === "left", "mesh hinge follows the panel");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

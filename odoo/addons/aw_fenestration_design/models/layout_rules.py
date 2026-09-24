@@ -40,7 +40,39 @@ def leaf_type_codes(data):
     return codes
 
 
-def validate_layout(data, known_codes, max_depth=MAX_NESTING_DEPTH):
+def attachment_codes(data):
+    """Mesh, infill and grid codes a layout refers to, by kind.
+
+    Presets refer to a type by CODE rather than by id so they survive the
+    records being recreated -- the same reason leaf types are referred to
+    that way.
+    """
+    found = {'mesh': set(), 'infill': set(), 'grid': set()}
+
+    def walk(rows):
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            for leaf in row.get('leaves') or []:
+                if not isinstance(leaf, dict):
+                    continue
+                if leaf.get('rows'):
+                    walk(leaf['rows'])
+                    continue
+                if leaf.get('mesh'):
+                    found['mesh'].add(leaf['mesh'])
+                if leaf.get('infill'):
+                    found['infill'].add(leaf['infill'])
+                grid = leaf.get('grid')
+                if isinstance(grid, dict) and grid.get('pattern'):
+                    found['grid'].add(grid['pattern'])
+
+    walk((data or {}).get('rows'))
+    return found
+
+
+def validate_layout(data, known_codes, max_depth=MAX_NESTING_DEPTH,
+                    known_mesh=None, known_infill=None, known_grid=None):
     """Return a list of human-readable problems; empty means valid.
 
     Returning errors rather than raising keeps this usable both from an
@@ -87,6 +119,29 @@ def validate_layout(data, known_codes, max_depth=MAX_NESTING_DEPTH):
                             '%s uses unknown leaf type code %r. Known codes: '
                             '%s' % (leaf_where, code,
                                     ', '.join(sorted(known_codes))))
+                    # Attachments, checked only when the caller supplies
+                    # the catalogues -- the Odoo constraint always does,
+                    # a bare call may not.
+                    for key, known, label in (
+                        ('mesh', known_mesh, 'mesh type'),
+                        ('infill', known_infill, 'infill type'),
+                    ):
+                        value = leaf.get(key)
+                        if value and known is not None and value not in known:
+                            errors.append(
+                                '%s uses unknown %s code %r.'
+                                % (leaf_where, label, value))
+                    grid = leaf.get('grid')
+                    if grid is not None:
+                        if not isinstance(grid, dict):
+                            errors.append(
+                                '%s "grid" must be an object with a '
+                                '"pattern".' % leaf_where)
+                        elif (grid.get('pattern') and known_grid is not None
+                                and grid['pattern'] not in known_grid):
+                            errors.append(
+                                '%s uses unknown grid pattern code %r.'
+                                % (leaf_where, grid['pattern']))
 
     walk(data.get('rows'), 1, 'Layout')
     return errors

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+    One form shape for all three: header fields, then the line table.
+    Lines carry qty and condition formulas that nothing evaluates yet
+    (spec 6.1 defines the language in Phase 4); the columns exist now so
+    the data can be entered from the supplier list rather than waiting
+    on the engine.
+    -->
+
+    <record id="view_aw_mesh_type_list" model="ir.ui.view">
+        <field name="name">aw.mesh.type.list</field>
+        <field name="model">aw.mesh.type</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="mechanism"/>
+                <field name="pull"/>
+                <field name="family_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_mesh_type_form" model="ir.ui.view">
+        <field name="name">aw.mesh.type.form</field>
+        <field name="model">aw.mesh.type</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived"
+                            bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="mechanism"/>
+                            <field name="pull"
+                                   invisible="mechanism in ('fixed', 'hinged')"/>
+                        </group>
+                        <group>
+                            <field name="family_id"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <separator string="Bill of Materials"/>
+                    <div class="text-muted mb-2">
+                        Formulas are stored but not evaluated yet — the
+                        explosion engine arrives in Phase 4.
+                    </div>
+                    <field name="line_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="product_id"/>
+                            <field name="qty_formula"/>
+                            <field name="condition_formula"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_mesh_type" model="ir.actions.act_window">
+        <field name="name">Mesh Types</field>
+        <field name="res_model">aw.mesh.type</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_aw_infill_type_list" model="ir.ui.view">
+        <field name="name">aw.infill.type.list</field>
+        <field name="model">aw.infill.type</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="kind"/>
+                <field name="uses_glass"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_infill_type_form" model="ir.ui.view">
+        <field name="name">aw.infill.type.form</field>
+        <field name="model">aw.infill.type</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived"
+                            bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="kind"/>
+                        </group>
+                        <group>
+                            <field name="uses_glass"/>
+                            <field name="adjustable" invisible="kind != 'louvre'"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <separator string="Bill of Materials"/>
+                    <field name="line_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="product_id"/>
+                            <field name="qty_formula"/>
+                            <field name="condition_formula"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_infill_type" model="ir.actions.act_window">
+        <field name="name">Infill Types</field>
+        <field name="res_model">aw.infill.type</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="view_aw_grid_pattern_list" model="ir.ui.view">
+        <field name="name">aw.grid.pattern.list</field>
+        <field name="model">aw.grid.pattern</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="kind"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_grid_pattern_form" model="ir.ui.view">
+        <field name="name">aw.grid.pattern.form</field>
+        <field name="model">aw.grid.pattern</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived"
+                            bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="kind"/>
+                        </group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <separator string="Bill of Materials"/>
+                    <field name="line_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="product_id"/>
+                            <field name="qty_formula"/>
+                            <field name="condition_formula"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_grid_pattern" model="ir.actions.act_window">
+        <field name="name">Grid Patterns</field>
+        <field name="res_model">aw.grid.pattern</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

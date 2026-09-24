@@ -383,6 +383,18 @@ class AwDesign(models.Model):
                 'slide_dir': leaf.slide_dir or '',
                 'junction_after': leaf.junction_after or '',
                 'track_no': leaf.track_no or 0,
+                'mesh_type_id': leaf.mesh_type_id.id,
+                'mesh_type_code': leaf.mesh_type_id.code or '',
+                'mesh_hinge_side': leaf.mesh_hinge_side or '',
+                'infill_type_id': leaf.infill_type_id.id,
+                'infill_kind': leaf.infill_type_id.kind or 'glass',
+                'infill_uses_glass': (
+                    leaf.infill_type_id.uses_glass
+                    if leaf.infill_type_id else True),
+                'glass_spec_id': leaf.glass_spec_id.id,
+                'grid_pattern_id': leaf.grid_pattern_id.id,
+                'grid_rows': leaf.grid_rows or 0,
+                'grid_cols': leaf.grid_cols or 0,
                 'rows': self._rows_payload(leaf.child_row_ids),
             } for leaf in row.leaf_ids],
         } for row in rows]
@@ -410,6 +422,33 @@ class AwDesign(models.Model):
             } for lt in series.leaf_type_ids],
             'presets': [self._preset_payload(p) for p in presets],
             'families': self._families_payload(presets),
+            **self._attachment_catalogue(),
+        }
+
+    @api.model
+    def _attachment_catalogue(self):
+        """Mesh, infill, glass and grid choices for the right panel and
+        the library's mesh/infill families."""
+        return {
+            'mesh_types': [{
+                'id': m.id, 'name': m.display_name, 'code': m.code or '',
+                'mechanism': m.mechanism, 'pull': m.pull or '',
+                'family_id': m.family_id.id or False,
+                'family_name': m.family_id.name or '',
+                'family_sequence': (
+                    m.family_id.sequence if m.family_id else 999),
+            } for m in self.env['aw.mesh.type'].search([])],
+            'infill_types': [{
+                'id': i.id, 'name': i.display_name, 'code': i.code or '',
+                'kind': i.kind, 'uses_glass': i.uses_glass,
+            } for i in self.env['aw.infill.type'].search([])],
+            'glass_specs': [{
+                'id': g.id, 'name': g.display_name,
+            } for g in self.env['aw.glass.spec'].search([])],
+            'grid_patterns': [{
+                'id': g.id, 'name': g.display_name, 'code': g.code or '',
+                'kind': g.kind,
+            } for g in self.env['aw.grid.pattern'].search([])],
         }
 
     @api.model
@@ -530,6 +569,13 @@ class AwDesign(models.Model):
                     'slide_dir': leaf.get('slide_dir') or False,
                     'junction_after': leaf.get('junction_after') or False,
                     'track_no': leaf.get('track_no') or 0,
+                    'mesh_type_id': leaf.get('mesh_type_id') or False,
+                    'mesh_hinge_side': leaf.get('mesh_hinge_side') or False,
+                    'infill_type_id': leaf.get('infill_type_id') or False,
+                    'glass_spec_id': leaf.get('glass_spec_id') or False,
+                    'grid_pattern_id': leaf.get('grid_pattern_id') or False,
+                    'grid_rows': leaf.get('grid_rows') or 0,
+                    'grid_cols': leaf.get('grid_cols') or 0,
                 }) for leaf in row.get('leaves') or []],
             })
             for leaf_payload, leaf in zip(

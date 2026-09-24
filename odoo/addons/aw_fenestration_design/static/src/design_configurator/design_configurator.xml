@@ -268,6 +268,41 @@
                                 </div>
                             </t>
 
+                            <!-- Mesh and infill APPLY TO THE SELECTED PANEL
+                                 rather than replacing the layout: that is
+                                 what a mesh/infill family means (spec 4.1). -->
+                            <t t-foreach="meshByFamily" t-as="mgroup" t-key="mgroup.family">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-1">
+                                    <t t-esc="mgroup.family"/>
+                                </div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <t t-foreach="mgroup.items" t-as="mesh" t-key="mesh.id">
+                                        <button class="btn btn-sm"
+                                                t-att-class="selectedPanel and selectedPanel.mesh_type_id === mesh.id ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-att-title="mesh.code + ' — applies to the selected panel'"
+                                                t-on-click="() => this.applyMesh(mesh.id)">
+                                            <t t-esc="mesh.name"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
+
+                            <t t-if="infillTypes.length">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-1">
+                                    Add-ons
+                                </div>
+                                <div class="d-flex flex-wrap gap-1">
+                                    <t t-foreach="infillTypes" t-as="inf" t-key="inf.id">
+                                        <button class="btn btn-sm"
+                                                t-att-class="selectedPanel and selectedPanel.infill_type_id === inf.id ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-att-title="inf.code + ' — applies to the selected panel'"
+                                                t-on-click="() => this.applyInfill(inf.id)">
+                                            <t t-esc="inf.name"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
+
                             <!-- Empty states are stated rather than rendered as an
                                  empty strip: an invisible cause looks like a broken
                                  screen, which is exactly how the Series leaf-type
@@ -435,6 +470,76 @@
                                               font-family="monospace">
                                             <t t-esc="leaf.glyph.label.text"/>
                                         </text>
+
+                                        <!-- Attachments (spec 5.5). Drawn over
+                                             the glass and under the panel
+                                             number, so the number stays
+                                             readable on top of everything. -->
+                                        <t t-if="leaf.attach.infill">
+                                            <rect t-if="leaf.attach.infill.kind === 'panel'"
+                                                  class="o_aw_infill_panel"
+                                                  t-att-x="leaf.attach.infill.x" t-att-y="leaf.attach.infill.y"
+                                                  t-att-width="leaf.attach.infill.w"
+                                                  t-att-height="leaf.attach.infill.h"/>
+                                            <t t-if="leaf.attach.infill.kind === 'louvre'">
+                                                <t t-foreach="leaf.attach.infill.slats" t-as="slat" t-key="slat.key">
+                                                    <line class="o_aw_louvre"
+                                                          t-att-x1="slat.x1" t-att-y1="slat.y"
+                                                          t-att-x2="slat.x2" t-att-y2="slat.y"
+                                                          t-att-stroke-width="adornments.louvreStroke"/>
+                                                </t>
+                                            </t>
+                                            <t t-if="leaf.attach.infill.kind === 'fan'">
+                                                <circle class="o_aw_fan"
+                                                        t-att-cx="leaf.attach.infill.cx"
+                                                        t-att-cy="leaf.attach.infill.cy"
+                                                        t-att-r="leaf.attach.infill.r"
+                                                        t-att-stroke-width="adornments.fanStroke"/>
+                                                <line class="o_aw_fan"
+                                                      t-att-x1="leaf.attach.infill.cx - leaf.attach.infill.r"
+                                                      t-att-y1="leaf.attach.infill.cy"
+                                                      t-att-x2="leaf.attach.infill.cx + leaf.attach.infill.r"
+                                                      t-att-y2="leaf.attach.infill.cy"
+                                                      t-att-stroke-width="adornments.fanStroke"/>
+                                                <line class="o_aw_fan"
+                                                      t-att-x1="leaf.attach.infill.cx"
+                                                      t-att-y1="leaf.attach.infill.cy - leaf.attach.infill.r"
+                                                      t-att-x2="leaf.attach.infill.cx"
+                                                      t-att-y2="leaf.attach.infill.cy + leaf.attach.infill.r"
+                                                      t-att-stroke-width="adornments.fanStroke"/>
+                                            </t>
+                                            <rect t-if="leaf.attach.infill.kind === 'ac'"
+                                                  class="o_aw_ac"
+                                                  t-att-x="leaf.attach.infill.x" t-att-y="leaf.attach.infill.y"
+                                                  t-att-width="leaf.attach.infill.w"
+                                                  t-att-height="leaf.attach.infill.h"
+                                                  t-att-stroke-width="adornments.fanStroke"/>
+                                        </t>
+
+                                        <t t-if="leaf.attach.grid">
+                                            <t t-foreach="leaf.attach.grid.bars" t-as="bar" t-key="bar.key">
+                                                <line class="o_aw_grid_bar"
+                                                      t-att-x1="bar.x1" t-att-y1="bar.y1"
+                                                      t-att-x2="bar.x2" t-att-y2="bar.y2"
+                                                      t-att-stroke-width="adornments.gridStroke"/>
+                                            </t>
+                                        </t>
+
+                                        <t t-if="leaf.attach.meshOverlay">
+                                            <rect t-att-x="leaf.attach.meshOverlay.x"
+                                                  t-att-y="leaf.attach.meshOverlay.y"
+                                                  t-att-width="leaf.attach.meshOverlay.w"
+                                                  t-att-height="leaf.attach.meshOverlay.h"
+                                                  fill="url(#aw_mesh)" fill-opacity="0.55"
+                                                  stroke="none"/>
+                                            <text class="o_aw_mesh_badge"
+                                                  t-att-x="leaf.attach.meshBadge.x"
+                                                  t-att-y="leaf.attach.meshBadge.y"
+                                                  t-att-font-size="adornments.badgeFontSmall"
+                                                  text-anchor="end" dominant-baseline="hanging">
+                                                <t t-esc="leaf.attach.meshBadge.label"/>
+                                            </text>
+                                        </t>
 
                                         <rect t-if="leaf.selected"
                                               t-att-x="leaf.x + 1" t-att-y="leaf.y + 1"
@@ -657,6 +762,92 @@
                                         </t>
                                     </div>
                                 </t>
+
+                                <!-- Attachments for this panel (spec 5.5) -->
+                                <div class="border-top pt-2 mt-1">
+                                    <div class="small text-muted mb-1">Infill</div>
+                                    <div class="d-flex flex-wrap gap-1 mb-2">
+                                        <t t-foreach="infillTypes" t-as="inf" t-key="inf.id">
+                                            <button class="btn btn-sm"
+                                                    t-att-class="selectedPanel.infill_type_id === inf.id ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-on-click="() => this.applyInfill(inf.id)">
+                                                <t t-esc="inf.name"/>
+                                            </button>
+                                        </t>
+                                    </div>
+
+                                    <!-- Only a glazed panel has glass to
+                                         override, so this disappears for a
+                                         louvre, fan, AC cutout or solid panel. -->
+                                    <t t-if="selectedPanelUsesGlass">
+                                        <div class="small text-muted mb-1">Glass override</div>
+                                        <select class="form-select form-select-sm mb-2"
+                                                t-on-change="onPanelGlassChange">
+                                            <option value="">Design glass</option>
+                                            <t t-foreach="glassSpecs" t-as="gs" t-key="gs.id">
+                                                <option t-att-value="gs.id"
+                                                        t-att-selected="selectedPanel.glass_spec_id === gs.id">
+                                                    <t t-esc="gs.name"/>
+                                                </option>
+                                            </t>
+                                        </select>
+                                        <div t-if="!glassSpecs.length" class="small text-warning mb-2">
+                                            No Glass Specs exist yet, so there is
+                                            nothing to override with.
+                                        </div>
+                                    </t>
+
+                                    <div class="small text-muted mb-1">Mesh</div>
+                                    <div class="d-flex flex-wrap gap-1 mb-2">
+                                        <t t-foreach="meshTypes" t-as="mesh" t-key="mesh.id">
+                                            <button class="btn btn-sm"
+                                                    t-att-class="selectedPanel.mesh_type_id === mesh.id ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-att-title="mesh.code"
+                                                    t-on-click="() => this.applyMesh(mesh.id)">
+                                                <t t-esc="mesh.name"/>
+                                            </button>
+                                        </t>
+                                    </div>
+
+                                    <t t-if="selectedMeshType and selectedMeshType.mechanism === 'hinged'">
+                                        <div class="small text-muted mb-1">Mesh hinge side</div>
+                                        <div class="d-flex flex-wrap gap-1 mb-2">
+                                            <t t-foreach="['left', 'right', 'top', 'bottom']" t-as="ms" t-key="ms">
+                                                <button class="btn btn-sm text-capitalize"
+                                                        t-att-class="selectedPanel.mesh_hinge_side === ms ? 'btn-primary' : 'btn-outline-secondary'"
+                                                        t-on-click="() => this.setMeshHinge(ms)">
+                                                    <t t-esc="ms"/>
+                                                </button>
+                                            </t>
+                                        </div>
+                                    </t>
+
+                                    <div class="small text-muted mb-1">Georgian bars</div>
+                                    <select class="form-select form-select-sm mb-2"
+                                            t-on-change="onPanelGridChange">
+                                        <option value="">None</option>
+                                        <t t-foreach="gridPatterns" t-as="gp" t-key="gp.id">
+                                            <option t-att-value="gp.id"
+                                                    t-att-selected="selectedPanel.grid_pattern_id === gp.id">
+                                                <t t-esc="gp.name"/>
+                                            </option>
+                                        </t>
+                                    </select>
+                                    <div t-if="selectedPanel.grid_pattern_id" class="row g-2 mb-2">
+                                        <div class="col-6">
+                                            <label class="form-label small text-muted mb-0">Rows</label>
+                                            <input type="number" min="0" class="form-control form-control-sm"
+                                                   t-att-value="selectedPanel.grid_rows"
+                                                   t-on-change="onGridRowsChange"/>
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label small text-muted mb-0">Columns</label>
+                                            <input type="number" min="0" class="form-control form-control-sm"
+                                                   t-att-value="selectedPanel.grid_cols"
+                                                   t-on-change="onGridColsChange"/>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <t t-if="selectedLeafType and selectedLeafType.has_slide_dir">
                                     <div class="small text-muted mb-1">Slide direction</div>

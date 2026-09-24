@@ -30,14 +30,14 @@ Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
 
 | Requirement | Exists today | Gap → Phase |
 |---|---|---|
-| Family → design type | `aw.layout.preset` (layout JSON, thumbnails, `series_ids` filter), text `category` | Family table; codes on presets → **P2** |
+| Family → design type | `aw.layout.family`, codes, pictures, library strip | ✅ P2 |
 | Parameters W×H, series, glass, finish, thickness | `aw.design` | — |
 | Panel type & opening hand | `aw.leaf.type` (7), hinge side, in/out, slide dir | — |
 | Arbitrary splits (vent over sash, transom over one panel) | Nested subdivision (`parent_leaf_id`), depth 3, floating toolbar | ✅ P1 |
 | Panel identification | `panel_no`, reading order, recursive, drawn as badges | ✅ P1 |
 | French casement / double T&T (sashes meet, no mullion) | `junction_after`, validity rules, drawn distinctly | ✅ P1 |
 | Opening symbol convention | Standard triangle (apex = hinge) + legend | ✅ P1 |
-| Sliding 2–12 panels, tracks, roles | 3 static presets | Sliding builder + `track_no` → **P2** |
+| Sliding 2–12 panels, tracks, roles | Sliding builder, `track_no`, validation rules | ✅ P2 |
 | Twin sash (glass + mesh on same opening) | Mesh only as a neighbouring leaf | Mesh attachment per panel → **P3** |
 | Pleated / roller mesh | — | Mesh types → **P3** |
 | Louvre, fan, AC cutout, solid panel | — | Infill type per panel → **P3** |
@@ -48,8 +48,8 @@ Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
 | Glass / mesh cut sizes | Placeholder in prototype | Deduction formulas per Series → **P4** |
 | Explosion engine | Stub | **P4** |
 | Manufacturability checks, coupler | Prototype only | **P4** |
-| Save layout as preset, remaining entry points | Planned (Stage D) | **P2** |
-| Duplicate position | — | **P2** |
+| Save layout as preset, remaining entry points | Both done; configurator is the default entry point | ✅ P2 |
+| Duplicate position | Quote tab and configurator | ✅ P2 |
 | Shop drawing, quote PDF with elevations | Live SVG only | SVG snapshot + reports → **P5** |
 | Cut list, bar nesting, offcuts | Prototype algorithm | **P6** |
 | Pricing cascade, rate versions | Prototype only | **P6** |
@@ -126,9 +126,9 @@ Splitting a panel exercises the same default rule without it.)
 
 ---
 
-## 4. Phase 2 — Catalog structure
+## 4. Phase 2 — Catalog structure  ✅ COMPLETE
 
-### 4.1 Families
+### 4.1 Families ✅
 New `aw.layout.family`: `name`, `code`, `sequence`, `active`,
 `kind` = `layout` | `mesh` | `infill`.
 - `layout` families: clicking an item replaces the design layout.
@@ -161,7 +161,7 @@ family). Library groups by family, sorted by `sequence`.
   database part-way through the migration still groups sensibly. It is
   hidden on the form except in developer mode.
 
-### 4.2 Sliding builder
+### 4.2 Sliding builder ✅
 - `aw.design.leaf.track_no` (Integer, sliders and sliding mesh).
 - Configurator button **Sliding builder** (only when the Series allows
   Slider): panels 2–12, tracks 2/3/4, optional mesh track, per panel role
@@ -187,20 +187,20 @@ This is a convention, not a constraint of the data: `track_no` is a plain
 integer and any numbering fits. If a system puts mesh on the *inside*,
 this becomes a per-Series setting rather than a code change.
 
-### 4.3 Save current layout as preset (Stage D)
+### 4.3 Save current layout as preset (Stage D) ✅
 Configurator action: name, code, family, optional series → writes
 `layout_json` (incl. nesting, junctions, tracks). Presets become authored
 visually; JSON editor stays for admins.
 
-### 4.4 Remaining entry points (Stage D)
+### 4.4 Remaining entry points (Stage D) ✅
 Add Position → configurator directly; quote Fenestration tab rows → open
 configurator; raw form kept for admins.
 
-### 4.5 Duplicate position
+### 4.5 Duplicate position ✅
 Action on the quote tab and in the configurator: copies a design with its
 full layout to a new position (new sale line, next free position ref).
 
-### 4.6 Seed presets (codes)
+### 4.6 Seed presets (codes) ✅
 
 | Code | Family | Layout | Series |
 |---|---|---|---|
@@ -245,6 +245,28 @@ the rest.
 **P2 test:** Double Glaze Sliding → Sliding builder → 4 panels, 2 tracks,
 F S S F → apply → tracks and interlocks shown → save as preset → it appears
 in the library → Duplicate position → copy is identical.
+
+---
+
+## 4b. For client review
+
+Decisions taken to keep moving, all changeable in data rather than code.
+Each needs Moazzam's confirmation. **Keep this list current** — add to it
+whenever something is decided without him.
+
+| # | Item | What was decided | If he disagrees |
+|---|---|---|---|
+| 1 | Library family strip | Tiles at the top of the library filter *and* scroll to a family; "All" clears. Only families with a preset available for the current Series get a tile. | Pure UI; change the strip. |
+| 2 | Sliding track convention | Track 1 innermost; a fixed panel takes the outermost **glass** track; a mesh sash sits outside all of them at `tracks + 1`. Resolves 4.2's own contradiction. | `track_no` is a plain integer — becomes a per-Series setting. |
+| 3 | Opening symbol | Triangle with its apex at the hinge, viewed from inside, plus an IN/OUT tag and a printed legend. | Drawing only; swap the glyph. |
+| 4 | French casement | Two sashes hinged away from each other default to a **meeting** junction, no mullion. Any junction is overridable per boundary. | Change the default in `_default_junction`. |
+| 5 | Mullion width | Drawn 60mm wide. A placeholder until profile section sizes exist (6.2). | Comes from the profile then. |
+| 6 | Preset codes | `OPN-CFC`, `OPN-HOF`, `OPN-2A1B` exist outside 4.6's table, because they pre-date it and renaming them would change what saved designs refer to. | Rename only with a migration. |
+| 7 | "Other" family | Seeded, though 4.1's table omits it, because 4.1's migration rule needs somewhere to put unknown categories. | Archive it once nothing lands there. |
+
+Still open from section 2 and unchanged: T&T + fixed combos, double
+pleated opening to the sides, vent sash shape, solid infill / AC cutout
+as infill types, and the placeholder deductions and sash limits.
 
 ---
 

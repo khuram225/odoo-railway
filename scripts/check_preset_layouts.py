@@ -54,6 +54,19 @@ def seeded_leaf_type_codes():
     return codes
 
 
+def seeded_codes(model):
+    """Codes seeded for a model, read out of this module's data files."""
+    codes = set()
+    for xml_file in (DESIGN / 'data').glob('*.xml'):
+        for record in ET.parse(xml_file).iter('record'):
+            if record.get('model') != model:
+                continue
+            field = record.find("field[@name='code']")
+            if field is not None and field.text:
+                codes.add(field.text.strip())
+    return codes
+
+
 def seeded_presets():
     for xml_file in sorted((DESIGN / 'data').glob('*.xml')):
         for record in ET.parse(xml_file).iter('record'):
@@ -143,6 +156,10 @@ def main():
         print('No aw.leaf.type codes found in the core seed data.')
         return 1
 
+    mesh_codes = seeded_codes('aw.mesh.type')
+    infill_codes = seeded_codes('aw.infill.type')
+    grid_codes = seeded_codes('aw.grid.pattern')
+
     problems = []
     checked = 0
     for filename, xmlid, name, raw in seeded_presets():
@@ -152,7 +169,11 @@ def main():
         except ValueError as exc:
             problems.append(f'{filename}: {xmlid} ({name}): invalid JSON: {exc}')
             continue
-        for error in rules.validate_layout(data, known):
+        for error in rules.validate_layout(
+                data, known,
+                known_mesh=mesh_codes,
+                known_infill=infill_codes,
+                known_grid=grid_codes):
             problems.append(f'{filename}: {xmlid} ({name}): {error}')
         # A preset whose codes can't be resolved would be offered on no
         # Series at all, which is silent rather than loud.
@@ -168,7 +189,9 @@ def main():
             print(f'  {problem}')
         return 1
     print(f'Layout rules self-test passed; {checked} seeded preset '
-          f'layout(s) valid against {len(known)} leaf type code(s).')
+          f'layout(s) valid against {len(known)} leaf type, '
+          f'{len(mesh_codes)} mesh, {len(infill_codes)} infill and '
+          f'{len(grid_codes)} grid code(s).')
     return 0
 
 

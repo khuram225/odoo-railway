@@ -13,3 +13,15 @@ access_aw_layout_preset_manager,aw.layout.preset.manager,model_aw_layout_preset,
 access_aw_layout_family_user,aw.layout.family.user,model_aw_layout_family,base.group_user,1,0,0,0
 access_aw_layout_family_manager,aw.layout.family.manager,model_aw_layout_family,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_design_preset_wizard_sales,aw.design.preset.wizard.sales,model_aw_design_preset_wizard,group_fenestration_sales,1,1,1,1
+access_aw_mesh_type_user,aw.mesh.type.user,model_aw_mesh_type,base.group_user,1,0,0,0
+access_aw_mesh_type_manager,aw.mesh.type.manager,model_aw_mesh_type,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_mesh_type_line_user,aw.mesh.type.line.user,model_aw_mesh_type_line,base.group_user,1,0,0,0
+access_aw_mesh_type_line_manager,aw.mesh.type.line.manager,model_aw_mesh_type_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_infill_type_user,aw.infill.type.user,model_aw_infill_type,base.group_user,1,0,0,0
+access_aw_infill_type_manager,aw.infill.type.manager,model_aw_infill_type,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_infill_type_line_user,aw.infill.type.line.user,model_aw_infill_type_line,base.group_user,1,0,0,0
+access_aw_infill_type_line_manager,aw.infill.type.line.manager,model_aw_infill_type_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_grid_pattern_user,aw.grid.pattern.user,model_aw_grid_pattern,base.group_user,1,0,0,0
+access_aw_grid_pattern_manager,aw.grid.pattern.manager,model_aw_grid_pattern,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_grid_pattern_line_user,aw.grid.pattern.line.user,model_aw_grid_pattern_line,base.group_user,1,0,0,0
+access_aw_grid_pattern_line_manager,aw.grid.pattern.line.manager,model_aw_grid_pattern_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1

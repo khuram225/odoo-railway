@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+        Twin Sash presets (spec 5.5): glass panel plus an attached mesh on
+        the same opening. They could only land now, because they need mesh
+        ATTACHED to a panel rather than a mesh leaf of its own.
+
+        The layout schema gains three optional keys on a leaf, all
+        referring to a type by CODE so a preset survives records being
+        recreated: "mesh", "infill", and "grid" ({pattern, rows, cols}).
+        Nothing carries a glass override: aw.glass.spec has no code field
+        to refer to, and its product_id is required against a Glass
+        product category that has nothing in it yet.
+        -->
+
+        <record id="layout_preset_twn_fix" model="aw.layout.preset">
+            <field name="name">Twin Sash: Fixed + Mesh</field>
+            <field name="code">TWN-FIX</field>
+            <field name="family_id" ref="layout_family_twn"/>
+            <field name="category">Twin Sash Designs</field>
+            <field name="sequence">10</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_casement_sg'),
+                ref('aw_fenestration_core.window_series_casement_dg')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "FIXED", "mesh": "MSH-FIX"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_twn_shl" model="aw.layout.preset">
+            <field name="name">Twin Sash: Casement left + Mesh</field>
+            <field name="code">TWN-SHL</field>
+            <field name="family_id" ref="layout_family_twn"/>
+            <field name="category">Twin Sash Designs</field>
+            <field name="sequence">20</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_casement_sg'),
+                ref('aw_fenestration_core.window_series_casement_dg')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "CASEMENT", "hinge": "left", "swing": "out", "mesh": "MSH-HNG"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_twn_shr" model="aw.layout.preset">
+            <field name="name">Twin Sash: Casement right + Mesh</field>
+            <field name="code">TWN-SHR</field>
+            <field name="family_id" ref="layout_family_twn"/>
+            <field name="category">Twin Sash Designs</field>
+            <field name="sequence">30</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_casement_sg'),
+                ref('aw_fenestration_core.window_series_casement_dg')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "CASEMENT", "hinge": "right", "swing": "out", "mesh": "MSH-HNG"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_twn_top" model="aw.layout.preset">
+            <field name="name">Twin Sash: Awning + Mesh</field>
+            <field name="code">TWN-TOP</field>
+            <field name="family_id" ref="layout_family_twn"/>
+            <field name="category">Twin Sash Designs</field>
+            <field name="sequence">40</field>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "AWNING", "hinge": "top", "swing": "out", "mesh": "MSH-FIX"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_twn_btm" model="aw.layout.preset">
+            <field name="name">Twin Sash: Hopper + Mesh</field>
+            <field name="code">TWN-BTM</field>
+            <field name="family_id" ref="layout_family_twn"/>
+            <field name="category">Twin Sash Designs</field>
+            <field name="sequence">50</field>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "HOPPER", "hinge": "bottom", "swing": "in", "mesh": "MSH-FIX"}]}]}</field>
+        </record>
+
+    </data>
+</odoo>

@@ -100,6 +100,12 @@ class AwLayoutPreset(models.Model):
         """
         known_codes = set(
             c for c in self.env['aw.leaf.type'].search([]).mapped('code') if c)
+        known_mesh = set(
+            c for c in self.env['aw.mesh.type'].search([]).mapped('code') if c)
+        known_infill = set(
+            c for c in self.env['aw.infill.type'].search([]).mapped('code') if c)
+        known_grid = set(
+            c for c in self.env['aw.grid.pattern'].search([]).mapped('code') if c)
         for preset in self:
             try:
                 data = json.loads(preset.layout_json or '')
@@ -107,7 +113,11 @@ class AwLayoutPreset(models.Model):
                 raise ValidationError(_(
                     "Layout of '%(name)s' is not valid JSON: %(error)s",
                     name=preset.name, error=exc))
-            errors = validate_layout(data, known_codes)
+            errors = validate_layout(
+                data, known_codes,
+                known_mesh=known_mesh,
+                known_infill=known_infill,
+                known_grid=known_grid)
             if errors:
                 raise ValidationError(_(
                     "Layout of '%(name)s' is not valid:\n%(errors)s",
