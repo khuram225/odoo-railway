@@ -5,12 +5,12 @@ from odoo.exceptions import ValidationError
 
 class AwWindowTemplate(models.Model):
     """The assembly: one Profile Section + one Hardware Set + one Glass Spec
-    for a Window Type. This is what a quote position (in the downstream
+    for a Series. This is what a quote position (in the downstream
     aw_fenestration_design/quote modules) points to as its starting default
     — matching the prototype's Template x Series = BOM idea, now with the
     hardware and glass legs added explicitly.
 
-    A Window Type may have several Templates (Standard / Heavy Duty /
+    A Series may have several Templates (Standard / Heavy Duty /
     Economy) — nothing here forces a 1:1.
     """
     _name = 'aw.window.template'
@@ -22,9 +22,12 @@ class AwWindowTemplate(models.Model):
     code = fields.Char()
     active = fields.Boolean(default=True)
 
+    # Field name kept: renaming it would need a migration and break
+    # every stored reference. Only the LABEL was ever wrong -- the
+    # Window Type layer was folded into Series long ago.
     window_type_id = fields.Many2one(
-        'aw.window.series', required=True, ondelete='restrict', index=True,
-        tracking=True)
+        'aw.window.series', string='Series', required=True,
+        ondelete='restrict', index=True, tracking=True)
 
     profile_section_id = fields.Many2one(
         'aw.profile.section', required=True, ondelete='restrict',
@@ -39,7 +42,7 @@ class AwWindowTemplate(models.Model):
 
     _sql_constraints = [
         ('name_type_uniq', 'unique(name, window_type_id)',
-         'A template name must be unique per Window Type.'),
+         'A template name must be unique per Series.'),
     ]
 
     @api.constrains('window_type_id', 'profile_section_id', 'hardware_set_id')
@@ -51,13 +54,13 @@ class AwWindowTemplate(models.Model):
         for rec in self:
             if rec.profile_section_id.window_type_id != rec.window_type_id:
                 raise ValidationError(
-                    "Profile Section '%s' belongs to Window Type '%s', not "
+                    "Profile Section '%s' belongs to Series '%s', not "
                     "'%s'." % (rec.profile_section_id.name,
                                rec.profile_section_id.window_type_id.name,
                                rec.window_type_id.name))
             if rec.hardware_set_id.window_type_id != rec.window_type_id:
                 raise ValidationError(
-                    "Hardware Set '%s' belongs to Window Type '%s', not "
+                    "Hardware Set '%s' belongs to Series '%s', not "
                     "'%s'." % (rec.hardware_set_id.name,
                                rec.hardware_set_id.window_type_id.name,
                                rec.window_type_id.name))

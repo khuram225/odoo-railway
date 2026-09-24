@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="report_shop_drawing_document">
+        <t t-call="web.external_layout">
+            <div class="page">
+
+                <h2 class="mt-0">
+                    Shop Drawing
+                    <span class="float-end" t-esc="doc.name"/>
+                </h2>
+
+                <!-- The drawing is only as good as its snapshot. If the
+                     layout moved since it was taken, say so here, at the
+                     top, rather than letting the shop cut to a picture
+                     that no longer matches the data. -->
+                <t t-set="warning" t-value="doc._elevation_warning()"/>
+                <div t-if="warning"
+                     class="alert alert-warning border border-dark p-2 mb-3">
+                    <strong>⚠ <span t-esc="warning"/></strong>
+                </div>
+
+                <table class="table table-sm table-borderless mb-3">
+                    <tr>
+                        <td style="width:16%"><strong>Quote</strong></td>
+                        <td style="width:34%">
+                            <span t-esc="doc.sale_order_id.name or '—'"/>
+                        </td>
+                        <td style="width:16%"><strong>Location</strong></td>
+                        <td><span t-esc="doc.location or '—'"/></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Series</strong></td>
+                        <td><span t-esc="doc.window_series_id.display_name or '—'"/></td>
+                        <td><strong>Profile Section</strong></td>
+                        <td><span t-esc="doc.profile_section_id.display_name or '—'"/></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Glass</strong></td>
+                        <td><span t-esc="doc.glass_spec_id.display_name or '—'"/></td>
+                        <td><strong>Finish</strong></td>
+                        <td><span t-esc="doc.finish_id.display_name or '—'"/></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Size</strong></td>
+                        <td><span t-esc="doc.size_display"/></td>
+                        <td><strong>Quantity</strong></td>
+                        <td><span t-esc="doc.qty"/></td>
+                    </tr>
+                </table>
+
+                <!-- PNG, not the SVG: reports render through wkhtmltopdf,
+                     whose QtWebKit engine handles inline SVG unreliably. -->
+                <div class="text-center mb-2" t-if="doc.elevation_png">
+                    <img t-att-src="image_data_uri(doc.elevation_png)"
+                         style="max-width:100%; max-height:380px;"/>
+                </div>
+                <div t-else="" class="text-center text-muted border p-4 mb-2">
+                    No drawing stored for this position.
+                </div>
+                <p class="text-center small text-muted">
+                    View from inside. Panel numbers read left to right, top
+                    to bottom.
+                </p>
+
+                <h4>Panel Schedule</h4>
+                <table class="table table-sm o_main_table">
+                    <thead>
+                        <tr>
+                            <th>Panel</th><th>Type</th><th>Direction</th>
+                            <th>Size</th><th>Glass</th><th>Mesh</th>
+                            <th>Infill</th><th>Grid</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="doc._report_panels()" t-as="panel"
+                            t-key="panel['panel_no']">
+                            <td><span t-esc="panel['panel_no']"/></td>
+                            <td><span t-esc="panel['type']"/></td>
+                            <td><span t-esc="panel['direction'] or '—'"/></td>
+                            <td><span t-esc="panel['size']"/></td>
+                            <td><span t-esc="panel['glass'] or '—'"/></td>
+                            <td><span t-esc="panel['mesh'] or '—'"/></td>
+                            <td><span t-esc="panel['infill'] or '—'"/></td>
+                            <td><span t-esc="panel['grid'] or '—'"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <t t-set="profiles" t-value="doc._report_bom(['profile'])"/>
+                <h4 t-if="profiles">Profile Cut List</h4>
+                <table t-if="profiles" class="table table-sm o_main_table">
+                    <thead>
+                        <tr>
+                            <th>Product</th><th class="text-end">Length (mm)</th>
+                            <th>Angle</th><th class="text-end">Qty</th>
+                            <th>Label</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="profiles" t-as="line" t-key="line.id">
+                            <td>
+                                <span t-esc="line.product_id.display_name or '(no product)'"/>
+                            </td>
+                            <td class="text-end">
+                                <span t-esc="'%.1f' % line.length_mm"/>
+                            </td>
+                            <td><span t-esc="line.cut_angle or '—'"/>°</td>
+                            <td class="text-end"><span t-esc="line.qty"/></td>
+                            <td><span t-esc="line.label or ''"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <t t-set="glass_lines" t-value="doc._report_bom(['glass'])"/>
+                <h4 t-if="glass_lines">Glass</h4>
+                <table t-if="glass_lines" class="table table-sm o_main_table">
+                    <thead>
+                        <tr>
+                            <th>Spec</th><th class="text-end">Width (mm)</th>
+                            <th class="text-end">Height (mm)</th>
+                            <th class="text-end">Area (m²)</th>
+                            <th class="text-end">Qty</th><th>Label</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="glass_lines" t-as="line" t-key="line.id">
+                            <td>
+                                <span t-esc="line.glass_spec_id.display_name or '(none)'"/>
+                            </td>
+                            <td class="text-end"><span t-esc="'%.1f' % line.glass_w"/></td>
+                            <td class="text-end"><span t-esc="'%.1f' % line.glass_h"/></td>
+                            <td class="text-end"><span t-esc="'%.3f' % line.area_sqm"/></td>
+                            <td class="text-end"><span t-esc="line.qty"/></td>
+                            <td><span t-esc="line.label or ''"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <t t-set="others"
+                   t-value="doc._report_bom(['hardware', 'mesh', 'infill', 'grid'])"/>
+                <h4 t-if="others">Hardware, Mesh and Infill</h4>
+                <table t-if="others" class="table table-sm o_main_table">
+                    <thead>
+                        <tr>
+                            <th>Kind</th><th>Product</th>
+                            <th class="text-end">Qty</th><th>Label</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="others" t-as="line" t-key="line.id">
+                            <td><span t-esc="line.kind"/></td>
+                            <td>
+                                <span t-esc="line.product_id.display_name or '(no product)'"/>
+                            </td>
+                            <td class="text-end"><span t-esc="line.qty"/></td>
+                            <td><span t-esc="line.label or ''"/></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Checks are printed on purpose: the shop floor is
+                     exactly who needs to know a panel exceeds a limit or
+                     a position has no product. -->
+                <t t-set="checks" t-value="doc.check_line_ids"/>
+                <div t-if="checks" class="mt-3">
+                    <h4>Checks</h4>
+                    <ul>
+                        <li t-foreach="checks" t-as="check" t-key="check.id">
+                            <strong t-if="check.level == 'error'">ERROR:</strong>
+                            <strong t-else="">Warning:</strong>
+                            <span t-esc="check.message"/>
+                        </li>
+                    </ul>
+                </div>
+
+            </div>
+        </t>
+    </template>
+
+    <template id="report_shop_drawing">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="aw_fenestration_design.report_shop_drawing_document"/>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_aw_shop_drawing" model="ir.actions.report">
+        <field name="name">Shop Drawing</field>
+        <field name="model">aw.design</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_shop_drawing</field>
+        <field name="report_file">aw_fenestration_design.report_shop_drawing</field>
+        <field name="print_report_name">'Shop Drawing - %s' % (object.name or '')</field>
+        <field name="binding_model_id" ref="model_aw_design"/>
+        <field name="binding_type">report</field>
+    </record>
+
+</odoo>

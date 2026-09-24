@@ -807,6 +807,10 @@ class AwDesign(models.Model):
         # right-hand panel always shows THIS layout's, never the previous
         # one's. The button stays for a manual re-run.
         self._explode()
+        # After the rows are rebuilt and renumbered, so the drawing's
+        # fingerprint is taken from what is stored rather than from what
+        # the client thought it was sending.
+        self._store_elevation(payload.get('snapshot'))
         return self.get_configurator_data()
 
     def _apply_header_defaults(self, fields_to_fill):

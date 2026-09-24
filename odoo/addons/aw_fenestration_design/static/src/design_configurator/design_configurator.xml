@@ -612,6 +612,7 @@
                                         </t>
 
                                         <rect t-if="leaf.selected"
+                                              class="o_aw_selection"
                                               t-att-x="leaf.x + 1" t-att-y="leaf.y + 1"
                                               t-att-width="leaf.w - 2" t-att-height="leaf.h - 2"
                                               fill="none" stroke="#6b4a63" stroke-width="1.8"

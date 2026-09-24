@@ -3,7 +3,7 @@ from odoo import api, fields, models
 
 
 class AwHardwareSet(models.Model):
-    """A named hardware bundle for a Window Type, e.g. Logikal's
+    """A named hardware bundle for a Series, e.g. Logikal's
     'SIMPLYSMART symmetrical 7A': a package that expands into individually
     overridable lines (roller, lock, handle, hinge, stay...). Gaskets live
     here too, per the decision to fold them into hardware rather than glass.
@@ -14,9 +14,12 @@ class AwHardwareSet(models.Model):
     _order = 'window_type_id, name'
 
     name = fields.Char(required=True, tracking=True)
+    # Field name kept: renaming it would need a migration and break
+    # every stored reference. Only the LABEL was ever wrong -- the
+    # Window Type layer was folded into Series long ago.
     window_type_id = fields.Many2one(
-        'aw.window.series', required=True, ondelete='restrict', index=True,
-        tracking=True)
+        'aw.window.series', string='Series', required=True,
+        ondelete='restrict', index=True, tracking=True)
     active = fields.Boolean(default=True)
     notes = fields.Text()
 
@@ -25,7 +28,7 @@ class AwHardwareSet(models.Model):
 
     _sql_constraints = [
         ('name_type_uniq', 'unique(name, window_type_id)',
-         'A hardware set name must be unique per Window Type.'),
+         'A hardware set name must be unique per Series.'),
     ]
 
 

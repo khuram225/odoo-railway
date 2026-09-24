@@ -100,10 +100,18 @@
                             invisible="not sale_order_line_id"/>
                     <button name="action_explode" type="object"
                             string="Explode BOM"/>
+                    <button name="action_print_shop_drawing" type="object"
+                            string="Shop Drawing"/>
                 </header>
                 <sheet>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
+                    <div class="alert alert-warning mb-2" role="status"
+                         invisible="elevation_is_current">
+                        The stored drawing does not match this layout.
+                        Open the configurator and save to refresh it; until
+                        then the reports print the same warning.
+                    </div>
                     <div class="oe_button_box" name="button_box">
                         <button type="action" name="%(action_aw_design_row)d"
                                 class="oe_stat_button" icon="fa-bars"
@@ -205,6 +213,14 @@
                                     <field name="message"/>
                                 </list>
                             </field>
+                        </page>
+                        <page string="Elevation" name="elevation">
+                            <group>
+                                <field name="elevation_date" readonly="1"/>
+                                <field name="elevation_is_current" readonly="1"/>
+                            </group>
+                            <field name="elevation_png" widget="image"
+                                   readonly="1" options="{'size': [800, 600]}"/>
                         </page>
                     </notebook>
                     <field name="active" invisible="1"/>

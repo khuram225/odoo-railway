@@ -33,6 +33,16 @@
                             <field name="size_display"/>
                             <field name="qty"/>
                             <field name="area_sqft"/>
+                            <!-- Warns per row, so a stale drawing is
+                                 visible before anyone prints it. -->
+                            <field name="elevation_is_current" column_invisible="1"/>
+                            <button name="action_print_shop_drawing" type="object"
+                                    icon="fa-print" title="Print the shop drawing"/>
+                            <button name="action_open_configurator" type="object"
+                                    icon="fa-exclamation-triangle"
+                                    class="text-warning"
+                                    title="Drawing out of date — open in configurator and save"
+                                    invisible="elevation_is_current"/>
                             <button name="action_open_configurator" type="object"
                                     icon="fa-external-link"
                                     title="Open in the configurator"/>

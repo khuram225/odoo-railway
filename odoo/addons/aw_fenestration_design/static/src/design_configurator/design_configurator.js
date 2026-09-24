@@ -2574,12 +2574,111 @@ export class DesignConfigurator extends Component {
         return !this.bomGroups.length;
     }
 
+    // -- drawing snapshot (spec 7a) -----------------------------------------
+    /**
+     * Serialise the drawing as a standalone SVG.
+     *
+     * The live <svg> gets most of its appearance from the module's SCSS
+     * (o_aw_divider_line, o_aw_grid_bar, o_aw_junction ...). A plain
+     * serialisation carries the class names but not the stylesheet, so
+     * it would render with browser defaults -- lines invisible, rects
+     * filled black. Computed styles are therefore copied onto each node
+     * as presentation attributes, which keeps the SCSS as the single
+     * source of truth instead of duplicating it here.
+     */
+    snapshotSvg() {
+        const live = this.svgRef.el;
+        if (!live) {
+            return null;
+        }
+        const clone = live.cloneNode(true);
+        const liveNodes = [live, ...live.querySelectorAll("*")];
+        const cloneNodes = [clone, ...clone.querySelectorAll("*")];
+        const props = [
+            "fill", "fill-opacity", "stroke", "stroke-width",
+            "stroke-dasharray", "stroke-linecap", "stroke-opacity",
+            "opacity", "font-size", "font-family", "font-weight",
+            "text-anchor", "dominant-baseline",
+        ];
+        for (let i = 0; i < liveNodes.length; i++) {
+            const computed = getComputedStyle(liveNodes[i]);
+            for (const prop of props) {
+                const value = computed.getPropertyValue(prop);
+                if (value) {
+                    cloneNodes[i].setAttribute(prop, value);
+                }
+            }
+        }
+        // Interaction-only overlays. They are invisible on screen but
+        // would print as solid blocks once their computed fill is
+        // baked in above.
+        for (const node of clone.querySelectorAll(
+            ".o_aw_divider_hit, .o_aw_selection"
+        )) {
+            node.remove();
+        }
+        clone.removeAttribute("style");
+        clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+        const box = (clone.getAttribute("viewBox") || "").split(/\s+/);
+        const width = parseFloat(box[2]) || 800;
+        const height = parseFloat(box[3]) || 600;
+        clone.setAttribute("width", width);
+        clone.setAttribute("height", height);
+        return { svg: new XMLSerializer().serializeToString(clone), width, height };
+    }
+
+    /**
+     * Rasterise that SVG to a PNG, because the PDF reports go through
+     * wkhtmltopdf and its inline-SVG support is not dependable.
+     * Returns base64 with no data: prefix, or null if the browser
+     * refuses -- in which case the SVG is still saved and the reports
+     * simply have no picture, rather than the save failing.
+     */
+    async snapshotPng(svg, width, height) {
+        try {
+            const scale = Math.min(3, Math.max(1, 1400 / width));
+            const image = new Image();
+            await new Promise((resolve, reject) => {
+                image.onload = resolve;
+                image.onerror = reject;
+                image.src = "data:image/svg+xml;charset=utf-8,"
+                    + encodeURIComponent(svg);
+            });
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.round(width * scale);
+            canvas.height = Math.round(height * scale);
+            const ctx = canvas.getContext("2d");
+            // White, not transparent: a transparent PNG prints as a
+            // black rectangle in some PDF viewers.
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL("image/png").split(",")[1] || null;
+        } catch {
+            return null;
+        }
+    }
+
+    async buildSnapshot() {
+        const drawing = this.snapshotSvg();
+        if (!drawing) {
+            return null;
+        }
+        return {
+            svg: drawing.svg,
+            png: await this.snapshotPng(
+                drawing.svg, drawing.width, drawing.height),
+        };
+    }
+
     // -- save --------------------------------------------------------------
     async save() {
         const data = this.state.data;
+        // Taken BEFORE the call: it must describe the layout being sent.
+        const snapshot = await this.buildSnapshot();
         this.state.data = await this.orm.call("aw.design", "save_layout", [
             [this.designId],
-            { header: data.header, rows: data.rows },
+            { header: data.header, rows: data.rows, snapshot },
         ]);
         this.state.dirty = false;
         this.state.selected = null;

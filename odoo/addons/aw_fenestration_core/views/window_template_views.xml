@@ -52,7 +52,7 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first Window Template</p>
             <p>A Template assembles one Profile Section + one Hardware Set + one Glass
-               Spec for a Window Type. This is what a quote position starts from.</p>
+               Spec for a Series. This is what a quote position starts from.</p>
         </field>
     </record>
 

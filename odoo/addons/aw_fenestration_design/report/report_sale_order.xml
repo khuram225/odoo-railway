@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+    Extends the standard quotation PDF rather than replacing it, so
+    pricing, taxes, terms and the customer's layout all stay Odoo's.
+    Only the description cell is touched: the elevation and the spec
+    lines belong with the line they describe.
+
+    Deliberately customer-facing content ONLY. The cut list, the BOM and
+    the checks are internal and stay on the shop drawing; a customer
+    seeing "no product for P1 glass" would be reading our configuration
+    gaps off their own quote.
+    -->
+    <template id="report_saleorder_fenestration"
+              inherit_id="sale.report_saleorder_document">
+        <xpath expr="//td[@name='td_product_name']" position="inside">
+            <t t-set="aw_designs" t-value="line.aw_design_ids"/>
+            <div t-if="aw_designs" class="mt-2">
+                <t t-foreach="aw_designs" t-as="aw_design" t-key="aw_design.id">
+                    <div t-if="aw_design.elevation_png" class="mb-1">
+                        <img t-att-src="image_data_uri(aw_design.elevation_png)"
+                             style="max-width:180px; max-height:150px;"/>
+                    </div>
+                    <div class="small text-muted">
+                        <div>
+                            <span t-esc="aw_design.size_display"/>
+                            <t t-if="aw_design.window_series_id">
+                                — <span t-esc="aw_design.window_series_id.display_name"/>
+                            </t>
+                        </div>
+                        <div t-if="aw_design.glass_spec_id">
+                            Glass: <span t-esc="aw_design.glass_spec_id.display_name"/>
+                        </div>
+                        <div t-if="aw_design.finish_id">
+                            Finish: <span t-esc="aw_design.finish_id.display_name"/>
+                        </div>
+                        <t t-set="panels" t-value="aw_design._panel_summary()"/>
+                        <div t-if="panels">
+                            Panels: <span t-esc="panels"/>
+                        </div>
+                    </div>
+                </t>
+            </div>
+        </xpath>
+    </template>
+
+</odoo>

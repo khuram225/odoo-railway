@@ -267,6 +267,9 @@ whenever something is decided without him.
 | 9 | Glass prices **[revisit]** | Every seeded glass product has a cost of **0**, marked "price to be set from the supplier list" on the product itself. Inventing rates would put fiction into a quote the moment pricing lands. | Enter the real per-m² rates; nothing else depends on the placeholder. |
 | 10 | Deduction formulas **[revisit]** | Every seeded length and deduction formula (6.2, 6.4) is a plausible round number, not a shop-measured one: frame = `W`/`H`, palay = `PW - 10`, fixed glass = `PW - 60`, sash glass = `PW - 80`, mesh = `PW - 10`. | All editable per position and per Series; no code change. |
 | 11 | Panel limits | `max_panel_w/h/kg` all seeded at **0**, which means "not checked", so nobody gets a warning based on an invented limit. | Enter the real ones per Series. |
+| 12 | **Chawla codes for Profile 1** — blocking | The Profile Section "Profile 1" still has no line for **Palay Top**, **Palay Bottom**, **Interlock** or **Mesh (DG-29)**. Until those four map to real Chawla products, every Double Glaze Sliding design prints a cut list missing its sash and interlock profiles, and the checks warn on each one. | Give the four codes; they go straight in as section lines. |
+| 13 | **Hardware product list** — blocking | No hardware products exist, so every Hardware Set line has nothing to point at and no hardware reaches a quote. Rollers, locks, handles, hinges at minimum, with the quantity rule for each. | Create the products, then the Hardware Set lines with their qty formulas. |
+| 14 | Drawing format in PDFs | Reports embed a **PNG** rasterised in the browser, because Odoo 19 renders PDFs via wkhtmltopdf and its inline-SVG support is unreliable. The SVG is stored alongside it. | If PDFs ever move to an HTML renderer, switch the reports to the stored SVG; nothing else changes. |
 
 Still open from section 2 and unchanged: T&T + fixed combos, double
 pleated opening to the sides, vent sash shape, solid infill / AC cutout
@@ -326,7 +329,7 @@ glass override → grid 2×3 → save → reopen.
 
 ---
 
-## 6. Phase 4 — BOM rules and explosion engine
+## 6. Phase 4 — BOM rules and explosion engine  ✅ COMPLETE
 
 **As built, differing from the text below** (the text is the original
 plan; these are the decisions taken while implementing it):
@@ -461,7 +464,38 @@ lengths.
 
 ---
 
-## 7. Phase 5 — Drawings and documents
+## 7. Phase 5 — Drawings and documents  ✅ BUILT
+
+**As built, differing from the text below:**
+
+1. **The reports embed a PNG, not the SVG.** Odoo 19 still renders PDFs
+   through wkhtmltopdf (`ir_actions_report.py`'s `_run_wkhtmltopdf`),
+   whose QtWebKit engine handles inline SVG unreliably. The
+   configurator rasterises its own SVG to PNG in a canvas and sends
+   both; the SVG is stored as the lossless original for a future
+   HTML-based renderer. **Not empirically tested against this build's
+   wkhtmltopdf** — PNG was chosen as the safe option rather than as the
+   result of a rendering experiment.
+2. **The exported SVG has computed styles inlined.** The live drawing
+   takes most of its appearance from the module's SCSS, which a
+   serialised SVG does not carry, so it would otherwise render with
+   browser defaults — lines invisible, rects black. Styles are copied
+   from the live nodes rather than duplicated in JS, keeping the SCSS
+   the single source of truth.
+3. **The fingerprint covers what the drawing SHOWS**, not every field:
+   size, the row/leaf tree, each panel's type, direction, attachments
+   and glass. Changing something invisible (the Hardware Set) does not
+   mark the drawing stale, because reprinting would produce an
+   identical picture and a false "out of date" is its own kind of
+   wrong.
+4. **Checks print on the shop drawing, not the quote.** The shop floor
+   is exactly who needs to know a position has no product; a customer
+   reading our configuration gaps off their own quote is not.
+5. **`aw.design.elevation_svg` is Text as the spec says**, plus
+   `elevation_png` (Binary, attachment), `elevation_hash`,
+   `elevation_date` and a computed `elevation_is_current`.
+
+## 7b. Phase 5 — original plan
 
 - `aw.design.elevation_svg` (Text) — snapshot written by `save_layout()` from
   the configurator's rendered SVG, including numbers, symbols and legend.
