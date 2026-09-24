@@ -15,6 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 CORE = ROOT / 'odoo' / 'addons' / 'aw_fenestration_core'
+DESIGN = ROOT / 'odoo' / 'addons' / 'aw_fenestration_design'
 MM_FT = 304.8
 
 BOM_DEFAULTS_RE = re.compile(r'BOM_DEFAULTS = \{.*\n\}', re.S)
@@ -27,6 +28,60 @@ def load(name, path):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def check_seed_xmlids(position_source):
+    """Every xmlid a seed dict names must actually be seeded.
+
+    Both BOM_DEFAULTS and OPTIONAL_POSITIONS look records up with
+    raise_if_not_found=False, which is right at runtime -- an upgrade
+    should not die over it -- but means a typo does nothing at all,
+    silently, and the position keeps whatever it had. Here is the place
+    to be strict about it.
+    """
+    seeded = set(re.findall(
+        r'<record id="(pos_\w+)" model="aw\.profile\.position"',
+        (CORE / 'data' / 'dynamic_seed_data.xml').read_text(
+            encoding='utf-8')))
+    problems = []
+    for name in ('BOM_DEFAULTS', 'OPTIONAL_POSITIONS'):
+        match = re.search(
+            r'^%s = [\{\(].*?^[\}\)]' % name, position_source,
+            re.S | re.M)
+        if not match:
+            problems.append('%s not found in profile_position.py' % name)
+            continue
+        referenced = set(re.findall(r"'(pos_\w+)'", match.group(0)))
+        for xmlid in sorted(referenced - seeded):
+            problems.append(
+                '%s names %r, which dynamic_seed_data.xml never creates'
+                % (name, xmlid))
+    return problems
+
+
+def check_scope_labels(position_source):
+    """Every scope needs a phrase for the "missing line" warning.
+
+    Without one the check falls back to the raw scope name, so the user
+    is told their section is missing a 'junction_interlock' rather than
+    an interlock junction. Cheap to get wrong when a scope is added.
+    """
+    match = re.search(r'scope = fields\.Selection\(\[(.*?)\]',
+                      position_source, re.S)
+    if not match:
+        return ['scope Selection not found in profile_position.py']
+    scopes = set(re.findall(r"\('(\w+)',", match.group(1)))
+
+    explosion = (DESIGN / 'models' / 'explosion.py').read_text(
+        encoding='utf-8')
+    label_match = re.search(r'SCOPE_DEMAND_LABEL = \{(.*?)^\}', explosion,
+                            re.S | re.M)
+    if not label_match:
+        return ['SCOPE_DEMAND_LABEL not found in explosion.py']
+    labelled = set(re.findall(r"^\s*'(\w+)':", label_match.group(1), re.M))
+
+    return ['scope %r has no SCOPE_DEMAND_LABEL entry' % s
+            for s in sorted(scopes - labelled)]
 
 
 def main():
@@ -82,6 +137,9 @@ def main():
         got = formula.evaluate_formula(expression, context)
         if abs(got - want) > 1e-6:
             problems.append(f'{expression} gave {got}, expected {want}')
+
+    problems.extend(check_seed_xmlids(source))
+    problems.extend(check_scope_labels(source))
 
     if problems:
         print('Formula problems:')

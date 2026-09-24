@@ -17,6 +17,22 @@ from odoo.addons.aw_fenestration_core.models.formula import (
 # be cut from one length and needs a coupler.
 MAX_STOCK_BAR_MM = 18 * 304.8  # 18 ft
 
+# How to say "the layout needs this" in the checks, per scope. Phrased
+# as what the reader can see on the drawing, not as the internal scope
+# name: "1 interlock junction" is actionable, "junction_interlock" is
+# not.
+SCOPE_DEMAND_LABEL = {
+    'frame': ('frame', 'frames'),
+    'panel_opening': ('opening panel', 'opening panels'),
+    'panel_fixed': ('fixed panel', 'fixed panels'),
+    'panel_mesh': ('mesh panel', 'mesh panels'),
+    'mesh_attachment': ('attached mesh', 'attached meshes'),
+    'junction_mullion': ('mullion junction', 'mullion junctions'),
+    'junction_meeting': ('meeting junction', 'meeting junctions'),
+    'junction_interlock': ('interlock junction', 'interlock junctions'),
+    'transom': ('transom', 'transoms'),
+}
+
 
 class AwDesign(models.Model):
     _inherit = 'aw.design'
@@ -127,11 +143,17 @@ class AwDesign(models.Model):
     # ------------------------------------------------------------------
     # the walk
     # ------------------------------------------------------------------
-    def _explode_rows(self, rows, by_scope, box_w, box_h, out):
+    def _explode_rows(self, rows, by_scope, box_w, box_h, out, demand):
         """Recursive walk: rows, panels, junctions, then into containers.
 
         Mirrors the drawing's own recursion, so a nested split produces
         BOM the same way it produces geometry.
+
+        `demand` counts how many times the layout calls for each scope,
+        whether or not the section has a line to satisfy it. It is
+        incremented at the exact point the scope is decided, so what the
+        checks think is needed can never drift from what the engine
+        actually looked for.
         """
         self.ensure_one()
         total_h = sum(r.height_mm or 0 for r in rows) or 1
@@ -153,24 +175,27 @@ class AwDesign(models.Model):
                     # A container is not a panel: no sash, no glass, just
                     # whatever divides it, handled one level down.
                     self._explode_rows(
-                        leaf.child_row_ids, by_scope, leaf_w, row_h, out)
+                        leaf.child_row_ids, by_scope, leaf_w, row_h, out,
+                        demand)
                 else:
-                    self._explode_panel(leaf, by_scope, context, out)
+                    self._explode_panel(leaf, by_scope, context, out, demand)
 
                 # The junction AFTER this panel, if there is a next one.
                 if leaf_index < len(leaves) - 1:
-                    self._explode_junction(leaf, by_scope, context, out)
+                    self._explode_junction(
+                        leaf, by_scope, context, out, demand)
 
             # A transom between this row and the next.
             if row_index < len(rows) - 1:
                 context = self._formula_context(
                     container_w=box_w, container_h=box_h,
                     panels_in_row=panels_in_row)
+                demand['transom'] = demand.get('transom', 0) + 1
                 for line in by_scope.get('transom', []):
                     out.extend(self._profile_pieces(
                         line, context, _('transom')))
 
-    def _explode_panel(self, leaf, by_scope, context, out):
+    def _explode_panel(self, leaf, by_scope, context, out, demand):
         """One panel: its frame profiles, glass or infill, mesh, grid."""
         self.ensure_one()
         label = 'P%s' % (leaf.panel_no or 0)
@@ -184,12 +209,14 @@ class AwDesign(models.Model):
             scope = 'panel_opening'
         else:
             scope = 'panel_fixed'
+        demand[scope] = demand.get(scope, 0) + 1
         for line in by_scope.get(scope, []):
             out.extend(self._profile_pieces(
                 line, context, label, leaf.panel_no))
 
         # Attached mesh brings its own surround plus its own lines.
         if leaf.mesh_type_id:
+            demand['mesh_attachment'] = demand.get('mesh_attachment', 0) + 1
             for line in by_scope.get('mesh_attachment', []):
                 out.extend(self._profile_pieces(
                     line, context, '%s mesh' % label, leaf.panel_no))
@@ -249,11 +276,12 @@ class AwDesign(models.Model):
             out.extend(self._hardware_line(
                 line, context, label, leaf.panel_no))
 
-    def _explode_junction(self, leaf, by_scope, context, out):
+    def _explode_junction(self, leaf, by_scope, context, out, demand):
         self.ensure_one()
         junction = leaf.junction_after or 'mullion'
         scope = 'junction_%s' % junction
         label = _('junction after P%s') % (leaf.panel_no or 0)
+        demand[scope] = demand.get(scope, 0) + 1
         for line in by_scope.get(scope, []):
             out.extend(self._profile_pieces(line, context, label))
         for line in self.hardware_set_id.line_ids:
@@ -315,13 +343,15 @@ class AwDesign(models.Model):
 
         by_scope = self._section_lines_by_scope()
         out = []
+        demand = {'frame': 1}
 
         frame_context = self._formula_context()
         for line in by_scope.get('frame', []):
             out.extend(self._profile_pieces(line, frame_context, _('frame')))
 
         self._explode_rows(
-            self.row_ids, by_scope, self.width_mm, self.height_mm, out)
+            self.row_ids, by_scope, self.width_mm, self.height_mm, out,
+            demand)
 
         for line in self.hardware_set_id.line_ids:
             if line.scope == 'design':
@@ -343,9 +373,9 @@ class AwDesign(models.Model):
             })
             self.env['aw.design.bom.line'].create(values)
 
-        self._run_checks(exploded=out)
+        self._run_checks(exploded=out, demand=demand)
 
-    def _run_checks(self, exploded=None):
+    def _run_checks(self, exploded=None, demand=None):
         """Spec 6.6. Warnings are things to look at; errors are things
         that cannot be made as drawn."""
         self.ensure_one()
@@ -373,6 +403,8 @@ class AwDesign(models.Model):
                     "Profile position '%s' has no scope, so the BOM "
                     "ignores it.", position.name)))
 
+        problems.extend(self._missing_section_line_problems(demand or {}))
+
         for values in (exploded or []):
             if values.get('missing_product'):
                 problems.append(('warning', _(
@@ -390,6 +422,49 @@ class AwDesign(models.Model):
             self.env['aw.design.check'].create({
                 'design_id': self.id, 'level': level, 'message': message,
             })
+
+    def _missing_section_line_problems(self, demand):
+        """Required positions the layout needs and the section lacks.
+
+        The silent case this exists for: a sliding design has an
+        interlock junction, the Profile Section has no Interlock line,
+        and the interlock simply never appears in the cut list. Nothing
+        else notices -- the missing-product check only fires on a line
+        that exists, so a position nobody configured produced no line to
+        complain about.
+
+        Only required positions warn. An optional one (Palay Bead on a
+        sash profile with the channel built in) is absent on purpose.
+        """
+        self.ensure_one()
+        section = self.profile_section_id
+        if not section:
+            # One error beats one warning per position: the section is
+            # the thing to fix, and the rest would all say the same.
+            return [('error', _(
+                "No Profile Section is set, so this design has no "
+                "profiles in its BOM at all."))]
+
+        configured = set(section.line_ids.mapped('position_id').ids)
+        needed = [scope for scope, count in demand.items() if count]
+        positions = self.env['aw.profile.position'].search([
+            ('is_required', '=', True),
+            ('scope', 'in', needed),
+        ])
+
+        problems = []
+        for position in positions:
+            if position.id in configured:
+                continue
+            count = demand.get(position.scope, 0)
+            singular, plural = SCOPE_DEMAND_LABEL.get(
+                position.scope, (position.scope, position.scope))
+            problems.append(('warning', _(
+                "'%(section)s' has no '%(position)s' line "
+                "(%(count)s %(what)s in this design).",
+                section=section.display_name, position=position.name,
+                count=count, what=singular if count == 1 else plural)))
+        return problems
 
     def _all_panels(self):
         """Every real panel, containers skipped."""

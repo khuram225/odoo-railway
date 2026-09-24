@@ -41,6 +41,7 @@
                 <field name="name"/>
                 <field name="code"/>
                 <field name="scope"/>
+                <field name="is_required"/>
                 <field name="edge"/>
                 <field name="default_length"/>
                 <!-- Only meaningful for Edge = All four, but shown always:

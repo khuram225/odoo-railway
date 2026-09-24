@@ -68,6 +68,17 @@ class AwProfilePosition(models.Model):
     default_qty = fields.Char(
         string='Quantity Formula', default='1',
         help="Multiplied by however many pieces the Edge implies.")
+    # Defaults to True, and that direction is deliberate: a position
+    # nobody has configured silently dropping out of the BOM is the
+    # failure this flag exists to catch, so a hand-added position warns
+    # until someone decides it is genuinely optional.
+    is_required = fields.Boolean(
+        string='Required', default=True,
+        help="A design that needs this position but whose Profile "
+             "Section has no line for it is reported by the checks. "
+             "Uncheck for a piece that is genuinely optional, such as a "
+             "bead on a sash profile that already has the glazing "
+             "channel built in.")
 
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Profile Position code must be unique.'),
@@ -106,6 +117,43 @@ class AwProfilePosition(models.Model):
                 'aw_fenestration_core.%s' % xmlid, raise_if_not_found=False)
             if position and not position.scope:
                 position.write(values)
+
+    @api.model
+    def _seed_required_flags(self):
+        """Mark the optional positions, once per database.
+
+        A Boolean has no "unset" state, so the fill-only-if-empty guard
+        used everywhere else here has nothing to test: False is both
+        "someone unticked this" and "never configured". Re-asserting the
+        list every upgrade would therefore silently revert a UI edit,
+        which is the exact trap the leaf-type seed was rewritten to
+        avoid. A parameter marking the seed as done is the honest way to
+        get one-shot semantics for a Boolean.
+
+        The field defaults to True, so this only has to name the
+        exceptions -- and a position added later is required until
+        someone says otherwise, which is the safe direction.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(REQUIRED_SEEDED_PARAM):
+            return
+        for xmlid in OPTIONAL_POSITIONS:
+            position = self.env.ref(
+                'aw_fenestration_core.%s' % xmlid, raise_if_not_found=False)
+            if position:
+                position.is_required = False
+        param.set_param(REQUIRED_SEEDED_PARAM, '1')
+
+
+REQUIRED_SEEDED_PARAM = 'aw_fenestration.position_required_seeded'
+
+# Everything else is required. A sash profile often has the glazing
+# channel built in, so a section with no Palay Bead line is normal.
+OPTIONAL_POSITIONS = (
+    'pos_palay_bead_top',
+    'pos_palay_bead_bottom',
+    'pos_palay_bead_sides',
+)
 
 
 # Placeholder rules from spec 6.2, marked [revisit] there: the deductions

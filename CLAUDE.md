@@ -124,6 +124,18 @@ clearing a Series' leaf types to none is not a stable state, since
 "empty" is the signal for "never configured" — archive the Series
 instead.
 
+**A Boolean cannot use that guard**, and `aw.profile.position.is_required`
+is the case in point: False is both "someone unticked this" and "never
+configured", so there is no empty state to test, and re-asserting the
+list every upgrade would silently revert a UI edit — the exact trap the
+leaf-type seed was rewritten to avoid. `_seed_required_flags()` instead
+marks itself done with an `ir.config_parameter`
+(`aw_fenestration.position_required_seeded`), which is the honest way to
+get one-shot semantics for a Boolean. It names only the exceptions,
+because the field defaults to True: a position added later is required
+until someone says otherwise, the safe direction when the failure being
+prevented is a structural profile silently missing from a cut list.
+
 Seeded via `data/dynamic_seed_data.xml` (Leaf Type + Profile Position, no
 cross-references, safe to load early), then `data/product_category_data.xml`
 (product category tree + the 8 Window Series) and

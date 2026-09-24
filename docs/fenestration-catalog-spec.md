@@ -337,12 +337,17 @@ plan; these are the decisions taken while implementing it):
    Odoo imports at all, so `scripts/check_formulas.py` can run the real
    grammar against every seeded formula rather than a copy of it.
 2. **`Palay Bead - Top/Bottom/Sides` are seeded**, scope `panel_opening`,
-   with the same deductions as Fixed Bead. A Profile Section is *not*
-   expected to carry lines for them: some sash profiles have the glazing
-   channel built in. That needs no special case — the engine generates
-   nothing for a position with no section line, and the checks stay
-   quiet about it, so the bead appears exactly when a section defines
-   one.
+   with the same deductions as Fixed Bead, and are the only positions
+   flagged `is_required = False`: some sash profiles have the glazing
+   channel built in, so a section with no Palay Bead line is normal.
+   Every other position is required, and a design that *needs* one
+   whose Profile Section has no line for it gets a warning naming both
+   and why — "'Profile 1' has no 'Interlock' line (1 interlock junction
+   in this design)". Without that, a structural profile missing from a
+   section would drop out of the cut list silently, since the
+   missing-product check only fires on a line that already exists.
+   `is_required` defaults to **True**, so a position added later warns
+   until someone decides it is optional.
 3. **Every seeded position got a scope**, so none are currently
    unscoped. The "position has no scope, ignored by BOM" warning is
    there for positions added by hand afterwards.
@@ -434,7 +439,10 @@ Dimensions > 0; leaf types allowed by Series; panel size vs Series limits;
 panel weight from glass `weight_kg_m2`; any profile piece longer than the
 longest stock bar (18 ft) → error with **Split with coupler** action
 (splits the design into two positions joined by a coupling mullion);
-missing product on an active position → warning.
+missing product on an active position → warning; a **required** position
+the layout needs but the Profile Section has no line for → warning naming
+the section, the position and the count that triggered it; no Profile
+Section at all → one error rather than one warning per position.
 
 **P4 test:** Double Glaze Sliding Profile 1, SLD-2P2T, 8 ft × 5 ft → explode
 → frame 4 pieces at 45°, 2 sashes × 4 palay pieces, 1 interlock, glass ×2
