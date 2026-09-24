@@ -17,6 +17,10 @@ from odoo.exceptions import ValidationError
 # does not turn one recompute into an endless chain of them.
 SYNC_CONTEXT = 'aw_rate_date_to_sync'
 
+# Marks the one-shot backfill as done. A Boolean-ish state with no
+# empty value to test, same as the is_required seed.
+BACKFILL_PARAM = 'aw_fenestration.rate_date_to_backfilled'
+
 
 def resolve_chain(entries):
     """Work out each version's end date from a chain of versions.
@@ -167,10 +171,10 @@ class AwProfileRate(models.Model):
         """
         keys = {tuple(key) for key in keys}
         if not keys:
-            return
+            return 0
         template_ids = {key[0] for key in keys if key[0]}
         if not template_ids:
-            return
+            return 0
         rates = self.with_context(active_test=False).search(
             [('product_tmpl_id', 'in', list(template_ids))],
             order='date_from asc, id asc')
@@ -181,16 +185,26 @@ class AwProfileRate(models.Model):
             if key in keys:
                 chains[key].append(rate)
 
+        # Grouped by the VALUE being written, not one write per record.
+        # A second import of the Chawla list closes ~3473 rates at once,
+        # and they almost all get the same date_to -- so this is a
+        # handful of writes instead of thousands, on the live import
+        # path as much as on the backfill.
+        pending = defaultdict(list)
         for chain in chains.values():
             resolved = resolve_chain(
                 [(rate.date_from, rate.date_end) for rate in chain])
             for rate, (date_to, by_successor) in zip(chain, resolved):
                 if (rate.date_to != date_to
                         or rate.has_successor != by_successor):
-                    rate.with_context(**{SYNC_CONTEXT: True}).write({
-                        'date_to': date_to,
-                        'has_successor': by_successor,
-                    })
+                    pending[(date_to, by_successor)].append(rate.id)
+
+        for (date_to, by_successor), ids in pending.items():
+            self.browse(ids).with_context(**{SYNC_CONTEXT: True}).write({
+                'date_to': date_to,
+                'has_successor': by_successor,
+            })
+        return sum(len(ids) for ids in pending.values())
 
     def _keys_of(self):
         return {rate._chain_key() for rate in self}
@@ -218,6 +232,38 @@ class AwProfileRate(models.Model):
         result = super().unlink()
         self._recompute_date_to(keys)
         return result
+
+    @api.model
+    def _backfill_date_to(self):
+        """Rebuild every chain once, for rates imported before date_to
+        existed.
+
+        The upgrade does NOT do this by itself. date_to is a plain
+        stored field, so `_init_column` writes NULL and moves on --
+        Odoo only schedules a recompute for a field that is both
+        `compute` and `required` (see fields.py's add_not_null), and
+        this is neither. Rates loaded by an earlier import therefore
+        keep an empty date_to and show as Current for ever, overlapping
+        their own successors.
+
+        Worth knowing what this does and does not fix: prices were never
+        wrong, because an empty date_to still matches the lookup and
+        `date_from desc, id desc` picks the newest. What was wrong is
+        the record -- effective-to, Superseded/Expired, and the "closed
+        on" count the next import reports.
+
+        The parameter guard is about COST, not correctness: the pass is
+        idempotent and safe to repeat, it just has no reason to walk
+        several thousand rates on every upgrade.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(BACKFILL_PARAM):
+            return 0
+        rates = self.with_context(active_test=False).search([])
+        updated = self._recompute_date_to({rate._chain_key()
+                                           for rate in rates}) if rates else 0
+        param.set_param(BACKFILL_PARAM, '1')
+        return updated
 
     def _compute_status(self):
         today = fields.Date.context_today(self)

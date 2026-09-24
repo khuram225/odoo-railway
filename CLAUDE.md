@@ -505,6 +505,17 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   one before it. `create`/`write`/`unlink` rebuild the affected chains
   whole, `write` collecting keys on BOTH sides because changing
   thickness/finish/vendor/date_from moves a rate between chains.
+  **An upgrade does NOT rebuild existing chains**, which is easy to
+  assume it would: `_init_column` writes the default and stops, and
+  Odoo only schedules a recompute for a field that is both `compute`
+  and `required` (`fields.py`'s `add_not_null`) — `date_to` is
+  neither. `_backfill_date_to()` is the one-shot pass for rows imported
+  before the field existed, guarded by
+  `aw_fenestration.rate_date_to_backfilled`; that guard is about cost,
+  not correctness, since the pass is idempotent. Writes are grouped by
+  the VALUE being written rather than one per record — a second import
+  of the Chawla list closes ~3473 rates at once and they nearly all
+  share a date_to.
 
 - `scripts/check_view_schemas.py` validates every standalone view arch
   against **Odoo's own RelaxNG schemas** (`../odoo-src/odoo/addons/base/
