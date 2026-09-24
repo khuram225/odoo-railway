@@ -307,11 +307,17 @@ console.log("\n  glyph sizes constant in CSS pixels, not viewBox units:");
            `zoom ${z * 100}%: triangle stroke = ${px.toFixed(2)}px`);
     }
     c.state.zoom = 1;
-    ok(c.adornments.toolbar.show === false,
+    // The toolbar's screen position is measured from the DOM, which node
+    // has none of; what IS testable here is the anchor it measures from.
+    ok(c.toolbarAnchorUnits() === null,
        "no toolbar anchor when nothing is selected");
     c.selectLeaf([[0, 0]]);
-    ok(c.adornments.toolbar.show === true,
-       "toolbar anchors to the selected panel");
+    const a = c.toolbarAnchorUnits();
+    ok(!!a, "toolbar anchors to the selected panel");
+    const p0 = c.scene.leaves[0];
+    near(a.x, p0.badge.cx, "anchored on the panel's centre line");
+    near(a.yTop, p0.y, "anchored at the panel's TOP edge");
+    near(a.yBottom, p0.y + p0.h, "and knows its bottom edge, to flip below");
 }
 
 console.log("\n  a divider is selected on pointerdown, not by a click:");
@@ -326,10 +332,65 @@ console.log("\n  a divider is selected on pointerdown, not by a click:");
                                 clientX: 0, clientY: 0 });
     ok(c.state.selectedDivider === d.key, "pointerdown selected it");
     ok(!!c.selectedDividerEntry, "so the junction toolbar has something to show");
-    ok(c.adornments.toolbar.show === true, "and the floating toolbar anchors to it");
+    const da = c.toolbarAnchorUnits();
+    ok(!!da, "and the floating toolbar anchors to the divider");
+    near(da.x, (d.x1 + d.x2) / 2, "anchored on the divider's mid-line");
     c.endDrag();
     c.setJunction("interlock");
     ok(c.scene.dividers[0].junction === "interlock", "setJunction writes through");
+}
+
+console.log("\nSELECTION STATES (the Phase 1 crash):");
+{
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT", { hinge_side: "left" }),
+        panel(600, "CASEMENT", { hinge_side: "right" }),
+    ] }], 1200, 1500);
+
+    ok(c.selectionMode === "none", "nothing selected -> 'none'");
+    ok(c.selectedPanel === null, "no panel");
+    ok(c.selectedPanelSize === "", "no size text");
+    ok(c.selectedPanelLabel === "", "no label");
+
+    c.selectLeaf([[0, 0]]);
+    ok(c.selectionMode === "panel", "panel selected -> 'panel'");
+    ok(!!c.selectedPanel, "selectedPanel resolves");
+    ok(c.selectedPanelLabel === "Panel 1", `label is "${c.selectedPanelLabel}"`);
+    ok(/×/.test(c.selectedPanelSize),
+       `size reads "${c.selectedPanelSize}" -- width x height, no NaN`);
+    ok(!/NaN/.test(c.selectedPanelSize), "and contains no NaN");
+    ok(!!c.selectedLeafType, "leaf type resolves, so hinge chips render");
+    ok(c.selectedLeafType.has_hinge_side === true,
+       "casement reports has_hinge_side, so hinge/swing appear");
+
+    c.clientToUser = (ev) => ({ x: ev.clientX, y: ev.clientY });
+    c.onDividerPointerDown(c.scene.dividers[0], {
+        preventDefault() {}, stopPropagation() {}, clientX: 0, clientY: 0 });
+    c.endDrag();
+    ok(c.selectionMode === "divider", "divider selected -> 'divider'");
+    ok(c.selectedPanel === null, "no panel while a divider is selected");
+    ok(c.selectedPanelSize === "", "size text empty, not a crash");
+    ok(c.selectedPanelLabel === "", "label empty, not a crash");
+
+    // The crash was a re-render with a divider selected: zooming did it.
+    for (const z of [0.25, 1, 3]) {
+        c.state.zoom = z;
+        let threw = null;
+        try {
+            void c.scene; void c.adornments; void c.selectedPanelSize;
+            void c.selectedPanelLabel; void c.selectionMode;
+        } catch (e) { threw = e; }
+        ok(!threw, `zoom ${z * 100}% with a divider selected: no crash`);
+    }
+
+    // A selection pointing at something that no longer exists.
+    c.state.selected = [[9, 9]];
+    c.state.selectedDivider = null;
+    let threw = null;
+    try {
+        void c.selectionMode; void c.selectedPanelSize; void c.selectedPanelLabel;
+    } catch (e) { threw = e; }
+    ok(!threw, "a stale selection path degrades quietly");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

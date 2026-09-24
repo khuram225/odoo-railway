@@ -53,14 +53,19 @@
     user-select: none;
 }
 
-// Floating toolbar over the drawing. Positioned by adornments.toolbar in
-// CSS pixels inside the sized wrapper, then nudged so it sits just above
-// what it acts on rather than covering it.
+// Floating toolbar over the drawing. left/top are already the final
+// position in canvas-viewport pixels (see updateToolbar), so there is
+// deliberately NO transform here -- the previous translate() fought the
+// clamping and pushed it off the top.
 .o_aw_cfg_floating {
     position: absolute;
-    transform: translate(-50%, -115%);
-    z-index: 3;
+    z-index: 5; // above the zoom controls, which are 2
     white-space: nowrap;
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: 0.375rem;
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.18);
+    padding: 0.25rem;
 }
 
 .o_aw_cfg_cat {

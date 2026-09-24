@@ -37,8 +37,9 @@ const TARGETS = [
             canvasW: 900,
             canvasH: 600,
             libraryOpen: true,
-            selected: [[0, 1], [0, 0]],
+            selected: null,
             selectedDivider: null,
+            toolbar: { show: false, left: 0, top: 0 },
             data: {
                 id: 1,
                 length_uom: "ftin",
@@ -114,6 +115,35 @@ const TARGETS = [
             "canRemove",
             "selectedSceneLeaf",
             "selectedDividerEntry",
+            "selectionMode",
+            "selectedPanel",
+            "selectedPanelSize",
+        ],
+        // Every getter is read under EACH of these. A selection bug only
+        // shows in one state -- the crash this check was extended for
+        // happened solely with a divider selected, where state.selected
+        // is null, and passed cleanly with a panel selected.
+        selections: [
+            { label: "nothing selected", apply: (st) => {
+                st.selected = null;
+                st.selectedDivider = null;
+            } },
+            { label: "flat panel selected", apply: (st) => {
+                st.selected = [[1, 0]];
+                st.selectedDivider = null;
+            } },
+            { label: "nested panel selected", apply: (st) => {
+                st.selected = [[0, 1], [0, 0]];
+                st.selectedDivider = null;
+            } },
+            { label: "divider selected", apply: (st) => {
+                st.selected = null;
+                st.selectedDivider = "v::0:0";
+            } },
+            { label: "stale selection (path no longer exists)", apply: (st) => {
+                st.selected = [[9, 9]];
+                st.selectedDivider = null;
+            } },
         ],
     },
 ];
@@ -167,23 +197,41 @@ for (const target of TARGETS) {
     // Object.create, not new: setup() wants services and lifecycle hooks
     // that only exist inside a mounted component. The getters are on the
     // prototype and only need `state`.
-    const instance = Object.create(Cls.prototype);
-    instance.state = target.state();
-    instance.props = { action: { params: {}, context: {} } };
-    instance.canvasRef = { el: null };
-    instance.svgRef = { el: null };
+    const selections = target.selections || [
+        { label: "default", apply: () => {} },
+    ];
 
-    for (const name of target.getters) {
-        try {
-            void instance[name];
-            console.log(`  ok   ${target.exportName}.${name}`);
-        } catch (err) {
-            const cycle = err instanceof RangeError;
+    for (const selection of selections) {
+        const instance = Object.create(Cls.prototype);
+        instance.state = target.state();
+        instance.props = { action: { params: {}, context: {} } };
+        instance.canvasRef = { el: null };
+        instance.svgRef = { el: null };
+        instance.toolbarRef = { el: null };
+        selection.apply(instance.state);
+
+        const broken = [];
+        for (const name of target.getters) {
+            try {
+                void instance[name];
+            } catch (err) {
+                const cycle = err instanceof RangeError;
+                broken.push(
+                    `${name}: ${err.message}` +
+                        (cycle ? "  <- looks like a getter cycle" : "")
+                );
+            }
+        }
+        if (broken.length) {
+            console.log(`  FAIL ${selection.label}`);
+            for (const b of broken) {
+                console.log(`         ${b}`);
+            }
+            failures += broken.length;
+        } else {
             console.log(
-                `  FAIL ${target.exportName}.${name}: ${err.message}` +
-                    (cycle ? "  <- looks like a getter cycle" : "")
+                `  ok   ${selection.label} (${target.getters.length} getters)`
             );
-            failures++;
         }
     }
 }
@@ -192,4 +240,4 @@ if (failures) {
     console.log(`\n${failures} getter failure(s).`);
     process.exit(1);
 }
-console.log("\nAll component getters evaluate without cycles.");
+console.log("\nAll component getters evaluate in every selection state.");

@@ -45,6 +45,18 @@ NAME_RE = re.compile(r'\bt-(?:as|set)\s*=\s*"([^"]*)"')
 # a comment explaining this very rule will quote the bad name verbatim.
 COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
 
+# Selection state a template must not reach into directly. Selection is a
+# PATH now, not (row, leaf), so `state.selected.row` silently read
+# undefined for a panel (rendering "Row NaN") and threw outright for a
+# divider, where it is null -- crashing the whole component on every
+# re-render, including zoom.
+#
+# check_owl_getters.mjs CANNOT catch this: the expression lives in the
+# template, not in a getter, so it passes cleanly on the broken code.
+# Read selection only through selectionMode / selectedPanel /
+# selectedPanelLabel / selectedPanelSize / selectedDividerEntry.
+FORBIDDEN_STATE_RE = re.compile(r'\bstate\.(?:selected|selectedDivider)\b')
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -67,6 +79,14 @@ def check_file(path: Path) -> list[str]:
                 f'{path}:{line}: t-as/t-set="{name}" — reserved in OWL '
                 f'expressions; rename it'
             )
+
+    for match in FORBIDDEN_STATE_RE.finditer(text):
+        line = text.count('\n', 0, match.start()) + 1
+        problems.append(
+            f'{path}:{line}: reads {match.group(0)} directly — selection is '
+            f'a path; go through selectionMode / selectedPanel / '
+            f'selectedPanelLabel / selectedPanelSize / selectedDividerEntry'
+        )
     return problems
 
 
@@ -86,11 +106,11 @@ def main(argv: list[str]) -> int:
         all_problems.extend(check_file(f))
 
     if all_problems:
-        print('OWL template variables using rewritten/reserved names:')
+        print('OWL template problems:')
         for p in all_problems:
             print(f'  {p}')
         return 1
-    print(f'No OWL name collisions in {len(files)} template file(s).')
+    print(f'No OWL template problems in {len(files)} file(s).')
     return 0
 
 

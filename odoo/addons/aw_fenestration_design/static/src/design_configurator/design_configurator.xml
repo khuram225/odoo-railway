@@ -168,12 +168,51 @@
                                         t-on-click="zoomFit">Fit</button>
                             </div>
 
+                            <!-- Floating toolbar. Child of the NON-scrolling
+                                 wrapper, positioned from screen coordinates, so
+                                 it tracks the selection through zoom and scroll
+                                 instead of drifting with the content. -->
+                            <div t-if="state.toolbar.show and selectionMode !== 'none'"
+                                 t-ref="toolbar"
+                                 class="o_aw_cfg_floating d-flex gap-1"
+                                 t-attf-style="left: {{state.toolbar.left}}px; top: {{state.toolbar.top}}px;">
+
+                                <t t-if="selectionMode === 'panel'">
+                                    <button class="btn btn-sm btn-light" title="Split into two side by side"
+                                            t-att-disabled="!canSplit"
+                                            t-on-click="() => this.splitPanel('vertical')">
+                                        <i class="fa fa-columns"/>
+                                    </button>
+                                    <button class="btn btn-sm btn-light" title="Split into two stacked"
+                                            t-att-disabled="!canSplit"
+                                            t-on-click="() => this.splitPanel('horizontal')">
+                                        <i class="fa fa-bars"/>
+                                    </button>
+                                    <button class="btn btn-sm btn-light text-danger" title="Remove this panel"
+                                            t-att-disabled="!canRemove"
+                                            t-on-click="removePanel">
+                                        <i class="fa fa-trash"/>
+                                    </button>
+                                </t>
+
+                                <t t-else="">
+                                    <t t-foreach="['mullion', 'meeting', 'interlock']" t-as="jt" t-key="jt">
+                                        <button class="btn btn-sm text-capitalize"
+                                                t-att-class="selectedDividerEntry.junction === jt ? 'btn-primary' : 'btn-light'"
+                                                t-on-click="() => this.setJunction(jt)">
+                                            <t t-esc="jt"/>
+                                        </button>
+                                    </t>
+                                </t>
+                            </div>
+
                             <!-- The scrolling viewport. Its pixel size is what
                                  the fitted scale is computed from, so the
                                  ResizeObserver watches exactly this element. -->
                             <div class="o_aw_cfg_canvas h-100 w-100 overflow-auto border rounded bg-white"
                                  t-ref="canvas"
                                  t-on-wheel="onWheel"
+                                 t-on-scroll="onCanvasScroll"
                                  t-on-pointerdown="onCanvasPointerDown"
                                  t-on-pointermove="onPointerMove"
                                  t-on-pointerup="onPointerUp">
@@ -190,45 +229,8 @@
                                      overflows and the container scrolls, which
                                      is what makes panning work. margin:auto
                                      keeps it centred while it still fits. -->
-                                <div t-else="" class="position-relative"
+                                <div t-else=""
                                      t-attf-style="width: {{renderedSize.w}}px; height: {{renderedSize.h}}px; margin: auto;">
-
-                                    <!-- Floating toolbar, next to whatever is
-                                         selected. The controls also live in the
-                                         right-hand panel; this is the copy you
-                                         find without looking for it. -->
-                                    <div t-if="adornments.toolbar.show"
-                                         class="o_aw_cfg_floating d-flex gap-1 bg-view border rounded shadow-sm p-1"
-                                         t-attf-style="left: {{adornments.toolbar.left}}px; top: {{adornments.toolbar.top}}px;">
-
-                                        <t t-if="selectedLeaf">
-                                            <button class="btn btn-sm btn-light" title="Split into two side by side"
-                                                    t-att-disabled="!canSplit"
-                                                    t-on-click="() => this.splitPanel('vertical')">
-                                                <i class="fa fa-columns"/>
-                                            </button>
-                                            <button class="btn btn-sm btn-light" title="Split into two stacked"
-                                                    t-att-disabled="!canSplit"
-                                                    t-on-click="() => this.splitPanel('horizontal')">
-                                                <i class="fa fa-bars"/>
-                                            </button>
-                                            <button class="btn btn-sm btn-light text-danger" title="Remove this panel"
-                                                    t-att-disabled="!canRemove"
-                                                    t-on-click="removePanel">
-                                                <i class="fa fa-trash"/>
-                                            </button>
-                                        </t>
-
-                                        <t t-if="selectedDividerEntry">
-                                            <t t-foreach="['mullion', 'meeting', 'interlock']" t-as="jt" t-key="jt">
-                                                <button class="btn btn-sm text-capitalize"
-                                                        t-att-class="selectedDividerEntry.junction === jt ? 'btn-primary' : 'btn-light'"
-                                                        t-on-click="() => this.setJunction(jt)">
-                                                    <t t-esc="jt"/>
-                                                </button>
-                                            </t>
-                                        </t>
-                                    </div>
 
                                     <svg class="o_aw_cfg_svg"
                                          t-ref="svg"
@@ -408,15 +410,26 @@
                          style="width: 260px; min-height: 0;">
                         <div class="overflow-auto p-3 flex-grow-1" style="min-height: 0;">
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
-                                <t t-if="selectedLeaf"><t t-esc="selectedPanelLabel"/></t>
-                                <t t-else="">Selected panel</t>
+                                <t t-if="selectionMode === 'panel'"><t t-esc="selectedPanelLabel"/></t>
+                                <t t-elif="selectionMode === 'divider'">Junction</t>
+                                <t t-else="">Selection</t>
                             </div>
 
-                            <!-- Divider selected: junction type. Horizontal
-                                 boundaries are always transoms, so only
-                                 vertical ones are selectable. -->
-                            <t t-if="selectedDividerEntry">
-                                <div class="small text-muted mb-1">Junction</div>
+                            <!-- Exactly three states, branched on one getter.
+                                 Nothing here reads state.selected: it is a
+                                 path now, and the old deep reads rendered NaN
+                                 for a panel and threw for a divider. -->
+                            <t t-if="selectionMode === 'none'">
+                                <div class="small text-muted">
+                                    Click a panel to edit it, or a vertical
+                                    divider to set its junction.
+                                </div>
+                            </t>
+
+                            <t t-elif="selectionMode === 'divider'">
+                                <div class="small text-muted mb-1">
+                                    Boundary between two panels
+                                </div>
                                 <div class="d-flex flex-wrap gap-1 mb-3">
                                     <t t-foreach="['mullion', 'meeting', 'interlock']" t-as="jt" t-key="jt">
                                         <button class="btn btn-sm text-capitalize"
@@ -428,16 +441,9 @@
                                 </div>
                             </t>
 
-                            <div t-if="!selectedLeaf and !selectedDividerEntry" class="small text-muted">
-                                Click a panel to edit it, or a vertical divider
-                                to set its junction.
-                            </div>
-
                             <t t-else="">
                                 <div class="mb-3 small text-muted">
-                                    Row <t t-esc="state.selected.row + 1"/>,
-                                    leaf <t t-esc="state.selected.leaf + 1"/>
-                                    &#8212; <t t-esc="formatLength(selectedLeaf.width_mm)"/> wide
+                                    <t t-esc="selectedPanelSize"/>
                                 </div>
 
                                 <!-- Panel toolbar -->
@@ -478,7 +484,7 @@
                                          to `const key1 = <.id;`. -->
                                     <t t-foreach="state.data.leaf_types" t-as="leafType" t-key="leafType.id">
                                         <button class="btn btn-sm"
-                                                t-att-class="selectedLeaf.leaf_type_id === leafType.id ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-att-class="selectedPanel.leaf_type_id === leafType.id ? 'btn-primary' : 'btn-outline-secondary'"
                                                 t-on-click="() => this.setLeafType(leafType.id)">
                                             <t t-esc="leafType.name"/>
                                         </button>
@@ -490,7 +496,7 @@
                                     <div class="d-flex flex-wrap gap-1 mb-2">
                                         <t t-foreach="['left', 'right', 'top', 'bottom']" t-as="side" t-key="side">
                                             <button class="btn btn-sm text-capitalize"
-                                                    t-att-class="selectedLeaf.hinge_side === side ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-att-class="selectedPanel.hinge_side === side ? 'btn-primary' : 'btn-outline-secondary'"
                                                     t-on-click="() => this.setDirection('hinge_side', side)">
                                                 <t t-esc="side"/>
                                             </button>
@@ -500,7 +506,7 @@
                                     <div class="d-flex flex-wrap gap-1 mb-3">
                                         <t t-foreach="['in', 'out']" t-as="sw" t-key="sw">
                                             <button class="btn btn-sm text-uppercase"
-                                                    t-att-class="selectedLeaf.swing === sw ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-att-class="selectedPanel.swing === sw ? 'btn-primary' : 'btn-outline-secondary'"
                                                     t-on-click="() => this.setDirection('swing', sw)">
                                                 <t t-esc="sw"/>
                                             </button>
@@ -513,7 +519,7 @@
                                     <div class="d-flex flex-wrap gap-1 mb-3">
                                         <t t-foreach="['left', 'right']" t-as="dir" t-key="dir">
                                             <button class="btn btn-sm text-capitalize"
-                                                    t-att-class="selectedLeaf.slide_dir === dir ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-att-class="selectedPanel.slide_dir === dir ? 'btn-primary' : 'btn-outline-secondary'"
                                                     t-on-click="() => this.setDirection('slide_dir', dir)">
                                                 <t t-esc="dir"/>
                                             </button>

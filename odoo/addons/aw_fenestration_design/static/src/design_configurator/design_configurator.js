@@ -1,6 +1,7 @@
 import {
     Component,
     onMounted,
+    onPatched,
     onWillStart,
     onWillUnmount,
     useRef,
@@ -93,6 +94,10 @@ export class DesignConfigurator extends Component {
             canvasW: 0,
             canvasH: 0,
             libraryOpen: true,
+            // Screen-space position of the floating toolbar, in CSS
+            // pixels relative to the canvas viewport. Measured from the
+            // DOM rather than derived, so it survives zoom and scroll.
+            toolbar: { show: false, left: 0, top: 0 },
         });
 
         // Not in state: a drag in progress isn't rendered directly, it only
@@ -102,6 +107,7 @@ export class DesignConfigurator extends Component {
 
         this.canvasRef = useRef("canvas");
         this.svgRef = useRef("svg");
+        this.toolbarRef = useRef("toolbar");
 
         onWillStart(async () => {
             await this.load();
@@ -117,6 +123,10 @@ export class DesignConfigurator extends Component {
                 this.measure();
             }
         });
+        // After every render: the drawing may have moved (zoom, resize,
+        // a split) and the toolbar has to follow it.
+        onPatched(() => this.updateToolbar());
+
         onWillUnmount(() => {
             this.resizeObserver?.disconnect();
             this.endDrag(); // never leave window listeners behind
@@ -389,8 +399,52 @@ export class DesignConfigurator extends Component {
     }
 
     // -- selection ---------------------------------------------------------
-    get selectedLeaf() {
+    //
+    // Exactly three states, and the template branches on selectionMode
+    // rather than poking at state.selected. The template must NOT read
+    // state.selected directly: it is a PATH now, so the old
+    // state.selected.row read undefined for a panel (rendering "Row NaN")
+    // and threw outright for a divider, where it is null -- which is what
+    // crashed on zoom, since any re-render hit it.
+    get selectionMode() {
+        if (this.selectedPanel) {
+            return "panel";
+        }
+        if (this.selectedDividerEntry) {
+            return "divider";
+        }
+        return "none";
+    }
+
+    /** The selected panel's data, or null. */
+    get selectedPanel() {
         return this.leafAt(this.state.selected);
+    }
+
+    /** Kept as an alias: plenty of internal callers still say leaf. */
+    get selectedLeaf() {
+        return this.selectedPanel;
+    }
+
+    /**
+     * The selected panel's size as text. A leaf carries only its width --
+     * height belongs to the row holding it -- so this reads both from the
+     * tree rather than from the leaf alone.
+     */
+    get selectedPanelSize() {
+        const path = this.state.selected;
+        const leaf = this.selectedPanel;
+        if (!leaf || !path || !path.length) {
+            return "";
+        }
+        const rows = this.rowsAt(path.slice(0, -1));
+        const row = rows[path[path.length - 1][0]];
+        if (!row) {
+            return "";
+        }
+        return `${this.formatLength(leaf.width_mm || 0)} \u00d7 ${this.formatLength(
+            row.height_mm || 0
+        )}`;
     }
 
     get canSplit() {
@@ -1210,35 +1264,93 @@ export class DesignConfigurator extends Component {
     }
 
     /**
-     * Anchor for the floating toolbar: the midpoint of whatever is
-     * selected, converted from viewBox units to CSS pixels within the
-     * rendered wrapper.
+     * Where the floating toolbar goes, in CSS pixels relative to the
+     * canvas viewport.
+     *
+     * Measured through svg.getScreenCTM() rather than computed from the
+     * viewBox, because that matrix already accounts for fit scale, zoom
+     * AND scroll offset together -- the previous version positioned
+     * itself inside the scrolled wrapper and ended up pinned near the top
+     * of the screen. Sits just above the selection, flips below when
+     * there is no room, and is clamped inside the visible canvas so it is
+     * always reachable.
      */
-    toolbarAnchor(scene, upp) {
-        const k = 1 / upp; // CSS px per viewBox unit
-        const sel = this.state.selected;
-        if (sel) {
-            const entry = scene.leaves.find((l) => samePath(l.path, sel));
-            if (entry) {
-                return {
-                    show: true,
-                    left: (entry.badge.cx - scene.vbX) * k,
-                    top: (entry.y - scene.vbY) * k,
-                };
-            }
+    updateToolbar() {
+        const svg = this.svgRef.el;
+        const canvas = this.canvasRef.el;
+        const anchor = this.toolbarAnchorUnits();
+        if (!svg || !canvas || !anchor) {
+            this.setToolbar({ show: false, left: 0, top: 0 });
+            return;
         }
-        const key = this.state.selectedDivider;
-        if (key) {
-            const d = scene.dividers.find((x) => x.key === key);
-            if (d) {
-                return {
-                    show: true,
-                    left: ((d.x1 + d.x2) / 2 - scene.vbX) * k,
-                    top: (Math.min(d.y1, d.y2) - scene.vbY) * k,
-                };
-            }
+        const ctm = svg.getScreenCTM();
+        if (!ctm) {
+            this.setToolbar({ show: false, left: 0, top: 0 });
+            return;
         }
-        return { show: false, left: 0, top: 0 };
+        const toScreen = (x, y) =>
+            new DOMPoint(x, y).matrixTransform(ctm);
+        const rect = canvas.getBoundingClientRect();
+        const topPt = toScreen(anchor.x, anchor.yTop);
+        const bottomPt = toScreen(anchor.x, anchor.yBottom);
+
+        const el = this.toolbarRef.el;
+        const w = el ? el.offsetWidth : 140;
+        const h = el ? el.offsetHeight : 34;
+        const GAP = 8;
+
+        let left = topPt.x - rect.left - w / 2;
+        let top = topPt.y - rect.top - GAP - h;
+        if (top < 4) {
+            // No room above: put it just below the selection instead.
+            top = bottomPt.y - rect.top + GAP;
+        }
+        left = Math.min(Math.max(left, 4), Math.max(4, rect.width - w - 4));
+        top = Math.min(Math.max(top, 4), Math.max(4, rect.height - h - 4));
+        this.setToolbar({ show: true, left, top });
+    }
+
+    /** The point the toolbar should point at, in SVG user units. */
+    toolbarAnchorUnits() {
+        const scene = this.scene;
+        if (!scene) {
+            return null;
+        }
+        const panel = this.selectedSceneLeaf;
+        if (panel) {
+            return {
+                x: panel.badge.cx,
+                yTop: panel.y,
+                yBottom: panel.y + panel.h,
+            };
+        }
+        const divider = this.selectedDividerEntry;
+        if (divider) {
+            return {
+                x: (divider.x1 + divider.x2) / 2,
+                yTop: Math.min(divider.y1, divider.y2),
+                yBottom: Math.max(divider.y1, divider.y2),
+            };
+        }
+        return null;
+    }
+
+    /** Only write when it actually moved: onPatched would otherwise
+     *  re-render forever. */
+    setToolbar(next) {
+        const cur = this.state.toolbar;
+        if (
+            cur.show === next.show &&
+            Math.abs(cur.left - next.left) < 0.5 &&
+            Math.abs(cur.top - next.top) < 0.5
+        ) {
+            return;
+        }
+        this.state.toolbar = next;
+    }
+
+    onCanvasScroll() {
+        this.updateToolbar();
     }
 
     // -- dragging ----------------------------------------------------------
@@ -1301,10 +1413,6 @@ export class DesignConfigurator extends Component {
             glyphDash: `${4 * upp} ${3 * upp}`,
             glyphFont: 10 * upp,
             arrowStroke: 1.6 * upp,
-            // Where a floating toolbar should sit, in CSS pixels inside
-            // the sized wrapper. Screen-space, so it belongs here rather
-            // than in scene.
-            toolbar: this.toolbarAnchor(scene, upp),
             dividers: scene.dividers.map((d) => ({
                 ...d,
                 stroke,
