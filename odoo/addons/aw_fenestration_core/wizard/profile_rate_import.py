@@ -22,6 +22,7 @@ import base64
 import csv
 import io
 from collections import defaultdict
+from datetime import timedelta
 
 from odoo import _, fields, models
 from odoo.exceptions import UserError
@@ -90,9 +91,13 @@ class AwProfileRateImport(models.TransientModel):
         # long enough to hit a worker timeout the first time anyone
         # uses this. A dict lookup is also exact, since the comparison
         # only ever needs the same key.
+        # Same vendor only, matching the chain key: another supplier's
+        # price for the same profile is a different chain, and reporting
+        # it as "changed" would be comparing two unrelated numbers.
         previous_by_key = {}
         for rate in self.env['aw.profile.rate'].search(
-            [('date_from', '<=', self.date_from)],
+            [('date_from', '<=', self.date_from),
+             ('vendor_id', '=', self.vendor_id.id or False)],
             order='date_from asc, id asc',
         ):
             previous_by_key[(
@@ -169,6 +174,16 @@ class AwProfileRateImport(models.TransientModel):
         created = self.env['aw.profile.rate'].create(to_create) \
             if to_create else self.env['aw.profile.rate']
 
+        # Rates this import closed. create() rebuilt the chains, so the
+        # ones it retired now end the day before this list starts.
+        closed = 0
+        if created:
+            closed = self.env['aw.profile.rate'].search_count([
+                ('id', 'not in', created.ids),
+                ('date_to', '=', self.date_from - timedelta(days=1)),
+                ('has_successor', '=', True),
+            ])
+
         # Profiles in the catalogue that this list never priced. These
         # are the ones that will quote at nothing, so they matter more
         # than the unmatched codes.
@@ -187,7 +202,7 @@ class AwProfileRateImport(models.TransientModel):
             'state': 'done',
             'summary': self._build_summary(
                 len(created), sorted(unknown_codes), sorted(catalogue_gap),
-                sorted(no_price), changes, sorted(unknown_values)),
+                sorted(no_price), changes, sorted(unknown_values), closed),
         })
         return {
             'type': 'ir.actions.act_window',
@@ -199,7 +214,7 @@ class AwProfileRateImport(models.TransientModel):
         }
 
     def _build_summary(self, added, unknown_codes, catalogue_gap, no_price,
-                       changes, unknown_values):
+                       changes, unknown_values, closed):
         def block(title, items, limit=40):
             if not items:
                 return ''
@@ -211,6 +226,10 @@ class AwProfileRateImport(models.TransientModel):
                 ''.join('<li>%s</li>' % item for item in shown), more))
 
         parts = ['<h3>%s rate(s) added</h3>' % added]
+        if closed:
+            parts.append(
+                '<p>%s previous rate(s) closed on %s.</p>'
+                % (closed, self.date_from - timedelta(days=1)))
         if changes:
             rows = ''.join(
                 '<tr><td>%s</td><td>%s</td><td>%s</td>'

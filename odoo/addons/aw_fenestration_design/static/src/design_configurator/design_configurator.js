@@ -465,6 +465,19 @@ export class DesignConfigurator extends Component {
         this.onHeaderChange(field, Number.isNaN(id) ? false : id);
     }
 
+    /**
+     * Manual rate, per sqft. An empty box means "go back to the
+     * calculated price", which has to reach the server as 0 rather than
+     * as nothing: manual_rate is in CONFIGURATOR_PROTECTED_HEADER, where
+     * an absent value means "not sent, leave it alone" and would make
+     * the override impossible to clear.
+     */
+    onManualRateChange(ev) {
+        const text = (ev.target.value || "").trim();
+        const value = text === "" ? 0 : parseFloat(text);
+        this.onHeaderChange("manual_rate", Number.isNaN(value) ? 0 : value);
+    }
+
     onGlassSpecChange(ev) {
         this.onHeaderIdChange("glass_spec_id", ev);
     }

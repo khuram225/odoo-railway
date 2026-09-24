@@ -967,6 +967,10 @@
                                 <t t-esc="pricing.uncosted"/> line(s) have no
                                 cost — this price is incomplete.
                             </div>
+                            <div t-if="pricing.manual_in_use"
+                                 class="badge bg-warning text-dark mb-2">
+                                Manual rate in use
+                            </div>
                             <table class="table table-sm small mb-2">
                                 <tr t-foreach="pricingBreakdown" t-as="row"
                                     t-key="row.kind">
@@ -983,40 +987,80 @@
                                         <strong><t t-esc="formatMoney(pricing.cost)"/></strong>
                                     </td>
                                 </tr>
-                                <tr>
-                                    <td>Basic value</td>
-                                    <td class="text-end">
-                                        <t t-esc="formatMoney(pricing.basic_value)"/>
-                                    </td>
-                                </tr>
-                                <tr t-if="pricing.manual_rate">
-                                    <td class="text-muted">Manual rate / sqft</td>
-                                    <td class="text-end text-muted">
-                                        <t t-esc="formatMoney(pricing.manual_rate)"/>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Price</strong></td>
-                                    <td class="text-end">
-                                        <strong><t t-esc="formatMoney(pricing.price)"/></strong>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td>Per sqft</td>
-                                    <td class="text-end">
-                                        <t t-esc="formatMoney(pricing.price_per_sqft)"/>
-                                    </td>
-                                </tr>
-                                <tr t-att-class="marginIsThin ? 'text-danger' : ''">
-                                    <td>Margin</td>
-                                    <td class="text-end">
-                                        <t t-esc="pricing.margin_pct.toFixed(1)"/>%
-                                        <t t-if="marginIsThin">
-                                            (min <t t-esc="pricing.min_margin_pct"/>%)
-                                        </t>
-                                    </td>
-                                </tr>
                             </table>
+
+                            <!-- Calculated and manual side by side, so
+                                 the override can be judged against what
+                                 it replaced rather than in isolation. -->
+                            <table class="table table-sm small mb-2">
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th class="text-end">Calculated</th>
+                                        <th class="text-end">Manual</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Price</td>
+                                        <td t-attf-class="text-end {{ pricing.manual_in_use ? 'text-muted' : 'fw-bold' }}">
+                                            <t t-esc="formatMoney(pricing.calculated_price)"/>
+                                        </td>
+                                        <td t-attf-class="text-end {{ pricing.manual_in_use ? 'fw-bold' : 'text-muted' }}">
+                                            <t t-if="pricing.manual_in_use"
+                                               t-esc="formatMoney(pricing.manual_price)"/>
+                                            <t t-else="">—</t>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Per sqft</td>
+                                        <td class="text-end">
+                                            <t t-esc="formatMoney(pricing.calculated_per_sqft)"/>
+                                        </td>
+                                        <td class="text-end">
+                                            <t t-if="pricing.manual_in_use"
+                                               t-esc="formatMoney(pricing.manual_rate)"/>
+                                            <t t-else="">—</t>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Margin</td>
+                                        <td class="text-end">
+                                            <t t-esc="pricing.calculated_margin_pct.toFixed(1)"/>%
+                                        </td>
+                                        <td t-attf-class="text-end {{ marginIsThin ? 'text-danger fw-bold' : '' }}">
+                                            <t t-if="pricing.manual_in_use">
+                                                <t t-esc="pricing.manual_margin_pct.toFixed(1)"/>%
+                                            </t>
+                                            <t t-else="">—</t>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <div class="mb-2">
+                                <label class="form-label small text-muted mb-0">
+                                    Manual rate (per sqft)
+                                </label>
+                                <input type="number" step="any" min="0"
+                                       class="form-control form-control-sm"
+                                       placeholder="Empty = use calculated"
+                                       t-att-value="pricing.manual_rate or ''"
+                                       t-on-input="() => this.markDirty()"
+                                       t-on-change="onManualRateChange"/>
+                                <div class="form-text small">
+                                    Clear it to return to the calculated
+                                    price. Figures refresh on save.
+                                </div>
+                            </div>
+
+                            <div t-attf-class="small {{ marginIsThin ? 'text-danger' : 'text-muted' }}">
+                                Minimum margin
+                                <t t-esc="pricing.min_margin_pct"/>%
+                                <t t-if="marginIsThin">
+                                    — below it, the quote cannot be confirmed.
+                                </t>
+                            </div>
                         </div>
 
                         <!-- BOM and Checks (spec 6.5, 6.6). Regenerated on

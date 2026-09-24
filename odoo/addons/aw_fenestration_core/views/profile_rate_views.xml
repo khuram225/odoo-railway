@@ -6,14 +6,19 @@
         <field name="name">aw.profile.rate.list</field>
         <field name="model">aw.profile.rate</field>
         <field name="arch" type="xml">
-            <list>
-                <field name="date_from"/>
+            <list decoration-muted="status in ('superseded', 'expired')"
+                  decoration-info="status == 'future'"
+                  decoration-danger="status == 'expired'">
+                <field name="date_from" string="Effective from"/>
+                <field name="date_to" string="Effective to"/>
+                <field name="status"/>
                 <field name="product_tmpl_id"/>
                 <field name="thickness_id"/>
                 <field name="finish_id"/>
                 <field name="price"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="vendor_id"/>
+                <field name="date_end" optional="hide"/>
                 <field name="source_note" optional="hide"/>
             </list>
         </field>
@@ -27,8 +32,18 @@
                 <field name="product_tmpl_id"/>
                 <field name="vendor_id"/>
                 <field name="date_from"/>
-                <filter name="in_force" string="In force today"
-                        domain="[('date_from', '&lt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <!-- Date domains, not a domain on `status`: status is
+                     computed from today's date and is not stored, so it
+                     cannot be searched. Expressing the same thing in
+                     dates keeps the filters working without a
+                     search= method whose only job would be to rebuild
+                     these very domains. -->
+                <filter name="current" string="Current"
+                        domain="['&amp;', ('date_from', '&lt;=', context_today().strftime('%Y-%m-%d')), '|', ('date_to', '=', False), ('date_to', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="future" string="Future"
+                        domain="[('date_from', '&gt;', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="closed" string="Superseded or expired"
+                        domain="[('date_to', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
                 <!-- A bare <group>, as core's own v19 search views
                      use. Neither expand= nor string= is allowed here any
                      more: base/rng/common.rng permits only colspan,
@@ -53,7 +68,7 @@
         <field name="name">Profile Rates</field>
         <field name="res_model">aw.profile.rate</field>
         <field name="view_mode">list,form</field>
-        <field name="context">{'search_default_group_date': 1}</field>
+        <field name="context">{'search_default_current': 1, 'search_default_group_date': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No profile rates yet</p>
             <p>Import a melted price list rather than typing rates in.

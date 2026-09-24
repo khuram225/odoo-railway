@@ -229,6 +229,18 @@ class AwDesign(models.Model):
         this goes near the customer PDF."""
         self.ensure_one()
         values = self.price_structure_id._values()
+        # Both prices, always, so the panel can show what the manual rate
+        # is being used INSTEAD OF. Showing only the one in force makes
+        # the override impossible to judge.
+        units = max(1, self.qty or 1)
+        total_sqft = (self.area_sqft or 0.0) * units
+        calculated = self.basic_value
+        manual = self.manual_rate * total_sqft if self.manual_rate else 0.0
+
+        def margin_of(price):
+            return ((price - self.cost_total) / price * 100.0
+                    if price else 0.0)
+
         return {
             'pricing': {
                 'structure': self.price_structure_id.display_name or '',
@@ -240,6 +252,13 @@ class AwDesign(models.Model):
                 'margin_pct': self.margin_pct,
                 'min_margin_pct': self._min_margin_pct(),
                 'manual_rate': self.manual_rate,
+                'manual_in_use': bool(self.manual_rate),
+                'calculated_price': calculated,
+                'calculated_per_sqft': (
+                    calculated / total_sqft if total_sqft else 0.0),
+                'calculated_margin_pct': margin_of(calculated),
+                'manual_price': manual,
+                'manual_margin_pct': margin_of(manual),
                 'uncosted': self.uncosted_line_count,
                 'components': [
                     {'name': line.name,

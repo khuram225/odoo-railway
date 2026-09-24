@@ -488,6 +488,24 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   "Save as preset" crashed while "Add Position" worked. Declare `views`
   and it is safe on both paths.
 
+- `scripts/check_rate_chain.py` exercises `resolve_chain()` from
+  `aw_fenestration_core/models/profile_rate.py` — the function that
+  decides when each version of a profile rate stops applying. Getting
+  it wrong is expensive and silent: a rate closing a day late overlaps
+  its successor and the lookup takes whichever sorts first; a day early
+  leaves a gap where a quote has no price at all. Neither raises
+  anything. `resolve_chain` is therefore kept free of Odoo imports (the
+  same reason as `formula.py` and `layout_rules.py`) so the check runs
+  the REAL function. Covers back-dated inserts, manual end dates either
+  side of the successor, duplicate start dates, and chain continuity.
+  **`date_to` is a plain stored field written explicitly, not an
+  `@api.depends` compute** — it depends on a SIBLING record (the next
+  version), and `@api.depends` cannot say "recompute my neighbour when
+  I change"; Odoo would recompute the row that changed and never the
+  one before it. `create`/`write`/`unlink` rebuild the affected chains
+  whole, `write` collecting keys on BOTH sides because changing
+  thickness/finish/vendor/date_from moves a rate between chains.
+
 - `scripts/check_view_schemas.py` validates every standalone view arch
   against **Odoo's own RelaxNG schemas** (`../odoo-src/odoo/addons/base/
   rng/*.rng`), which is the same validation the Upgrade runs. It exists
