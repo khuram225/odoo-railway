@@ -64,12 +64,23 @@
                     <t t-name="card" class="p-2">
                         <div class="o_aw_family_card text-center">
                             <!-- The family's own picture when it has one,
-                                 otherwise its first preset's drawing. -->
-                            <img t-if="record.image_128.raw_value"
-                                 t-att-src="kanban_image('aw.layout.family', 'image_128', record.id.raw_value)"
-                                 class="o_aw_family_img" alt="Family"/>
-                            <field t-else="" name="preview_layout_json"
-                                   widget="preset_thumbnail"/>
+                                 otherwise its first preset's drawing.
+
+                                 Both branches are wrapped in <t>, not
+                                 carried on the elements themselves: a
+                                 kanban <field> becomes a Field COMPONENT
+                                 and every attribute is passed through as
+                                 attrs, so a t-else on it compiles to
+                                 `attrs: {'t-else':, ...}` and the
+                                 template fails to compile at all. -->
+                            <t t-if="record.image_128.raw_value">
+                                <img t-att-src="kanban_image('aw.layout.family', 'image_128', record.id.raw_value)"
+                                     class="o_aw_family_img" alt="Family"/>
+                            </t>
+                            <t t-else="">
+                                <field name="preview_layout_json"
+                                       widget="preset_thumbnail"/>
+                            </t>
                             <div class="fw-bold mt-2">
                                 <field name="name"/>
                             </div>

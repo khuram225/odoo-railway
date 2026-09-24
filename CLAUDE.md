@@ -517,6 +517,20 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   of the Chawla list closes ~3473 rates at once and they nearly all
   share a date_to.
 
+- `scripts/check_kanban_fields.py` rejects `t-if`/`t-elif`/`t-else`/
+  `t-foreach`/`t-as`/`t-call` placed directly on a `<field>` inside a
+  **kanban** arch. A kanban `<field>` is not markup: the web client
+  turns it into a Field **component** and passes every attribute
+  through as `attrs`, so `t-else=""` compiles to
+  `attrs: {'t-else':, ...}` and the template dies with OwlError
+  *"Unexpected token ','"* the moment anyone opens the view. Wrap the
+  field instead — `<t t-else=""><field .../></t>`. Nothing else caught
+  it: the XML is well-formed, load order is fine, and
+  `check_view_schemas.py` can't help because **Odoo ships no RelaxNG
+  for kanban** (it's validated by Python in core, which doesn't look at
+  this). `t-att`/`t-attf` are deliberately allowed — they set an
+  attribute value rather than controlling whether the element renders.
+
 - `scripts/check_view_schemas.py` validates every standalone view arch
   against **Odoo's own RelaxNG schemas** (`../odoo-src/odoo/addons/base/
   rng/*.rng`), which is the same validation the Upgrade runs. It exists
