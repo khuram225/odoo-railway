@@ -256,6 +256,36 @@ export class DesignConfigurator extends Component {
         return this.state.data?.series_options || [];
     }
 
+    get glassSpecOptions() {
+        return this.state.data?.glass_specs || [];
+    }
+
+    get finishOptions() {
+        return this.state.data?.finish_options || [];
+    }
+
+    get sectionOptions() {
+        return this.state.data?.section_options || [];
+    }
+
+    get hardwareOptions() {
+        return this.state.data?.hardware_options || [];
+    }
+
+    /**
+     * Only worth a dropdown when there is a choice to make. With one
+     * Profile Section the value is already right and a picker with a
+     * single entry is just noise; with none, there is nothing to pick
+     * and the checks say so.
+     */
+    get showSectionPicker() {
+        return this.sectionOptions.length > 1;
+    }
+
+    get showHardwarePicker() {
+        return this.hardwareOptions.length > 1;
+    }
+
     /** Leaf type codes used anywhere in the layout, containers skipped. */
     usedLeafTypeCodes(rows) {
         const codes = new Set();
@@ -317,10 +347,32 @@ export class DesignConfigurator extends Component {
         // The catalogue comes back too, so the library's mesh and infill
         // sections stay in step with whatever the new Series allows.
         for (const key of ["mesh_types", "infill_types", "glass_specs",
-                           "grid_patterns", "families"]) {
+                           "grid_patterns", "families", "section_options",
+                           "hardware_options"]) {
             if (context[key]) {
                 this.state.data[key] = context[key];
             }
+        }
+
+        // The rule sets belong to the Series, so a stale choice would
+        // point at another Series' section. Mirrors _compute_rule_sets:
+        // keep it only if the new Series still offers it.
+        for (const [field, options] of [
+            ["profile_section_id", this.sectionOptions],
+            ["hardware_set_id", this.hardwareOptions],
+        ]) {
+            const current = this.state.data.header[field];
+            if (!options.some((o) => o.id === current)) {
+                this.state.data.header[field] = options.length
+                    ? options[0].id : false;
+            }
+        }
+        // Default glass FILLS only, matching _compute_glass_spec on the
+        // server: switching Series must not replace glass someone chose.
+        if (!this.state.data.header.glass_spec_id
+                && context.default_glass_spec_id) {
+            this.state.data.header.glass_spec_id =
+                context.default_glass_spec_id;
         }
 
         if (reset) {
@@ -372,6 +424,32 @@ export class DesignConfigurator extends Component {
      */
     onQtyChange(ev) {
         this.onHeaderChange('qty', parseInt(ev.target.value, 10) || 1);
+    }
+
+    /**
+     * One converter for every Many2one dropdown in the header. The
+     * empty option yields "", which must become false rather than 0 or
+     * NaN -- the server writes this straight onto the record.
+     */
+    onHeaderIdChange(field, ev) {
+        const id = parseInt(ev.target.value, 10);
+        this.onHeaderChange(field, Number.isNaN(id) ? false : id);
+    }
+
+    onGlassSpecChange(ev) {
+        this.onHeaderIdChange("glass_spec_id", ev);
+    }
+
+    onFinishChange(ev) {
+        this.onHeaderIdChange("finish_id", ev);
+    }
+
+    onSectionChange(ev) {
+        this.onHeaderIdChange("profile_section_id", ev);
+    }
+
+    onHardwareSetChange(ev) {
+        this.onHeaderIdChange("hardware_set_id", ev);
     }
 
     onBuilderPanelsChange(ev) {

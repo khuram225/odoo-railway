@@ -21,6 +21,14 @@ MAX_STOCK_BAR_MM = 18 * 304.8  # 18 ft
 # as what the reader can see on the drawing, not as the internal scope
 # name: "1 interlock junction" is actionable, "junction_interlock" is
 # not.
+# Keys the checks read that are NOT fields on aw.design.bom.line. Kept
+# as one list because each is stripped in exactly one place, and a new
+# one forgotten there fails the create with an obscure error.
+CHECK_ONLY_KEYS = frozenset({
+    'missing_product', 'position_id', 'missing_glass',
+    'glass_without_product', 'glass_spec_name',
+})
+
 SCOPE_DEMAND_LABEL = {
     'frame': ('frame', 'frames'),
     'panel_opening': ('opening panel', 'opening panels'),
@@ -259,7 +267,13 @@ class AwDesign(models.Model):
                 'glass_w': width,
                 'glass_h': height,
                 'qty': 1,
-                'missing_product': not (spec and spec.product_id),
+                # Not `missing_product`: that reports per line, and glass
+                # is chosen once in the header, so a 6-panel design would
+                # say the same thing six times. Flagged separately and
+                # summarised once per design instead.
+                'missing_glass': not spec,
+                'glass_without_product': bool(spec and not spec.product_id),
+                'glass_spec_name': spec.display_name if spec else '',
             })
 
         if leaf.grid_pattern_id:
@@ -363,9 +377,8 @@ class AwDesign(models.Model):
         sequence = 0
         for values in out:
             sequence += 10
-            values = dict(values)
-            values.pop('missing_product', None)
-            values.pop('position_id', None)
+            values = {k: v for k, v in values.items()
+                      if k not in CHECK_ONLY_KEYS}
             values.update({
                 'design_id': self.id,
                 'sequence': sequence,
@@ -409,6 +422,21 @@ class AwDesign(models.Model):
             if values.get('missing_product'):
                 problems.append(('warning', _(
                     "No product for '%s'.", values.get('label') or '')))
+
+        # Glass is chosen once, so it is reported once -- naming the two
+        # places it can be set, since "no product for P1 glass" told the
+        # reader what was wrong but not where to fix it.
+        if any(v.get('missing_glass') for v in (exploded or [])):
+            problems.append(('warning', _(
+                "No glass selected for %s — choose Glass in the header, "
+                "or set a glass override on the panel.",
+                self.display_name)))
+        without_product = {
+            v.get('glass_spec_name') for v in (exploded or [])
+            if v.get('glass_without_product')}
+        for name in sorted(n for n in without_product if n):
+            problems.append(('warning', _(
+                "Glass '%s' has no product, so it can't be costed.", name)))
 
         for line in self.bom_line_ids:
             if line.kind == 'profile' and line.length_mm > MAX_STOCK_BAR_MM:

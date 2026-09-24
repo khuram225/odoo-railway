@@ -88,8 +88,13 @@ class AwDesign(models.Model):
         help="Optional starting default — populates Profile Section / "
              "Hardware Set / Glass Spec choices below when picked. Not "
              "required: a design can be built without one.")
+    # Computed store=True readonly=False, like the rule sets below: a new
+    # design picks up the Series' default glass, but the compute only
+    # ever FILLS an empty value, so changing Series never silently
+    # replaces glass someone chose.
     glass_spec_id = fields.Many2one(
-        'aw.glass.spec', tracking=True, ondelete='restrict')
+        'aw.glass.spec', tracking=True, ondelete='restrict',
+        compute='_compute_glass_spec', store=True, readonly=False)
 
     # -- which rules this design is built to (spec 6, addition A) ----------
     # Computed with store=True and readonly=False: they follow the Series
@@ -163,6 +168,19 @@ class AwDesign(models.Model):
     size_display = fields.Char(compute='_compute_size_display', string='Size')
     area_sqm = fields.Float(compute='_compute_area', store=True, string='Area (m²)')
     area_sqft = fields.Float(compute='_compute_area', store=True, string='Area (sqft)')
+
+    @api.depends('window_series_id')
+    def _compute_glass_spec(self):
+        """Fill from the Series' default, never replace.
+
+        Assigning on every record is deliberate: a stored compute that
+        leaves one unassigned raises, and `or` expresses the rule
+        exactly -- keep what is there, otherwise take the default.
+        """
+        for design in self:
+            design.glass_spec_id = (
+                design.glass_spec_id
+                or design.window_series_id.default_glass_spec_id)
 
     @api.depends('window_series_id')
     def _compute_rule_sets(self):
@@ -374,6 +392,7 @@ class AwDesign(models.Model):
     CONFIGURATOR_HEADER_FIELDS = (
         'name', 'location', 'qty', 'width_mm', 'height_mm',
         'window_series_id', 'glass_spec_id', 'finish_id', 'thickness_id',
+        'profile_section_id', 'hardware_set_id',
         'manual_rate',
     )
 
@@ -467,8 +486,40 @@ class AwDesign(models.Model):
             } for lt in series.leaf_type_ids],
             'presets': [self._preset_payload(p) for p in presets],
             'families': self._families_payload(presets),
+            # So the header's Profile Section / Hardware Set dropdowns
+            # and the Series' default glass follow a Series change
+            # without a reload.
+            **self._rule_set_options(series),
+            'default_glass_spec_id': series.default_glass_spec_id.id,
             **self._attachment_catalogue(),
         }
+
+    @api.model
+    def _rule_set_options(self, series):
+        """The Profile Sections and Hardware Sets this Series offers."""
+        return {
+            'section_options': [
+                {'id': s.id, 'name': s.display_name}
+                for s in series.profile_section_ids],
+            'hardware_options': [
+                {'id': h.id, 'name': h.display_name}
+                for h in series.hardware_set_ids],
+        }
+
+    @api.model
+    def _finish_options(self):
+        """Finish attribute values, for the header dropdown. Read off the
+        attribute by xmlid rather than by name, matching finish_id's own
+        domain -- a renamed attribute errors instead of silently
+        returning nothing."""
+        attribute = self.env.ref(
+            'aw_fenestration_core.aw_attribute_finish',
+            raise_if_not_found=False)
+        if not attribute:
+            return []
+        return [{'id': v.id, 'name': v.display_name}
+                for v in self.env['product.attribute.value'].search(
+                    [('attribute_id', '=', attribute.id)])]
 
     @api.model
     def _attachment_catalogue(self):
@@ -581,7 +632,12 @@ class AwDesign(models.Model):
                 'glass_spec_id': self.glass_spec_id.id,
                 'finish_id': self.finish_id.id,
                 'thickness_id': self.thickness_id.id,
+                'profile_section_id': self.profile_section_id.id,
+                'hardware_set_id': self.hardware_set_id.id,
             },
+            'finish_options': self._finish_options(),
+            'default_glass_spec_id': series.default_glass_spec_id.id,
+            **self._rule_set_options(series),
             'size_display': self.size_display,
             'series_options': [{
                 'id': s.id,

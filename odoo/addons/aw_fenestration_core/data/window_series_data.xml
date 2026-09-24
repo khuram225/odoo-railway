@@ -17,6 +17,10 @@
     -->
     <data>
         <function model="aw.window.series" name="_seed_default_leaf_types"/>
+        <!-- Runs BEFORE _seed_bom_defaults so the Palay Bead xmlids
+             already point at the surviving records when it looks them
+             up. -->
+        <function model="aw.profile.position" name="_seed_palay_bead_positions"/>
         <function model="aw.profile.position" name="_seed_bom_defaults"/>
         <function model="aw.profile.position" name="_seed_required_flags"/>
         <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>

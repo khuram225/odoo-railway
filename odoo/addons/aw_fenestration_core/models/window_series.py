@@ -86,6 +86,13 @@ class AwWindowSeries(models.Model):
     # Placeholders, marked [revisit] in the spec: plausible round numbers,
     # not shop-measured ones. A limit of 0 means "not checked", so a
     # Series nobody has tuned never raises a false alarm.
+    default_glass_spec_id = fields.Many2one(
+        'aw.glass.spec', string='Default Glass', tracking=True,
+        ondelete='restrict',
+        help="A new design in this Series starts with this glass. Only "
+             "fills a design that has none, so it never overrides a "
+             "choice someone has made.")
+
     glass_fixed_w = fields.Char(string='Fixed Glass Width', default='PW - 60')
     glass_fixed_h = fields.Char(string='Fixed Glass Height', default='PH - 60')
     glass_sash_w = fields.Char(string='Sash Glass Width', default='PW - 80')

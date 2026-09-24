@@ -124,6 +124,24 @@ clearing a Series' leaf types to none is not a stable state, since
 "empty" is the signal for "never configured" — archive the Series
 instead.
 
+**Seeding an open-ended, user-editable table must match on NAME, not
+just xmlid.** `Palay Bead - Top/Bottom/Sides` were first declared as
+plain `<record>`s in `dynamic_seed_data.xml`. The client had already
+created positions with those exact names by hand, and an xmlid cannot
+see a user-made record — so the upgrade made a second set of three, one
+carrying the seeded rules and one carrying what the Profile Sections
+actually pointed at. `_seed_palay_bead_positions()` replaces them:
+it looks the position up by name (`=ilike`, so case differences do not
+make a third one), adopts it or creates one, and writes the seed xmlid
+onto it via `ir.model.data`. Where duplicates already exist it
+reconciles them — **the record the section lines point at wins**, since
+re-pointing a live line is the only step that could change a BOM, and
+the loser's lines are moved before it is unlinked. Removing the
+`<record>` tags is safe precisely because that block is `noupdate="1"`:
+`_process_end` only clears rows with `COALESCE(noupdate, false) != true`
+(verified in `odoo-src`'s `ir_model.py`), so the existing ir.model.data
+rows survive having their `<record>` deleted.
+
 **A Boolean cannot use that guard**, and `aw.profile.position.is_required`
 is the case in point: False is both "someone unticked this" and "never
 configured", so there is no empty state to test, and re-asserting the
@@ -414,7 +432,11 @@ from `.git/hooks` by default, which isn't tracked — enable once per clone):
   badges inside `scene`. Note *why* it runs the real class: the offline
   arithmetic tests that missed it were standalone reimplementations, so
   they exercised the maths but never the getters, and a cycle only
-  exists between real getters. A second phase checks every method the
+  exists between real getters. **The getters are enumerated off the
+  class prototype, not listed by hand** — the list used to be manual,
+  and had silently fallen twenty getters behind (26 of 46 checked), so a
+  cycle in any of the other twenty would have shipped exactly the way
+  the original one did. A second phase checks every method the
   template names actually exists on the component, and fires each
   bare-name `t-on-*` handler with a fake event. Worth knowing its limit:
   it does **not** catch a global called inside an inline arrow

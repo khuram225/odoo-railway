@@ -47,6 +47,7 @@
                         </group>
                         <group>
                             <field name="product_category_id"/>
+                            <field name="default_glass_spec_id"/>
                             <field name="sequence"/>
                             <field name="active" invisible="1"/>
                         </group>

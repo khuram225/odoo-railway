@@ -43,6 +43,11 @@ def check_seed_xmlids(position_source):
         r'<record id="(pos_\w+)" model="aw\.profile\.position"',
         (CORE / 'data' / 'dynamic_seed_data.xml').read_text(
             encoding='utf-8')))
+    # Palay Bead is seeded by name rather than as a <record>, so that it
+    # adopts a position the client already made instead of duplicating
+    # it. Those xmlids are just as real.
+    seeded |= set(re.findall(
+        r"\('(pos_\w+)', '", position_source))
     problems = []
     for name in ('BOM_DEFAULTS', 'OPTIONAL_POSITIONS'):
         match = re.search(
@@ -57,6 +62,46 @@ def check_seed_xmlids(position_source):
                 '%s names %r, which dynamic_seed_data.xml never creates'
                 % (name, xmlid))
     return problems
+
+
+def check_bom_line_keys():
+    """Every key the engine puts in a piece dict must be writable.
+
+    The engine builds plain dicts and finally create()s them as
+    aw.design.bom.line. A key that is neither a field on that model nor
+    listed in CHECK_ONLY_KEYS (the ones the checks read and the create
+    strips) blows up the create -- on save, on a real quote, with an
+    error naming only the field. Cheap to catch here.
+    """
+    explosion = (DESIGN / 'models' / 'explosion.py').read_text(
+        encoding='utf-8')
+    bom_line = (DESIGN / 'models' / 'design_bom_line.py').read_text(
+        encoding='utf-8')
+
+    fields = set(re.findall(r'^\s{4}(\w+) = fields\.', bom_line, re.M))
+    fields |= {'design_id', 'sequence'}       # set by the create itself
+
+    match = re.search(r'CHECK_ONLY_KEYS = frozenset\(\{(.*?)\}\)', explosion,
+                      re.S)
+    if not match:
+        return ['CHECK_ONLY_KEYS not found in explosion.py']
+    transient = set(re.findall(r"'(\w+)'", match.group(1)))
+
+    # A piece dict is exactly one carrying 'kind'. Discriminating on that
+    # rather than on indentation keeps the formula context and the scope
+    # labels -- both plain dicts in the same file -- out of it.
+    used = set()
+    for node in ast.walk(ast.parse(explosion)):
+        if not isinstance(node, ast.Dict):
+            continue
+        keys = {k.value for k in node.keys
+                if isinstance(k, ast.Constant) and isinstance(k.value, str)}
+        if 'kind' in keys:
+            used |= keys
+
+    unknown = sorted(used - fields - transient)
+    return ["engine emits %r, which is neither an aw.design.bom.line "
+            "field nor in CHECK_ONLY_KEYS" % key for key in unknown]
 
 
 def check_scope_labels(position_source):
@@ -140,6 +185,7 @@ def main():
 
     problems.extend(check_seed_xmlids(source))
     problems.extend(check_scope_labels(source))
+    problems.extend(check_bom_line_keys())
 
     if problems:
         print('Formula problems:')

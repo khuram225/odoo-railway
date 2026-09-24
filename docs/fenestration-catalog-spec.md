@@ -336,6 +336,16 @@ plan; these are the decisions taken while implementing it):
    import from a module that depends on it. `models/formula.py` has no
    Odoo imports at all, so `scripts/check_formulas.py` can run the real
    grammar against every seeded formula rather than a copy of it.
+2a. **Palay Bead is seeded by NAME, not as `<record>`s.** Declaring them
+   as records made duplicates of three positions the client had already
+   created by hand — an xmlid cannot see a user-made record.
+   `_seed_palay_bead_positions()` adopts a position of that name
+   (case-insensitively) or creates one, and reconciles the duplicates:
+   whichever record the Profile Section lines already point at survives,
+   any lines on the loser are re-pointed first, and the seed xmlid is
+   moved onto the survivor. **Any future seed into an open-ended,
+   user-editable table should match on name for the same reason.**
+
 2. **`Palay Bead - Top/Bottom/Sides` are seeded**, scope `panel_opening`,
    with the same deductions as Fixed Bead, and are the only positions
    flagged `is_required = False`: some sash profiles have the glazing

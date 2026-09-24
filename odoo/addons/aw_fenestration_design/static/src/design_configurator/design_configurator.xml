@@ -71,6 +71,56 @@
                                 </t>
                             </select>
                         </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">Glass</label>
+                            <select class="form-select form-select-sm"
+                                    t-on-change="onGlassSpecChange">
+                                <option value="">No glass</option>
+                                <t t-foreach="glassSpecOptions" t-as="opt" t-key="opt.id">
+                                    <option t-att-value="opt.id"
+                                            t-att-selected="opt.id === state.data.header.glass_spec_id">
+                                        <t t-esc="opt.name"/>
+                                    </option>
+                                </t>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">Finish</label>
+                            <select class="form-select form-select-sm"
+                                    t-on-change="onFinishChange">
+                                <option value="">No finish</option>
+                                <t t-foreach="finishOptions" t-as="opt" t-key="opt.id">
+                                    <option t-att-value="opt.id"
+                                            t-att-selected="opt.id === state.data.header.finish_id">
+                                        <t t-esc="opt.name"/>
+                                    </option>
+                                </t>
+                            </select>
+                        </div>
+                        <div t-if="showSectionPicker">
+                            <label class="form-label small text-muted mb-0">Profile Section</label>
+                            <select class="form-select form-select-sm"
+                                    t-on-change="onSectionChange">
+                                <t t-foreach="sectionOptions" t-as="opt" t-key="opt.id">
+                                    <option t-att-value="opt.id"
+                                            t-att-selected="opt.id === state.data.header.profile_section_id">
+                                        <t t-esc="opt.name"/>
+                                    </option>
+                                </t>
+                            </select>
+                        </div>
+                        <div t-if="showHardwarePicker">
+                            <label class="form-label small text-muted mb-0">Hardware Set</label>
+                            <select class="form-select form-select-sm"
+                                    t-on-change="onHardwareSetChange">
+                                <t t-foreach="hardwareOptions" t-as="opt" t-key="opt.id">
+                                    <option t-att-value="opt.id"
+                                            t-att-selected="opt.id === state.data.header.hardware_set_id">
+                                        <t t-esc="opt.name"/>
+                                    </option>
+                                </t>
+                            </select>
+                        </div>
                         <div class="ms-auto d-flex gap-2">
                             <button class="btn btn-sm btn-secondary" t-on-click="saveAsPreset"
                                     title="Save this layout as a reusable preset">

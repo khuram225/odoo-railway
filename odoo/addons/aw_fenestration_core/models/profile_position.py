@@ -119,6 +119,77 @@ class AwProfilePosition(models.Model):
                 position.write(values)
 
     @api.model
+    def _seed_palay_bead_positions(self):
+        """Seed Palay Bead by ADOPTING a position of that name, and
+        reconcile the duplicates the first attempt created.
+
+        The first version declared these as plain <record>s. The client
+        had already created "Palay Bead - Top / Bottom / Sides" by hand,
+        so the upgrade did not recognise them and made a second set --
+        two of each, one carrying the seeded rules and one carrying
+        whatever the Profile Sections actually point at. Seeding an
+        open-ended, user-editable table by xmlid alone cannot see a
+        record a user made, so matching on name is the only way to be
+        idempotent against one.
+
+        Which of a duplicate pair survives is decided by the section
+        lines: re-pointing a live line is the one thing here that could
+        change a BOM, so the record already in use wins and the unused
+        one is removed. The seed xmlid is then repointed at the
+        survivor, so every later seed and every ref() finds the record
+        the shop is really using.
+        """
+        data = self.env['ir.model.data'].sudo()
+        lines = self.env['aw.profile.section.line'].sudo()
+        adopted = 0
+        for xmlid, name, sequence, edge, length in PALAY_BEAD_SEED:
+            # =ilike is an exact match that ignores case, so "Palay bead
+            # - Top" is recognised as the same position rather than
+            # quietly becoming a third one.
+            candidates = self.with_context(active_test=False).search(
+                [('name', '=ilike', name)], order='id')
+            if not candidates:
+                position = self.create({'name': name, 'sequence': sequence})
+            else:
+                in_use = set(lines.search(
+                    [('position_id', 'in', candidates.ids)]
+                ).mapped('position_id').ids)
+                position = next(
+                    (c for c in candidates if c.id in in_use), candidates[0])
+                duplicates = candidates - position
+                if duplicates:
+                    lines.search(
+                        [('position_id', 'in', duplicates.ids)]
+                    ).write({'position_id': position.id})
+                    data.search([
+                        ('model', '=', 'aw.profile.position'),
+                        ('res_id', 'in', duplicates.ids),
+                    ]).unlink()
+                    duplicates.unlink()
+                    adopted += len(duplicates)
+
+            # Fill-only-if-empty, as everywhere else here: a position the
+            # client has already configured keeps its own rules.
+            if not position.scope:
+                position.write({
+                    'scope': 'panel_opening', 'edge': edge,
+                    'default_length': length, 'default_angle': '45',
+                    'is_required': False,
+                })
+
+            record = data.search([
+                ('module', '=', 'aw_fenestration_core'),
+                ('name', '=', xmlid),
+            ])
+            values = {
+                'module': 'aw_fenestration_core', 'name': xmlid,
+                'model': 'aw.profile.position', 'res_id': position.id,
+                'noupdate': True,
+            }
+            record.write(values) if record else data.create(values)
+        return adopted
+
+    @api.model
     def _seed_required_flags(self):
         """Mark the optional positions, once per database.
 
@@ -146,6 +217,16 @@ class AwProfilePosition(models.Model):
 
 
 REQUIRED_SEEDED_PARAM = 'aw_fenestration.position_required_seeded'
+
+# xmlid, name, sequence, edge, length formula. Same deductions as Fixed
+# Bead: it is the same bead doing the same job, in a sash rather than a
+# fixed panel. Seeded by name (see _seed_palay_bead_positions), not as
+# <record>s.
+PALAY_BEAD_SEED = (
+    ('pos_palay_bead_top', 'Palay Bead - Top', 62, 'top', 'PW - 40'),
+    ('pos_palay_bead_bottom', 'Palay Bead - Bottom', 64, 'bottom', 'PW - 40'),
+    ('pos_palay_bead_sides', 'Palay Bead - Sides', 66, 'sides', 'PH - 40'),
+)
 
 # Everything else is required. A sash profile often has the glazing
 # channel built in, so a section with no Palay Bead line is normal.
@@ -177,17 +258,6 @@ BOM_DEFAULTS = {
     'pos_palay_sides': {
         'scope': 'panel_opening', 'edge': 'sides',
         'default_length': 'PH - 10', 'default_angle': '45'},
-    # Same deductions as Fixed Bead: it is the same bead doing the same
-    # job, just in an opening sash rather than a fixed panel.
-    'pos_palay_bead_top': {
-        'scope': 'panel_opening', 'edge': 'top',
-        'default_length': 'PW - 40', 'default_angle': '45'},
-    'pos_palay_bead_bottom': {
-        'scope': 'panel_opening', 'edge': 'bottom',
-        'default_length': 'PW - 40', 'default_angle': '45'},
-    'pos_palay_bead_sides': {
-        'scope': 'panel_opening', 'edge': 'sides',
-        'default_length': 'PH - 40', 'default_angle': '45'},
     'pos_bead_top': {
         'scope': 'panel_fixed', 'edge': 'top',
         'default_length': 'PW - 40', 'default_angle': '45'},

@@ -72,21 +72,14 @@
         <record id="pos_palay_sides" model="aw.profile.position">
             <field name="name">Palay - Sides</field><field name="sequence">60</field>
         </record>
-        <!-- The bead that retains glass in an OPENING sash, as distinct
-             from Fixed Bead below. Confirmed by the client: some sash
-             profiles have the glazing channel built in and need no
-             separate bead, so a Profile Section is not expected to carry
-             lines for these. The engine generates nothing for a position
-             with no line, and the checks stay quiet about it. -->
-        <record id="pos_palay_bead_top" model="aw.profile.position">
-            <field name="name">Palay Bead - Top</field><field name="sequence">62</field>
-        </record>
-        <record id="pos_palay_bead_bottom" model="aw.profile.position">
-            <field name="name">Palay Bead - Bottom</field><field name="sequence">64</field>
-        </record>
-        <record id="pos_palay_bead_sides" model="aw.profile.position">
-            <field name="name">Palay Bead - Sides</field><field name="sequence">66</field>
-        </record>
+        <!-- Palay Bead - Top / Bottom / Sides are deliberately NOT
+             <record>s: they are seeded by _seed_palay_bead_positions(),
+             which adopts a position of that name if one already exists
+             instead of creating a second one. Declaring them here made
+             duplicates of the three the client had already created by
+             hand. These ir.model.data rows are noupdate="1", so removing
+             the records does not vacuum them: _process_end only clears
+             rows with COALESCE(noupdate, false) != true. -->
         <record id="pos_mesh_all" model="aw.profile.position">
             <field name="name">Mesh - All Sides</field><field name="sequence">70</field>
         </record>

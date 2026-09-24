@@ -106,35 +106,10 @@ const TARGETS = [
                 ],
             },
         }),
-        // Getters that must each evaluate once without recursing.
-        getters: [
-            "scene",
-            "adornments",
-            "fitScale",
-            "unitsPerPixel",
-            "renderedSize",
-            "zoomPercent",
-            "uom",
-            "uomLabel",
-            "selectedLeaf",
-            "selectedLeafType",
-            "selectedPanelLabel",
-            "presetsByCategory",
-            "canSplit",
-            "canRemove",
-            "selectedSceneLeaf",
-            "selectedDividerEntry",
-            "selectionMode",
-            "selectedPanel",
-            "selectedPanelSize",
-            "selectedPanelWidthText",
-            "selectedPanelHeightText",
-            "seriesOptions",
-            "junctionOptions",
-            "presetsByFamily",
-            "canUseSlidingBuilder",
-            "slidingBuilderErrors",
-        ],
+        // No list of getters here on purpose: they are enumerated
+        // off the class prototype (see getterNames), so one added
+        // later cannot slip past this check. Add "skipGetters" only
+        // if some getter genuinely cannot be read offline.
         // Every getter is read under EACH of these. A selection bug only
         // shows in one state -- the crash this check was extended for
         // happened solely with a divider selected, where state.selected
@@ -214,6 +189,26 @@ for (const target of TARGETS) {
         continue;
     }
 
+    /**
+     * Every getter on the class, read off the prototype rather than from
+     * a hand-written list.
+     *
+     * The list used to be maintained by hand, which quietly defeated the
+     * point: six getters added in one round were never read by this
+     * check at all, so a cycle in any of them would have shipped exactly
+     * the way the original one did. `target.getters` now only names
+     * getters that must be SKIPPED, if any ever need to be.
+     */
+    function getterNames(Cls, target) {
+        const skip = new Set(target.skipGetters || []);
+        return Object.entries(
+            Object.getOwnPropertyDescriptors(Cls.prototype)
+        )
+            .filter(([name, d]) => typeof d.get === "function"
+                && name !== "constructor" && !skip.has(name))
+            .map(([name]) => name);
+    }
+
     // Object.create, not new: setup() wants services and lifecycle hooks
     // that only exist inside a mounted component. The getters are on the
     // prototype and only need `state`.
@@ -231,7 +226,7 @@ for (const target of TARGETS) {
         selection.apply(instance.state);
 
         const broken = [];
-        for (const name of target.getters) {
+        for (const name of getterNames(Cls, target)) {
             try {
                 void instance[name];
             } catch (err) {
@@ -250,7 +245,8 @@ for (const target of TARGETS) {
             failures += broken.length;
         } else {
             console.log(
-                `  ok   ${selection.label} (${target.getters.length} getters)`
+                `  ok   ${selection.label} ` +
+                    `(${getterNames(Cls, target).length} getters)`
             );
         }
     }
