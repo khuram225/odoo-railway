@@ -29,6 +29,8 @@ const TARGETS = [
     {
         file: "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.js",
         exportName: "DesignConfigurator",
+        template:
+            "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
         // Enough shape for the getters to do real work.
         state: () => ({
             loading: false,
@@ -250,8 +252,97 @@ for (const target of TARGETS) {
     }
 }
 
+// ---------------------------------------------------------------------
+// Phase 2: the template's event handlers.
+//
+// A getter sweep cannot see these -- they only run when the user clicks
+// or changes something, which is why `parseInt(...)` in a t-on-change
+// shipped twice. Every method a template names is checked to exist, and
+// the ones bound as a bare name are actually CALLED with a fake event.
+for (const target of TARGETS) {
+    if (!target.template) {
+        continue;
+    }
+    const xml = readFileSync(target.template, "utf8").replace(
+        /<!--[\s\S]*?-->/g, "");
+
+    // Methods referenced as this.foo( anywhere in the template.
+    const referenced = new Set(
+        [...xml.matchAll(/\bthis\.([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1])
+    );
+    // Handlers bound by bare name: t-on-click="foo".
+    const bare = new Set(
+        [...xml.matchAll(/\bt-on-[\w.]+\s*=\s*"([A-Za-z_$][\w$]*)"/g)].map(
+            (m) => m[1])
+    );
+
+    const source = readFileSync(target.file, "utf8");
+    const tmp2 = join(dir, "handlers.mjs");
+    writeFileSync(tmp2, loadable(source), "utf8");
+    const mod = await import(pathToFileURL(tmp2).href);
+    const Cls = mod[target.exportName];
+
+    const missing = [...referenced, ...bare].filter(
+        (name) => typeof Cls.prototype[name] !== "function"
+    );
+    if (missing.length) {
+        console.log(`  FAIL template names methods that don't exist: ${missing.join(", ")}`);
+        failures += missing.length;
+    } else {
+        console.log(
+            `  ok   all ${referenced.size + bare.size} template-referenced methods exist`
+        );
+    }
+
+    const fakeEvent = () => ({
+        target: { value: "3", checked: true },
+        currentTarget: { value: "3", checked: true },
+        preventDefault() {},
+        stopPropagation() {},
+        clientX: 10,
+        clientY: 10,
+        ctrlKey: false,
+        deltaY: -1,
+        pointerId: 1,
+    });
+
+    const broken = [];
+    for (const name of bare) {
+        const instance = Object.create(Cls.prototype);
+        instance.state = target.state();
+        instance.state.selected = [[0, 0]];
+        instance.props = { action: { params: {}, context: {} } };
+        instance.canvasRef = { el: null };
+        instance.svgRef = { el: null };
+        instance.toolbarRef = { el: null };
+        // Services the handlers may reach for.
+        instance.orm = { call: async () => ({ leaf_types: [], presets: [] }) };
+        instance.notification = { add: () => {} };
+        instance.dialog = { add: () => {} };
+        instance.action = { doAction: () => {} };
+        instance.designId = 1;
+        try {
+            const out = instance[name](fakeEvent());
+            if (out && typeof out.then === "function") {
+                await out;
+            }
+        } catch (err) {
+            broken.push(`${name}: ${err.message}`);
+        }
+    }
+    if (broken.length) {
+        console.log("  FAIL firing template handlers:");
+        for (const b of broken) {
+            console.log(`         ${b}`);
+        }
+        failures += broken.length;
+    } else {
+        console.log(`  ok   ${bare.size} bare-name handler(s) fire without error`);
+    }
+}
+
 if (failures) {
     console.log(`\n${failures} getter failure(s).`);
     process.exit(1);
 }
-console.log("\nAll component getters evaluate in every selection state.");
+console.log("\nGetters evaluate in every selection state; template handlers fire.");

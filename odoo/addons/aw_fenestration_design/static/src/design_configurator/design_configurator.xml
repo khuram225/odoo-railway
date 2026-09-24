@@ -30,7 +30,7 @@
                                    style="width: 5rem;"
                                    t-att-value="state.data.header.qty"
                                    t-on-input="() => this.markDirty()"
-                                   t-on-change="(ev) => this.onHeaderChange('qty', parseInt(ev.target.value) || 1)"/>
+                                   t-on-change="onQtyChange"/>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Location</label>
@@ -62,7 +62,7 @@
                         <div>
                             <label class="form-label small text-muted mb-0">Series</label>
                             <select class="form-select form-select-sm"
-                                    t-on-change="(ev) => this.onSeriesChange(ev.target.value)">
+                                    t-on-change="onSeriesSelectChange">
                                 <t t-foreach="seriesOptions" t-as="opt" t-key="opt.id">
                                     <option t-att-value="opt.id"
                                             t-att-selected="opt.id === state.data.header.window_series_id">
@@ -118,7 +118,7 @@
                                         <div class="col-6">
                                             <label class="form-label small text-muted mb-0">Panels</label>
                                             <select class="form-select form-select-sm"
-                                                    t-on-change="(ev) => this.setBuilder('panels', parseInt(ev.target.value))">
+                                                    t-on-change="onBuilderPanelsChange">
                                                 <t t-foreach="[2,3,4,5,6,7,8,9,10,11,12]" t-as="n" t-key="n">
                                                     <option t-att-value="n" t-att-selected="n === state.builder.panels">
                                                         <t t-esc="n"/>
@@ -129,7 +129,7 @@
                                         <div class="col-6">
                                             <label class="form-label small text-muted mb-0">Tracks</label>
                                             <select class="form-select form-select-sm"
-                                                    t-on-change="(ev) => this.setBuilder('tracks', parseInt(ev.target.value))">
+                                                    t-on-change="onBuilderTracksChange">
                                                 <t t-foreach="[2,3,4]" t-as="n" t-key="n">
                                                     <option t-att-value="n" t-att-selected="n === state.builder.tracks">
                                                         <t t-esc="n"/>
@@ -143,7 +143,7 @@
                                         <input class="form-check-input" type="checkbox"
                                                id="aw_builder_mesh"
                                                t-att-checked="state.builder.mesh"
-                                               t-on-change="(ev) => this.setBuilder('mesh', ev.target.checked)"/>
+                                               t-on-change="onBuilderMeshChange"/>
                                         <label class="form-check-label small" for="aw_builder_mesh">
                                             Mesh track (outermost)
                                         </label>
@@ -156,19 +156,19 @@
                                                 <t t-esc="entry_index + 1"/>
                                             </span>
                                             <select class="form-select form-select-sm"
-                                                    t-on-change="(ev) => this.setBuilderRole(entry_index, ev.target.value)">
+                                                    t-on-change="(ev) => this.onBuilderRoleChange(entry_index, ev)">
                                                 <option value="slider" t-att-selected="entry.role === 'slider'">Sliding</option>
                                                 <option value="fixed" t-att-selected="entry.role === 'fixed'">Fixed</option>
                                             </select>
                                             <select class="form-select form-select-sm"
                                                     t-att-disabled="entry.role !== 'slider'"
-                                                    t-on-change="(ev) => this.setBuilderSlide(entry_index, ev.target.value)">
+                                                    t-on-change="(ev) => this.onBuilderSlideChange(entry_index, ev)">
                                                 <option value="left" t-att-selected="entry.slide === 'left'">&#8592;</option>
                                                 <option value="right" t-att-selected="entry.slide === 'right'">&#8594;</option>
                                             </select>
                                             <select class="form-select form-select-sm"
                                                     style="width: 4rem;"
-                                                    t-on-change="(ev) => this.setBuilderTrack(entry_index, ev.target.value)">
+                                                    t-on-change="(ev) => this.onBuilderTrackChange(entry_index, ev)">
                                                 <t t-foreach="[1,2,3,4]" t-as="tn" t-key="tn">
                                                     <option t-if="tn &lt;= state.builder.tracks"
                                                             t-att-value="tn" t-att-selected="tn === entry.track">

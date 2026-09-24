@@ -57,6 +57,34 @@ COMMENT_RE = re.compile(r'<!--.*?-->', re.DOTALL)
 # selectedPanelLabel / selectedPanelSize / selectedDividerEntry.
 FORBIDDEN_STATE_RE = re.compile(r'\bstate\.(?:selected|selectedDivider)\b')
 
+# owl.js compiles every SYMBOL in a template expression into a lookup on
+# the component context UNLESS it is in its RESERVED_WORDS list. So a
+# template calling parseInt() compiles to ctx['parseInt'](...), which is
+# undefined, and the handler dies with "vNN is not a function" -- but
+# only when the user actually interacts with the control, which is why
+# neither the getter check nor anything else sees it.
+#
+# RESERVED_WORDS (so these DO work and must NOT be flagged -- a checker
+# that cries wolf about Math.round gets ignored):
+#   true false NaN null undefined debugger console window in instanceof
+#   new function return eval void Math RegExp Array Object Date
+#
+# Everything else global is a trap. These are the ones actually reachable
+# from a template.
+UNSAFE_GLOBALS = (
+    'parseInt', 'parseFloat', 'Number', 'String', 'Boolean', 'isNaN',
+    'isFinite', 'JSON', 'Set', 'Map', 'Symbol', 'Promise', 'Error',
+    'encodeURIComponent', 'decodeURIComponent', 'structuredClone',
+)
+
+# Only inside a t-* expression attribute, and only as a call or member
+# access -- a plain word in ordinary text is not an expression.
+EXPR_ATTR_RE = re.compile(r'\b(t-(?:att-[\w-]+|attf-[\w-]+|on-[\w.]+|if|elif'
+                          r'|else|esc|out|set|value|foreach|key|props))\s*=\s*'
+                          r'"([^"]*)"')
+UNSAFE_CALL_RE = re.compile(
+    r'(?<![.\w])(' + '|'.join(UNSAFE_GLOBALS) + r')\s*[.(]')
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -78,6 +106,17 @@ def check_file(path: Path) -> list[str]:
             problems.append(
                 f'{path}:{line}: t-as/t-set="{name}" — reserved in OWL '
                 f'expressions; rename it'
+            )
+
+    for attr_match in EXPR_ATTR_RE.finditer(text):
+        attr, expression = attr_match.group(1), attr_match.group(2)
+        for call in UNSAFE_CALL_RE.finditer(expression):
+            line = text.count('\n', 0, attr_match.start()) + 1
+            problems.append(
+                f'{path}:{line}: {attr} calls the global {call.group(1)}() — '
+                f'OWL resolves it against the component context, where it is '
+                f'undefined, so this only fails when the control is used. '
+                f'Move the conversion into a component method.'
             )
 
     for match in FORBIDDEN_STATE_RE.finditer(text):

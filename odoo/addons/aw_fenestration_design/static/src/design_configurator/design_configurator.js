@@ -348,6 +348,50 @@ export class DesignConfigurator extends Component {
         this.state.dirty = true;
     }
 
+    /**
+     * Event handlers that do their own conversion.
+     *
+     * A template expression like `parseInt(ev.target.value)` does NOT
+     * call the global: OWL compiles every symbol outside its
+     * RESERVED_WORDS list into a lookup on the component context, so it
+     * becomes ctx['parseInt'], which is undefined, and the handler dies
+     * with "vNN is not a function" the moment the field is changed.
+     * (Math, Array, Object, Date and console ARE in that list and do
+     * work -- parseInt, parseFloat, Number, String, Boolean, isNaN and
+     * JSON are not.) Templates call methods; methods do the converting.
+     */
+    onQtyChange(ev) {
+        this.onHeaderChange('qty', parseInt(ev.target.value, 10) || 1);
+    }
+
+    onBuilderPanelsChange(ev) {
+        this.setBuilder("panels", parseInt(ev.target.value, 10) || 2);
+    }
+
+    onBuilderTracksChange(ev) {
+        this.setBuilder("tracks", parseInt(ev.target.value, 10) || 2);
+    }
+
+    onBuilderMeshChange(ev) {
+        this.setBuilder("mesh", ev.target.checked);
+    }
+
+    onBuilderRoleChange(index, ev) {
+        this.setBuilderRole(index, ev.target.value);
+    }
+
+    onBuilderSlideChange(index, ev) {
+        this.setBuilderSlide(index, ev.target.value);
+    }
+
+    onBuilderTrackChange(index, ev) {
+        this.setBuilderTrack(index, ev.target.value);
+    }
+
+    onSeriesSelectChange(ev) {
+        return this.onSeriesChange(ev.target.value);
+    }
+
     onHeaderChange(field, value) {
         this.state.data.header[field] = value;
         this.state.dirty = true;

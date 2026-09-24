@@ -401,7 +401,12 @@ from `.git/hooks` by default, which isn't tracked — enable once per clone):
   badges inside `scene`. Note *why* it runs the real class: the offline
   arithmetic tests that missed it were standalone reimplementations, so
   they exercised the maths but never the getters, and a cycle only
-  exists between real getters.
+  exists between real getters. A second phase checks every method the
+  template names actually exists on the component, and fires each
+  bare-name `t-on-*` handler with a fake event. Worth knowing its limit:
+  it does **not** catch a global called inside an inline arrow
+  expression, because that expression is never compiled — the static
+  rule in `check_owl_names.py` is what covers that.
 
 **The configurator's drawing is deliberately two layers, and the order
 is load-bearing**: `scene` is pure drawing units (frame, panels, divider
@@ -410,6 +415,17 @@ never read `unitsPerPixel`/`fitScale`/`zoom`/canvas size; `adornments`
 holds everything sized in screen pixels (badge radius and font, divider
 stroke and hit width) and is derived from `scene` afterwards. `fitScale`
 reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
+
+  It also rejects **template expressions calling JS globals**
+  (`parseInt`, `parseFloat`, `Number`, `String`, `Boolean`, `isNaN`,
+  `JSON`, …). owl.js compiles every symbol outside its `RESERVED_WORDS`
+  list into a lookup on the component context, so `parseInt(x)` becomes
+  `ctx['parseInt'](x)` — undefined — and the handler dies with
+  `TypeError: vNN is not a function` **only when the control is used**.
+  Note `Math`, `Array`, `Object`, `Date`, `console` and `window` ARE
+  reserved and work fine; flagging those would be a false positive.
+  Do the conversion in a component method and let the template call
+  only methods.
 
 - `scripts/check_preset_layouts.py` runs every seeded `layout_json`
   through the **same validator the upgrade uses** — imported out of
