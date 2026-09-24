@@ -28,5 +28,6 @@ node scripts/check_owl_getters.mjs || exit 1
 python scripts/check_preset_layouts.py || exit 1
 python scripts/check_act_window_views.py || exit 1
 python scripts/check_configurator_payload.py || exit 1
+python scripts/check_configurator_header.py || exit 1
 python scripts/check_formulas.py || exit 1
 python scripts/check_load_order.py

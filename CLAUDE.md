@@ -488,6 +488,25 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   "Save as preset" crashed while "Add Position" worked. Declare `views`
   and it is safe on both paths.
 
+- `scripts/check_configurator_header.py` requires every field in
+  `CONFIGURATOR_HEADER_FIELDS` (what `save_layout` may write) to appear
+  in `get_configurator_data()`'s `header` (what the client is given).
+  A field that is writable but not loaded is **destroyed by every
+  save**: the client round-trips the header wholesale, so it sends back
+  nothing for a key it never received, and `save_layout` writes the
+  nothing. `manual_rate` was in exactly that state — a hand-entered
+  price override wiped on every configurator save, silently, with no
+  error and no control on screen to notice. One-directional on purpose:
+  loaded-but-not-writable is fine (`window_series_name` is display
+  only). The matching runtime test is
+  `aw_fenestration_design/tests/test_configurator_roundtrip.py`, which
+  loads a design, saves the payload back untouched and asserts the
+  header did not move — it needs a database, so it runs under
+  `odoo -u aw_fenestration_design --test-enable`, not in the hook.
+  **`save_layout` also distinguishes absent/None ("not sent, leave it")
+  from `False` ("clear it")** for `CONFIGURATOR_PROTECTED_HEADER`, since
+  a hidden control sends nothing and that must not read as a clear.
+
 - `scripts/check_configurator_payload.py` compares the keys
   `get_configurator_data()` returns (following `**self._method()`
   spreads) against every `state.data.<key>` the configurator reads. The

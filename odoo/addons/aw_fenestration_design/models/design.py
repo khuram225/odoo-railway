@@ -396,6 +396,23 @@ class AwDesign(models.Model):
         'manual_rate',
     )
 
+    # Header fields a save must never blank just because the value was
+    # absent from the payload. Every one of these can be hidden in the
+    # configurator -- the Profile Section and Hardware Set dropdowns only
+    # appear when the Series offers a choice, Thickness is hidden
+    # outright, and manual_rate has no control at all -- and a control
+    # that is not rendered sends nothing. Writing "nothing" as False
+    # silently destroyed real data: manual_rate, a hand-entered price
+    # override, was wiped by every single configurator save.
+    #
+    # Absent or None means "not sent, leave it alone". An explicit False
+    # is a real instruction to clear, which is what "No glass" in the
+    # header does, so the two cannot be collapsed.
+    CONFIGURATOR_PROTECTED_HEADER = (
+        'profile_section_id', 'hardware_set_id', 'glass_spec_id',
+        'finish_id', 'thickness_id', 'manual_rate',
+    )
+
     def action_open_configurator(self):
         self.ensure_one()
         return {
@@ -634,6 +651,10 @@ class AwDesign(models.Model):
                 'thickness_id': self.thickness_id.id,
                 'profile_section_id': self.profile_section_id.id,
                 'hardware_set_id': self.hardware_set_id.id,
+                # No control in the configurator, but it IS in the save
+                # allow-list, so without it here every save round-tripped
+                # a missing key and wiped the price override.
+                'manual_rate': self.manual_rate,
             },
             'finish_options': self._finish_options(),
             'default_glass_spec_id': series.default_glass_spec_id.id,
@@ -754,12 +775,21 @@ class AwDesign(models.Model):
         filtered; this is not a security boundary, only a business rule.
         """
         self.ensure_one()
+        incoming = payload.get('header') or {}
         header = {
-            key: value for key, value in (payload.get('header') or {}).items()
+            key: value for key, value in incoming.items()
             if key in self.CONFIGURATOR_HEADER_FIELDS
         }
+        # A field that was never sent is not a field set to empty.
+        unsent = [key for key in self.CONFIGURATOR_PROTECTED_HEADER
+                  if header.get(key, None) is None]
+        for key in unsent:
+            header.pop(key, None)
         if header:
             self.write(header)
+        # Only ever refills what was NOT sent, so clearing a value from
+        # the UI still works and is not undone here.
+        self._apply_header_defaults(unsent)
 
         self.row_ids.unlink()
         self._create_rows(payload.get('rows') or [], parent_leaf=None)
@@ -778,6 +808,32 @@ class AwDesign(models.Model):
         # one's. The button stays for a manual re-run.
         self._explode()
         return self.get_configurator_data()
+
+    def _apply_header_defaults(self, fields_to_fill):
+        """Backstop for a header field that arrived empty: take the
+        Series' answer rather than leaving the design unusable.
+
+        Belt and braces on top of dropping unsent keys. A design with no
+        Profile Section produces no profiles at all, so if one ever does
+        end up empty -- however it got there -- the Series' first section
+        is a far better state to be in than a silently empty BOM.
+        """
+        self.ensure_one()
+        series = self.window_series_id
+        if not series:
+            return
+        defaults = {
+            'profile_section_id': series.profile_section_ids[:1],
+            'hardware_set_id': series.hardware_set_ids[:1],
+            'glass_spec_id': series.default_glass_spec_id,
+        }
+        values = {}
+        for key in fields_to_fill:
+            fallback = defaults.get(key)
+            if fallback and not self[key]:
+                values[key] = fallback.id
+        if values:
+            self.write(values)
 
     def _check_panels_typed(self):
         """Every leaf must either be a panel with a type or a container
