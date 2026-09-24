@@ -4,6 +4,8 @@ import json
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from .layout_rules import leaf_type_codes, validate_layout
+
 # Starting Series assignment for the seeded presets, applied ONCE per
 # preset by _seed_default_series(). Keyed by XML id on both sides so it
 # doesn't depend on names, which are editable. Presets not listed here --
@@ -90,9 +92,14 @@ class AwLayoutPreset(models.Model):
         """Validated here rather than trusted, because this is a real
         system boundary: layout_json is hand-editable in the config form
         and a malformed one would otherwise only blow up later, inside
-        the configurator, as an opaque client-side failure."""
+        the configurator, as an opaque client-side failure.
+
+        The rules themselves live in layout_rules.py, with no Odoo
+        imports, so scripts/check_preset_layouts.py can run exactly this
+        validation over the seed data before it ever reaches an upgrade.
+        """
         known_codes = set(
-            self.env['aw.leaf.type'].search([]).mapped('code'))
+            c for c in self.env['aw.leaf.type'].search([]).mapped('code') if c)
         for preset in self:
             try:
                 data = json.loads(preset.layout_json or '')
@@ -100,38 +107,26 @@ class AwLayoutPreset(models.Model):
                 raise ValidationError(_(
                     "Layout of '%(name)s' is not valid JSON: %(error)s",
                     name=preset.name, error=exc))
-            rows = data.get('rows') if isinstance(data, dict) else None
-            if not isinstance(rows, list) or not rows:
+            errors = validate_layout(data, known_codes)
+            if errors:
                 raise ValidationError(_(
-                    "Layout of '%s' needs a non-empty \"rows\" list.",
-                    preset.name))
-            for row in rows:
-                leaves = row.get('leaves') if isinstance(row, dict) else None
-                if not isinstance(leaves, list) or not leaves:
-                    raise ValidationError(_(
-                        "Every row in '%s' needs a non-empty \"leaves\" "
-                        "list.", preset.name))
-                for leaf in leaves:
-                    code = leaf.get('type') if isinstance(leaf, dict) else None
-                    if code not in known_codes:
-                        raise ValidationError(_(
-                            "Layout of '%(name)s' uses unknown leaf type "
-                            "code %(code)r. Known codes: %(known)s",
-                            name=preset.name, code=code,
-                            known=', '.join(sorted(known_codes))))
+                    "Layout of '%(name)s' is not valid:\n%(errors)s",
+                    name=preset.name,
+                    errors='\n'.join('- %s' % e for e in errors)))
 
     def _layout(self):
         self.ensure_one()
         return json.loads(self.layout_json)
 
     def _leaf_type_codes(self):
-        """Every distinct leaf type code this preset would create."""
+        """Every distinct leaf type code this preset would create.
+
+        Recurses and skips containers -- a subdivided leaf has no type of
+        its own. Without that, a nested preset reported a None code and
+        the Series filter concluded no Series could host it.
+        """
         self.ensure_one()
-        return {
-            leaf.get('type')
-            for row in self._layout()['rows']
-            for leaf in row['leaves']
-        }
+        return leaf_type_codes(self._layout())
 
     def _allowed_for_series(self, series):
         """Two conditions, both required.

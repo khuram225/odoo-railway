@@ -411,6 +411,18 @@ holds everything sized in screen pixels (badge radius and font, divider
 stroke and hit width) and is derived from `scene` afterwards. `fitScale`
 reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
 
+- `scripts/check_preset_layouts.py` runs every seeded `layout_json`
+  through the **same validator the upgrade uses** — imported out of
+  `models/layout_rules.py`, which is kept free of Odoo imports for
+  exactly that reason — plus a self-test of the rules themselves. One
+  upgrade has already died on this: `OPN-VNT` was the first seeded
+  preset with a nested container, and the validation assumed every leaf
+  carried a leaf type, so the install failed with `ParseError ... uses
+  unknown leaf type code None`. **Every other check in this repo runs
+  against the OWL component, i.e. client-side**, and the client already
+  skipped containers — so nothing was watching the server-side data
+  rule. When a rule exists on both sides, check the server one too.
+
 Enable the hook once per clone:
 
 ```
@@ -420,7 +432,7 @@ git config core.hooksPath .githooks
 Until that's run, check manually before committing XML or JS: `python
 scripts/check_xml_comments.py && python scripts/check_owl_names.py &&
 node scripts/check_owl_getters.mjs && python
-scripts/check_load_order.py`.
+scripts/check_preset_layouts.py && python scripts/check_load_order.py`.
 
 ## Hard-won lessons
 

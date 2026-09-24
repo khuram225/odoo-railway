@@ -3,8 +3,10 @@
 # breaks well-formedness -- see scripts/check_xml_comments.py), a
 # forward-reference in a module's data-loading order (ref=/%()d/parent=
 # resolved before the target is defined -- see scripts/check_load_order.py),
-# or an OWL template variable named after a word OWL rewrites into an
-# operator (t-as="lt" -> "<" -- see scripts/check_owl_names.py).
+# an OWL template variable named after a word OWL rewrites into an
+# operator (t-as="lt" -> "<" -- see scripts/check_owl_names.py), or a
+# seeded preset layout the module upgrade would reject (see
+# scripts/check_preset_layouts.py).
 #
 # Not active by default: git only runs hooks from .git/hooks, which isn't
 # tracked. One-time setup per clone:
@@ -19,4 +21,5 @@ fi
 python scripts/check_xml_comments.py $staged_xml || exit 1
 python scripts/check_owl_names.py || exit 1
 node scripts/check_owl_getters.mjs || exit 1
+python scripts/check_preset_layouts.py || exit 1
 python scripts/check_load_order.py
