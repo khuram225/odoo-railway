@@ -104,3 +104,49 @@
     line-height: 1.1;
     white-space: normal;
 }
+
+// Family strip: small square tiles, picture or fallback drawing above a
+// truncated name. Sized so three fit across the 220px library column.
+.o_aw_family_tile {
+    width: 62px;
+
+    svg,
+    img {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+
+    .o_aw_family_all {
+        display: block;
+        font-size: 1.1rem;
+        line-height: 2.1;
+        color: inherit;
+    }
+}
+
+.o_aw_family_tile_name {
+    font-size: 0.6rem;
+    line-height: 1.1;
+    margin-top: 0.15rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+// Backend widget and kanban cards.
+.o_aw_preset_thumb svg {
+    display: block;
+    width: 100%;
+    max-width: 120px;
+    height: auto;
+    margin: 0 auto;
+}
+
+.o_aw_family_img {
+    display: block;
+    max-width: 96px;
+    max-height: 96px;
+    margin: 0 auto;
+    object-fit: contain;
+}

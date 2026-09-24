@@ -95,6 +95,7 @@ class AwWindowSeries(models.Model):
     hardware_set_count = fields.Integer(compute='_compute_counts')
     template_count = fields.Integer(compute='_compute_counts')
 
+    @api.depends('profile_section_ids', 'hardware_set_ids', 'template_ids')
     def _compute_counts(self):
         for rec in self:
             rec.profile_section_count = len(rec.profile_section_ids)

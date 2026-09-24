@@ -2,6 +2,7 @@ from . import design
 from . import design_row
 from . import design_leaf
 from . import design_bom_line
+from . import window_series
 from . import layout_family
 from . import layout_preset
 from . import design_position_wizard

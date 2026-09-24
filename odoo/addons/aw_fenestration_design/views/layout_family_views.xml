@@ -23,6 +23,8 @@
                 <sheet>
                     <widget name="web_ribbon" title="Archived"
                             bg_color="text-bg-danger" invisible="active"/>
+                    <field name="image_128" widget="image"
+                           class="oe_avatar" options="{'size': [96, 96]}"/>
                     <group>
                         <group>
                             <field name="name"/>
@@ -51,10 +53,44 @@
         </field>
     </record>
 
+    <record id="view_aw_layout_family_kanban" model="ir.ui.view">
+        <field name="name">aw.layout.family.kanban</field>
+        <field name="model">aw.layout.family</field>
+        <field name="arch" type="xml">
+            <kanban>
+                <field name="image_128"/>
+                <field name="preview_layout_json"/>
+                <templates>
+                    <t t-name="card" class="p-2">
+                        <div class="o_aw_family_card text-center">
+                            <!-- The family's own picture when it has one,
+                                 otherwise its first preset's drawing. -->
+                            <img t-if="record.image_128.raw_value"
+                                 t-att-src="kanban_image('aw.layout.family', 'image_128', record.id.raw_value)"
+                                 class="o_aw_family_img" alt="Family"/>
+                            <field t-else="" name="preview_layout_json"
+                                   widget="preset_thumbnail"/>
+                            <div class="fw-bold mt-2">
+                                <field name="name"/>
+                            </div>
+                            <div class="text-muted small">
+                                <field name="code"/> &#183;
+                                <field name="kind"/>
+                            </div>
+                            <div class="text-muted small">
+                                <field name="preset_count"/> preset(s)
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
     <record id="action_aw_layout_family" model="ir.actions.act_window">
         <field name="name">Layout Families</field>
         <field name="res_model">aw.layout.family</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
     </record>
 
 </odoo>

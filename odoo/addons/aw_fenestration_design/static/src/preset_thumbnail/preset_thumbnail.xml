@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="aw_fenestration_design.PresetThumbnailField">
+        <div class="o_aw_preset_thumb">
+            <svg t-att-viewBox="thumb.viewBox" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                    <pattern id="aw_mesh_field" width="3" height="3" patternUnits="userSpaceOnUse">
+                        <rect width="3" height="3" fill="#c3dce3" fill-opacity="0.35"/>
+                        <path d="M0,3 L3,0" stroke="#6a7075" stroke-width="0.5"/>
+                    </pattern>
+                </defs>
+                <rect x="0" y="0"
+                      t-att-width="thumb.frame.W" t-att-height="thumb.frame.H"
+                      fill="#8a9095" stroke="#6a7075" stroke-width="0.8"/>
+                <t t-foreach="thumb.rects" t-as="r" t-key="r.key">
+                    <rect t-att-x="r.x" t-att-y="r.y"
+                          t-att-width="r.w" t-att-height="r.h"
+                          t-att-fill="r.isMesh ? 'url(#aw_mesh_field)' : '#c3dce3'"
+                          stroke="#9dbfc9" stroke-width="0.5"/>
+                </t>
+            </svg>
+        </div>
+    </t>
+
+</templates>

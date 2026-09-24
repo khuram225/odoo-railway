@@ -175,6 +175,10 @@ const useService = () => ({});
 const registry = { category: () => ({ add: () => {} }) };
 const standardActionServiceProps = {};
 const _t = (s) => s;
+const ConfirmationDialog = class {};
+// Imported from ../preset_thumbnail in the real bundle; stubbed so the
+// harness mirrors production instead of failing where production works.
+const presetThumb = () => ({ viewBox: "0 0 58 42", frame: { W: 58, H: 42 }, rects: [] });
 `;
 
 function loadable(source) {
@@ -270,6 +274,30 @@ for (const target of TARGETS) {
     const referenced = new Set(
         [...xml.matchAll(/\bthis\.([A-Za-z_$][\w$]*)\s*\(/g)].map((m) => m[1])
     );
+    // ...and as a BARE call, which OWL also resolves against the
+    // component: formatLength(x), presetThumb(y), familyThumb(f). Those
+    // were invisible to this check, so a renamed one would only show up
+    // when the panel was opened.
+    const BARE_SAFE = new Set([
+        "Math", "Array", "Object", "Date", "RegExp", "console", "window",
+        "Boolean", "String", "Number",
+    ]);
+    const bareCalls = new Set();
+    for (const attr of xml.matchAll(
+        /t-(?:att-[\w-]+|attf-[\w-]+|if|elif|esc|out|value)\s*=\s*"([^"]*)"/g
+    )) {
+        // String literals first: url(#id) inside an SVG fill is CSS, not
+        // a call, and reading it as one flagged a method named "url".
+        const expr = attr[1].replace(/'[^']*'/g, "''").replace(/`[^`]*`/g, "``");
+        for (const call of expr.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) {
+            if (!BARE_SAFE.has(call[1])) {
+                bareCalls.add(call[1]);
+            }
+        }
+    }
+    for (const name of bareCalls) {
+        referenced.add(name);
+    }
     // Handlers bound by bare name: t-on-click="foo".
     const bare = new Set(
         [...xml.matchAll(/\bt-on-[\w.]+\s*=\s*"([A-Za-z_$][\w$]*)"/g)].map(

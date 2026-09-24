@@ -37,9 +37,17 @@ class AwLayoutFamily(models.Model):
              "infill families apply to the selected panel instead.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
+    image_128 = fields.Image(
+        string='Picture', max_width=128, max_height=128,
+        help="Shown on the family tile in the configurator's library. "
+             "Leave empty to fall back to the first preset's drawing.")
     preset_ids = fields.One2many(
         'aw.layout.preset', 'family_id', string='Presets')
     preset_count = fields.Integer(compute='_compute_preset_count')
+    preview_layout_json = fields.Text(
+        compute='_compute_preview_layout_json',
+        help="The first preset's layout, used to draw this family when it "
+             "has no picture of its own.")
 
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Family code must be unique.'),
@@ -49,6 +57,12 @@ class AwLayoutFamily(models.Model):
     def _compute_preset_count(self):
         for rec in self:
             rec.preset_count = len(rec.preset_ids)
+
+    @api.depends('preset_ids.layout_json', 'preset_ids.sequence')
+    def _compute_preview_layout_json(self):
+        for rec in self:
+            first = rec.preset_ids[:1]
+            rec.preview_layout_json = first.layout_json if first else False
 
     @api.model
     def _migrate_preset_categories(self):

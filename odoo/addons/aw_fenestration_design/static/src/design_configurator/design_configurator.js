@@ -12,6 +12,7 @@ import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
 
 const MM_PER_IN = 25.4;
 const MM_PER_FT = 304.8;
@@ -100,6 +101,7 @@ export class DesignConfigurator extends Component {
             canvasW: 0,
             canvasH: 0,
             libraryOpen: true,
+            familyFilter: null, // family id, or null for "All"
             builderOpen: false,
             builder: { panels: 2, tracks: 2, mesh: false, roles: [] },
             // Screen-space position of the floating toolbar, in CSS
@@ -899,59 +901,61 @@ export class DesignConfigurator extends Component {
             if (!groups.has(key)) {
                 groups.set(key, {
                     family: key,
+                    familyId: preset.family_id || null,
                     sequence: preset.family_sequence ?? 999,
                     presets: [],
                 });
             }
             groups.get(key).presets.push(preset);
         }
-        return [...groups.values()].sort(
+        const all = [...groups.values()].sort(
             (a, b) => a.sequence - b.sequence || a.family.localeCompare(b.family)
         );
+        const filter = this.state.familyFilter;
+        return filter === null || filter === undefined
+            ? all
+            : all.filter((g) => g.familyId === filter);
     }
 
     /**
-     * A preset's layout drawn small: frame plus one rect per leaf, no
-     * glyphs, dimensions or selection. Same tiling arithmetic as scene(),
-     * against a fixed box instead of the design's real size -- a preset
-     * has only relative weights, so there's nothing else it could use.
+     * Preset thumbnails come from the shared module, so the library and
+     * the backend kanban widget draw from one routine rather than two
+     * copies that would drift apart.
      */
     presetThumb(layout) {
-        const W = 58;
-        const H = 42;
-        const ff = 2.5;
-        const rects = [];
-        // Recurses, so a preset containing a nested split shows that split
-        // in its thumbnail rather than a single flat panel.
-        const tile = (rowList, box) => {
-            const totH = rowList.reduce((a, r) => a + (r.h || 1), 0) || 1;
-            let y = box.y;
-            for (const row of rowList) {
-                const rh = ((row.h || 1) / totH) * box.h;
-                const totW =
-                    row.leaves.reduce((a, l) => a + (l.w || 1), 0) || 1;
-                let x = box.x;
-                for (const leaf of row.leaves) {
-                    const lw = ((leaf.w || 1) / totW) * box.w;
-                    if (leaf.rows && leaf.rows.length) {
-                        tile(leaf.rows, { x, y, w: lw, h: rh });
-                    } else {
-                        rects.push({
-                            key: `${rects.length}`,
-                            x: x + 1,
-                            y: y + 1,
-                            w: Math.max(1, lw - 2),
-                            h: Math.max(1, rh - 2),
-                            isMesh: leaf.type === "MESH",
-                        });
-                    }
-                    x += lw;
-                }
-                y += rh;
-            }
-        };
-        tile(layout.rows, { x: ff, y: ff, w: W - 2 * ff, h: H - 2 * ff });
-        return { viewBox: `0 0 ${W} ${H}`, frame: { W, H }, rects };
+        return presetThumb(layout);
+    }
+
+    // -- family strip ------------------------------------------------------
+    get families() {
+        return this.state.data?.families || [];
+    }
+
+    familyThumb(family) {
+        return presetThumb(family.preview);
+    }
+
+    familyImageUrl(family) {
+        return `/web/image/aw.layout.family/${family.id}/image_128`;
+    }
+
+    /**
+     * Clicking a tile filters the library to that family and scrolls to
+     * it; clicking the same tile again, or "All", clears the filter.
+     * Filtering rather than only scrolling keeps the answer visible when
+     * the list is long.
+     */
+    selectFamily(id) {
+        this.state.familyFilter =
+            this.state.familyFilter === id ? null : id;
+        if (this.state.familyFilter !== null) {
+            // Scroll after the filtered list has rendered.
+            Promise.resolve().then(() => {
+                const el = document.querySelector(
+                    `[data-aw-family="${this.state.familyFilter}"]`);
+                el?.scrollIntoView({ block: "start", behavior: "smooth" });
+            });
+        }
     }
 
     toggleLibrary() {

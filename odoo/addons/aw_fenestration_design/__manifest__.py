@@ -43,6 +43,7 @@ row/leaf grid shape:
         'data/layout_preset_p2_data.xml',
         'data/layout_preset_series_data.xml',
         'views/design_views.xml',
+        'views/window_series_views.xml',
         'views/layout_family_views.xml',
         'views/layout_preset_views.xml',
         'views/design_position_wizard_views.xml',

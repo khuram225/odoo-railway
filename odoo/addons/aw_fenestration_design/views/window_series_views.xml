@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+    The Layout Presets stat button is added here rather than in core's
+    own Series form, because aw.layout.preset is defined in this module
+    and core doesn't depend on this one. Extending the view from the side
+    that owns the model is the only direction that works.
+    -->
+    <record id="view_aw_window_series_form_presets" model="ir.ui.view">
+        <field name="name">aw.window.series.form.inherit.presets</field>
+        <field name="model">aw.window.series</field>
+        <field name="inherit_id" ref="aw_fenestration_core.view_aw_window_series_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button type="object" name="action_view_layout_presets"
+                        class="oe_stat_button" icon="fa-th">
+                    <field name="layout_preset_count" widget="statinfo"
+                           string="Layout Presets"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import json
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -407,7 +409,30 @@ class AwDesign(models.Model):
                 'has_slide_dir': lt.has_slide_dir,
             } for lt in series.leaf_type_ids],
             'presets': [self._preset_payload(p) for p in presets],
+            'families': self._families_payload(presets),
         }
+
+    @api.model
+    def _families_payload(self, presets):
+        """The families actually represented among these presets.
+
+        Built from the presets rather than from every family, so the
+        strip only offers somewhere to go that has something in it --
+        a tile leading to an empty section is worse than no tile.
+        """
+        families = presets.mapped('family_id').sorted(
+            lambda f: (f.sequence, f.name))
+        return [{
+            'id': f.id,
+            'name': f.name,
+            'code': f.code or '',
+            'has_image': bool(f.image_128),
+            # Drawn when there's no picture: the first preset's layout.
+            'preview': (
+                json.loads(f.preview_layout_json)
+                if f.preview_layout_json else None),
+            'count': len(presets.filtered(lambda p: p.family_id == f)),
+        } for f in families]
 
     @api.model
     def _preset_payload(self, preset):
@@ -416,6 +441,7 @@ class AwDesign(models.Model):
             'id': preset.id,
             'name': preset.name,
             'code': preset.code or '',
+            'family_id': family.id or False,
             # family_name falls back to the old text category so the
             # library still groups sensibly on a database that hasn't run
             # the family migration yet.
@@ -464,6 +490,7 @@ class AwDesign(models.Model):
                 'has_slide_dir': lt.has_slide_dir,
             } for lt in leaf_types],
             'presets': [self._preset_payload(p) for p in presets],
+            'families': self._families_payload(presets),
         }
 
     # A panel may be subdivided, its sub-panels subdivided again, and no

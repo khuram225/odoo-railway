@@ -105,6 +105,44 @@
 
                         <div t-if="state.libraryOpen" class="overflow-auto p-2" style="min-height: 0;">
 
+                            <!-- Family strip. Only families with at least one
+                                 preset allowed for this Series reach here, so a
+                                 tile never leads somewhere empty. -->
+                            <div t-if="families.length" class="o_aw_family_strip d-flex flex-wrap gap-1 mb-2">
+                                <button class="o_aw_family_tile btn btn-sm p-1"
+                                        t-att-class="state.familyFilter === null ? 'btn-primary' : 'btn-light border'"
+                                        title="Show every family"
+                                        t-on-click="() => this.selectFamily(null)">
+                                    <span class="o_aw_family_all">All</span>
+                                    <div class="o_aw_family_tile_name">All</div>
+                                </button>
+                                <t t-foreach="families" t-as="fam" t-key="fam.id">
+                                    <button class="o_aw_family_tile btn btn-sm p-1"
+                                            t-att-class="state.familyFilter === fam.id ? 'btn-primary' : 'btn-light border'"
+                                            t-att-title="fam.name + ' (' + fam.count + ')'"
+                                            t-on-click="() => this.selectFamily(fam.id)">
+                                        <img t-if="fam.has_image" t-att-src="familyImageUrl(fam)"
+                                             t-att-alt="fam.name"/>
+                                        <t t-else="">
+                                            <t t-set="ft" t-value="familyThumb(fam)"/>
+                                            <svg t-att-viewBox="ft.viewBox" preserveAspectRatio="xMidYMid meet">
+                                                <rect x="0" y="0"
+                                                      t-att-width="ft.frame.W" t-att-height="ft.frame.H"
+                                                      fill="#8a9095" stroke="#6a7075" stroke-width="0.8"/>
+                                                <t t-foreach="ft.rects" t-as="fr" t-key="fr.key">
+                                                    <rect t-att-x="fr.x" t-att-y="fr.y"
+                                                          t-att-width="fr.w" t-att-height="fr.h"
+                                                          fill="#c3dce3" stroke="#9dbfc9" stroke-width="0.5"/>
+                                                </t>
+                                            </svg>
+                                        </t>
+                                        <div class="o_aw_family_tile_name">
+                                            <t t-esc="fam.name"/>
+                                        </div>
+                                    </button>
+                                </t>
+                            </div>
+
                             <!-- Sliding builder (spec 4.2). Only offered when
                                  the Series can host a slider at all. -->
                             <t t-if="canUseSlidingBuilder">
@@ -194,7 +232,8 @@
                             </t>
 
                             <t t-foreach="presetsByFamily" t-as="group" t-key="group.family">
-                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-2 mb-1">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-2 mb-1"
+                                     t-att-data-aw-family="group.familyId">
                                     <t t-esc="group.family"/>
                                 </div>
                                 <div class="d-flex flex-wrap gap-2">

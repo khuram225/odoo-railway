@@ -65,10 +65,36 @@
         </field>
     </record>
 
+    <record id="view_aw_layout_preset_kanban" model="ir.ui.view">
+        <field name="name">aw.layout.preset.kanban</field>
+        <field name="model">aw.layout.preset</field>
+        <field name="arch" type="xml">
+            <kanban>
+                <field name="layout_json" widget="preset_thumbnail"/>
+                <templates>
+                    <t t-name="card" class="p-2">
+                        <div class="o_aw_preset_card text-center">
+                            <field name="layout_json" widget="preset_thumbnail"/>
+                            <div class="fw-bold mt-2">
+                                <field name="name"/>
+                            </div>
+                            <div class="text-muted small">
+                                <field name="code"/>
+                            </div>
+                            <div class="text-muted small">
+                                <field name="family_id"/>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
     <record id="action_aw_layout_preset" model="ir.actions.act_window">
         <field name="name">Layout Presets</field>
         <field name="res_model">aw.layout.preset</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create a layout preset</p>
             <p>A preset is a reusable row/leaf grid shape — no absolute
