@@ -453,6 +453,17 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   "Save as preset" crashed while "Add Position" worked. Declare `views`
   and it is safe on both paths.
 
+- `scripts/check_configurator_payload.py` compares the keys
+  `get_configurator_data()` returns (following `**self._method()`
+  spreads) against every `state.data.<key>` the configurator reads. The
+  mismatch it exists for: `_attachment_catalogue()` was spread into
+  `get_series_context` but not into the loader, so mesh, infill, glass
+  and grid were all undefined on open — headings with nothing under
+  them, and "no Glass Specs exist yet" when seven existed. No OWL check
+  can see it, because `this.state.data.mesh_types || []` is valid
+  JavaScript that quietly yields an empty list; the mismatch only exists
+  ACROSS the two files.
+
 Enable the hook once per clone:
 
 ```

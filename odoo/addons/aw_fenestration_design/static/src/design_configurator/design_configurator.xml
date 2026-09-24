@@ -270,34 +270,54 @@
 
                             <!-- Mesh and infill APPLY TO THE SELECTED PANEL
                                  rather than replacing the layout: that is
-                                 what a mesh/infill family means (spec 4.1). -->
-                            <t t-foreach="meshByFamily" t-as="mgroup" t-key="mgroup.family">
-                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-1">
-                                    <t t-esc="mgroup.family"/>
+                                 what a mesh/infill family means (spec 4.1).
+                                 They were missing entirely because the
+                                 family strip only counted PRESETS, and
+                                 these families hold types. -->
+                            <t t-foreach="visibleAttachments" t-as="agroup" t-key="agroup.family">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-1"
+                                     t-att-data-aw-family="agroup.familyId">
+                                    <t t-esc="agroup.family"/>
                                 </div>
-                                <div class="d-flex flex-wrap gap-1">
-                                    <t t-foreach="mgroup.items" t-as="mesh" t-key="mesh.id">
-                                        <button class="btn btn-sm"
-                                                t-att-class="selectedPanel and selectedPanel.mesh_type_id === mesh.id ? 'btn-primary' : 'btn-outline-secondary'"
-                                                t-att-title="mesh.code + ' — applies to the selected panel'"
-                                                t-on-click="() => this.applyMesh(mesh.id)">
-                                            <t t-esc="mesh.name"/>
-                                        </button>
-                                    </t>
+                                <div t-if="!selectedPanel" class="small text-muted mb-1">
+                                    Select a panel to apply these to it.
                                 </div>
-                            </t>
-
-                            <t t-if="infillTypes.length">
-                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-1">
-                                    Add-ons
-                                </div>
-                                <div class="d-flex flex-wrap gap-1">
-                                    <t t-foreach="infillTypes" t-as="inf" t-key="inf.id">
-                                        <button class="btn btn-sm"
-                                                t-att-class="selectedPanel and selectedPanel.infill_type_id === inf.id ? 'btn-primary' : 'btn-outline-secondary'"
-                                                t-att-title="inf.code + ' — applies to the selected panel'"
-                                                t-on-click="() => this.applyInfill(inf.id)">
-                                            <t t-esc="inf.name"/>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <t t-foreach="agroup.items" t-as="att" t-key="att.attachKind + att.id">
+                                        <button class="o_aw_cfg_preset btn btn-sm border p-1 text-center"
+                                                t-att-class="isAttachmentActive(att) ? 'btn-primary' : 'btn-light'"
+                                                t-att-title="att.code"
+                                                t-on-click="() => this.applyAttachment(att)">
+                                            <t t-set="sym" t-value="attachmentSymbol(att)"/>
+                                            <svg t-att-viewBox="sym.viewBox"
+                                                 preserveAspectRatio="xMidYMid meet">
+                                                <rect x="0" y="0" t-att-width="sym.W" t-att-height="sym.H"
+                                                      fill="#c3dce3" stroke="#6a7075" stroke-width="0.8"/>
+                                                <rect t-if="sym.hatch" x="0" y="0"
+                                                      t-att-width="sym.W" t-att-height="sym.H"
+                                                      fill="url(#aw_mesh_sym)" stroke="none"/>
+                                                <rect t-if="sym.box" t-att-x="sym.box.x" t-att-y="sym.box.y"
+                                                      t-att-width="sym.box.w" t-att-height="sym.box.h"
+                                                      fill="#8a9095" stroke="#4a5358" stroke-width="0.8"/>
+                                                <circle t-if="sym.circle"
+                                                        t-att-cx="sym.circle.cx" t-att-cy="sym.circle.cy"
+                                                        t-att-r="sym.circle.r"
+                                                        fill="none" stroke="#4a5358" stroke-width="1"/>
+                                                <t t-foreach="sym.lines" t-as="sl" t-key="sl.key">
+                                                    <line t-att-x1="sl.x1" t-att-y1="sl.y"
+                                                          t-att-x2="sl.x2" t-att-y2="sl.y"
+                                                          stroke="#4a5358" stroke-width="1"/>
+                                                </t>
+                                                <defs>
+                                                    <pattern id="aw_mesh_sym" width="3" height="3"
+                                                             patternUnits="userSpaceOnUse">
+                                                        <path d="M0,3 L3,0" stroke="#6a7075" stroke-width="0.5"/>
+                                                    </pattern>
+                                                </defs>
+                                            </svg>
+                                            <div class="o_aw_cfg_preset_name text-muted mt-1">
+                                                <t t-esc="att.name"/>
+                                            </div>
                                         </button>
                                     </t>
                                 </div>
@@ -766,6 +786,10 @@
                                 <!-- Attachments for this panel (spec 5.5) -->
                                 <div class="border-top pt-2 mt-1">
                                     <div class="small text-muted mb-1">Infill</div>
+                                    <div t-if="!infillTypes.length" class="small text-warning mb-2">
+                                        No Infill Types are configured. Add them
+                                        under Fenestration &#8250; Configuration.
+                                    </div>
                                     <div class="d-flex flex-wrap gap-1 mb-2">
                                         <t t-foreach="infillTypes" t-as="inf" t-key="inf.id">
                                             <button class="btn btn-sm"
@@ -798,7 +822,17 @@
                                     </t>
 
                                     <div class="small text-muted mb-1">Mesh</div>
+                                    <div t-if="!meshTypes.length" class="small text-warning mb-2">
+                                        No Mesh Types are configured. Add them
+                                        under Fenestration &#8250; Configuration.
+                                    </div>
                                     <div class="d-flex flex-wrap gap-1 mb-2">
+                                        <button class="btn btn-sm"
+                                                t-if="meshTypes.length"
+                                                t-att-class="!selectedPanel.mesh_type_id ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-on-click="() => this.applyMesh(selectedPanel.mesh_type_id)">
+                                            None
+                                        </button>
                                         <t t-foreach="meshTypes" t-as="mesh" t-key="mesh.id">
                                             <button class="btn btn-sm"
                                                     t-att-class="selectedPanel.mesh_type_id === mesh.id ? 'btn-primary' : 'btn-outline-secondary'"
@@ -823,6 +857,9 @@
                                     </t>
 
                                     <div class="small text-muted mb-1">Georgian bars</div>
+                                    <div t-if="!gridPatterns.length" class="small text-warning mb-2">
+                                        No Grid Patterns are configured.
+                                    </div>
                                     <select class="form-select form-select-sm mb-2"
                                             t-on-change="onPanelGridChange">
                                         <option value="">None</option>

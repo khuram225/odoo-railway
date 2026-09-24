@@ -441,6 +441,10 @@ class AwDesign(models.Model):
             'infill_types': [{
                 'id': i.id, 'name': i.display_name, 'code': i.code or '',
                 'kind': i.kind, 'uses_glass': i.uses_glass,
+                'family_id': i.family_id.id or False,
+                'family_name': i.family_id.name or '',
+                'family_sequence': (
+                    i.family_id.sequence if i.family_id else 999),
             } for i in self.env['aw.infill.type'].search([])],
             'glass_specs': [{
                 'id': g.id, 'name': g.display_name,
@@ -453,24 +457,43 @@ class AwDesign(models.Model):
 
     @api.model
     def _families_payload(self, presets):
-        """The families actually represented among these presets.
+        """Every family with something behind it, layout or attachment.
 
-        Built from the presets rather than from every family, so the
-        strip only offers somewhere to go that has something in it --
-        a tile leading to an empty section is worse than no tile.
+        A layout family earns its tile by having a preset available for
+        this Series. Mesh and infill families hold TYPES, not presets, so
+        the preset rule filtered them out entirely and the strip showed
+        only layout families. They are counted by their own contents
+        instead.
         """
-        families = presets.mapped('family_id').sorted(
-            lambda f: (f.sequence, f.name))
+        counts = {}
+        for preset in presets:
+            if preset.family_id:
+                counts[preset.family_id.id] = counts.get(
+                    preset.family_id.id, 0) + 1
+        for mesh in self.env['aw.mesh.type'].search([]):
+            if mesh.family_id:
+                counts[mesh.family_id.id] = counts.get(
+                    mesh.family_id.id, 0) + 1
+        for infill in self.env['aw.infill.type'].search([]):
+            if infill.family_id:
+                counts[infill.family_id.id] = counts.get(
+                    infill.family_id.id, 0) + 1
+
+        families = self.env['aw.layout.family'].browse(
+            list(counts)).sorted(lambda f: (f.sequence, f.name))
         return [{
             'id': f.id,
             'name': f.name,
             'code': f.code or '',
+            'kind': f.kind,
             'has_image': bool(f.image_128),
             # Drawn when there's no picture: the first preset's layout.
+            # A mesh or infill family has none, and its tile falls back
+            # to an empty frame, which is honest enough for a heading.
             'preview': (
                 json.loads(f.preview_layout_json)
                 if f.preview_layout_json else None),
-            'count': len(presets.filtered(lambda p: p.family_id == f)),
+            'count': counts[f.id],
         } for f in families]
 
     @api.model
@@ -530,6 +553,11 @@ class AwDesign(models.Model):
             } for lt in leaf_types],
             'presets': [self._preset_payload(p) for p in presets],
             'families': self._families_payload(presets),
+            # The catalogue belongs on BOTH paths. It was only spread into
+            # get_series_context, so on open the configurator had no mesh,
+            # infill, glass or grid at all -- the headings rendered with
+            # nothing under them.
+            **self._attachment_catalogue(),
         }
 
     # A panel may be subdivided, its sub-panels subdivided again, and no

@@ -314,6 +314,14 @@ export class DesignConfigurator extends Component {
         this.state.data.header.window_series_name = option ? option.name : "";
         this.state.data.leaf_types = context.leaf_types;
         this.state.data.presets = context.presets;
+        // The catalogue comes back too, so the library's mesh and infill
+        // sections stay in step with whatever the new Series allows.
+        for (const key of ["mesh_types", "infill_types", "glass_specs",
+                           "grid_patterns", "families"]) {
+            if (context[key]) {
+                this.state.data[key] = context[key];
+            }
+        }
 
         if (reset) {
             const first = context.leaf_types[0];
@@ -2039,22 +2047,96 @@ export class DesignConfigurator extends Component {
         return this.state.data?.grid_patterns || [];
     }
 
-    /** Mesh families in the library, grouped like the layout ones. */
-    get meshByFamily() {
+    /**
+     * Mesh and infill grouped by family, so the library lists them the
+     * same way it lists layouts and the family strip can jump to them.
+     *
+     * Mesh and infill are offered on EVERY Series: an attached mesh or a
+     * louvre is a property of the panel, not of the system, and nothing
+     * in the data ties a mesh type to a Series. Narrowing them would be
+     * a guess.
+     */
+    get attachmentsByFamily() {
         const groups = new Map();
-        for (const mesh of this.meshTypes) {
-            const key = mesh.family_name || _t("Mesh");
+        const add = (item, kind, fallback) => {
+            const key = item.family_name || fallback;
             if (!groups.has(key)) {
                 groups.set(key, {
                     family: key,
-                    familyId: mesh.family_id || null,
-                    sequence: mesh.family_sequence ?? 999,
+                    familyId: item.family_id || null,
+                    sequence: item.family_sequence ?? 999,
                     items: [],
                 });
             }
-            groups.get(key).items.push(mesh);
+            groups.get(key).items.push({ ...item, attachKind: kind });
+        };
+        for (const mesh of this.meshTypes) {
+            add(mesh, "mesh", _t("Mesh"));
         }
-        return [...groups.values()].sort((a, b) => a.sequence - b.sequence);
+        for (const infill of this.infillTypes) {
+            add(infill, "infill", _t("Add-ons"));
+        }
+        return [...groups.values()].sort(
+            (a, b) => a.sequence - b.sequence || a.family.localeCompare(b.family)
+        );
+    }
+
+    /** Honours the family strip's filter, like the layout list does. */
+    get visibleAttachments() {
+        const filter = this.state.familyFilter;
+        const all = this.attachmentsByFamily;
+        return filter === null || filter === undefined
+            ? all
+            : all.filter((g) => g.familyId === filter);
+    }
+
+    /** Is this attachment the one currently on the selected panel? */
+    isAttachmentActive(item) {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return false;
+        }
+        return item.attachKind === "mesh"
+            ? leaf.mesh_type_id === item.id
+            : leaf.infill_type_id === item.id;
+    }
+
+    applyAttachment(item) {
+        if (item.attachKind === "mesh") {
+            this.applyMesh(item.id);
+        } else {
+            this.applyInfill(item.id);
+        }
+    }
+
+    /**
+     * A tiny drawing for an attachment chip: a frame plus whatever marks
+     * that kind out. Reuses the leaf symbol shapes so a louvre chip and a
+     * louvre panel look like the same thing.
+     */
+    attachmentSymbol(item) {
+        const W = 26;
+        const H = 20;
+        const sym = { viewBox: `0 0 ${W} ${H}`, W, H, kind: "", lines: [],
+                      circle: null, box: null, hatch: false };
+        if (item.attachKind === "mesh") {
+            sym.kind = "mesh";
+            sym.hatch = true;
+            return sym;
+        }
+        sym.kind = item.kind || "glass";
+        if (sym.kind === "louvre") {
+            sym.lines = [0.3, 0.5, 0.7].map((f, i) => ({
+                key: i, x1: W * 0.18, x2: W * 0.82, y: H * f,
+            }));
+        } else if (sym.kind === "fan") {
+            sym.circle = { cx: W / 2, cy: H / 2, r: Math.min(W, H) * 0.25 };
+        } else if (sym.kind === "ac") {
+            sym.box = { x: W * 0.25, y: H * 0.35, w: W * 0.5, h: H * 0.3 };
+        } else if (sym.kind === "panel") {
+            sym.box = { x: W * 0.15, y: H * 0.2, w: W * 0.7, h: H * 0.6 };
+        }
+        return sym;
     }
 
     /**

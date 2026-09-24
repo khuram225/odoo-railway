@@ -7,7 +7,9 @@
 # operator (t-as="lt" -> "<" -- see scripts/check_owl_names.py), or a
 # seeded preset layout the module upgrade would reject (see
 # scripts/check_preset_layouts.py), or an act_window action built
-# without "views" (see scripts/check_act_window_views.py).
+# without "views" (see scripts/check_act_window_views.py), or a
+# configurator payload key the server never sends (see
+# scripts/check_configurator_payload.py).
 #
 # Not active by default: git only runs hooks from .git/hooks, which isn't
 # tracked. One-time setup per clone:
@@ -25,4 +27,5 @@ python scripts/check_owl_names.py || exit 1
 node scripts/check_owl_getters.mjs || exit 1
 python scripts/check_preset_layouts.py || exit 1
 python scripts/check_act_window_views.py || exit 1
+python scripts/check_configurator_payload.py || exit 1
 python scripts/check_load_order.py

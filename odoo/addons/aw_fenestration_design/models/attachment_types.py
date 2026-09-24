@@ -108,6 +108,10 @@ class AwInfillType(models.Model):
         ('fan', 'Exhaust fan'),
         ('ac', 'AC cutout'),
     ], required=True, default='glass')
+    family_id = fields.Many2one(
+        'aw.layout.family', string='Family',
+        domain=[('kind', '=', 'infill')],
+        help="Which library family this infill appears under.")
     uses_glass = fields.Boolean(
         default=False,
         help="Whether this infill is glazed. Only glazed panels offer a "
@@ -122,6 +126,25 @@ class AwInfillType(models.Model):
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Infill Type code must be unique.'),
     ]
+
+
+    @api.model
+    def _seed_default_family(self):
+        """Point infill types at the Add-ons family, once.
+
+        The types were seeded before they had a family field, and their
+        data file is noupdate="1", so adding family_id there would only
+        reach a fresh install. Fill-only-if-empty, like every other seed
+        here, so a regrouping done in the UI survives.
+        """
+        family = self.env.ref(
+            'aw_fenestration_design.layout_family_add',
+            raise_if_not_found=False)
+        if not family:
+            return
+        for infill in self.with_context(active_test=False).search(
+                [('family_id', '=', False)]):
+            infill.family_id = family.id
 
 
 class AwInfillTypeLine(models.Model):
