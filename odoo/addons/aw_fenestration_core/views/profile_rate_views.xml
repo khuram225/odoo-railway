@@ -29,7 +29,15 @@
                 <field name="date_from"/>
                 <filter name="in_force" string="In force today"
                         domain="[('date_from', '&lt;=', context_today().strftime('%Y-%m-%d'))]"/>
-                <group expand="0" string="Group By">
+                <!-- A bare <group>, as core's own v19 search views
+                     use. Neither expand= nor string= is allowed here any
+                     more: base/rng/common.rng permits only colspan,
+                     rowspan, fill, height, width, name, color and
+                     invisible. Both were valid in older Odoo, which is
+                     exactly what makes them easy to carry over
+                     unnoticed. The web client labels the section
+                     itself. -->
+                <group>
                     <filter name="group_date" string="Effective From"
                             context="{'group_by': 'date_from'}"/>
                     <filter name="group_vendor" string="Vendor"

@@ -488,6 +488,24 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   "Save as preset" crashed while "Add Position" worked. Declare `views`
   and it is safe on both paths.
 
+- `scripts/check_view_schemas.py` validates every standalone view arch
+  against **Odoo's own RelaxNG schemas** (`../odoo-src/odoo/addons/base/
+  rng/*.rng`), which is the same validation the Upgrade runs. It exists
+  because that failure is near-undiagnosable from the server alone:
+  the log gave the file, the line, `Invalid view ... definition` and
+  literally `View error context: '-no context-'`, with no hint what was
+  wrong. Running the schema locally printed the real cause in a second
+  — `Invalid attribute expand for element group`. **`expand=` and
+  `string=` are both gone from `<group>` in a v19 search view**
+  (`common.rng` allows only colspan/rowspan/fill/height/width/name/
+  color/invisible); both were valid in older Odoo, which is exactly how
+  they get carried over. Core v19 search views use a bare `<group>`.
+  Only the view types Odoo ships an RNG for are checked — form and
+  kanban are validated by Python in core, not by a schema. Inherited
+  views are skipped, since a fragment of xpath edits is not a whole
+  arch and the schema rightly rejects it. Needs `lxml` and the
+  `../odoo-src` clone; skips cleanly (exit 0) without either.
+
 - `scripts/check_configurator_header.py` requires every field in
   `CONFIGURATOR_HEADER_FIELDS` (what `save_layout` may write) to appear
   in `get_configurator_data()`'s `header` (what the client is given).

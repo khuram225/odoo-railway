@@ -9,7 +9,9 @@
 # scripts/check_preset_layouts.py), or an act_window action built
 # without "views" (see scripts/check_act_window_views.py), or a
 # configurator payload key the server never sends (see
-# scripts/check_configurator_payload.py).
+# scripts/check_configurator_payload.py), or a view arch that
+# Odoo's own RelaxNG schema rejects (see
+# scripts/check_view_schemas.py).
 #
 # Not active by default: git only runs hooks from .git/hooks, which isn't
 # tracked. One-time setup per clone:
@@ -30,4 +32,5 @@ python scripts/check_act_window_views.py || exit 1
 python scripts/check_configurator_payload.py || exit 1
 python scripts/check_configurator_header.py || exit 1
 python scripts/check_formulas.py || exit 1
+python scripts/check_view_schemas.py || exit 1
 python scripts/check_load_order.py
