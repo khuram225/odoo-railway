@@ -27,6 +27,20 @@
     cursor: row-resize;
 }
 
+// Panel number badges. The whole leaf group is clickable, so the badge
+// must not swallow the pointer with its own behaviour -- it just passes
+// the click through to the group that selects the panel.
+.o_aw_panel_badge,
+.o_aw_panel_badge_text {
+    pointer-events: none;
+}
+
+.o_aw_panel_badge_text {
+    font-family: var(--bs-font-monospace, monospace);
+    font-weight: 600;
+    user-select: none;
+}
+
 .o_aw_cfg_cat {
     font-size: 0.68rem;
     letter-spacing: 0.04em;

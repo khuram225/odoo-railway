@@ -82,6 +82,7 @@ class SaleOrder(models.Model):
                     'leaf_type_id': leaf_type.id,
                 })],
             })
+            design._renumber_panels()
         return design
 
     def action_add_position(self):

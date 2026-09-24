@@ -324,6 +324,24 @@ class AwDesign(models.Model):
             'context': {'active_id': self.id, 'active_model': 'aw.design'},
         }
 
+    def _renumber_panels(self):
+        """Number every panel 1..n in reading order: rows top to bottom,
+        leaves within a row left to right.
+
+        There are no nested containers in this model yet -- a design has
+        rows, a row has leaves, and that's the whole tree -- so this is a
+        flat two-level walk. It's written as a walk rather than an
+        enumerate() over a flat list so that when a leaf can itself hold
+        rows, the recursion drops in here and numbering stays in reading
+        order with the nested panels counted in place.
+        """
+        for design in self:
+            number = 0
+            for row in design.row_ids:
+                for leaf in row.leaf_ids:
+                    number += 1
+                    leaf.panel_no = number
+
     def get_configurator_data(self):
         """Everything the configurator needs, in one round trip: header,
         geometry, the unit setting, the Series' allowed leaf types, and
@@ -355,6 +373,7 @@ class AwDesign(models.Model):
                 'leaves': [{
                     'width_mm': leaf.width_mm,
                     'is_auto': leaf.is_auto,
+                    'panel_no': leaf.panel_no,
                     'leaf_type_id': leaf.leaf_type_id.id,
                     'leaf_type_code': leaf.leaf_type_id.code or '',
                     'hinge_side': leaf.hinge_side or '',
@@ -412,6 +431,10 @@ class AwDesign(models.Model):
                     'slide_dir': leaf.get('slide_dir') or False,
                 }) for leaf in row.get('leaves') or []],
             })
+        # Authoritative numbering: the client numbers panels the same way
+        # for display, but the server decides what's stored, so a payload
+        # that arrived with stale or absent numbers still lands numbered.
+        self._renumber_panels()
         return self.get_configurator_data()
 
     def _incomplete_dimension_designs(self):

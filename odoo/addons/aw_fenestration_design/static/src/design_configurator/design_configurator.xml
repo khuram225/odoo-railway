@@ -252,6 +252,26 @@
                                               t-att-width="leaf.w - 2" t-att-height="leaf.h - 2"
                                               fill="none" stroke="#6b4a63" stroke-width="1.8"
                                               stroke-dasharray="4 3"/>
+
+                                        <!-- Panel number. Drawn last so it sits
+                                             above the slide arrow rather than
+                                             being crossed by it. Radius and font
+                                             are in viewBox units derived from
+                                             unitsPerPixel, so the badge stays the
+                                             same physical size at any zoom. -->
+                                        <circle class="o_aw_panel_badge"
+                                                t-att-cx="leaf.badge.cx" t-att-cy="leaf.badge.cy"
+                                                t-att-r="leaf.badge.r"
+                                                t-att-fill="leaf.selected ? '#6b4a63' : '#ffffff'"
+                                                t-att-stroke="leaf.selected ? '#6b4a63' : '#6a7075'"
+                                                t-att-stroke-width="leaf.badge.r * 0.12"/>
+                                        <text class="o_aw_panel_badge_text"
+                                              t-att-x="leaf.badge.cx" t-att-y="leaf.badge.cy"
+                                              t-att-font-size="leaf.badge.font"
+                                              t-att-fill="leaf.selected ? '#ffffff' : '#14181b'"
+                                              text-anchor="middle" dominant-baseline="central">
+                                            <t t-esc="leaf.badge.label"/>
+                                        </text>
                                     </g>
                                 </t>
 
@@ -303,6 +323,10 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div t-if="scene" class="text-center text-muted small mt-2 flex-shrink-0">
+                            View from inside
+                        </div>
                     </div>
 
                     <!-- RIGHT: selected-leaf properties -->
@@ -310,17 +334,18 @@
                          style="width: 260px; min-height: 0;">
                         <div class="overflow-auto p-3 flex-grow-1" style="min-height: 0;">
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
-                                Selected leaf
+                                <t t-if="selectedLeaf"><t t-esc="selectedPanelLabel"/></t>
+                                <t t-else="">Selected panel</t>
                             </div>
 
                             <div t-if="!selectedLeaf" class="small text-muted">
-                                Click a leaf in the drawing to edit it.
+                                Click a panel in the drawing to edit it.
                             </div>
 
                             <t t-else="">
-                                <div class="mb-3 small">
-                                    Row <b><t t-esc="state.selected.row + 1"/></b>,
-                                    leaf <b><t t-esc="state.selected.leaf + 1"/></b>
+                                <div class="mb-3 small text-muted">
+                                    Row <t t-esc="state.selected.row + 1"/>,
+                                    leaf <t t-esc="state.selected.leaf + 1"/>
                                     &#8212; <t t-esc="formatLength(selectedLeaf.width_mm)"/> wide
                                 </div>
 

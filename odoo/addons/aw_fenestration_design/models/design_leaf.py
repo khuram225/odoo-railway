@@ -20,6 +20,13 @@ class AwDesignLeaf(models.Model):
 
     row_id = fields.Many2one('aw.design.row', required=True, ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
+    panel_no = fields.Integer(
+        string='Panel',
+        help="Position of this panel in the design, numbered 1..n in "
+             "reading order. Stored rather than computed on the fly so the "
+             "BOM, cut list and shop drawing can all cite the same "
+             "reference, e.g. D1-P2. Assigned by "
+             "aw.design._renumber_panels().")
     length_uom = fields.Selection(related='row_id.length_uom', string='Length Unit')
 
     # Not required, same reason as aw.design.width_mm: a new leaf entered

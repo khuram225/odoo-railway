@@ -280,6 +280,18 @@ export class DesignConfigurator extends Component {
         return this.state.data.rows[sel.row]?.leaves[sel.leaf] || null;
     }
 
+    /** "Panel 2" / "Panel M3" — the same label the badge shows. */
+    get selectedPanelLabel() {
+        const sel = this.state.selected;
+        if (!sel) {
+            return "";
+        }
+        const entry = this.scene?.leaves.find(
+            (l) => l.ri === sel.row && l.li === sel.leaf
+        );
+        return entry ? `Panel ${entry.badge.label}` : "";
+    }
+
     get selectedLeafType() {
         const leaf = this.selectedLeaf;
         if (!leaf) {
@@ -450,6 +462,17 @@ export class DesignConfigurator extends Component {
         const rows = data.rows;
         const totH = rows.reduce((a, r) => a + (r.height_mm || 0), 0) || 1;
 
+        // Constant-in-CSS-pixels, like the dividers: a radius in viewBox
+        // units would balloon when zoomed in and vanish when zoomed out.
+        const upp = this.unitsPerPixel;
+        const badgeR = 11 * upp;
+        const badgeFont = 11 * upp;
+
+        // Panel numbering mirrors aw.design._renumber_panels() exactly, so
+        // numbers appear the moment a preset is applied rather than only
+        // after a save. The server still renumbers authoritatively on save.
+        let panelNo = 0;
+
         let ry = y0 + ff;
         rows.forEach((row, ri) => {
             const rh = ((row.height_mm || 0) / totH) * (h - 2 * ff);
@@ -465,10 +488,22 @@ export class DesignConfigurator extends Component {
                     this.state.selected &&
                     this.state.selected.row === ri &&
                     this.state.selected.leaf === li;
+                panelNo += 1;
+                const isMesh = leaf.leaf_type_code === "MESH";
                 leaves.push({
                     key: `${ri}-${li}`,
                     ri,
                     li,
+                    panelNo,
+                    badge: {
+                        cx: rx + lw / 2,
+                        cy: ry + rh / 2,
+                        r: badgeR,
+                        font: badgeFont,
+                        // EvA marks mesh sashes M<n>; the counter is shared,
+                        // so panel 3 being a mesh reads "M3".
+                        label: isMesh ? `M${panelNo}` : String(panelNo),
+                    },
                     x: rx,
                     y: ry,
                     w: lw,
@@ -477,7 +512,7 @@ export class DesignConfigurator extends Component {
                     glassY: ry + sw,
                     glassW: Math.max(1, lw - 2 * sw),
                     glassH: Math.max(1, rh - 2 * sw),
-                    isMesh: leaf.leaf_type_code === "MESH",
+                    isMesh,
                     selected,
                     glyph: this.leafGlyph(rx, ry, lw, rh, leaf),
                 });
