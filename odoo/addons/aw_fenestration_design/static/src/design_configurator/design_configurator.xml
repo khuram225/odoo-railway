@@ -211,7 +211,7 @@
                                 <!-- leaves -->
                                 <t t-foreach="scene.leaves" t-as="leaf" t-key="leaf.key">
                                     <g style="cursor: pointer"
-                                       t-on-click="(ev) => this.selectLeaf(leaf.ri, leaf.li, ev)">
+                                       t-on-click="(ev) => this.selectLeaf(leaf.path, ev)">
                                         <rect t-att-x="leaf.x" t-att-y="leaf.y"
                                               t-att-width="leaf.w" t-att-height="leaf.h"
                                               fill="#8a9095" fill-opacity="0.55"
@@ -224,21 +224,22 @@
                                         <path t-if="leaf.glyph.arrow" t-att-d="leaf.glyph.arrow"
                                               stroke="#4a5358" stroke-width="1.1" fill="none"/>
 
-                                        <t t-if="leaf.glyph.fan">
-                                            <t t-foreach="leaf.glyph.fan.lines" t-as="fl" t-key="fl.key">
-                                                <line t-att-x1="fl.x1" t-att-y1="fl.y1"
-                                                      t-att-x2="fl.x2" t-att-y2="fl.y2"
-                                                      stroke="#4a5358" stroke-width="0.6"
+                                        <!-- Opening symbol: apex at the hinge
+                                             side, base at the two corners
+                                             opposite it. Tilt &amp; turn draws
+                                             two, one per opening direction. -->
+                                        <t t-foreach="leaf.glyph.triangles or []" t-as="tri" t-key="tri.key">
+                                            <polyline t-att-points="tri.points"
+                                                      fill="none" stroke="#4a5358"
+                                                      stroke-width="0.6"
                                                       stroke-dasharray="3 2"/>
-                                            </t>
-                                            <circle t-att-cx="leaf.glyph.fan.cx" t-att-cy="leaf.glyph.fan.cy"
-                                                    r="2.6" fill="#6b4a63"/>
-                                            <text t-att-x="leaf.glyph.fan.tagX" t-att-y="leaf.glyph.fan.tagY"
-                                                  fill="#4a5358" font-size="8.5" text-anchor="middle"
-                                                  font-family="monospace">
-                                                <t t-esc="leaf.glyph.fan.tag"/>
-                                            </text>
                                         </t>
+                                        <text t-if="leaf.glyph.fan"
+                                              t-att-x="leaf.glyph.fan.tagX" t-att-y="leaf.glyph.fan.tagY"
+                                              fill="#4a5358" font-size="8.5" text-anchor="middle"
+                                              font-family="monospace">
+                                            <t t-esc="leaf.glyph.fan.tag"/>
+                                        </text>
 
                                         <text t-if="leaf.glyph.label"
                                               t-att-x="leaf.glyph.label.x" t-att-y="leaf.glyph.label.y"
@@ -283,14 +284,46 @@
                                      so neither thins to a sliver when the
                                      drawing is scaled down. -->
                                 <t t-foreach="adornments.dividers" t-as="divider" t-key="divider.key">
-                                    <g t-attf-class="o_aw_divider o_aw_divider_{{divider.kind}}">
-                                        <line class="o_aw_divider_line"
-                                              t-att-x1="divider.x1" t-att-y1="divider.y1"
-                                              t-att-x2="divider.x2" t-att-y2="divider.y2"
-                                              t-att-stroke-width="divider.stroke"/>
+                                    <g t-attf-class="o_aw_divider o_aw_divider_{{divider.kind}}{{divider.selected ? ' o_aw_divider_selected' : ''}}">
+                                        <!-- Junction is drawn, not just stored:
+                                             mullion is one solid bar, meeting is
+                                             two thin lines with no bar between,
+                                             interlock is two overlapping edges. -->
+                                        <t t-if="divider.junction === 'meeting'">
+                                            <line class="o_aw_divider_line"
+                                                  t-att-x1="divider.x1 - divider.stroke"
+                                                  t-att-y1="divider.y1"
+                                                  t-att-x2="divider.x2 - divider.stroke"
+                                                  t-att-y2="divider.y2"
+                                                  t-att-stroke-width="divider.stroke * 0.5"/>
+                                            <line class="o_aw_divider_line"
+                                                  t-att-x1="divider.x1 + divider.stroke"
+                                                  t-att-y1="divider.y1"
+                                                  t-att-x2="divider.x2 + divider.stroke"
+                                                  t-att-y2="divider.y2"
+                                                  t-att-stroke-width="divider.stroke * 0.5"/>
+                                        </t>
+                                        <t t-elif="divider.junction === 'interlock'">
+                                            <rect class="o_aw_divider_interlock"
+                                                  t-att-x="divider.x1 - divider.stroke * 1.5"
+                                                  t-att-y="divider.y1"
+                                                  t-att-width="divider.stroke * 3"
+                                                  t-att-height="divider.y2 - divider.y1"/>
+                                            <line class="o_aw_divider_line"
+                                                  t-att-x1="divider.x1" t-att-y1="divider.y1"
+                                                  t-att-x2="divider.x2" t-att-y2="divider.y2"
+                                                  t-att-stroke-width="divider.stroke * 0.6"/>
+                                        </t>
+                                        <t t-else="">
+                                            <line class="o_aw_divider_line"
+                                                  t-att-x1="divider.x1" t-att-y1="divider.y1"
+                                                  t-att-x2="divider.x2" t-att-y2="divider.y2"
+                                                  t-att-stroke-width="divider.stroke"/>
+                                        </t>
                                         <rect class="o_aw_divider_hit"
                                               t-att-x="divider.hitX" t-att-y="divider.hitY"
                                               t-att-width="divider.hitW" t-att-height="divider.hitH"
+                                              t-on-click="(ev) => this.selectDivider(divider, ev)"
                                               t-on-pointerdown="(ev) => this.onDividerPointerDown(divider, ev)"/>
                                     </g>
                                 </t>
@@ -325,7 +358,7 @@
                         </div>
 
                         <div t-if="scene" class="text-center text-muted small mt-2 flex-shrink-0">
-                            View from inside
+                            View from inside &#183; triangle points to hinge
                         </div>
                     </div>
 
@@ -338,8 +371,25 @@
                                 <t t-else="">Selected panel</t>
                             </div>
 
-                            <div t-if="!selectedLeaf" class="small text-muted">
-                                Click a panel in the drawing to edit it.
+                            <!-- Divider selected: junction type. Horizontal
+                                 boundaries are always transoms, so only
+                                 vertical ones are selectable. -->
+                            <t t-if="selectedDividerEntry">
+                                <div class="small text-muted mb-1">Junction</div>
+                                <div class="d-flex flex-wrap gap-1 mb-3">
+                                    <t t-foreach="['mullion', 'meeting', 'interlock']" t-as="jt" t-key="jt">
+                                        <button class="btn btn-sm text-capitalize"
+                                                t-att-class="selectedDividerEntry.junction === jt ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-on-click="() => this.setJunction(jt)">
+                                            <t t-esc="jt"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
+
+                            <div t-if="!selectedLeaf and !selectedDividerEntry" class="small text-muted">
+                                Click a panel to edit it, or a vertical divider
+                                to set its junction.
                             </div>
 
                             <t t-else="">
@@ -347,6 +397,31 @@
                                     Row <t t-esc="state.selected.row + 1"/>,
                                     leaf <t t-esc="state.selected.leaf + 1"/>
                                     &#8212; <t t-esc="formatLength(selectedLeaf.width_mm)"/> wide
+                                </div>
+
+                                <!-- Panel toolbar -->
+                                <div class="d-flex flex-wrap gap-1 mb-3">
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            title="Split into two side by side"
+                                            t-att-disabled="!canSplit"
+                                            t-on-click="() => this.splitPanel('vertical')">
+                                        <i class="fa fa-columns"/> Split V
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            title="Split into two stacked"
+                                            t-att-disabled="!canSplit"
+                                            t-on-click="() => this.splitPanel('horizontal')">
+                                        <i class="fa fa-bars"/> Split H
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            title="Remove this panel"
+                                            t-att-disabled="!canRemove"
+                                            t-on-click="removePanel">
+                                        <i class="fa fa-trash"/>
+                                    </button>
+                                </div>
+                                <div t-if="!canSplit" class="small text-muted mb-2">
+                                    Maximum subdivision depth reached.
                                 </div>
 
                                 <div class="small text-muted mb-1">Leaf type</div>

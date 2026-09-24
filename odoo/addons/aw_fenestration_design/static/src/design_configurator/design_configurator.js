@@ -29,6 +29,36 @@ const AREA_H = VIEW_H - PAD_T - 108;
 const FRAME_FACE_MM = 100;
 const MIN_LEAF_MM = 4 * MM_PER_IN; // prototype's IN(4) drag floor
 
+const MAX_DEPTH = 3; // matches aw.design.MAX_NESTING_DEPTH
+
+// A panel is addressed by its PATH: [[rowIndex, leafIndex], ...] from the
+// top of the tree. ri/li alone stopped being unique once panels could be
+// subdivided.
+const pathKey = (path) => path.map((p) => p.join("-")).join("/");
+const samePath = (a, b) =>
+    !!a && !!b && a.length === b.length && pathKey(a) === pathKey(b);
+
+const HINGED_CODES = ["CASEMENT", "TILTTURN"];
+
+/** Mirror of aw.design.leaf._default_junction. Keep the two in step. */
+function defaultJunction(left, right) {
+    if (!right) {
+        return false;
+    }
+    if (left.leaf_type_code === "SLIDER" && right.leaf_type_code === "SLIDER") {
+        return "interlock";
+    }
+    if (
+        HINGED_CODES.includes(left.leaf_type_code) &&
+        HINGED_CODES.includes(right.leaf_type_code) &&
+        left.hinge_side === "left" &&
+        right.hinge_side === "right"
+    ) {
+        return "meeting";
+    }
+    return "mullion";
+}
+
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 4;
 const ZOOM_STEP = 1.25;
@@ -57,7 +87,8 @@ export class DesignConfigurator extends Component {
             loading: true,
             dirty: false,
             data: null,
-            selected: null, // {row: i, leaf: j}
+            selected: null, // path: [[rowIdx, leafIdx], ...]
+            selectedDivider: null, // divider key
             zoom: 1, // 1 = fitted to the canvas
             canvasW: 0,
             canvasH: 0,
@@ -110,6 +141,7 @@ export class DesignConfigurator extends Component {
         this.state.loading = false;
         this.state.dirty = false;
         this.state.selected = null;
+        this.state.selectedDivider = null;
         this.state.zoom = 1; // a freshly opened design starts fitted
     }
 
@@ -246,50 +278,119 @@ export class DesignConfigurator extends Component {
         return next;
     }
 
+    // Both recurse: a container's children have to be refitted to the
+    // container's NEW size, or a nested split stops adding up as soon as
+    // the overall dimensions change.
     rescaleWidths(totalWidth) {
-        for (const row of this.state.data.rows) {
-            const sizes = this.fitToTotal(
-                row.leaves.map((l) => l.width_mm),
-                row.leaves.map((l) => l.is_auto),
-                totalWidth
-            );
-            row.leaves.forEach((leaf, i) => {
-                leaf.width_mm = sizes[i];
-            });
-        }
+        const walk = (rows, total) => {
+            for (const row of rows) {
+                const sizes = this.fitToTotal(
+                    row.leaves.map((l) => l.width_mm),
+                    row.leaves.map((l) => l.is_auto),
+                    total
+                );
+                row.leaves.forEach((leaf, i) => {
+                    leaf.width_mm = sizes[i];
+                    if (leaf.rows && leaf.rows.length) {
+                        walk(leaf.rows, sizes[i]);
+                    }
+                });
+            }
+        };
+        walk(this.state.data.rows, totalWidth);
     }
 
     rescaleHeights(totalHeight) {
-        const rows = this.state.data.rows;
-        const sizes = this.fitToTotal(
-            rows.map((r) => r.height_mm),
-            rows.map((r) => r.is_auto),
-            totalHeight
-        );
-        rows.forEach((row, i) => {
-            row.height_mm = sizes[i];
-        });
+        const walk = (rows, total) => {
+            const sizes = this.fitToTotal(
+                rows.map((r) => r.height_mm),
+                rows.map((r) => r.is_auto),
+                total
+            );
+            rows.forEach((row, i) => {
+                row.height_mm = sizes[i];
+                for (const leaf of row.leaves) {
+                    if (leaf.rows && leaf.rows.length) {
+                        walk(leaf.rows, sizes[i]);
+                    }
+                }
+            });
+        };
+        walk(this.state.data.rows, totalHeight);
+    }
+
+    // -- tree navigation ---------------------------------------------------
+    /** The row list a path points INTO (i.e. the container's rows). */
+    rowsAt(path) {
+        let rows = this.state.data.rows;
+        for (const [ri, li] of path) {
+            rows = rows[ri]?.leaves[li]?.rows || [];
+        }
+        return rows;
+    }
+
+    /** The leaf a path points AT. */
+    leafAt(path) {
+        if (!path || !path.length) {
+            return null;
+        }
+        let rows = this.state.data.rows;
+        let leaf = null;
+        for (const [ri, li] of path) {
+            leaf = rows[ri]?.leaves[li] || null;
+            if (!leaf) {
+                return null;
+            }
+            rows = leaf.rows || [];
+        }
+        return leaf;
     }
 
     // -- selection ---------------------------------------------------------
     get selectedLeaf() {
+        return this.leafAt(this.state.selected);
+    }
+
+    get canSplit() {
+        // Splitting a leaf at depth d creates rows at depth d+1, so a leaf
+        // already at the limit can't be split again.
+        return !!this.state.selected && this.state.selected.length < MAX_DEPTH;
+    }
+
+    get canRemove() {
+        // Never leave a design with nothing in it.
         const sel = this.state.selected;
         if (!sel) {
-            return null;
+            return false;
         }
-        return this.state.data.rows[sel.row]?.leaves[sel.leaf] || null;
+        if (sel.length > 1) {
+            return true;
+        }
+        return this.scene ? this.scene.leaves.length > 1 : false;
     }
 
     /** "Panel 2" / "Panel M3" — the same label the badge shows. */
     get selectedPanelLabel() {
-        const sel = this.state.selected;
-        if (!sel) {
-            return "";
-        }
-        const entry = this.scene?.leaves.find(
-            (l) => l.ri === sel.row && l.li === sel.leaf
-        );
+        const entry = this.selectedSceneLeaf;
         return entry ? `Panel ${entry.badge.label}` : "";
+    }
+
+    get selectedSceneLeaf() {
+        const sel = this.state.selected;
+        if (!sel || !this.scene) {
+            return null;
+        }
+        return (
+            this.scene.leaves.find((l) => samePath(l.path, sel)) || null
+        );
+    }
+
+    get selectedDividerEntry() {
+        const key = this.state.selectedDivider;
+        if (!key || !this.scene) {
+            return null;
+        }
+        return this.scene.dividers.find((d) => d.key === key) || null;
     }
 
     get selectedLeafType() {
@@ -302,10 +403,32 @@ export class DesignConfigurator extends Component {
         );
     }
 
-    selectLeaf(rowIndex, leafIndex, ev) {
+    selectLeaf(path, ev) {
         // A click that ended a pan shouldn't also change the selection.
         ev?.stopPropagation();
-        this.state.selected = { row: rowIndex, leaf: leafIndex };
+        this.state.selected = path;
+        this.state.selectedDivider = null;
+    }
+
+    selectDivider(divider, ev) {
+        ev?.stopPropagation();
+        // Only vertical junctions are editable; horizontal boundaries are
+        // always transoms, per the spec.
+        if (divider.kind !== "v") {
+            return;
+        }
+        this.state.selectedDivider = divider.key;
+        this.state.selected = null;
+    }
+
+    setJunction(value) {
+        const entry = this.selectedDividerEntry;
+        if (!entry) {
+            return;
+        }
+        const rows = this.rowsAt(entry.path);
+        rows[entry.ri].leaves[entry.li].junction_after = value;
+        this.state.dirty = true;
     }
 
     setLeafType(leafTypeId) {
@@ -330,12 +453,149 @@ export class DesignConfigurator extends Component {
         this.state.dirty = true;
     }
 
+    /**
+     * Turn the selected panel into a container of two.
+     *
+     * "vertical" means a vertical divider, i.e. two panels side by side:
+     * one sub-row, two leaves. "horizontal" is one leaf per sub-row,
+     * stacked. The panel keeps its own width/height; the children split it.
+     * Both children inherit the original's type and direction so a split
+     * never silently invents a panel type.
+     */
+    splitPanel(direction) {
+        const leaf = this.selectedLeaf;
+        if (!leaf || !this.canSplit) {
+            return;
+        }
+        // A leaf has no height of its own -- height belongs to the row that
+        // holds it. Server-loaded leaves therefore have no height_mm at
+        // all, and using it directly put NaN into every nested coordinate.
+        const sel = this.state.selected;
+        const parentRows = this.rowsAt(sel.slice(0, -1));
+        const rowHeight = parentRows[sel[sel.length - 1][0]].height_mm || 0;
+
+        const child = () => ({
+            width_mm: leaf.width_mm,
+            height_mm: rowHeight,
+            is_auto: false,
+            leaf_type_id: leaf.leaf_type_id,
+            leaf_type_code: leaf.leaf_type_code,
+            hinge_side: leaf.hinge_side || "",
+            swing: leaf.swing || "",
+            slide_dir: leaf.slide_dir || "",
+            junction_after: "",
+            rows: [],
+        });
+
+        if (direction === "vertical") {
+            const half = (leaf.width_mm || 0) / 2;
+            const a = { ...child(), width_mm: half };
+            const b = { ...child(), width_mm: half };
+            leaf.rows = [{ height_mm: rowHeight, is_auto: false, leaves: [a, b] }];
+        } else {
+            const half = rowHeight / 2;
+            leaf.rows = [
+                { height_mm: half, is_auto: false, leaves: [child()] },
+                { height_mm: half, is_auto: false, leaves: [child()] },
+            ];
+        }
+        // A container is not a panel: it carries no type of its own.
+        leaf.leaf_type_id = false;
+        leaf.leaf_type_code = "";
+        leaf.hinge_side = "";
+        leaf.swing = "";
+        leaf.slide_dir = "";
+
+        this.recomputeJunctions(this.state.data.rows);
+        // Select the first child, so the toolbar stays on something real.
+        this.state.selected = [...this.state.selected, [0, 0]];
+        this.state.dirty = true;
+    }
+
+    /**
+     * Remove the selected panel from its row, collapsing what's left.
+     *
+     * A row emptied of leaves goes; a container emptied of rows stops
+     * being a container; and a container left holding exactly one panel
+     * collapses back into that panel, which is what makes a split
+     * reversible by removing one of its halves.
+     */
+    removePanel() {
+        const sel = this.state.selected;
+        if (!sel || !this.canRemove) {
+            return;
+        }
+        const parentPath = sel.slice(0, -1);
+        const [ri, li] = sel[sel.length - 1];
+        const rows = this.rowsAt(parentPath);
+
+        rows[ri].leaves.splice(li, 1);
+        if (!rows[ri].leaves.length) {
+            rows.splice(ri, 1);
+        }
+
+        const container = this.leafAt(parentPath);
+        if (container) {
+            if (!rows.length) {
+                container.rows = [];
+            } else if (rows.length === 1 && rows[0].leaves.length === 1) {
+                const only = rows[0].leaves[0];
+                Object.assign(container, {
+                    leaf_type_id: only.leaf_type_id,
+                    leaf_type_code: only.leaf_type_code,
+                    hinge_side: only.hinge_side,
+                    swing: only.swing,
+                    slide_dir: only.slide_dir,
+                    rows: only.rows || [],
+                });
+            }
+        }
+
+        this.recomputeJunctions(this.state.data.rows);
+        this.state.selected = parentPath.length ? parentPath : null;
+        this.state.dirty = true;
+    }
+
+    /** Keep a preset's explicit junctions, derive the rest. */
+    applyJunctionDefaults(rows, presetRows) {
+        rows.forEach((row, ri) => {
+            row.leaves.forEach((leaf, li) => {
+                const next = row.leaves[li + 1] || null;
+                const stated = presetRows?.[ri]?.leaves?.[li]?.junction;
+                leaf.junction_after = next
+                    ? stated || defaultJunction(leaf, next)
+                    : "";
+                if (leaf.rows && leaf.rows.length) {
+                    this.applyJunctionDefaults(
+                        leaf.rows, presetRows?.[ri]?.leaves?.[li]?.rows);
+                }
+            });
+        });
+    }
+
+    /** Re-apply the default junction wherever one isn't set explicitly. */
+    recomputeJunctions(rows) {
+        for (const row of rows) {
+            row.leaves.forEach((leaf, i) => {
+                const next = row.leaves[i + 1] || null;
+                leaf.junction_after = next ? defaultJunction(leaf, next) : "";
+                if (leaf.rows && leaf.rows.length) {
+                    this.recomputeJunctions(leaf.rows);
+                }
+            });
+        }
+    }
+
     setDirection(field, value) {
         const leaf = this.selectedLeaf;
         if (!leaf) {
             return;
         }
-        leaf[field] = leaf[field] === value ? "" : value;
+        // Plain set, NOT a toggle. A split panel inherits its parent's
+        // direction, so clicking the value you want would clear it when it
+        // happened to already be set -- clicking "out" on a panel that is
+        // already "out" left it with no swing at all.
+        leaf[field] = value;
         this.state.dirty = true;
     }
 
@@ -363,27 +623,36 @@ export class DesignConfigurator extends Component {
         const H = 42;
         const ff = 2.5;
         const rects = [];
-        const totH = layout.rows.reduce((a, r) => a + (r.h || 1), 0) || 1;
-        let y = ff;
-        for (const row of layout.rows) {
-            const rh = ((row.h || 1) / totH) * (H - 2 * ff);
-            const totW =
-                row.leaves.reduce((a, l) => a + (l.w || 1), 0) || 1;
-            let x = ff;
-            for (const leaf of row.leaves) {
-                const lw = ((leaf.w || 1) / totW) * (W - 2 * ff);
-                rects.push({
-                    key: `${rects.length}`,
-                    x: x + 1,
-                    y: y + 1,
-                    w: Math.max(1, lw - 2),
-                    h: Math.max(1, rh - 2),
-                    isMesh: leaf.type === "MESH",
-                });
-                x += lw;
+        // Recurses, so a preset containing a nested split shows that split
+        // in its thumbnail rather than a single flat panel.
+        const tile = (rowList, box) => {
+            const totH = rowList.reduce((a, r) => a + (r.h || 1), 0) || 1;
+            let y = box.y;
+            for (const row of rowList) {
+                const rh = ((row.h || 1) / totH) * box.h;
+                const totW =
+                    row.leaves.reduce((a, l) => a + (l.w || 1), 0) || 1;
+                let x = box.x;
+                for (const leaf of row.leaves) {
+                    const lw = ((leaf.w || 1) / totW) * box.w;
+                    if (leaf.rows && leaf.rows.length) {
+                        tile(leaf.rows, { x, y, w: lw, h: rh });
+                    } else {
+                        rects.push({
+                            key: `${rects.length}`,
+                            x: x + 1,
+                            y: y + 1,
+                            w: Math.max(1, lw - 2),
+                            h: Math.max(1, rh - 2),
+                            isMesh: leaf.type === "MESH",
+                        });
+                    }
+                    x += lw;
+                }
+                y += rh;
             }
-            y += rh;
-        }
+        };
+        tile(layout.rows, { x: ff, y: ff, w: W - 2 * ff, h: H - 2 * ff });
         return { viewBox: `0 0 ${W} ${H}`, frame: { W, H }, rects };
     }
 
@@ -404,28 +673,53 @@ export class DesignConfigurator extends Component {
         for (const lt of this.state.data.leaf_types) {
             byCode[lt.code] = lt;
         }
-        this.state.data.rows = layout.rows.map((row) => {
-            const totalW = row.leaves.reduce((sum, l) => sum + (l.w || 1), 0);
-            return {
-                height_mm: (header.height_mm * (row.h || 1)) / totalH,
-                is_auto: false,
-                leaves: row.leaves.map((leaf) => {
-                    const type = byCode[leaf.type];
-                    return {
-                        width_mm: (header.width_mm * (leaf.w || 1)) / totalW,
-                        is_auto: false,
-                        leaf_type_id: type?.id || false,
-                        leaf_type_code: leaf.type,
-                        hinge_side: type?.has_hinge_side
-                            ? leaf.hinge || ""
-                            : "",
-                        swing: type?.has_hinge_side ? leaf.swing || "" : "",
-                        slide_dir: type?.has_slide_dir ? leaf.slide || "" : "",
-                    };
-                }),
-            };
-        });
+        // Recursive: a preset row's leaf may itself carry `rows`, which
+        // become a nested container sized against that leaf's share.
+        const build = (rowList, boxW, boxH) => {
+            const totH = rowList.reduce((a, r) => a + (r.h || 1), 0) || 1;
+            return rowList.map((row) => {
+                const rowH = (boxH * (row.h || 1)) / totH;
+                const totW =
+                    row.leaves.reduce((a, l) => a + (l.w || 1), 0) || 1;
+                return {
+                    height_mm: rowH,
+                    is_auto: false,
+                    leaves: row.leaves.map((leaf) => {
+                        const leafW = (boxW * (leaf.w || 1)) / totW;
+                        const nested = leaf.rows && leaf.rows.length;
+                        const type = byCode[leaf.type];
+                        return {
+                            width_mm: leafW,
+                            height_mm: rowH,
+                            is_auto: false,
+                            leaf_type_id: nested ? false : type?.id || false,
+                            leaf_type_code: nested ? "" : leaf.type || "",
+                            hinge_side:
+                                !nested && type?.has_hinge_side
+                                    ? leaf.hinge || ""
+                                    : "",
+                            swing:
+                                !nested && type?.has_hinge_side
+                                    ? leaf.swing || ""
+                                    : "",
+                            slide_dir:
+                                !nested && type?.has_slide_dir
+                                    ? leaf.slide || ""
+                                    : "",
+                            junction_after: leaf.junction || "",
+                            rows: nested ? build(leaf.rows, leafW, rowH) : [],
+                        };
+                    }),
+                };
+            });
+        };
+        this.state.data.rows = build(
+            layout.rows, header.width_mm, header.height_mm);
+        // A preset may state junctions explicitly; anything it leaves out
+        // falls back to the default rule.
+        this.applyJunctionDefaults(this.state.data.rows, layout.rows);
         this.state.selected = null;
+        this.state.selectedDivider = null;
         this.state.dirty = true;
     }
 
@@ -476,95 +770,110 @@ export class DesignConfigurator extends Component {
         const dividers = [];
         const dims = [];
         const rows = data.rows;
-        const totH = rows.reduce((a, r) => a + (r.height_mm || 0), 0) || 1;
 
         // Panel numbering mirrors aw.design._renumber_panels() exactly, so
-        // numbers appear the moment a preset is applied rather than only
-        // after a save. The server still renumbers authoritatively on save.
+        // numbers appear the moment a panel is split rather than only after
+        // a save. The server still renumbers authoritatively on save.
         let panelNo = 0;
 
-        let ry = y0 + ff;
-        rows.forEach((row, ri) => {
-            const rh = ((row.height_mm || 0) / totH) * (h - 2 * ff);
-            const totW =
-                row.leaves.reduce((a, l) => a + (l.width_mm || 0), 0) || 1;
-            const iw = w - 2 * ff;
-            let rx = x0 + ff;
+        // Recursive tiling. A leaf that carries its own `rows` is a
+        // CONTAINER: nothing is drawn for it, its box is handed straight to
+        // the next level down. Everything is addressed by PATH -- an array
+        // of [rowIndex, leafIndex] pairs from the top -- because ri/li
+        // alone stop being unique the moment anything nests.
+        const tile = (rowList, box, path) => {
+            const totH =
+                rowList.reduce((a, r) => a + (r.height_mm || 0), 0) || 1;
+            let ry = box.y;
+            rowList.forEach((row, ri) => {
+                const rh = ((row.height_mm || 0) / totH) * box.h;
+                const totW =
+                    row.leaves.reduce((a, l) => a + (l.width_mm || 0), 0) || 1;
+                let rx = box.x;
 
-            row.leaves.forEach((leaf, li) => {
-                const lw = ((leaf.width_mm || 0) / totW) * iw;
-                const sw = Math.max(3, 7 * s);
-                const selected =
-                    this.state.selected &&
-                    this.state.selected.row === ri &&
-                    this.state.selected.leaf === li;
-                panelNo += 1;
-                const isMesh = leaf.leaf_type_code === "MESH";
-                leaves.push({
-                    key: `${ri}-${li}`,
-                    ri,
-                    li,
-                    panelNo,
-                    // Position and label only -- the badge's RADIUS and FONT
-                    // are screen-sized and live in `adornments`, which is
-                    // computed after this. See the layering note on scene().
-                    badge: {
-                        cx: rx + lw / 2,
-                        cy: ry + rh / 2,
-                        // EvA marks mesh sashes M<n>; the counter is shared,
-                        // so panel 3 being a mesh reads "M3".
-                        label: isMesh ? `M${panelNo}` : String(panelNo),
-                    },
-                    x: rx,
-                    y: ry,
-                    w: lw,
-                    h: rh,
-                    glassX: rx + sw,
-                    glassY: ry + sw,
-                    glassW: Math.max(1, lw - 2 * sw),
-                    glassH: Math.max(1, rh - 2 * sw),
-                    isMesh,
-                    selected,
-                    glyph: this.leafGlyph(rx, ry, lw, rh, leaf),
+                row.leaves.forEach((leaf, li) => {
+                    const lw = ((leaf.width_mm || 0) / totW) * box.w;
+                    const leafPath = [...path, [ri, li]];
+                    const nested = leaf.rows && leaf.rows.length;
+
+                    if (nested) {
+                        tile(leaf.rows, { x: rx, y: ry, w: lw, h: rh }, leafPath);
+                    } else {
+                        const sw = Math.max(3, 7 * s);
+                        panelNo += 1;
+                        const isMesh = leaf.leaf_type_code === "MESH";
+                        leaves.push({
+                            key: pathKey(leafPath),
+                            path: leafPath,
+                            panelNo,
+                            // Position and label only -- the badge's RADIUS
+                            // and FONT are screen-sized and live in
+                            // `adornments`. See the layering note above.
+                            badge: {
+                                cx: rx + lw / 2,
+                                cy: ry + rh / 2,
+                                label: isMesh ? `M${panelNo}` : String(panelNo),
+                            },
+                            x: rx,
+                            y: ry,
+                            w: lw,
+                            h: rh,
+                            glassX: rx + sw,
+                            glassY: ry + sw,
+                            glassW: Math.max(1, lw - 2 * sw),
+                            glassH: Math.max(1, rh - 2 * sw),
+                            isMesh,
+                            selected: samePath(this.state.selected, leafPath),
+                            glyph: this.leafGlyph(rx, ry, lw, rh, leaf),
+                        });
+                    }
+
+                    if (li < row.leaves.length - 1) {
+                        const key = `v:${pathKey(path)}:${ri}:${li}`;
+                        dividers.push({
+                            key,
+                            kind: "v",
+                            path,
+                            ri,
+                            li,
+                            // Per-container, not global: a nested divider
+                            // converts pixels to mm against ITS OWN box, so
+                            // dragging inside a sub-panel moves by the amount
+                            // dragged rather than by the top level's scale.
+                            unitsPerMM: box.w / totW,
+                            junction: leaf.junction_after || "mullion",
+                            selected: this.state.selectedDivider === key,
+                            x1: rx + lw,
+                            y1: ry + 3,
+                            x2: rx + lw,
+                            y2: ry + rh - 3,
+                        });
+                    }
+                    rx += lw;
                 });
 
-                if (li < row.leaves.length - 1) {
+                if (ri < rowList.length - 1) {
+                    const key = `h:${pathKey(path)}:${ri}`;
                     dividers.push({
-                        key: `v-${ri}-${li}`,
-                        kind: "v",
+                        key,
+                        kind: "h",
+                        path,
                         ri,
-                        li,
-                        x1: rx + lw,
-                        y1: ry + 3,
-                        x2: rx + lw,
-                        y2: ry + rh - 3,
-                        hitX: rx + lw - 6,
-                        hitY: ry,
-                        hitW: 12,
-                        hitH: rh,
+                        li: null,
+                        unitsPerMM: box.h / totH,
+                        junction: null, // horizontal boundaries are transoms
+                        selected: this.state.selectedDivider === key,
+                        x1: box.x + 3,
+                        y1: ry + rh,
+                        x2: box.x + box.w - 3,
+                        y2: ry + rh,
                     });
                 }
-                rx += lw;
+                ry += rh;
             });
+        };
 
-            if (ri < rows.length - 1) {
-                dividers.push({
-                    key: `h-${ri}`,
-                    kind: "h",
-                    ri,
-                    li: null,
-                    x1: x0 + ff + 3,
-                    y1: ry + rh,
-                    x2: x0 + w - ff - 3,
-                    y2: ry + rh,
-                    hitX: x0 + ff,
-                    hitY: ry + rh - 6,
-                    hitW: w - 2 * ff,
-                    hitH: 12,
-                });
-            }
-            ry += rh;
-        });
+        tile(rows, { x: x0 + ff, y: y0 + ff, w: w - 2 * ff, h: h - 2 * ff }, []);
 
         // Dimension lines: per-row leaf widths for any row with more than
         // one leaf, then the overall width; row heights down the left if
@@ -599,9 +908,16 @@ export class DesignConfigurator extends Component {
         );
 
         if (rows.length > 1) {
+            // Recomputed here rather than shared with the tiling above: the
+            // tiling now carries its own total per container, so there is
+            // no single outer one to borrow. Dimension lines stay TOP-LEVEL
+            // only -- stacking a line per nested sub-panel would be
+            // unreadable, and the panel numbers already identify them.
+            const totalH =
+                rows.reduce((a, r) => a + (r.height_mm || 0), 0) || 1;
             let ry2 = y0 + ff;
             rows.forEach((row, ri) => {
-                const rh = ((row.height_mm || 0) / totH) * (h - 2 * ff);
+                const rh = ((row.height_mm || 0) / totalH) * (h - 2 * ff);
                 dims.push(
                     this.dim(
                         `h-${ri}`,
@@ -709,7 +1025,42 @@ export class DesignConfigurator extends Component {
         };
     }
 
-    /** Port of leafGlyph(): slide arrow, hinge fan + IN/OUT tag, MESH label. */
+    /**
+     * Apex at the midpoint of the hinge side, base at the two corners
+     * opposite it. Returned as a polyline so the two dashed legs are one
+     * element.
+     */
+    openingTriangle(x, y, w, h, side) {
+        const inset = 2;
+        const pts = {
+            left: [
+                [x + w - inset, y + inset],
+                [x, y + h / 2],
+                [x + w - inset, y + h - inset],
+            ],
+            right: [
+                [x + inset, y + inset],
+                [x + w, y + h / 2],
+                [x + inset, y + h - inset],
+            ],
+            top: [
+                [x + inset, y + h - inset],
+                [x + w / 2, y],
+                [x + w - inset, y + h - inset],
+            ],
+            bottom: [
+                [x + inset, y + inset],
+                [x + w / 2, y + h],
+                [x + w - inset, y + inset],
+            ],
+        }[side];
+        return {
+            key: side,
+            points: pts.map((pt) => pt.join(",")).join(" "),
+        };
+    }
+
+    /** Port of leafGlyph(): slide arrow, opening triangle + IN/OUT tag. */
     leafGlyph(x, y, w, h, leaf) {
         const type = this.state.data.leaf_types.find(
             (lt) => lt.id === leaf.leaf_type_id
@@ -725,28 +1076,18 @@ export class DesignConfigurator extends Component {
                 cx + aw * dir
             },${cy} l${-5 * dir},-4 M${cx + aw * dir},${cy} l${-5 * dir},4`;
         } else if (type?.has_hinge_side) {
-            const points = {
-                left: [x, y + h / 2],
-                right: [x + w, y + h / 2],
-                top: [x + w / 2, y],
-                bottom: [x + w / 2, y + h],
-            };
-            const hp = points[leaf.hinge_side] || points.left;
+            // Standard convention (spec 3.4), replacing the prototype's
+            // hinge dot with fans to all four corners: two dashed lines
+            // from the corners OPPOSITE the hinge meeting at the midpoint
+            // of the hinge side, so the triangle's apex is the hinge.
+            const side = leaf.hinge_side || "left";
+            glyph.triangles = [this.openingTriangle(x, y, w, h, side)];
+            // Tilt & turn opens two ways: side hinge plus a bottom tilt.
+            if (leaf.leaf_type_code === "TILTTURN") {
+                glyph.triangles.push(
+                    this.openingTriangle(x, y, w, h, "bottom"));
+            }
             glyph.fan = {
-                cx: hp[0],
-                cy: hp[1],
-                lines: [
-                    [x + 2, y + 2],
-                    [x + w - 2, y + 2],
-                    [x + w - 2, y + h - 2],
-                    [x + 2, y + h - 2],
-                ].map(([cx, cy], i) => ({
-                    key: i,
-                    x1: hp[0],
-                    y1: hp[1],
-                    x2: cx,
-                    y2: cy,
-                })),
                 tagX: x + w / 2,
                 tagY: y + h - 6,
                 tag: (leaf.swing || "out").toUpperCase(),
@@ -904,26 +1245,32 @@ export class DesignConfigurator extends Component {
         window.addEventListener("pointerup", this._onWindowUp);
         window.addEventListener("pointercancel", this._onWindowUp);
 
-        const rows = this.state.data.rows;
+        // rowsAt(divider.path) is the container the divider lives in, so a
+        // nested divider resizes its own sub-panels and nothing else. The
+        // scale comes from the divider too, because a container's
+        // units-per-mm is its own box, not the whole drawing's.
+        const rows = this.rowsAt(divider.path);
         if (divider.kind === "v") {
             const leaves = rows[divider.ri].leaves;
             this.dragging = {
                 kind: "v",
+                path: divider.path,
                 ri: divider.ri,
                 li: divider.li,
                 start: point.x,
                 a: leaves[divider.li].width_mm,
                 b: leaves[divider.li + 1].width_mm,
-                unitsPerMM: this.scene.pxPerMmX,
+                unitsPerMM: divider.unitsPerMM,
             };
         } else {
             this.dragging = {
                 kind: "h",
+                path: divider.path,
                 ri: divider.ri,
                 start: point.y,
                 a: rows[divider.ri].height_mm,
                 b: rows[divider.ri + 1].height_mm,
-                unitsPerMM: this.scene.pxPerMmY,
+                unitsPerMM: divider.unitsPerMM,
             };
         }
     }
@@ -971,7 +1318,7 @@ export class DesignConfigurator extends Component {
         if (!point) {
             return;
         }
-        const rows = this.state.data.rows;
+        const rows = this.rowsAt(drag.path);
         const raw =
             ((drag.kind === "v" ? point.x : point.y) - drag.start) /
             drag.unitsPerMM;
@@ -981,13 +1328,19 @@ export class DesignConfigurator extends Component {
             MIN_LEAF_MM - drag.a,
             Math.min(drag.b - MIN_LEAF_MM, raw)
         );
+        // NOT rounded to whole mm, though the prototype rounds here. The
+        // two sides must go on summing to exactly what they summed to
+        // before, and rounding each independently loses up to half a mm
+        // per drag -- which inside a container means the sub-panels stop
+        // adding up to the container and the drawing drifts. Display
+        // trims to 2dp, so exact floats cost nothing on screen.
         if (drag.kind === "v") {
             const leaves = rows[drag.ri].leaves;
-            leaves[drag.li].width_mm = Math.round(drag.a + delta);
-            leaves[drag.li + 1].width_mm = Math.round(drag.b - delta);
+            leaves[drag.li].width_mm = drag.a + delta;
+            leaves[drag.li + 1].width_mm = drag.b - delta;
         } else {
-            rows[drag.ri].height_mm = Math.round(drag.a + delta);
-            rows[drag.ri + 1].height_mm = Math.round(drag.b - delta);
+            rows[drag.ri].height_mm = drag.a + delta;
+            rows[drag.ri + 1].height_mm = drag.b - delta;
         }
         this.state.dirty = true;
     }

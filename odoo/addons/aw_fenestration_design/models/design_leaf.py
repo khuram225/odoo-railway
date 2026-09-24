@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class AwDesignLeaf(models.Model):
@@ -48,8 +49,21 @@ class AwDesignLeaf(models.Model):
              "the row's leaf widths always sum to the design's overall "
              "Width. Not enforced at this layer yet.")
 
+    # Subdivision. A leaf with child rows is a CONTAINER: it is not a panel
+    # itself, it just holds the rows that divide its area. Containers carry
+    # no leaf type, no direction and no panel number.
+    child_row_ids = fields.One2many(
+        'aw.design.row', 'parent_leaf_id', string='Sub-rows')
+    is_container = fields.Boolean(
+        compute='_compute_is_container', store=True,
+        help="True when this leaf is subdivided, i.e. holds rows rather "
+             "than being a panel in its own right.")
+
+    # NOT required: a container has no leaf type. Enforced for real panels
+    # by _check_leaf_type below instead, so the rule can say "unless it's a
+    # container" -- which a required= flag cannot.
     leaf_type_id = fields.Many2one(
-        'aw.leaf.type', required=True, ondelete='restrict')
+        'aw.leaf.type', ondelete='restrict')
     # convenience related fields so the view can decide which direction
     # fields to show without re-deriving the leaf-type -> field-visibility
     # rule in XML — single source of truth stays on aw.leaf.type itself
@@ -66,6 +80,52 @@ class AwDesignLeaf(models.Model):
     slide_dir = fields.Selection([
         ('left', 'Left'), ('right', 'Right'),
     ], help="Shown only for leaf types with has_slide_dir set.")
+
+    junction_after = fields.Selection([
+        ('mullion', 'Mullion'),
+        ('meeting', 'Meeting'),
+        ('interlock', 'Interlock'),
+    ], help="What the boundary between this panel and the next one in "
+            "the same row is made of. Empty on the last panel of a row, "
+            "which has no next panel. Horizontal boundaries between rows "
+            "are always transoms and aren't stored here.")
+
+    @api.model
+    def _default_junction(self, left, right):
+        """What two neighbouring panels meet with, by default.
+
+        Takes plain dicts rather than records so the same rule can run on
+        a save payload and on stored leaves. Overridable per junction in
+        the configurator afterwards -- this only decides the starting
+        value.
+        """
+        if not right:
+            return False          # last panel in the row: no junction
+        codes = (left.get('leaf_type_code'), right.get('leaf_type_code'))
+        if codes == ('SLIDER', 'SLIDER'):
+            return 'interlock'
+        # Two opening sashes hinged AWAY from the boundary meet each other
+        # directly -- a French pair. Hinged towards it, or anything with a
+        # fixed panel involved, needs a mullion between them.
+        hinged = {'CASEMENT', 'TILTTURN'}
+        if (codes[0] in hinged and codes[1] in hinged
+                and left.get('hinge_side') == 'left'
+                and right.get('hinge_side') == 'right'):
+            return 'meeting'
+        return 'mullion'
+
+    @api.depends('child_row_ids')
+    def _compute_is_container(self):
+        for rec in self:
+            rec.is_container = bool(rec.child_row_ids)
+
+    @api.constrains('leaf_type_id', 'child_row_ids')
+    def _check_leaf_type(self):
+        for rec in self:
+            if not rec.child_row_ids and not rec.leaf_type_id:
+                raise ValidationError(_(
+                    "A panel needs a Leaf Type unless it is subdivided "
+                    "into sub-rows."))
 
     @api.depends('width_mm')
     def _compute_width_ftin(self):

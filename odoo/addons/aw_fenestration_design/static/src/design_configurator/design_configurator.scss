@@ -14,9 +14,21 @@
         pointer-events: all;
     }
 
+    .o_aw_divider_interlock {
+        fill: #6b4a63;
+        fill-opacity: 0.18;
+        pointer-events: none;
+    }
+
     &:hover .o_aw_divider_line {
         stroke-opacity: 1;
     }
+}
+
+.o_aw_divider_selected .o_aw_divider_line {
+    stroke-opacity: 1;
+    stroke: #6b4a63;
+    stroke-dasharray: 4 3;
 }
 
 .o_aw_divider_v .o_aw_divider_hit {

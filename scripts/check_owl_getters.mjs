@@ -37,7 +37,8 @@ const TARGETS = [
             canvasW: 900,
             canvasH: 600,
             libraryOpen: true,
-            selected: { row: 0, leaf: 1 },
+            selected: [[0, 1], [0, 0]],
+            selectedDivider: null,
             data: {
                 id: 1,
                 length_uom: "ftin",
@@ -57,7 +58,19 @@ const TARGETS = [
                         is_auto: false,
                         leaves: [
                             { width_mm: 1219.2, leaf_type_id: 1, leaf_type_code: "SLIDER", slide_dir: "left" },
-                            { width_mm: 1219.2, leaf_type_id: 3, leaf_type_code: "MESH" },
+                            {
+                                width_mm: 1219.2,
+                                leaf_type_id: false,
+                                leaf_type_code: "",
+                                rows: [
+                                    { height_mm: 800, is_auto: false, leaves: [
+                                        { width_mm: 1219.2, leaf_type_id: 1, leaf_type_code: "SLIDER" },
+                                    ] },
+                                    { height_mm: 800.2, is_auto: false, leaves: [
+                                        { width_mm: 1219.2, leaf_type_id: 3, leaf_type_code: "MESH" },
+                                    ] },
+                                ],
+                            },
                         ],
                     },
                     {
@@ -97,6 +110,10 @@ const TARGETS = [
             "selectedLeafType",
             "selectedPanelLabel",
             "presetsByCategory",
+            "canSplit",
+            "canRemove",
+            "selectedSceneLeaf",
+            "selectedDividerEntry",
         ],
     },
 ];

@@ -22,6 +22,15 @@ class AwDesignRow(models.Model):
     _order = 'sequence, id'
 
     design_id = fields.Many2one('aw.design', required=True, ondelete='cascade', index=True)
+    # Nesting. A row either sits directly on the design (parent_leaf_id
+    # empty, the flat case every existing design is in) or subdivides one
+    # leaf of another row. design_id stays set either way and always points
+    # at the owning design, so "every row of this design" remains one
+    # query; parent_leaf_id is what distinguishes the two.
+    parent_leaf_id = fields.Many2one(
+        'aw.design.leaf', ondelete='cascade', index=True,
+        help="Set when this row subdivides a panel instead of sitting "
+             "directly on the design.")
     sequence = fields.Integer(default=10)
     length_uom = fields.Selection(related='design_id.length_uom', string='Length Unit')
 

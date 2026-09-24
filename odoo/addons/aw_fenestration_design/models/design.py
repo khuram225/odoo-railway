@@ -130,7 +130,13 @@ class AwDesign(models.Model):
         related='sale_order_line_id.order_id', store=True, readonly=True)
 
     # -- children -----------------------------------------------------------
-    row_ids = fields.One2many('aw.design.row', 'design_id', string='Rows')
+    # Top-level rows only. Nested rows carry the same design_id (so "all
+    # rows of this design" stays one query) and are reached through their
+    # parent leaf's child_row_ids instead -- without this domain they would
+    # also show up here and the drawing would render them twice.
+    row_ids = fields.One2many(
+        'aw.design.row', 'design_id', string='Rows',
+        domain=[('parent_leaf_id', '=', False)])
     bom_line_ids = fields.One2many(
         'aw.design.bom.line', 'design_id', string='Bill of Materials')
 
@@ -140,11 +146,20 @@ class AwDesign(models.Model):
     area_sqm = fields.Float(compute='_compute_area', store=True, string='Area (m²)')
     area_sqft = fields.Float(compute='_compute_area', store=True, string='Area (sqft)')
 
-    @api.depends('row_ids.leaf_ids')
+    @api.depends('row_ids.leaf_ids', 'row_ids.leaf_ids.child_row_ids')
     def _compute_counts(self):
+        # leaf_count is PANELS, so it recurses and skips containers -- a
+        # design whose only leaf is subdivided into two has two panels,
+        # not one. row_count stays top-level, matching the stat button's
+        # "Rows" action, which lists top-level rows.
+        def panels(rows):
+            return sum(
+                panels(leaf.child_row_ids) if leaf.child_row_ids else 1
+                for row in rows for leaf in row.leaf_ids)
+
         for rec in self:
             rec.row_count = len(rec.row_ids)
-            rec.leaf_count = sum(len(r.leaf_ids) for r in rec.row_ids)
+            rec.leaf_count = panels(rec.row_ids)
 
     @api.depends()
     def _compute_length_uom(self):
@@ -326,21 +341,47 @@ class AwDesign(models.Model):
 
     def _renumber_panels(self):
         """Number every panel 1..n in reading order: rows top to bottom,
-        leaves within a row left to right.
+        leaves left to right, descending into a subdivided panel in place.
 
-        There are no nested containers in this model yet -- a design has
-        rows, a row has leaves, and that's the whole tree -- so this is a
-        flat two-level walk. It's written as a walk rather than an
-        enumerate() over a flat list so that when a leaf can itself hold
-        rows, the recursion drops in here and numbering stays in reading
-        order with the nested panels counted in place.
+        Container leaves are not panels and get no number -- their
+        children are numbered where the container sits, so splitting
+        panel 2 turns it into panels 2 and 3 and pushes what was 3 to 4.
         """
-        for design in self:
-            number = 0
-            for row in design.row_ids:
+        def walk(rows, number):
+            for row in rows:
                 for leaf in row.leaf_ids:
-                    number += 1
-                    leaf.panel_no = number
+                    if leaf.child_row_ids:
+                        leaf.panel_no = 0
+                        number = walk(leaf.child_row_ids, number)
+                    else:
+                        number += 1
+                        leaf.panel_no = number
+            return number
+
+        for design in self:
+            walk(design.row_ids, 0)
+
+    @api.model
+    def _rows_payload(self, rows):
+        """Serialise a row list, recursing into subdivided panels. A
+        container leaf carries its own `rows` and no panel attributes."""
+        return [{
+            'height_mm': row.height_mm,
+            'is_auto': row.is_auto,
+            'leaves': [{
+                'width_mm': leaf.width_mm,
+                'is_auto': leaf.is_auto,
+                'panel_no': leaf.panel_no,
+                'is_container': bool(leaf.child_row_ids),
+                'leaf_type_id': leaf.leaf_type_id.id,
+                'leaf_type_code': leaf.leaf_type_id.code or '',
+                'hinge_side': leaf.hinge_side or '',
+                'swing': leaf.swing or '',
+                'slide_dir': leaf.slide_dir or '',
+                'junction_after': leaf.junction_after or '',
+                'rows': self._rows_payload(leaf.child_row_ids),
+            } for leaf in row.leaf_ids],
+        } for row in rows]
 
     def get_configurator_data(self):
         """Everything the configurator needs, in one round trip: header,
@@ -367,20 +408,7 @@ class AwDesign(models.Model):
                 'thickness_id': self.thickness_id.id,
             },
             'size_display': self.size_display,
-            'rows': [{
-                'height_mm': row.height_mm,
-                'is_auto': row.is_auto,
-                'leaves': [{
-                    'width_mm': leaf.width_mm,
-                    'is_auto': leaf.is_auto,
-                    'panel_no': leaf.panel_no,
-                    'leaf_type_id': leaf.leaf_type_id.id,
-                    'leaf_type_code': leaf.leaf_type_id.code or '',
-                    'hinge_side': leaf.hinge_side or '',
-                    'swing': leaf.swing or '',
-                    'slide_dir': leaf.slide_dir or '',
-                } for leaf in row.leaf_ids],
-            } for row in self.row_ids],
+            'rows': self._rows_payload(self.row_ids),
             'leaf_types': [{
                 'id': lt.id,
                 'code': lt.code or '',
@@ -395,6 +423,51 @@ class AwDesign(models.Model):
                 'layout': p._layout(),
             } for p in presets],
         }
+
+    # A panel may be subdivided, its sub-panels subdivided again, and no
+    # further. Three levels is what the spec allows and it is enforced on
+    # the server as well as hidden in the UI, because save_layout is a
+    # public RPC and a hand-built payload would otherwise be able to nest
+    # without limit.
+    MAX_NESTING_DEPTH = 3
+
+    def _create_rows(self, rows, parent_leaf=None, depth=1):
+        """Create a row list, recursing into subdivided panels.
+
+        Rows are created one level at a time rather than with nested
+        (0, 0, ...) commands because a child row needs its parent LEAF's
+        database id, which doesn't exist until that leaf is written.
+        """
+        if depth > self.MAX_NESTING_DEPTH:
+            raise UserError(_(
+                "Panels can only be subdivided %s levels deep.",
+                self.MAX_NESTING_DEPTH))
+        for row in rows:
+            record = self.env['aw.design.row'].create({
+                'design_id': self.id,
+                'parent_leaf_id': parent_leaf.id if parent_leaf else False,
+                'height_mm': row.get('height_mm') or 0.0,
+                'is_auto': row.get('is_auto', False),
+                'leaf_ids': [(0, 0, {
+                    'width_mm': leaf.get('width_mm') or 0.0,
+                    'is_auto': leaf.get('is_auto', False),
+                    # A container carries no type or direction; its
+                    # children do.
+                    'leaf_type_id': (
+                        False if leaf.get('rows')
+                        else leaf.get('leaf_type_id')),
+                    'hinge_side': leaf.get('hinge_side') or False,
+                    'swing': leaf.get('swing') or False,
+                    'slide_dir': leaf.get('slide_dir') or False,
+                    'junction_after': leaf.get('junction_after') or False,
+                }) for leaf in row.get('leaves') or []],
+            })
+            for leaf_payload, leaf in zip(
+                    row.get('leaves') or [], record.leaf_ids):
+                if leaf_payload.get('rows'):
+                    self._create_rows(
+                        leaf_payload['rows'], parent_leaf=leaf,
+                        depth=depth + 1)
 
     def save_layout(self, payload):
         """Replace the whole row/leaf grid and the header in ONE call, so
@@ -417,20 +490,7 @@ class AwDesign(models.Model):
             self.write(header)
 
         self.row_ids.unlink()
-        for row in payload.get('rows') or []:
-            self.env['aw.design.row'].create({
-                'design_id': self.id,
-                'height_mm': row.get('height_mm') or 0.0,
-                'is_auto': row.get('is_auto', False),
-                'leaf_ids': [(0, 0, {
-                    'width_mm': leaf.get('width_mm') or 0.0,
-                    'is_auto': leaf.get('is_auto', False),
-                    'leaf_type_id': leaf.get('leaf_type_id'),
-                    'hinge_side': leaf.get('hinge_side') or False,
-                    'swing': leaf.get('swing') or False,
-                    'slide_dir': leaf.get('slide_dir') or False,
-                }) for leaf in row.get('leaves') or []],
-            })
+        self._create_rows(payload.get('rows') or [], parent_leaf=None)
         # Authoritative numbering: the client numbers panels the same way
         # for display, but the server decides what's stored, so a payload
         # that arrived with stale or absent numbers still lands numbered.

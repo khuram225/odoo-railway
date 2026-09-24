@@ -91,5 +91,17 @@
             <field name="name">Fixed Bead - Sides</field><field name="sequence">120</field>
         </record>
 
+        <!-- Junction positions, for the BOM rules in P4. A mullion
+             junction already has Divider - Vertical; these two are what a
+             meeting or interlock junction needs instead. noupdate="1"
+             only skips records that already exist, so adding new ids here
+             still creates them on upgrade. -->
+        <record id="pos_interlock" model="aw.profile.position">
+            <field name="name">Interlock</field><field name="sequence">130</field>
+        </record>
+        <record id="pos_meeting_stile" model="aw.profile.position">
+            <field name="name">Meeting Stile</field><field name="sequence">140</field>
+        </record>
+
     </data>
 </odoo>
