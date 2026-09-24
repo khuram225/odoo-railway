@@ -1,8 +1,10 @@
 #!/bin/sh
 # Blocks commits that introduce "--" inside an XML comment (illegal XML,
-# breaks well-formedness -- see scripts/check_xml_comments.py) or a
+# breaks well-formedness -- see scripts/check_xml_comments.py), a
 # forward-reference in a module's data-loading order (ref=/%()d/parent=
-# resolved before the target is defined -- see scripts/check_load_order.py).
+# resolved before the target is defined -- see scripts/check_load_order.py),
+# or an OWL template variable named after a word OWL rewrites into an
+# operator (t-as="lt" -> "<" -- see scripts/check_owl_names.py).
 #
 # Not active by default: git only runs hooks from .git/hooks, which isn't
 # tracked. One-time setup per clone:
@@ -14,4 +16,5 @@ if [ -z "$staged_xml" ]; then
 fi
 
 python scripts/check_xml_comments.py $staged_xml || exit 1
+python scripts/check_owl_names.py || exit 1
 python scripts/check_load_order.py
