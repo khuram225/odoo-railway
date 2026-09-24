@@ -263,6 +263,8 @@ whenever something is decided without him.
 | 5 | Mullion width | Drawn 60mm wide. A placeholder until profile section sizes exist (6.2). | Comes from the profile then. |
 | 6 | Preset codes | `OPN-CFC`, `OPN-HOF`, `OPN-2A1B` exist outside 4.6's table, because they pre-date it and renaming them would change what saved designs refer to. | Rename only with a migration. |
 | 7 | "Other" family | Seeded, though 4.1's table omits it, because 4.1's migration rule needs somewhere to put unknown categories. | Archive it once nothing lands there. |
+| 8 | Starter glass list | Seven specs seeded (5mm clear, 6/8/10/12mm toughened, 6mm frosted, 24mm DGU) so Glass Specs can exist at all. `weight_kg_m2` = 2.5 x glass thickness; the DGU counts its two panes only, not the air gap. | Add, rename or archive freely. |
+| 9 | Glass prices **[revisit]** | Every seeded glass product has a cost of **0**, marked "price to be set from the supplier list" on the product itself. Inventing rates would put fiction into a quote the moment pricing lands. | Enter the real per-m² rates; nothing else depends on the placeholder. |
 
 Still open from section 2 and unchanged: T&T + fixed combos, double
 pleated opening to the sides, vent sash shape, solid infill / AC cutout

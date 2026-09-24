@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+        Starter glass list, so Glass Specs can exist at all. Until this,
+        aw.glass.spec could not be created: product_id is required and
+        domained to the Glass category, which was empty, so the per-panel
+        glass override added in Phase 3 had nothing to point at.
+
+        PRICES ARE DELIBERATELY ZERO and marked as such on every product.
+        Glass is bought per square metre at rates that move; inventing
+        numbers here would put fiction straight into a quote the moment
+        pricing lands. Set them from the supplier list.
+
+        weight_kg_m2 is 2.5 x the GLASS thickness in mm, the usual figure
+        for soda-lime float. For the DGU that is the two panes only: the
+        12mm air gap weighs nothing, so 6+6 = 12mm of glass = 30 kg/m2,
+        not 24mm worth.
+
+        noupdate="1", so prices, names and weights stay editable and are
+        never re-imposed by an upgrade.
+        -->
+
+        <!-- ===== Products ===== -->
+        <record id="product_glass_clear_5" model="product.product">
+            <field name="name">Glass 5mm Clear</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="categ_id" ref="product_category_glass"/>
+            <field name="uom_id" ref="uom.product_uom_square_meter"/>
+            <field name="list_price">0.0</field>
+            <field name="description_sale">Price to be set from the supplier list.</field>
+        </record>
+        <record id="product_glass_tgh_6" model="product.product">
+            <field name="name">Glass 6mm Clear Toughened</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="categ_id" ref="product_category_glass_toughened"/>
+            <field name="uom_id" ref="uom.product_uom_square_meter"/>
+            <field name="list_price">0.0</field>
+            <field name="description_sale">Price to be set from the supplier list.</field>
+        </record>
+        <record id="product_glass_tgh_8" model="product.product">
+            <field name="name">Glass 8mm Clear Toughened</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="categ_id" ref="product_category_glass_toughened"/>
+            <field name="uom_id" ref="uom.product_uom_square_meter"/>
+            <field name="list_price">0.0</field>
+            <field name="description_sale">Price to be set from the supplier list.</field>
+        </record>
+        <record id="product_glass_tgh_10" model="product.product">
+            <field name="name">Glass 10mm Clear Toughened</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="categ_id" ref="product_category_glass_toughened"/>
+            <field name="uom_id" ref="uom.product_uom_square_meter"/>
+            <field name="list_price">0.0</field>
+            <field name="description_sale">Price to be set from the supplier list.</field>
+        </record>
+        <record id="product_glass_tgh_12" model="product.product">
+            <field name="name">Glass 12mm Clear Toughened</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="categ_id" ref="product_category_glass_toughened"/>
+            <field name="uom_id" ref="uom.product_uom_square_meter"/>
+            <field name="list_price">0.0</field>
+            <field name="description_sale">Price to be set from the supplier list.</field>
+        </record>
+        <record id="product_glass_tgh_6_frosted" model="product.product">
+            <field name="name">Glass 6mm Frosted Toughened</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="categ_id" ref="product_category_glass_toughened"/>
+            <field name="uom_id" ref="uom.product_uom_square_meter"/>
+            <field name="list_price">0.0</field>
+            <field name="description_sale">Price to be set from the supplier list.</field>
+        </record>
+        <record id="product_glass_dgu_24" model="product.product">
+            <field name="name">DGU 24mm (6 + 12 air + 6)</field>
+            <field name="type">consu</field>
+            <field name="is_storable" eval="True"/>
+            <field name="categ_id" ref="product_category_glass_dgu"/>
+            <field name="uom_id" ref="uom.product_uom_square_meter"/>
+            <field name="list_price">0.0</field>
+            <field name="description_sale">Price to be set from the supplier list.</field>
+        </record>
+
+        <!-- ===== Glass Specs ===== -->
+        <record id="glass_spec_clear_5" model="aw.glass.spec">
+            <field name="name">5mm Clear</field>
+            <field name="product_id" ref="product_glass_clear_5"/>
+            <field name="thickness_mm">5</field>
+            <field name="weight_kg_m2">12.5</field>
+        </record>
+        <record id="glass_spec_tgh_6" model="aw.glass.spec">
+            <field name="name">6mm Clear Toughened</field>
+            <field name="product_id" ref="product_glass_tgh_6"/>
+            <field name="thickness_mm">6</field>
+            <field name="weight_kg_m2">15</field>
+        </record>
+        <record id="glass_spec_tgh_8" model="aw.glass.spec">
+            <field name="name">8mm Clear Toughened</field>
+            <field name="product_id" ref="product_glass_tgh_8"/>
+            <field name="thickness_mm">8</field>
+            <field name="weight_kg_m2">20</field>
+        </record>
+        <record id="glass_spec_tgh_10" model="aw.glass.spec">
+            <field name="name">10mm Clear Toughened</field>
+            <field name="product_id" ref="product_glass_tgh_10"/>
+            <field name="thickness_mm">10</field>
+            <field name="weight_kg_m2">25</field>
+        </record>
+        <record id="glass_spec_tgh_12" model="aw.glass.spec">
+            <field name="name">12mm Clear Toughened</field>
+            <field name="product_id" ref="product_glass_tgh_12"/>
+            <field name="thickness_mm">12</field>
+            <field name="weight_kg_m2">30</field>
+        </record>
+        <record id="glass_spec_tgh_6_frosted" model="aw.glass.spec">
+            <field name="name">6mm Frosted Toughened</field>
+            <field name="product_id" ref="product_glass_tgh_6_frosted"/>
+            <field name="thickness_mm">6</field>
+            <field name="weight_kg_m2">15</field>
+        </record>
+        <record id="glass_spec_dgu_24" model="aw.glass.spec">
+            <field name="name">24mm DGU (6 + 12 + 6)</field>
+            <field name="product_id" ref="product_glass_dgu_24"/>
+            <field name="thickness_mm">24</field>
+            <field name="weight_kg_m2">30</field>
+            <field name="notes">Overall build-up 24mm; 12mm of that is glass, so the weight is 12 x 2.5 = 30 kg/m2. The air gap weighs nothing.</field>
+        </record>
+
+    </data>
+</odoo>

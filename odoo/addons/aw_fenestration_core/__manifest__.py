@@ -47,6 +47,7 @@ aw_fenestration_stock) that depend on this one.
         'data/dynamic_seed_data.xml',
         'data/product_category_data.xml',
         'data/window_series_data.xml',
+        'data/glass_spec_data.xml',
         'data/chawla_attributes_data.xml',
         'data/chawla_profiles_data.xml',
         'views/window_series_views.xml',
