@@ -2,7 +2,12 @@
 <templates xml:space="preserve">
 
     <t t-name="aw_fenestration_design.DesignConfigurator">
-        <div class="o_aw_configurator d-flex flex-column h-100">
+        <!-- overflow-hidden + min-height:0 on every flex child is what keeps
+             the whole thing inside the viewport. A flex item defaults to
+             min-height:auto, i.e. it refuses to shrink below its content,
+             which is what pushes a tall drawing past the bottom of the page
+             instead of letting the canvas scroll internally. -->
+        <div class="o_aw_configurator d-flex flex-column h-100 overflow-hidden">
 
             <div t-if="state.loading" class="d-flex h-100 align-items-center justify-content-center text-muted">
                 Loading design...
@@ -10,7 +15,7 @@
 
             <t t-else="">
                 <!-- Header -->
-                <div class="o_aw_cfg_header border-bottom bg-view p-3">
+                <div class="o_aw_cfg_header border-bottom bg-view p-3 flex-shrink-0">
                     <div class="d-flex flex-wrap gap-3 align-items-end">
                         <div>
                             <label class="form-label small text-muted mb-0">Position</label>
@@ -72,30 +77,59 @@
                     </div>
                 </div>
 
-                <div class="d-flex flex-grow-1 overflow-auto">
+                <div class="d-flex flex-grow-1 overflow-hidden" style="min-height: 0;">
                     <!-- Drawing -->
-                    <div class="flex-grow-1 d-flex flex-column p-3">
-                        <!-- NOT align-items-center, and the svg is NOT h-100.
-                             A flex item centred with align-items:center that
-                             is taller than its container overflows equally in
-                             both directions, and the overflowing TOP can't be
-                             scrolled to. That, not the viewBox, is what cut
-                             the top off the frame. Top-aligned with the svg
-                             sized by its own aspect ratio (width 100%, height
-                             auto), it can only ever overflow downwards, which
-                             the ancestor's overflow-auto can reach. -->
-                        <div class="o_aw_cfg_canvas flex-grow-1 d-flex flex-column justify-content-start border rounded bg-white p-2"
-                             t-on-pointermove="onPointerMove" t-on-pointerup="onPointerUp">
+                    <div class="flex-grow-1 d-flex flex-column p-3" style="min-width: 0; min-height: 0;">
+                        <div class="o_aw_cfg_canvas_wrap position-relative flex-grow-1"
+                             style="min-height: 0;">
 
-                            <div t-if="!scene" class="text-muted text-center m-auto p-4">
-                                <div class="fs-5 mb-1">No drawing yet</div>
-                                <div class="small">Set a width and a height above to draw this position.</div>
+                            <!-- Zoom controls, floating over the canvas -->
+                            <div t-if="scene"
+                                 class="position-absolute top-0 end-0 m-2 d-flex align-items-center gap-1 bg-view border rounded shadow-sm px-1 py-1"
+                                 style="z-index: 2;">
+                                <button class="btn btn-sm btn-light px-2" title="Zoom out"
+                                        t-on-click="zoomOut"
+                                        t-att-disabled="state.zoom &lt;= 0.25">&#8722;</button>
+                                <span class="small text-muted font-monospace"
+                                      style="min-width: 3.2rem; text-align: center;">
+                                    <t t-esc="zoomPercent"/>%
+                                </span>
+                                <button class="btn btn-sm btn-light px-2" title="Zoom in"
+                                        t-on-click="zoomIn"
+                                        t-att-disabled="state.zoom >= 4">+</button>
+                                <button class="btn btn-sm btn-light px-2" title="Fit to screen"
+                                        t-on-click="zoomFit">Fit</button>
                             </div>
 
-                            <svg t-else="" class="o_aw_cfg_svg"
-                                 style="display: block; width: 100%; height: auto; max-width: 100%;"
-                                 t-att-viewBox="scene.viewBox"
-                                 preserveAspectRatio="xMidYMid meet">
+                            <!-- The scrolling viewport. Its pixel size is what
+                                 the fitted scale is computed from, so the
+                                 ResizeObserver watches exactly this element. -->
+                            <div class="o_aw_cfg_canvas h-100 w-100 overflow-auto border rounded bg-white"
+                                 t-ref="canvas"
+                                 t-on-wheel="onWheel"
+                                 t-on-pointerdown="onCanvasPointerDown"
+                                 t-on-pointermove="onPointerMove"
+                                 t-on-pointerup="onPointerUp"
+                                 t-on-pointerleave="onPointerUp">
+
+                                <div t-if="!scene"
+                                     class="text-muted text-center d-flex flex-column justify-content-center align-items-center h-100 p-4">
+                                    <div class="fs-5 mb-1">No drawing yet</div>
+                                    <div class="small">Set a width and a height above to draw this position.</div>
+                                </div>
+
+                                <!-- Sized in CSS pixels to fitScale * zoom. At
+                                     zoom 1 that's exactly the canvas, so
+                                     nothing scrolls; above it the wrapper
+                                     overflows and the container scrolls, which
+                                     is what makes panning work. margin:auto
+                                     keeps it centred while it still fits. -->
+                                <div t-else="" t-attf-style="width: {{renderedSize.w}}px; height: {{renderedSize.h}}px; margin: auto;">
+                                    <svg class="o_aw_cfg_svg"
+                                         t-ref="svg"
+                                         style="display: block; width: 100%; height: 100%;"
+                                         t-att-viewBox="scene.viewBox"
+                                         preserveAspectRatio="xMidYMid meet">
                                 <defs>
                                     <pattern id="aw_mesh" width="5" height="5" patternUnits="userSpaceOnUse">
                                         <rect width="5" height="5" fill="#c3dce3" fill-opacity="0.35"/>
@@ -111,7 +145,7 @@
                                 <!-- leaves -->
                                 <t t-foreach="scene.leaves" t-as="leaf" t-key="leaf.key">
                                     <g style="cursor: pointer"
-                                       t-on-click="() => this.selectLeaf(leaf.ri, leaf.li)">
+                                       t-on-click="(ev) => this.selectLeaf(leaf.ri, leaf.li, ev)">
                                         <rect t-att-x="leaf.x" t-att-y="leaf.y"
                                               t-att-width="leaf.w" t-att-height="leaf.h"
                                               fill="#8a9095" fill-opacity="0.55"
@@ -190,13 +224,16 @@
 
                                 <line t-att-x1="scene.baseline.x1" t-att-y1="scene.baseline.y1"
                                       t-att-x2="scene.baseline.x2" t-att-y2="scene.baseline.y2"
-                                      stroke="#727c82" stroke-width="1"/>
-                            </svg>
+                                          stroke="#727c82" stroke-width="1"/>
+                                    </svg>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Side panel: intentionally empty, see Stage F scope note -->
-                    <div class="o_aw_cfg_side border-start bg-view p-3" style="width: 18rem;">
+                    <div class="o_aw_cfg_side border-start bg-view p-3 flex-shrink-0 overflow-auto"
+                         style="width: 18rem;">
                         <div class="small text-muted">
                             BOM, pricing, checks and the cut list land here later.
                         </div>
@@ -204,7 +241,11 @@
                 </div>
 
                 <!-- Chips -->
-                <div class="o_aw_cfg_chips border-top bg-view p-3">
+                <!-- Caps at a third of the viewport and scrolls within
+                     itself, so a long preset list can't squeeze the canvas
+                     off the bottom on a short screen. -->
+                <div class="o_aw_cfg_chips border-top bg-view p-3 flex-shrink-0 overflow-auto"
+                     style="max-height: 33vh;">
                     <t t-foreach="presetsByCategory" t-as="group" t-key="group.category">
                         <div class="mb-2">
                             <div class="small text-muted mb-1"><t t-esc="group.category"/></div>

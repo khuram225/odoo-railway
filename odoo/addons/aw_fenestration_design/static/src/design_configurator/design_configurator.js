@@ -1,4 +1,11 @@
-import { Component, onWillStart, useState } from "@odoo/owl";
+import {
+    Component,
+    onMounted,
+    onWillStart,
+    onWillUnmount,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
@@ -21,6 +28,10 @@ const AREA_H = VIEW_H - PAD_T - 108;
 // matters visually, it wants a field on aw.window.series, not a constant.
 const FRAME_FACE_MM = 100;
 const MIN_LEAF_MM = 4 * MM_PER_IN; // prototype's IN(4) drag floor
+
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 4;
+const ZOOM_STEP = 1.25;
 
 /**
  * Visual design configurator.
@@ -47,15 +58,43 @@ export class DesignConfigurator extends Component {
             dirty: false,
             data: null,
             selected: null, // {row: i, leaf: j}
+            zoom: 1, // 1 = fitted to the canvas
+            canvasW: 0,
+            canvasH: 0,
         });
 
         // Not in state: a drag in progress isn't rendered directly, it only
         // mutates row/leaf sizes, which are.
         this.dragging = null;
+        this.panning = null;
+
+        this.canvasRef = useRef("canvas");
+        this.svgRef = useRef("svg");
 
         onWillStart(async () => {
             await this.load();
         });
+
+        // The fitted size depends on the canvas's real pixel size, which
+        // isn't known until it's laid out and changes with the window, the
+        // sidebar, or anything else that reflows around it.
+        onMounted(() => {
+            this.resizeObserver = new ResizeObserver(() => this.measure());
+            if (this.canvasRef.el) {
+                this.resizeObserver.observe(this.canvasRef.el);
+                this.measure();
+            }
+        });
+        onWillUnmount(() => this.resizeObserver?.disconnect());
+    }
+
+    measure() {
+        const el = this.canvasRef.el;
+        if (!el) {
+            return;
+        }
+        this.state.canvasW = el.clientWidth;
+        this.state.canvasH = el.clientHeight;
     }
 
     async load() {
@@ -67,6 +106,7 @@ export class DesignConfigurator extends Component {
         this.state.loading = false;
         this.state.dirty = false;
         this.state.selected = null;
+        this.state.zoom = 1; // a freshly opened design starts fitted
     }
 
     // -- unit rendering ----------------------------------------------------
@@ -246,7 +286,9 @@ export class DesignConfigurator extends Component {
         );
     }
 
-    selectLeaf(rowIndex, leafIndex) {
+    selectLeaf(rowIndex, leafIndex, ev) {
+        // A click that ended a pan shouldn't also change the selection.
+        ev?.stopPropagation();
         this.state.selected = { row: rowIndex, leaf: leafIndex };
     }
 
@@ -529,10 +571,12 @@ export class DesignConfigurator extends Component {
             }
         }
         const M = 12;
+        const vbW = maxX - minX + 2 * M;
+        const vbH = maxY - minY + 2 * M;
         return {
-            viewBox: `${minX - M} ${minY - M} ${maxX - minX + 2 * M} ${
-                maxY - minY + 2 * M
-            }`,
+            viewBox: `${minX - M} ${minY - M} ${vbW} ${vbH}`,
+            vbW,
+            vbH,
             frame: { x: x0, y: y0, w, h },
             baseline,
             leaves,
@@ -626,9 +670,96 @@ export class DesignConfigurator extends Component {
         return glyph;
     }
 
-    // -- divider dragging --------------------------------------------------
+    // -- zoom / fit --------------------------------------------------------
+    /** Canvas pixels per viewBox unit at which the drawing exactly fits. */
+    get fitScale() {
+        const scene = this.scene;
+        if (!scene || !this.state.canvasW || !this.state.canvasH) {
+            return 1;
+        }
+        // min(), not max(): the drawing is letterboxed inside the canvas so
+        // BOTH dimensions fit. Fitting width alone is what let a tall
+        // design run off the bottom.
+        return Math.min(
+            this.state.canvasW / scene.vbW,
+            this.state.canvasH / scene.vbH
+        );
+    }
+
+    /** Rendered CSS size. At zoom 1 this fits exactly; above it, the
+     *  container scrolls, which is what makes panning work. */
+    get renderedSize() {
+        const scene = this.scene;
+        if (!scene) {
+            return { w: 0, h: 0 };
+        }
+        const k = this.fitScale * this.state.zoom;
+        return { w: scene.vbW * k, h: scene.vbH * k };
+    }
+
+    get zoomPercent() {
+        return Math.round(this.state.zoom * 100);
+    }
+
+    setZoom(value) {
+        this.state.zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value));
+    }
+
+    zoomIn() {
+        this.setZoom(this.state.zoom * ZOOM_STEP);
+    }
+
+    zoomOut() {
+        this.setZoom(this.state.zoom / ZOOM_STEP);
+    }
+
+    zoomFit() {
+        this.setZoom(1);
+    }
+
+    onWheel(ev) {
+        // Only with Ctrl held, so ordinary wheel scrolling still pans a
+        // zoomed-in drawing instead of being hijacked.
+        if (!ev.ctrlKey) {
+            return;
+        }
+        ev.preventDefault();
+        if (ev.deltaY < 0) {
+            this.zoomIn();
+        } else {
+            this.zoomOut();
+        }
+    }
+
+    // -- dragging ----------------------------------------------------------
+    /**
+     * Client (CSS pixel) coordinates -> SVG user-space coordinates.
+     *
+     * The drag maths used to divide a clientX delta by the scene's
+     * units-per-mm, which silently assumed one viewBox unit rendered as
+     * exactly one CSS pixel. That was already wrong whenever the drawing
+     * was scaled to fit, and zoom would have multiplied the error.
+     * getScreenCTM() is the actual current mapping, so it accounts for
+     * fit scale, zoom and scroll position together.
+     */
+    clientToUser(ev) {
+        const svg = this.svgRef.el;
+        const ctm = svg?.getScreenCTM();
+        if (!ctm) {
+            return null;
+        }
+        return new DOMPoint(ev.clientX, ev.clientY).matrixTransform(
+            ctm.inverse()
+        );
+    }
+
     onDividerPointerDown(divider, ev) {
         ev.preventDefault();
+        ev.stopPropagation(); // don't also start a pan
+        const point = this.clientToUser(ev);
+        if (!point) {
+            return;
+        }
         ev.target.setPointerCapture(ev.pointerId);
         const rows = this.state.data.rows;
         if (divider.kind === "v") {
@@ -637,32 +768,63 @@ export class DesignConfigurator extends Component {
                 kind: "v",
                 ri: divider.ri,
                 li: divider.li,
-                start: ev.clientX,
+                start: point.x,
                 a: leaves[divider.li].width_mm,
                 b: leaves[divider.li + 1].width_mm,
-                pxPerMM: this.scene.pxPerMmX,
+                unitsPerMM: this.scene.pxPerMmX,
             };
         } else {
             this.dragging = {
                 kind: "h",
                 ri: divider.ri,
-                start: ev.clientY,
+                start: point.y,
                 a: rows[divider.ri].height_mm,
                 b: rows[divider.ri + 1].height_mm,
-                pxPerMM: this.scene.pxPerMmY,
+                unitsPerMM: this.scene.pxPerMmY,
             };
         }
     }
 
+    // -- panning -----------------------------------------------------------
+    onCanvasPointerDown(ev) {
+        // Only from empty background, and only when there's somewhere to
+        // pan to. Leaves and dividers stop propagation before this.
+        const el = this.canvasRef.el;
+        if (
+            !el ||
+            (el.scrollWidth <= el.clientWidth &&
+                el.scrollHeight <= el.clientHeight)
+        ) {
+            return;
+        }
+        this.panning = {
+            x: ev.clientX,
+            y: ev.clientY,
+            left: el.scrollLeft,
+            top: el.scrollTop,
+        };
+        el.style.cursor = "grabbing";
+    }
+
     onPointerMove(ev) {
+        if (this.panning) {
+            const el = this.canvasRef.el;
+            el.scrollLeft = this.panning.left - (ev.clientX - this.panning.x);
+            el.scrollTop = this.panning.top - (ev.clientY - this.panning.y);
+            return;
+        }
         const drag = this.dragging;
         if (!drag) {
             return;
         }
+        const point = this.clientToUser(ev);
+        if (!point) {
+            return;
+        }
         const rows = this.state.data.rows;
         const raw =
-            ((drag.kind === "v" ? ev.clientX : ev.clientY) - drag.start) /
-            drag.pxPerMM;
+            ((drag.kind === "v" ? point.x : point.y) - drag.start) /
+            drag.unitsPerMM;
         // Clamp so neither side of the divider goes below the minimum leaf
         // size -- straight from the prototype's pointermove handler.
         const delta = Math.max(
@@ -682,6 +844,12 @@ export class DesignConfigurator extends Component {
 
     onPointerUp() {
         this.dragging = null;
+        if (this.panning) {
+            this.panning = null;
+            if (this.canvasRef.el) {
+                this.canvasRef.el.style.cursor = "";
+            }
+        }
     }
 
     // -- save --------------------------------------------------------------
