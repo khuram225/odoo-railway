@@ -59,6 +59,24 @@
               sequence="100"
               groups="group_fenestration_manager"/>
 
+    <menuitem id="menu_aw_profile_rate"
+              name="Profile Rates"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_profile_rate"
+              sequence="20"/>
+
+    <menuitem id="menu_aw_profile_rate_import"
+              name="Import Price List"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_profile_rate_import"
+              sequence="25"/>
+
+    <menuitem id="menu_aw_price_structure"
+              name="Price Structures"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_price_structure"
+              sequence="30"/>
+
     <menuitem id="menu_aw_fenestration_settings"
               name="Settings"
               parent="menu_aw_fenestration_config"

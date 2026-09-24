@@ -73,12 +73,17 @@ def _method_keys(methods, name, seen=None):
 
 
 def server_keys():
-    tree = ast.parse(MODEL.read_text(encoding='utf-8'))
-    methods = {
-        node.name: node
-        for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-    }
+    # EVERY model file, not just design.py. aw.design is spread across
+    # several (_inherit), so a payload method can legitimately live in
+    # explosion.py, snapshot.py or costing.py -- and reading only
+    # design.py reported _pricing_payload's keys as missing when they
+    # were being sent perfectly well.
+    methods = {}
+    for path in sorted((DESIGN / 'models').glob('*.py')):
+        tree = ast.parse(path.read_text(encoding='utf-8'))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                methods.setdefault(node.name, node)
     if LOADER not in methods:
         return None, f'{MODEL}: no {LOADER}() found'
     return _method_keys(methods, LOADER), None

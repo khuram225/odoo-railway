@@ -464,7 +464,7 @@ lengths.
 
 ---
 
-## 7. Phase 5 — Drawings and documents  ✅ BUILT
+## 7. Phase 5 — Drawings and documents  ✅ COMPLETE
 
 **As built, differing from the text below:**
 
@@ -508,6 +508,48 @@ lengths.
 ---
 
 ## 8. Phase 6 — Cutting, pricing, stock
+
+### Phase 6a + 6b — pricing  ✅ BUILT
+
+**As built, differing from the plan:**
+
+1. **Rates are append-only and looked up on the QUOTE'S order date**,
+   not today, so reopening and re-saving an old quote cannot reprice
+   it. `aw.profile.rate._rate_for()` falls back from
+   (thickness + finish) to thickness-only to template-only, because the
+   melt records a profile priced the same in every finish as one row
+   with no finish.
+2. **The importer joins on the template NAME, not `default_code`.**
+   The Chawla profile templates have no `default_code` at all — the
+   `profile_code` *is* the name (see `chawla_profiles_data.xml`).
+   Matching on code would have found nothing.
+3. **Thickness comes from the melt's `thickness_normalized` column**,
+   not from re-normalising `thickness_raw` in the wizard. A second copy
+   of that mapping would eventually disagree with the product import's
+   and silently mis-key rates.
+4. **The price structure is LINES, not five fixed columns** (principle
+   0.1), so delivery or a finishing surcharge is a new row rather than
+   a migration. Values are placeholders **[revisit]**: profile wastage
+   8%, glass wastage 5%, fabrication 450/m², installation 250/m²,
+   profit 25%.
+5. **Everything is per POSITION, not per window.** The BOM already
+   carries the design's qty, so area and the manual rate are multiplied
+   by qty to match — otherwise a qty of 4 would cost four windows and
+   price one.
+6. **The margin floor refuses confirmation through
+   `_confirmation_error_message`**, the same core hook the
+   dimensions check already uses, so there is no `action_confirm`
+   wrapper to keep in step.
+7. **`price_unit` is now always written** from `price_total / qty`,
+   where it was previously only written when a manual rate was set. A
+   manual rate still wins, because `price_total` already accounts for
+   it — both paths land in one field rather than two.
+
+**Still blocking a real price:** glass products and every hardware
+product have a cost of 0, so those BOM lines cost nothing. The checks
+name them rather than letting an incomplete price look finished.
+
+### Original plan
 
 - **Cut list per sale order**: pool profile pieces by product variant
   (profile × thickness × finish); nest into stock bars 14 / 16 / 18 ft,

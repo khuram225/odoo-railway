@@ -28,3 +28,11 @@ class ResConfigSettings(models.TransientModel):
              "Design. Millimetres remain the stored source of truth "
              "regardless of this setting -- changing it only changes what "
              "you type into and see on screen.")
+
+    # Also ir.config_parameter, for the same reason as above.
+    aw_min_margin_pct = fields.Float(
+        string='Minimum Margin %', default=20.0,
+        config_parameter='aw_fenestration.min_margin_pct',
+        help="A position priced below this is an error on its Checks and "
+             "blocks quote confirmation. Placeholder value -- confirm it "
+             "with the business before relying on it.")

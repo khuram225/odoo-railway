@@ -256,6 +256,35 @@ export class DesignConfigurator extends Component {
         return this.state.data?.series_options || [];
     }
 
+    /**
+     * Pricing for the right-hand column. Internal only -- the customer
+     * PDF deliberately carries none of this.
+     */
+    get pricing() {
+        return this.state.data?.pricing || null;
+    }
+
+    get pricingBreakdown() {
+        const pricing = this.pricing;
+        if (!pricing) {
+            return [];
+        }
+        return (pricing.by_kind || []).filter((row) => row.cost);
+    }
+
+    get marginIsThin() {
+        const pricing = this.pricing;
+        return !!pricing && !!pricing.price
+            && pricing.margin_pct < pricing.min_margin_pct;
+    }
+
+    formatMoney(value) {
+        const pricing = this.pricing;
+        const symbol = pricing ? pricing.currency : "";
+        const rounded = Math.round((value || 0) * 100) / 100;
+        return `${symbol} ${rounded.toLocaleString()}`;
+    }
+
     get glassSpecOptions() {
         return this.state.data?.glass_specs || [];
     }

@@ -7,3 +7,5 @@ from . import profile_section
 from . import hardware_set
 from . import glass_spec
 from . import window_template
+from . import profile_rate
+from . import price_structure

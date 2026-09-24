@@ -952,6 +952,73 @@
                             </t>
                         </div>
 
+                        <!-- Pricing (spec 8). INTERNAL ONLY: none of this
+                             appears on the customer quote PDF. -->
+                        <div t-if="pricing"
+                             class="border-top overflow-auto p-3 flex-shrink-0"
+                             style="max-height: 35%;">
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
+                                Pricing
+                                <span class="badge bg-secondary ms-1">internal</span>
+                            </div>
+                            <div t-if="pricing.uncosted"
+                                 class="small text-warning mb-2">
+                                <i class="fa fa-exclamation-triangle me-1"/>
+                                <t t-esc="pricing.uncosted"/> line(s) have no
+                                cost — this price is incomplete.
+                            </div>
+                            <table class="table table-sm small mb-2">
+                                <tr t-foreach="pricingBreakdown" t-as="row"
+                                    t-key="row.kind">
+                                    <td class="text-capitalize">
+                                        <t t-esc="row.kind"/>
+                                    </td>
+                                    <td class="text-end">
+                                        <t t-esc="formatMoney(row.cost)"/>
+                                    </td>
+                                </tr>
+                                <tr class="border-top">
+                                    <td><strong>Cost</strong></td>
+                                    <td class="text-end">
+                                        <strong><t t-esc="formatMoney(pricing.cost)"/></strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Basic value</td>
+                                    <td class="text-end">
+                                        <t t-esc="formatMoney(pricing.basic_value)"/>
+                                    </td>
+                                </tr>
+                                <tr t-if="pricing.manual_rate">
+                                    <td class="text-muted">Manual rate / sqft</td>
+                                    <td class="text-end text-muted">
+                                        <t t-esc="formatMoney(pricing.manual_rate)"/>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Price</strong></td>
+                                    <td class="text-end">
+                                        <strong><t t-esc="formatMoney(pricing.price)"/></strong>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>Per sqft</td>
+                                    <td class="text-end">
+                                        <t t-esc="formatMoney(pricing.price_per_sqft)"/>
+                                    </td>
+                                </tr>
+                                <tr t-att-class="marginIsThin ? 'text-danger' : ''">
+                                    <td>Margin</td>
+                                    <td class="text-end">
+                                        <t t-esc="pricing.margin_pct.toFixed(1)"/>%
+                                        <t t-if="marginIsThin">
+                                            (min <t t-esc="pricing.min_margin_pct"/>%)
+                                        </t>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+
                         <!-- BOM and Checks (spec 6.5, 6.6). Regenerated on
                              every save, so this always describes the layout
                              on screen rather than the previous one. -->

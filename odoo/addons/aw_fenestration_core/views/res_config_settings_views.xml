@@ -14,6 +14,12 @@
                             <field name="aw_length_uom" widget="radio"/>
                         </setting>
                     </block>
+                    <block title="Pricing" name="aw_fenestration_pricing_setting_container">
+                        <setting id="aw_min_margin_pct_setting" string="Minimum Margin"
+                                 help="A position priced below this is an error on its Checks and blocks quote confirmation. Placeholder value: confirm it with the business before relying on it.">
+                            <field name="aw_min_margin_pct"/>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

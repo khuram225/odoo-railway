@@ -163,8 +163,7 @@
                             <field name="thickness_id" groups="base.group_no_one"
                                    help="Not used by the BOM: each profile's thickness comes from its Profile Section line. Kept for developers only."/>
                         </group>
-                        <group string="Pricing">
-                            <field name="manual_rate"/>
+                        <group string="Quote">
                             <field name="sale_order_line_id"/>
                             <field name="sale_order_id" readonly="1"/>
                         </group>
@@ -202,6 +201,10 @@
                                     <field name="glass_h" string="H (mm)"/>
                                     <field name="area_sqm" string="Area (m2)"/>
                                     <field name="qty"/>
+                                    <field name="unit_cost" string="Unit Cost"/>
+                                    <field name="line_cost" string="Cost"/>
+                                    <field name="rate_date" optional="hide"/>
+                                    <field name="cost_note" string="No cost because"/>
                                 </list>
                             </field>
                         </page>
@@ -213,6 +216,30 @@
                                     <field name="message"/>
                                 </list>
                             </field>
+                        </page>
+                        <page string="Pricing" name="pricing">
+                            <group>
+                                <group string="Structure">
+                                    <field name="price_structure_id"/>
+                                    <field name="manual_rate"/>
+                                    <field name="currency_id" invisible="1"/>
+                                    <field name="uncosted_line_count" invisible="1"/>
+                                </group>
+                                <group string="Result">
+                                    <field name="cost_total" widget="monetary"/>
+                                    <field name="basic_value" widget="monetary"/>
+                                    <field name="price_total" widget="monetary"/>
+                                    <field name="price_per_sqft" widget="monetary"/>
+                                    <field name="margin_pct"/>
+                                </group>
+                            </group>
+                            <div class="alert alert-warning" role="status"
+                                 invisible="uncosted_line_count == 0">
+                                <field name="uncosted_line_count" nolabel="1"
+                                       class="oe_inline"/>
+                                BOM line(s) have no cost, so this price is
+                                incomplete. See the Checks tab.
+                            </div>
                         </page>
                         <page string="Elevation" name="elevation">
                             <group>

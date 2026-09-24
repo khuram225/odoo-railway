@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===== aw.profile.rate ===== -->
+    <record id="view_aw_profile_rate_list" model="ir.ui.view">
+        <field name="name">aw.profile.rate.list</field>
+        <field name="model">aw.profile.rate</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="date_from"/>
+                <field name="product_tmpl_id"/>
+                <field name="thickness_id"/>
+                <field name="finish_id"/>
+                <field name="price"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="vendor_id"/>
+                <field name="source_note" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_profile_rate_search" model="ir.ui.view">
+        <field name="name">aw.profile.rate.search</field>
+        <field name="model">aw.profile.rate</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="product_tmpl_id"/>
+                <field name="vendor_id"/>
+                <field name="date_from"/>
+                <filter name="in_force" string="In force today"
+                        domain="[('date_from', '&lt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_date" string="Effective From"
+                            context="{'group_by': 'date_from'}"/>
+                    <filter name="group_vendor" string="Vendor"
+                            context="{'group_by': 'vendor_id'}"/>
+                    <filter name="group_profile" string="Profile"
+                            context="{'group_by': 'product_tmpl_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_aw_profile_rate" model="ir.actions.act_window">
+        <field name="name">Profile Rates</field>
+        <field name="res_model">aw.profile.rate</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_group_date': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No profile rates yet</p>
+            <p>Import a melted price list rather than typing rates in.
+               Rates are never edited in place: a new list adds rows with
+               a later effective date, so an old quote keeps the price it
+               was quoted at.</p>
+        </field>
+    </record>
+
+    <!-- ===== import wizard ===== -->
+    <record id="view_aw_profile_rate_import_form" model="ir.ui.view">
+        <field name="name">aw.profile.rate.import.form</field>
+        <field name="model">aw.profile.rate.import</field>
+        <field name="arch" type="xml">
+            <form string="Import Price List">
+                <group invisible="state == 'done'">
+                    <field name="state" invisible="1"/>
+                    <field name="file_data" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                    <field name="date_from"/>
+                    <field name="vendor_id"/>
+                </group>
+                <div invisible="state == 'done'" class="text-muted">
+                    The melted CSV produced by
+                    scripts/rebuild_melt_and_import.py — columns
+                    profile_code, thickness_normalized, finish, price_pkr.
+                </div>
+                <field name="summary" invisible="state != 'done'"
+                       readonly="1" nolabel="1"/>
+                <footer>
+                    <button name="action_import" type="object"
+                            string="Import" class="btn-primary"
+                            invisible="state == 'done'"/>
+                    <button string="Close" class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_profile_rate_import" model="ir.actions.act_window">
+        <field name="name">Import Price List</field>
+        <field name="res_model">aw.profile.rate.import</field>
+        <field name="view_mode">form</field>
+        <field name="views" eval="[(False, 'form')]"/>
+        <field name="target">new</field>
+    </record>
+
+    <!-- ===== aw.price.structure ===== -->
+    <record id="view_aw_price_structure_list" model="ir.ui.view">
+        <field name="name">aw.price.structure.list</field>
+        <field name="model">aw.price.structure</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="name"/>
+                <field name="is_default"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_price_structure_form" model="ir.ui.view">
+        <field name="name">aw.price.structure.form</field>
+        <field name="model">aw.price.structure</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="is_default"/>
+                        </group>
+                        <group>
+                            <field name="active" invisible="1"/>
+                        </group>
+                    </group>
+                    <field name="line_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="kind"/>
+                            <field name="value"/>
+                            <field name="unit"/>
+                            <field name="show_on_quote"/>
+                        </list>
+                    </field>
+                    <group string="Notes">
+                        <field name="notes" nolabel="1"/>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_price_structure" model="ir.actions.act_window">
+        <field name="name">Price Structures</field>
+        <field name="res_model">aw.price.structure</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a Price Structure</p>
+            <p>Wastage, labour and profit, as editable rows. The seeded
+               values are placeholders — confirm each with the shop before
+               quoting from them.</p>
+        </field>
+    </record>
+
+</odoo>

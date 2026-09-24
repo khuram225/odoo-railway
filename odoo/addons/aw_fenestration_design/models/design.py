@@ -342,10 +342,16 @@ class AwDesign(models.Model):
                 'name': rec._prepare_sale_line_description(),
                 'product_uom_qty': rec.qty,
             }
-            # Only touch price_unit when there's an explicit manual rate --
-            # otherwise leave whatever Odoo's own pricelist logic put there
-            # alone. Real cost-cascade pricing is Step 3, not this one.
-            if rec.manual_rate:
+            # Spec 8: the cost cascade now produces a real price, so it
+            # goes on the line. price_total is the whole position; the
+            # line's price_unit is per unit, and product_uom_qty is the
+            # design's qty -- multiplying here would charge qty twice.
+            #
+            # A manual rate still wins: price_total already accounts for
+            # it, so both paths land in the same field.
+            if rec.price_total:
+                vals['price_unit'] = rec.price_total / (rec.qty or 1)
+            elif rec.manual_rate:
                 vals['price_unit'] = rec.manual_rate * rec.area_sqft
             line.write(vals)
 
@@ -681,6 +687,7 @@ class AwDesign(models.Model):
             # nothing under them.
             **self._attachment_catalogue(),
             **self._bom_payload(),
+            **self._pricing_payload(),
         }
 
     def _bom_payload(self):

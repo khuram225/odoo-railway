@@ -386,6 +386,8 @@ class AwDesign(models.Model):
             })
             self.env['aw.design.bom.line'].create(values)
 
+        # Cost before the checks run, so the checks can report on it.
+        self._cost_bom_lines()
         self._run_checks(exploded=out, demand=demand)
 
     def _run_checks(self, exploded=None, demand=None):
@@ -437,6 +439,31 @@ class AwDesign(models.Model):
         for name in sorted(n for n in without_product if n):
             problems.append(('warning', _(
                 "Glass '%s' has no product, so it can't be costed.", name)))
+
+        # Pricing (spec 8). An incomplete price must never be mistaken
+        # for a real one, so the lines that carry no cost are named
+        # rather than quietly averaged into a number that looks fine.
+        uncosted = self.bom_line_ids.filtered('cost_note')
+        if uncosted:
+            reasons = {}
+            for line in uncosted:
+                reasons.setdefault(line.cost_note, 0)
+                reasons[line.cost_note] += 1
+            for reason, count in sorted(reasons.items()):
+                problems.append(('warning', _(
+                    "%(count)s BOM line(s) have no cost: %(reason)s.",
+                    count=count, reason=reason)))
+
+        floor = self._min_margin_pct()
+        if self._below_margin_floor():
+            problems.append(('error', _(
+                "Margin is %(margin).1f%%, below the %(floor).1f%% "
+                "minimum. The order cannot be confirmed until this is "
+                "fixed.", margin=self.margin_pct, floor=floor)))
+        if self.bom_line_ids and not self.price_structure_id:
+            problems.append(('warning', _(
+                "No Price Structure, so this design is costed with no "
+                "wastage, labour or profit.")))
 
         for line in self.bom_line_ids:
             if line.kind == 'profile' and line.length_mm > MAX_STOCK_BAR_MM:

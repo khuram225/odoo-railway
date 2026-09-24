@@ -24,5 +24,6 @@
         <function model="aw.profile.position" name="_seed_bom_defaults"/>
         <function model="aw.profile.position" name="_seed_required_flags"/>
         <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>
+        <function model="aw.price.structure" name="_seed_default_structure"/>
     </data>
 </odoo>

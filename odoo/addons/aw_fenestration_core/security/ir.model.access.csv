@@ -17,3 +17,10 @@ access_aw_glass_spec_user,aw.glass.spec.user,model_aw_glass_spec,base.group_user
 access_aw_glass_spec_manager,aw.glass.spec.manager,model_aw_glass_spec,group_fenestration_manager,1,1,1,1
 access_aw_window_template_user,aw.window.template.user,model_aw_window_template,base.group_user,1,0,0,0
 access_aw_window_template_manager,aw.window.template.manager,model_aw_window_template,group_fenestration_manager,1,1,1,1
+access_aw_profile_rate_user,aw.profile.rate.user,model_aw_profile_rate,base.group_user,1,0,0,0
+access_aw_profile_rate_manager,aw.profile.rate.manager,model_aw_profile_rate,group_fenestration_manager,1,1,1,1
+access_aw_price_structure_user,aw.price.structure.user,model_aw_price_structure,base.group_user,1,0,0,0
+access_aw_price_structure_manager,aw.price.structure.manager,model_aw_price_structure,group_fenestration_manager,1,1,1,1
+access_aw_price_structure_line_user,aw.price.structure.line.user,model_aw_price_structure_line,base.group_user,1,0,0,0
+access_aw_price_structure_line_manager,aw.price.structure.line.manager,model_aw_price_structure_line,group_fenestration_manager,1,1,1,1
+access_aw_profile_rate_import_manager,aw.profile.rate.import.manager,model_aw_profile_rate_import,group_fenestration_manager,1,1,1,1

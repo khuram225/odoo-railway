@@ -32,6 +32,19 @@ class SaleOrder(models.Model):
                 "These positions still need a width and a height before "
                 "the order can be confirmed:\n%s",
                 '\n'.join('- %s' % d.display_name for d in incomplete))
+        # Spec 8: the margin floor is a refusal, not a warning. Rides on
+        # the same hook for the same reason -- core raises whatever this
+        # returns, so there is no action_confirm wrapper to keep in step.
+        thin = self.aw_design_ids._below_margin_floor()
+        if thin:
+            floor = self.env['aw.design']._min_margin_pct()
+            return _(
+                "These positions are below the %(floor).1f%% minimum "
+                "margin:\n%(list)s",
+                floor=floor,
+                list='\n'.join(
+                    '- %s (%.1f%%)' % (d.display_name, d.margin_pct)
+                    for d in thin))
         return False
 
     def _create_fenestration_position(self, series, name=None, location=None):
