@@ -59,13 +59,30 @@ class SaleOrder(models.Model):
             'product_id': product.product_variant_id.id,
             'product_uom_qty': 1,
         })
-        return self.env['aw.design'].create({
+        design = self.env['aw.design'].create({
             'name': name or 'D%s' % position_no,
             'location': location or False,
             'qty': 1,
             'window_series_id': series.id,
             'sale_order_line_id': line.id,
         })
+        # A design with no rows at all gives the configurator nothing to
+        # draw or select, so it opens on an empty frame with no way in.
+        # One row, one leaf of the Series' first allowed type is the
+        # smallest thing that's actually editable. Sizes stay 0 -- they're
+        # filled in on the configurator, and the leaf inherits whatever
+        # the design's width/height become.
+        leaf_type = series.leaf_type_ids[:1]
+        if leaf_type:
+            self.env['aw.design.row'].create({
+                'design_id': design.id,
+                'height_mm': design.height_mm,
+                'leaf_ids': [(0, 0, {
+                    'width_mm': design.width_mm,
+                    'leaf_type_id': leaf_type.id,
+                })],
+            })
+        return design
 
     def action_add_position(self):
         """Straight through when the quote has a default Series, otherwise

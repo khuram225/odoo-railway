@@ -114,14 +114,117 @@ export class DesignConfigurator extends Component {
     }
 
     // -- header ------------------------------------------------------------
+    /**
+     * Bound to input, separately from the change handlers below. "change"
+     * only fires on blur, and clicking Save is what causes that blur, so
+     * the click could land while Save was still disabled from the edit
+     * that was never committed. Marking dirty on the first keystroke
+     * makes the button available regardless of event ordering.
+     */
+    markDirty() {
+        this.state.dirty = true;
+    }
+
     onHeaderChange(field, value) {
         this.state.data.header[field] = value;
         this.state.dirty = true;
     }
 
     onDimensionChange(field, text) {
-        this.state.data.header[field] = this.parseLength(text);
+        const value = this.parseLength(text);
+        this.state.data.header[field] = value;
+        if (field === "width_mm") {
+            this.rescaleWidths(value);
+        } else {
+            this.rescaleHeights(value);
+        }
         this.state.dirty = true;
+    }
+
+    /**
+     * Fit a list of current sizes to a new total.
+     *
+     * Without this, changing the overall width left the leaves at their
+     * old sizes, so the drawing's proportions silently stopped matching
+     * the dimensions printed on it.
+     *
+     * If exactly one entry is flagged Automatic it absorbs the whole
+     * difference, which is what that flag means -- the others keep the
+     * exact sizes someone deliberately set. Otherwise everything scales
+     * proportionally.
+     *
+     * Sizes are NOT rounded to whole mm. Rounding 8 ft split in two gives
+     * 1219mm a side, which renders as "3 ft 11.99 in" -- arithmetically
+     * fine and obviously wrong to anyone reading it. The exact 1219.2
+     * shows as "4 ft 0 in".
+     */
+    fitToTotal(sizes, autoFlags, total) {
+        const n = sizes.length;
+        if (!n || !(total > 0)) {
+            return sizes;
+        }
+        const current = sizes.reduce((a, b) => a + (b || 0), 0);
+        const autoIndex = autoFlags.reduce(
+            (found, isAuto, i) =>
+                isAuto ? (found === -1 ? i : -2) : found,
+            -1
+        );
+
+        let next;
+        if (autoIndex >= 0) {
+            const others = sizes.reduce(
+                (sum, v, i) => (i === autoIndex ? sum : sum + (v || 0)),
+                0
+            );
+            next = sizes.slice();
+            next[autoIndex] = Math.max(MIN_LEAF_MM, total - others);
+        } else if (current > 0) {
+            next = sizes.map((v) => ((v || 0) * total) / current);
+        } else {
+            next = sizes.map(() => total / n);
+        }
+
+        // Force an exact sum. The residue goes on the LARGEST entry, not
+        // the last one: the last one may be the auto entry that was just
+        // clamped up to the minimum, and subtracting the residue from it
+        // would silently undo that clamp (it drove one to zero in
+        // testing). The largest entry can absorb a fraction of a mm.
+        const residue = total - next.reduce((a, b) => a + b, 0);
+        if (residue) {
+            let big = 0;
+            for (let i = 1; i < n; i++) {
+                if (next[i] > next[big]) {
+                    big = i;
+                }
+            }
+            next[big] += residue;
+        }
+        return next;
+    }
+
+    rescaleWidths(totalWidth) {
+        for (const row of this.state.data.rows) {
+            const sizes = this.fitToTotal(
+                row.leaves.map((l) => l.width_mm),
+                row.leaves.map((l) => l.is_auto),
+                totalWidth
+            );
+            row.leaves.forEach((leaf, i) => {
+                leaf.width_mm = sizes[i];
+            });
+        }
+    }
+
+    rescaleHeights(totalHeight) {
+        const rows = this.state.data.rows;
+        const sizes = this.fitToTotal(
+            rows.map((r) => r.height_mm),
+            rows.map((r) => r.is_auto),
+            totalHeight
+        );
+        rows.forEach((row, i) => {
+            row.height_mm = sizes[i];
+        });
     }
 
     // -- selection ---------------------------------------------------------
@@ -395,15 +498,43 @@ export class DesignConfigurator extends Component {
             );
         }
 
+        const baseline = {
+            x1: x0 - 10,
+            y1: y0 + h + 8,
+            x2: x0 + w + 10,
+            y2: y0 + h + 8,
+        };
+
+        // The viewBox is derived from what's actually drawn rather than
+        // being a fixed 700x460. The frame is centred in a fixed area, but
+        // dimension lines and their labels are placed OUTSIDE it -- below
+        // the frame, and to the left for row heights -- so with a tall or
+        // wide design they fell outside the fixed box and were clipped.
+        // Measuring the content guarantees everything fits, whatever the
+        // aspect ratio.
+        let minX = Math.min(x0, baseline.x1);
+        let minY = Math.min(y0, baseline.y1);
+        let maxX = Math.max(x0 + w, baseline.x2);
+        let maxY = Math.max(y0 + h, baseline.y2);
+        for (const d of dims) {
+            minX = Math.min(minX, d.x1, d.x2, d.boxX);
+            minY = Math.min(minY, d.y1, d.y2, d.boxY);
+            maxX = Math.max(maxX, d.x1, d.x2, d.boxX + d.boxW);
+            maxY = Math.max(maxY, d.y1, d.y2, d.boxY + d.boxH);
+            for (const t of d.ticks) {
+                minX = Math.min(minX, t.x1, t.x2);
+                minY = Math.min(minY, t.y1, t.y2);
+                maxX = Math.max(maxX, t.x1, t.x2);
+                maxY = Math.max(maxY, t.y1, t.y2);
+            }
+        }
+        const M = 12;
         return {
-            viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
+            viewBox: `${minX - M} ${minY - M} ${maxX - minX + 2 * M} ${
+                maxY - minY + 2 * M
+            }`,
             frame: { x: x0, y: y0, w, h },
-            baseline: {
-                x1: x0 - 10,
-                y1: y0 + h + 8,
-                x2: x0 + w + 10,
-                y2: y0 + h + 8,
-            },
+            baseline,
             leaves,
             dividers,
             dims,

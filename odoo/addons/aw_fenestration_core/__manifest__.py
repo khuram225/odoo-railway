@@ -46,6 +46,7 @@ aw_fenestration_stock) that depend on this one.
         'security/ir.model.access.csv',
         'data/dynamic_seed_data.xml',
         'data/product_category_data.xml',
+        'data/window_series_leaf_types_data.xml',
         'data/chawla_attributes_data.xml',
         'data/chawla_profiles_data.xml',
         'views/window_series_views.xml',

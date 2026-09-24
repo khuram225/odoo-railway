@@ -16,6 +16,7 @@
                             <label class="form-label small text-muted mb-0">Position</label>
                             <input type="text" class="form-control form-control-sm"
                                    t-att-value="state.data.header.name"
+                                   t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onHeaderChange('name', ev.target.value)"/>
                         </div>
                         <div>
@@ -23,12 +24,14 @@
                             <input type="number" min="1" class="form-control form-control-sm"
                                    style="width: 5rem;"
                                    t-att-value="state.data.header.qty"
+                                   t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onHeaderChange('qty', parseInt(ev.target.value) || 1)"/>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Location</label>
                             <input type="text" class="form-control form-control-sm"
                                    t-att-value="state.data.header.location"
+                                   t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onHeaderChange('location', ev.target.value)"/>
                         </div>
                         <div>
@@ -38,6 +41,7 @@
                             <input type="text" class="form-control form-control-sm"
                                    style="width: 9rem;"
                                    t-att-value="formatLength(state.data.header.width_mm)"
+                                   t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onDimensionChange('width_mm', ev.target.value)"/>
                         </div>
                         <div>
@@ -47,6 +51,7 @@
                             <input type="text" class="form-control form-control-sm"
                                    style="width: 9rem;"
                                    t-att-value="formatLength(state.data.header.height_mm)"
+                                   t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onDimensionChange('height_mm', ev.target.value)"/>
                         </div>
                         <div>
@@ -70,15 +75,25 @@
                 <div class="d-flex flex-grow-1 overflow-auto">
                     <!-- Drawing -->
                     <div class="flex-grow-1 d-flex flex-column p-3">
-                        <div class="o_aw_cfg_canvas flex-grow-1 d-flex align-items-center justify-content-center border rounded bg-white"
+                        <!-- NOT align-items-center, and the svg is NOT h-100.
+                             A flex item centred with align-items:center that
+                             is taller than its container overflows equally in
+                             both directions, and the overflowing TOP can't be
+                             scrolled to. That, not the viewBox, is what cut
+                             the top off the frame. Top-aligned with the svg
+                             sized by its own aspect ratio (width 100%, height
+                             auto), it can only ever overflow downwards, which
+                             the ancestor's overflow-auto can reach. -->
+                        <div class="o_aw_cfg_canvas flex-grow-1 d-flex flex-column justify-content-start border rounded bg-white p-2"
                              t-on-pointermove="onPointerMove" t-on-pointerup="onPointerUp">
 
-                            <div t-if="!scene" class="text-muted text-center p-4">
+                            <div t-if="!scene" class="text-muted text-center m-auto p-4">
                                 <div class="fs-5 mb-1">No drawing yet</div>
                                 <div class="small">Set a width and a height above to draw this position.</div>
                             </div>
 
-                            <svg t-else="" class="o_aw_cfg_svg w-100 h-100"
+                            <svg t-else="" class="o_aw_cfg_svg"
+                                 style="display: block; width: 100%; height: auto; max-width: 100%;"
                                  t-att-viewBox="scene.viewBox"
                                  preserveAspectRatio="xMidYMid meet">
                                 <defs>
@@ -203,13 +218,32 @@
                             </div>
                         </div>
                     </t>
-                    <div t-if="!state.data.presets.length" class="small text-muted mb-2">
-                        No layout presets available for this Series yet.
+                    <!-- Empty states are stated rather than rendered as an
+                         empty strip: an invisible cause looks like a broken
+                         screen, which is exactly how the Series leaf-type
+                         mapping went unnoticed. -->
+                    <div t-if="!state.data.presets.length" class="small text-warning mb-2">
+                        <t t-if="!state.data.leaf_types.length">
+                            No layout presets can be offered:
+                            <b><t t-esc="state.data.header.window_series_name"/></b>
+                            has no leaf types configured.
+                        </t>
+                        <t t-else="">
+                            No layout preset matches
+                            <b><t t-esc="state.data.header.window_series_name"/></b>'s
+                            allowed leaf types
+                            (<t t-esc="state.data.leaf_types.map(t => t.name).join(', ')"/>).
+                        </t>
                     </div>
 
                     <t t-if="selectedLeaf">
                         <div class="border-top pt-2 mt-2">
                             <div class="small text-muted mb-1">Leaf type</div>
+                            <div t-if="!state.data.leaf_types.length" class="small text-warning mb-2">
+                                <b><t t-esc="state.data.header.window_series_name"/></b>
+                                has no leaf types configured, so none can be
+                                offered. Set them on the Window Series.
+                            </div>
                             <div class="d-flex flex-wrap gap-1 mb-2">
                                 <!-- NOT t-as="lt": OWL rewrites lt/gt/lte/gte/and/or
                                      into < > <= >= &amp;&amp; || before parsing the
