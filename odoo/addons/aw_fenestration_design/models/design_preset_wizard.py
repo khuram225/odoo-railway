@@ -55,5 +55,6 @@ class AwDesignPresetWizard(models.TransientModel):
             'res_model': 'aw.layout.preset',
             'res_id': preset.id,
             'view_mode': 'form',
+            'views': [(False, 'form')],
             'target': 'current',
         }

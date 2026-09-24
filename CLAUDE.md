@@ -439,6 +439,20 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   skipped containers — so nothing was watching the server-side data
   rule. When a rule exists on both sides, check the server one too.
 
+- `scripts/check_act_window_views.py` requires every
+  `ir.actions.act_window` dict — Python or JS — to declare `views`. The
+  web client's `_preprocessAction` runs `action.views.map(...)`
+  unguarded, so one without it dies with *"Cannot read properties of
+  undefined (reading 'map')"* before the dialog opens. **The subtlety
+  that makes this easy to miss:** an action returned from a *button*
+  goes through `/web/dataset/call_button`, whose controller runs
+  `clean_action()` → `generate_views()` and fills `views` in from
+  `view_mode` — so the identical dict works from a button and crashes
+  when the configurator fetches it with `orm.call()`, which goes
+  through `call_kw` and does no such cleaning. That is exactly why
+  "Save as preset" crashed while "Add Position" worked. Declare `views`
+  and it is safe on both paths.
+
 Enable the hook once per clone:
 
 ```
@@ -448,7 +462,8 @@ git config core.hooksPath .githooks
 Until that's run, check manually before committing XML or JS: `python
 scripts/check_xml_comments.py && python scripts/check_owl_names.py &&
 node scripts/check_owl_getters.mjs && python
-scripts/check_preset_layouts.py && python scripts/check_load_order.py`.
+scripts/check_preset_layouts.py && python
+scripts/check_act_window_views.py && python scripts/check_load_order.py`.
 
 ## Hard-won lessons
 

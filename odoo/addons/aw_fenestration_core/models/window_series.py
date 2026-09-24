@@ -108,6 +108,7 @@ class AwWindowSeries(models.Model):
             'name': name,
             'res_model': model,
             'view_mode': 'list,form',
+            'views': [(False, 'list'), (False, 'form')],
             'domain': [('window_type_id', '=', self.id)],
             'context': {'default_window_type_id': self.id},
         }

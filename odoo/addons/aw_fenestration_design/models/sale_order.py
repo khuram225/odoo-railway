@@ -111,6 +111,7 @@ class SaleOrder(models.Model):
             'name': _("Add Position"),
             'res_model': 'aw.design.position.wizard',
             'view_mode': 'form',
+            'views': [(False, 'form')],
             'view_id': self.env.ref(
                 'aw_fenestration_design.view_aw_design_position_wizard_form').id,
             'target': 'new',

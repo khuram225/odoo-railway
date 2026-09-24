@@ -314,6 +314,7 @@ class AwDesign(models.Model):
             'res_model': 'aw.design',
             'res_id': self.id,
             'view_mode': 'form',
+            'views': [(False, 'form')],
             'target': 'current',
         }
 
@@ -607,6 +608,7 @@ class AwDesign(models.Model):
             'name': _("Save Layout as Preset"),
             'res_model': 'aw.design.preset.wizard',
             'view_mode': 'form',
+            'views': [(False, 'form')],
             'target': 'new',
             'context': {
                 'default_design_id': self.id,

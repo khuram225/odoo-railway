@@ -6,7 +6,8 @@
 # an OWL template variable named after a word OWL rewrites into an
 # operator (t-as="lt" -> "<" -- see scripts/check_owl_names.py), or a
 # seeded preset layout the module upgrade would reject (see
-# scripts/check_preset_layouts.py).
+# scripts/check_preset_layouts.py), or an act_window action built
+# without "views" (see scripts/check_act_window_views.py).
 #
 # Not active by default: git only runs hooks from .git/hooks, which isn't
 # tracked. One-time setup per clone:
@@ -14,7 +15,8 @@
 
 staged_xml=$(git diff --cached --name-only --diff-filter=ACM -- '*.xml')
 staged_js=$(git diff --cached --name-only --diff-filter=ACM -- '*.js')
-if [ -z "$staged_xml" ] && [ -z "$staged_js" ]; then
+staged_py=$(git diff --cached --name-only --diff-filter=ACM -- '*.py')
+if [ -z "$staged_xml" ] && [ -z "$staged_js" ] && [ -z "$staged_py" ]; then
     exit 0
 fi
 
@@ -22,4 +24,5 @@ python scripts/check_xml_comments.py $staged_xml || exit 1
 python scripts/check_owl_names.py || exit 1
 node scripts/check_owl_getters.mjs || exit 1
 python scripts/check_preset_layouts.py || exit 1
+python scripts/check_act_window_views.py || exit 1
 python scripts/check_load_order.py
