@@ -125,7 +125,8 @@ def rebuild_melt(src: Path, melted_out: Path):
         w.writerow(['profile_code', 'thickness_raw', 'thickness_normalized', 'finish', 'price_pkr', 'effective_from', 'uom_note'])
         for code, t_raw, t_norm, fcol, price, eff in melted:
             w.writerow([code, t_raw, t_norm, FINISH_LABELS.get(fcol, ''), price, eff,
-                        'UNCONFIRMED: assumed PKR per running foot, not verified with Chawla'])
+                        'PKR per running foot; stock lengths 14/16/18 ft. '
+                        'Confirmed by the client, not yet in writing from Chawla'])
 
 
 def load_profiles(melted_out: Path):

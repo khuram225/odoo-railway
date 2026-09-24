@@ -14,7 +14,9 @@ from odoo.addons.aw_fenestration_core.models.formula import (
 )
 
 # Longest bar the shop stocks (spec 6.6). A piece longer than this can't
-# be cut from one length and needs a coupler.
+# be cut from one length and needs a coupler. Confirmed by the client
+# alongside the rate unit: stock lengths are 14/16/18 ft, so 18 is the
+# real ceiling rather than the assumption it started as.
 MAX_STOCK_BAR_MM = 18 * 304.8  # 18 ft
 
 # How to say "the layout needs this" in the checks, per scope. Phrased

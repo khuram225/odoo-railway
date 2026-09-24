@@ -38,8 +38,9 @@ class AwProfileRate(models.Model):
     price = fields.Float(
         string='Price / running ft', required=True,
         digits='Product Price',
-        help="Per running foot. The unit is the vendor's, not a "
-             "conversion -- see the [revisit] note in the spec.")
+        help="PKR per running foot, the vendor's own unit -- not a "
+             "conversion. Stock lengths are 14/16/18 ft. Confirmed by "
+             "the client; still to be had in writing from Chawla.")
     company_id = fields.Many2one(
         'res.company', required=True, default=lambda self: self.env.company)
     currency_id = fields.Many2one(
