@@ -495,7 +495,34 @@ class AwDesign(models.Model):
         # for display, but the server decides what's stored, so a payload
         # that arrived with stale or absent numbers still lands numbered.
         self._renumber_panels()
+        # Validated here, once, over the finished tree -- NOT by a
+        # constraint on the leaf. A container leaf is created before its
+        # sub-rows exist (they need its id), so at create time it looks
+        # exactly like a typeless panel and a per-record constraint
+        # rejected every horizontal split.
+        self._check_panels_typed()
         return self.get_configurator_data()
+
+    def _check_panels_typed(self):
+        """Every leaf must either be a panel with a type or a container
+        with sub-rows. Runs after numbering so the message can name the
+        panel, which is what makes it actionable if it ever fires."""
+        missing = []
+
+        def walk(rows):
+            for row in rows:
+                for leaf in row.leaf_ids:
+                    if leaf.child_row_ids:
+                        walk(leaf.child_row_ids)
+                    elif not leaf.leaf_type_id:
+                        missing.append(leaf.panel_no)
+
+        for design in self:
+            walk(design.row_ids)
+            if missing:
+                raise UserError(_(
+                    "These panels need a leaf type:\n%s",
+                    '\n'.join('- Panel %s' % n for n in missing)))
 
     def _incomplete_dimension_designs(self):
         """Designs still sitting at a zero width or height. Dimensions

@@ -260,5 +260,77 @@ console.log("\nOPENING TRIANGLES (spec 3.4): apex at the hinge side");
        "tilt & turn draws two triangles");
 }
 
+console.log("\nREGRESSIONS from the Phase 1 browser test:");
+{
+    // A design exactly as the SERVER sends it: junction_after empty,
+    // because existing designs pre-date the field. This is what made
+    // every boundary draw as a mullion however its panels were hinged.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        { width_mm: 600, is_auto: false, panel_no: 1, is_container: false,
+          leaf_type_id: 2, leaf_type_code: "CASEMENT",
+          hinge_side: "left", swing: "out", slide_dir: "",
+          junction_after: "", rows: [] },
+        { width_mm: 600, is_auto: false, panel_no: 2, is_container: false,
+          leaf_type_id: 2, leaf_type_code: "CASEMENT",
+          hinge_side: "right", swing: "out", slide_dir: "",
+          junction_after: "", rows: [] },
+    ] }], 1200, 1500);
+    ok(c.scene.dividers[0].junction === "mullion",
+       "unfilled junction falls back to mullion (this was the bug)");
+    c.fillMissingJunctions(c.state.data.rows);
+    ok(c.scene.dividers[0].junction === "meeting",
+       "filled on load: casement L | casement R -> meeting");
+
+    c.state.data.rows[0].leaves[0].junction_after = "mullion";
+    c.fillMissingJunctions(c.state.data.rows);
+    ok(c.scene.dividers[0].junction === "mullion",
+       "a junction chosen by hand is never overwritten by the fill");
+
+    c.selectLeaf([[0, 1]]);
+    c.setDirection("hinge_side", "left");
+    ok(c.scene.dividers[0].junction === "mullion",
+       "both hinged left -> mullion, re-derived when a hinge changes");
+    c.setDirection("hinge_side", "right");
+    ok(c.scene.dividers[0].junction === "meeting",
+       "hinged back to right -> meeting again");
+}
+
+console.log("\n  glyph sizes constant in CSS pixels, not viewBox units:");
+{
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(1200, "CASEMENT", { hinge_side: "left", swing: "out" }),
+    ] }], 1200, 1500);
+    for (const z of [0.25, 1, 4]) {
+        c.state.zoom = z;
+        const px = c.adornments.glyphStroke * c.fitScale * z;
+        ok(Math.abs(px - 1.2) < 1e-9,
+           `zoom ${z * 100}%: triangle stroke = ${px.toFixed(2)}px`);
+    }
+    c.state.zoom = 1;
+    ok(c.adornments.toolbar.show === false,
+       "no toolbar anchor when nothing is selected");
+    c.selectLeaf([[0, 0]]);
+    ok(c.adornments.toolbar.show === true,
+       "toolbar anchors to the selected panel");
+}
+
+console.log("\n  a divider is selected on pointerdown, not by a click:");
+{
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT", { hinge_side: "left" }),
+        panel(600, "CASEMENT", { hinge_side: "right" }),
+    ] }], 1200, 1500);
+    c.clientToUser = (ev) => ({ x: ev.clientX, y: ev.clientY });
+    const d = c.scene.dividers[0];
+    c.onDividerPointerDown(d, { preventDefault() {}, stopPropagation() {},
+                                clientX: 0, clientY: 0 });
+    ok(c.state.selectedDivider === d.key, "pointerdown selected it");
+    ok(!!c.selectedDividerEntry, "so the junction toolbar has something to show");
+    ok(c.adornments.toolbar.show === true, "and the floating toolbar anchors to it");
+    c.endDrag();
+    c.setJunction("interlock");
+    ok(c.scene.dividers[0].junction === "interlock", "setJunction writes through");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

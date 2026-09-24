@@ -190,7 +190,46 @@
                                      overflows and the container scrolls, which
                                      is what makes panning work. margin:auto
                                      keeps it centred while it still fits. -->
-                                <div t-else="" t-attf-style="width: {{renderedSize.w}}px; height: {{renderedSize.h}}px; margin: auto;">
+                                <div t-else="" class="position-relative"
+                                     t-attf-style="width: {{renderedSize.w}}px; height: {{renderedSize.h}}px; margin: auto;">
+
+                                    <!-- Floating toolbar, next to whatever is
+                                         selected. The controls also live in the
+                                         right-hand panel; this is the copy you
+                                         find without looking for it. -->
+                                    <div t-if="adornments.toolbar.show"
+                                         class="o_aw_cfg_floating d-flex gap-1 bg-view border rounded shadow-sm p-1"
+                                         t-attf-style="left: {{adornments.toolbar.left}}px; top: {{adornments.toolbar.top}}px;">
+
+                                        <t t-if="selectedLeaf">
+                                            <button class="btn btn-sm btn-light" title="Split into two side by side"
+                                                    t-att-disabled="!canSplit"
+                                                    t-on-click="() => this.splitPanel('vertical')">
+                                                <i class="fa fa-columns"/>
+                                            </button>
+                                            <button class="btn btn-sm btn-light" title="Split into two stacked"
+                                                    t-att-disabled="!canSplit"
+                                                    t-on-click="() => this.splitPanel('horizontal')">
+                                                <i class="fa fa-bars"/>
+                                            </button>
+                                            <button class="btn btn-sm btn-light text-danger" title="Remove this panel"
+                                                    t-att-disabled="!canRemove"
+                                                    t-on-click="removePanel">
+                                                <i class="fa fa-trash"/>
+                                            </button>
+                                        </t>
+
+                                        <t t-if="selectedDividerEntry">
+                                            <t t-foreach="['mullion', 'meeting', 'interlock']" t-as="jt" t-key="jt">
+                                                <button class="btn btn-sm text-capitalize"
+                                                        t-att-class="selectedDividerEntry.junction === jt ? 'btn-primary' : 'btn-light'"
+                                                        t-on-click="() => this.setJunction(jt)">
+                                                    <t t-esc="jt"/>
+                                                </button>
+                                            </t>
+                                        </t>
+                                    </div>
+
                                     <svg class="o_aw_cfg_svg"
                                          t-ref="svg"
                                          style="display: block; width: 100%; height: 100%;"
@@ -222,7 +261,8 @@
                                               stroke="#9dbfc9" stroke-width="0.6"/>
 
                                         <path t-if="leaf.glyph.arrow" t-att-d="leaf.glyph.arrow"
-                                              stroke="#4a5358" stroke-width="1.1" fill="none"/>
+                                              stroke="#4a5358" fill="none"
+                                              t-att-stroke-width="adornments.arrowStroke"/>
 
                                         <!-- Opening symbol: apex at the hinge
                                              side, base at the two corners
@@ -231,19 +271,21 @@
                                         <t t-foreach="leaf.glyph.triangles or []" t-as="tri" t-key="tri.key">
                                             <polyline t-att-points="tri.points"
                                                       fill="none" stroke="#4a5358"
-                                                      stroke-width="0.6"
-                                                      stroke-dasharray="3 2"/>
+                                                      t-att-stroke-width="adornments.glyphStroke"
+                                                      t-att-stroke-dasharray="adornments.glyphDash"/>
                                         </t>
                                         <text t-if="leaf.glyph.fan"
                                               t-att-x="leaf.glyph.fan.tagX" t-att-y="leaf.glyph.fan.tagY"
-                                              fill="#4a5358" font-size="8.5" text-anchor="middle"
+                                              fill="#4a5358" text-anchor="middle"
+                                              t-att-font-size="adornments.glyphFont"
                                               font-family="monospace">
                                             <t t-esc="leaf.glyph.fan.tag"/>
                                         </text>
 
                                         <text t-if="leaf.glyph.label"
                                               t-att-x="leaf.glyph.label.x" t-att-y="leaf.glyph.label.y"
-                                              fill="#4a5358" font-size="9" text-anchor="middle"
+                                              fill="#4a5358" text-anchor="middle"
+                                              t-att-font-size="adornments.glyphFont"
                                               font-family="monospace">
                                             <t t-esc="leaf.glyph.label.text"/>
                                         </text>
@@ -323,7 +365,6 @@
                                         <rect class="o_aw_divider_hit"
                                               t-att-x="divider.hitX" t-att-y="divider.hitY"
                                               t-att-width="divider.hitW" t-att-height="divider.hitH"
-                                              t-on-click="(ev) => this.selectDivider(divider, ev)"
                                               t-on-pointerdown="(ev) => this.onDividerPointerDown(divider, ev)"/>
                                     </g>
                                 </t>

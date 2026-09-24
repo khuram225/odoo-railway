@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo import api, fields, models
 
 
 class AwDesignLeaf(models.Model):
@@ -59,9 +58,12 @@ class AwDesignLeaf(models.Model):
         help="True when this leaf is subdivided, i.e. holds rows rather "
              "than being a panel in its own right.")
 
-    # NOT required: a container has no leaf type. Enforced for real panels
-    # by _check_leaf_type below instead, so the rule can say "unless it's a
-    # container" -- which a required= flag cannot.
+    # NOT required: a container has no leaf type. Enforced instead over
+    # the finished tree by aw.design._check_panels_typed(), NOT by a
+    # constraint here -- a container leaf is created before its sub-rows
+    # exist (they need its id), so at create time it is indistinguishable
+    # from a typeless panel and a per-record constraint rejected every
+    # horizontal split.
     leaf_type_id = fields.Many2one(
         'aw.leaf.type', ondelete='restrict')
     # convenience related fields so the view can decide which direction
@@ -118,14 +120,6 @@ class AwDesignLeaf(models.Model):
     def _compute_is_container(self):
         for rec in self:
             rec.is_container = bool(rec.child_row_ids)
-
-    @api.constrains('leaf_type_id', 'child_row_ids')
-    def _check_leaf_type(self):
-        for rec in self:
-            if not rec.child_row_ids and not rec.leaf_type_id:
-                raise ValidationError(_(
-                    "A panel needs a Leaf Type unless it is subdivided "
-                    "into sub-rows."))
 
     @api.depends('width_mm')
     def _compute_width_ftin(self):

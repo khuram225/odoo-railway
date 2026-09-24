@@ -143,6 +143,48 @@ export class DesignConfigurator extends Component {
         this.state.selected = null;
         this.state.selectedDivider = null;
         this.state.zoom = 1; // a freshly opened design starts fitted
+        // Derive any junction the stored data doesn't have. Existing
+        // designs pre-date junction_after entirely, so without this every
+        // boundary drew as a mullion however its panels were hinged.
+        // Only fills blanks -- a junction someone chose is left alone.
+        this.fillMissingJunctions(this.state.data.rows);
+    }
+
+    /** Set junction_after only where it is empty. */
+    fillMissingJunctions(rows) {
+        for (const row of rows) {
+            row.leaves.forEach((leaf, i) => {
+                const next = row.leaves[i + 1] || null;
+                if (!next) {
+                    leaf.junction_after = "";
+                } else if (!leaf.junction_after) {
+                    leaf.junction_after = defaultJunction(leaf, next);
+                }
+                if (leaf.rows && leaf.rows.length) {
+                    this.fillMissingJunctions(leaf.rows);
+                }
+            });
+        }
+    }
+
+    /**
+     * Re-derive the junctions in the row holding `path`, after something
+     * that feeds the rule changed. Scoped to that row so a junction
+     * chosen by hand elsewhere in the design survives.
+     */
+    refreshJunctionsAround(path) {
+        if (!path || !path.length) {
+            return;
+        }
+        const rows = this.rowsAt(path.slice(0, -1));
+        const row = rows[path[path.length - 1][0]];
+        if (!row) {
+            return;
+        }
+        row.leaves.forEach((leaf, i) => {
+            const next = row.leaves[i + 1] || null;
+            leaf.junction_after = next ? defaultJunction(leaf, next) : "";
+        });
     }
 
     // -- unit rendering ----------------------------------------------------
@@ -450,6 +492,7 @@ export class DesignConfigurator extends Component {
         if (!type?.has_slide_dir) {
             leaf.slide_dir = "";
         }
+        this.refreshJunctionsAround(this.state.selected);
         this.state.dirty = true;
     }
 
@@ -596,6 +639,9 @@ export class DesignConfigurator extends Component {
         // happened to already be set -- clicking "out" on a panel that is
         // already "out" left it with no swing at all.
         leaf[field] = value;
+        // Hinge side feeds the junction rule: two sashes hinged away from
+        // each other meet, hinged towards each other they need a mullion.
+        this.refreshJunctionsAround(this.state.selected);
         this.state.dirty = true;
     }
 
@@ -982,6 +1028,8 @@ export class DesignConfigurator extends Component {
             viewBox: `${minX - M} ${minY - M} ${vbW} ${vbH}`,
             vbW,
             vbH,
+            vbX: minX - M,
+            vbY: minY - M,
             frame: { x: x0, y: y0, w, h },
             baseline,
             leaves,
@@ -1161,6 +1209,38 @@ export class DesignConfigurator extends Component {
         }
     }
 
+    /**
+     * Anchor for the floating toolbar: the midpoint of whatever is
+     * selected, converted from viewBox units to CSS pixels within the
+     * rendered wrapper.
+     */
+    toolbarAnchor(scene, upp) {
+        const k = 1 / upp; // CSS px per viewBox unit
+        const sel = this.state.selected;
+        if (sel) {
+            const entry = scene.leaves.find((l) => samePath(l.path, sel));
+            if (entry) {
+                return {
+                    show: true,
+                    left: (entry.badge.cx - scene.vbX) * k,
+                    top: (entry.y - scene.vbY) * k,
+                };
+            }
+        }
+        const key = this.state.selectedDivider;
+        if (key) {
+            const d = scene.dividers.find((x) => x.key === key);
+            if (d) {
+                return {
+                    show: true,
+                    left: ((d.x1 + d.x2) / 2 - scene.vbX) * k,
+                    top: (Math.min(d.y1, d.y2) - scene.vbY) * k,
+                };
+            }
+        }
+        return { show: false, left: 0, top: 0 };
+    }
+
     // -- dragging ----------------------------------------------------------
     /**
      * Client (CSS pixel) coordinates -> SVG user-space coordinates.
@@ -1214,6 +1294,17 @@ export class DesignConfigurator extends Component {
         return {
             badgeR: 11 * upp,
             badgeFont: 11 * upp,
+            // Opening triangles, IN/OUT tag and MESH label. Left in viewBox
+            // units these were drawn under a pixel wide at normal fit,
+            // which is why the triangles looked absent rather than thin.
+            glyphStroke: 1.2 * upp,
+            glyphDash: `${4 * upp} ${3 * upp}`,
+            glyphFont: 10 * upp,
+            arrowStroke: 1.6 * upp,
+            // Where a floating toolbar should sit, in CSS pixels inside
+            // the sized wrapper. Screen-space, so it belongs here rather
+            // than in scene.
+            toolbar: this.toolbarAnchor(scene, upp),
             dividers: scene.dividers.map((d) => ({
                 ...d,
                 stroke,
@@ -1228,6 +1319,12 @@ export class DesignConfigurator extends Component {
     onDividerPointerDown(divider, ev) {
         ev.preventDefault();
         ev.stopPropagation(); // don't also start a background pan
+        // Select HERE, not from a click handler: preventDefault() above is
+        // needed to stop the browser starting a text/image drag, and it
+        // also suppresses the click that would otherwise follow, so a
+        // click-to-select never fired. Selecting on pointerdown is also
+        // simply more responsive.
+        this.selectDivider(divider);
         const point = this.clientToUser(ev);
         if (!point) {
             return;

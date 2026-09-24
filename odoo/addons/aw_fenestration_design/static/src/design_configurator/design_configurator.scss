@@ -53,6 +53,16 @@
     user-select: none;
 }
 
+// Floating toolbar over the drawing. Positioned by adornments.toolbar in
+// CSS pixels inside the sized wrapper, then nudged so it sits just above
+// what it acts on rather than covering it.
+.o_aw_cfg_floating {
+    position: absolute;
+    transform: translate(-50%, -115%);
+    z-index: 3;
+    white-space: nowrap;
+}
+
 .o_aw_cfg_cat {
     font-size: 0.68rem;
     letter-spacing: 0.04em;
