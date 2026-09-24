@@ -329,6 +329,19 @@ no equivalent field. **The scene returns `null` when width or height is
 above), and the prototype's scale factor would be `Infinity` there,
 putting `NaN` into every coordinate.
 
+**Which presets a Series is offered** is two conditions, both required:
+`series_ids` (empty = any Series) states intent, and leaf-type
+compatibility is the backstop so a Fix-only Series can't one-click its
+way to a casement. Leaf types alone were not enough — every all-`FIXED`
+preset passed on all 8 Series, so a curtain-wall layout showed up on
+sliding Series. `series_ids` is seeded once per preset by
+`_seed_default_series()`, the same fill-only-if-empty pattern as
+`_seed_default_leaf_types()`, with the same caveat: clearing it back to
+"any Series" isn't stable, archive instead. Note the two conditions can
+contradict — a preset assigned to a Series whose leaf types it needs but
+doesn't have is silently offered nowhere (see the `Hopper over Fixed`
+note in the seeding commit).
+
 `aw.layout.preset` seeds from the prototype's `ROWS`/`PRESET_CATS`/
 `PRESETS`. All weights are 1 because the prototype's templates carry no
 sizes at all — `normaliseRows()` splits equally — and equal weights

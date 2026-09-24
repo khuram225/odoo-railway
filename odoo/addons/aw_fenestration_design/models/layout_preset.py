@@ -4,6 +4,25 @@ import json
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+# Starting Series assignment for the seeded presets, applied ONCE per
+# preset by _seed_default_series(). Keyed by XML id on both sides so it
+# doesn't depend on names, which are editable. Presets not listed here --
+# including any created in the UI -- are left alone with no Series, i.e.
+# offered everywhere their leaf types fit.
+DEFAULT_PRESET_SERIES = {
+    'layout_preset_casement': ('casement_sg', 'casement_dg'),
+    'layout_preset_fix_casement': ('casement_sg', 'casement_dg'),
+    'layout_preset_twin_sash': ('casement_sg', 'casement_dg'),
+    'layout_preset_hopper_over_fixed': ('casement_sg', 'casement_dg'),
+    'layout_preset_two_across_one_below': ('casement_sg', 'casement_dg'),
+    'layout_preset_2track_2panel': ('dg_sliding', 'sg_sliding'),
+    'layout_preset_2track_fix_slide': ('dg_sliding', 'sg_sliding'),
+    'layout_preset_3track_mesh': ('dg_sliding', 'sg_sliding'),
+    'layout_preset_fixed': ('dg_fix', 'sg_fix'),
+    'layout_preset_stack3': ('curtain_wall_fix',),
+    'layout_preset_curtain_wall_vent': ('curtain_wall_fix',),
+}
+
 
 class AwLayoutPreset(models.Model):
     """A reusable starting layout for a design — the row/leaf grid shape
@@ -39,6 +58,10 @@ class AwLayoutPreset(models.Model):
              "one, no schema change.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
+    series_ids = fields.Many2many(
+        'aw.window.series', string='Window Series',
+        help="Offer this preset only on these Series. Leave empty to "
+             "offer it on any Series whose leaf types it fits.")
     # A valid single-leaf starter, not an empty {"rows": []}: the
     # constraint below requires a non-empty rows list, so an empty
     # default would make "create preset, save" fail on its own default.
@@ -95,9 +118,52 @@ class AwLayoutPreset(models.Model):
         }
 
     def _allowed_for_series(self, series):
-        """Presets are only offered when the design's Series can host
-        every leaf type they'd create -- a Fix-only Series shouldn't be
-        able to one-click its way to a casement."""
-        allowed = set(series.leaf_type_ids.mapped('code'))
+        """Two conditions, both required.
+
+        series_ids, when set, is the explicit statement of intent: this
+        preset belongs to these Series. Empty means "anywhere it fits".
+
+        Leaf-type compatibility stays as the backstop -- a Fix-only
+        Series shouldn't be able to one-click its way to a casement even
+        if someone mis-assigns a Series. It is necessary but NOT
+        sufficient on its own, which was the bug this fixes: every
+        all-FIXED preset ("Fixed", "3-tier fixed stack") passed the leaf
+        check on all 8 Series, so a curtain-wall layout was offered on
+        sliding Series. Leaf types can't express category intent.
+        """
         return self.filtered(
-            lambda p: p._leaf_type_codes() <= allowed)
+            lambda p: (not p.series_ids or series in p.series_ids)
+            and p._leaf_type_codes() <= set(
+                series.leaf_type_ids.mapped('code')))
+
+    @api.model
+    def _seed_default_series(self):
+        """Assign each seeded preset its starting Series, once.
+
+        Same shape, and same reasoning, as
+        aw.window.series._seed_default_leaf_types(): a preset that
+        already has Series is skipped, so an upgrade never overwrites a
+        UI edit. Presets absent from the mapping -- anything created in
+        the UI -- are never touched at all.
+
+        Same caveat too: deliberately clearing a preset's Series back to
+        "any Series" is not a stable state, because empty is exactly the
+        signal this uses for "never assigned", so the next upgrade
+        refills it. Archive the preset instead if it shouldn't be
+        offered.
+        """
+        for preset_xmlid, series_keys in DEFAULT_PRESET_SERIES.items():
+            preset = self.env.ref(
+                'aw_fenestration_design.%s' % preset_xmlid,
+                raise_if_not_found=False)
+            if not preset or preset.series_ids:
+                continue
+            ids = []
+            for key in series_keys:
+                series = self.env.ref(
+                    'aw_fenestration_core.window_series_%s' % key,
+                    raise_if_not_found=False)
+                if series:
+                    ids.append(series.id)
+            if ids:
+                preset.series_ids = [(6, 0, ids)]

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+    Assigns the seeded presets their starting Series. Same mechanism as
+    aw_fenestration_core's window_series_data.xml, for the same reason:
+    the method fills ONLY a preset whose series_ids is empty, so it
+    applies once per preset and a later UI edit is never overwritten.
+
+    Separate file from layout_preset_data.xml because that one is
+    noupdate="1" (so preset names and layouts survive upgrades), and
+    convert.py's _tag_function skips a function inside a noupdate block
+    unless the module is being installed for the first time, so the
+    assignment would then never reach an existing database.
+
+    Loads after layout_preset_data.xml so the presets it refers to exist.
+    -->
+    <data>
+        <function model="aw.layout.preset" name="_seed_default_series"/>
+    </data>
+</odoo>

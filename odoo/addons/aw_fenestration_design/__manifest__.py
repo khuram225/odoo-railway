@@ -39,6 +39,7 @@ row/leaf grid shape:
         'security/ir.model.access.csv',
         'data/product_data.xml',
         'data/layout_preset_data.xml',
+        'data/layout_preset_series_data.xml',
         'views/design_views.xml',
         'views/layout_preset_views.xml',
         'views/design_position_wizard_views.xml',

@@ -9,6 +9,8 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="category"/>
+                <field name="series_ids" widget="many2many_tags"
+                       string="Window Series (empty = any)"/>
             </list>
         </field>
     </record>
@@ -31,6 +33,17 @@
                             <field name="active"/>
                         </group>
                     </group>
+                    <group>
+                        <field name="series_ids" widget="many2many_tags"
+                               options="{'no_create': True}"
+                               placeholder="Any Series"/>
+                    </group>
+                    <div class="text-muted mb-2">
+                        Leave <b>Window Series</b> empty to offer this preset
+                        on any Series whose leaf types it fits. Setting it
+                        restricts the preset to those Series; the leaf-type
+                        check still applies on top.
+                    </div>
                     <separator string="Layout"/>
                     <div class="text-muted mb-2">
                         Rows top to bottom, leaves left to right.
