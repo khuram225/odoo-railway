@@ -129,6 +129,17 @@ BOM_DEFAULTS = {
     'pos_palay_sides': {
         'scope': 'panel_opening', 'edge': 'sides',
         'default_length': 'PH - 10', 'default_angle': '45'},
+    # Same deductions as Fixed Bead: it is the same bead doing the same
+    # job, just in an opening sash rather than a fixed panel.
+    'pos_palay_bead_top': {
+        'scope': 'panel_opening', 'edge': 'top',
+        'default_length': 'PW - 40', 'default_angle': '45'},
+    'pos_palay_bead_bottom': {
+        'scope': 'panel_opening', 'edge': 'bottom',
+        'default_length': 'PW - 40', 'default_angle': '45'},
+    'pos_palay_bead_sides': {
+        'scope': 'panel_opening', 'edge': 'sides',
+        'default_length': 'PH - 40', 'default_angle': '45'},
     'pos_bead_top': {
         'scope': 'panel_fixed', 'edge': 'top',
         'default_length': 'PW - 40', 'default_angle': '45'},

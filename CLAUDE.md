@@ -67,8 +67,9 @@ docstring/commit message, that's stale, both were deleted entirely):
   can host), `aw.design.leaf.leaf_type_id` (design module), and
   `aw.hardware.set.line.leaf_type_id` (blank = all leaves).
 - `aw.profile.position` — open-ended list of where a profile sits in the
-  frame (12 seeded rows: Outer Frame/Palay/Fixed Bead × Top/Bottom/Sides,
-  Mesh - All Sides, Divider Vertical/Horizontal). Replaces the old fixed
+  frame (17 seeded rows: Outer Frame/Palay/Palay Bead/Fixed Bead ×
+  Top/Bottom/Sides, Mesh - All Sides, Divider Vertical/Horizontal,
+  Interlock, Meeting Stile). Replaces the old fixed
   5-value `role` Selection (frame/sash/interlock/bead/mesh) on
   `aw.profile.section.line` — add a row, no schema change.
 - `aw.window.series` — now the **only** classification layer (Double

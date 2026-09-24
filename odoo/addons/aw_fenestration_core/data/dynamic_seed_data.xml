@@ -72,6 +72,21 @@
         <record id="pos_palay_sides" model="aw.profile.position">
             <field name="name">Palay - Sides</field><field name="sequence">60</field>
         </record>
+        <!-- The bead that retains glass in an OPENING sash, as distinct
+             from Fixed Bead below. Confirmed by the client: some sash
+             profiles have the glazing channel built in and need no
+             separate bead, so a Profile Section is not expected to carry
+             lines for these. The engine generates nothing for a position
+             with no line, and the checks stay quiet about it. -->
+        <record id="pos_palay_bead_top" model="aw.profile.position">
+            <field name="name">Palay Bead - Top</field><field name="sequence">62</field>
+        </record>
+        <record id="pos_palay_bead_bottom" model="aw.profile.position">
+            <field name="name">Palay Bead - Bottom</field><field name="sequence">64</field>
+        </record>
+        <record id="pos_palay_bead_sides" model="aw.profile.position">
+            <field name="name">Palay Bead - Sides</field><field name="sequence">66</field>
+        </record>
         <record id="pos_mesh_all" model="aw.profile.position">
             <field name="name">Mesh - All Sides</field><field name="sequence">70</field>
         </record>

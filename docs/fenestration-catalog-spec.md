@@ -336,10 +336,13 @@ plan; these are the decisions taken while implementing it):
    import from a module that depends on it. `models/formula.py` has no
    Odoo imports at all, so `scripts/check_formulas.py` can run the real
    grammar against every seeded formula rather than a copy of it.
-2. **No "Palay Bead" position exists.** 6.2's table lists `Palay Bead - *`,
-   but the 14 seeded positions only have `Fixed Bead - Top/Bottom/Sides`.
-   Nothing was invented to fill the gap; add the position if the shop
-   really uses a separate bead on opening sashes.
+2. **`Palay Bead - Top/Bottom/Sides` are seeded**, scope `panel_opening`,
+   with the same deductions as Fixed Bead. A Profile Section is *not*
+   expected to carry lines for them: some sash profiles have the glazing
+   channel built in. That needs no special case — the engine generates
+   nothing for a position with no section line, and the checks stay
+   quiet about it, so the bead appears exactly when a section defines
+   one.
 3. **Every seeded position got a scope**, so none are currently
    unscoped. The "position has no scope, ignored by BOM" warning is
    there for positions added by hand afterwards.
