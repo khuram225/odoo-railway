@@ -78,7 +78,74 @@
                 </div>
 
                 <div class="d-flex flex-grow-1 overflow-hidden" style="min-height: 0;">
-                    <!-- Drawing -->
+
+                    <!-- LEFT: preset library, collapsible -->
+                    <div class="o_aw_cfg_library border-end bg-view d-flex flex-column flex-shrink-0"
+                         t-att-style="state.libraryOpen ? 'width: 220px; min-height: 0;' : 'width: 2.25rem; min-height: 0;'">
+                        <button class="btn btn-sm btn-light border-0 rounded-0 text-start d-flex align-items-center gap-1 flex-shrink-0"
+                                t-on-click="toggleLibrary"
+                                t-att-title="state.libraryOpen ? 'Hide preset library' : 'Show preset library'">
+                            <i t-att-class="state.libraryOpen ? 'fa fa-chevron-left' : 'fa fa-chevron-right'"/>
+                            <span t-if="state.libraryOpen" class="small text-muted">Layouts</span>
+                        </button>
+
+                        <div t-if="state.libraryOpen" class="overflow-auto p-2" style="min-height: 0;">
+                            <t t-foreach="presetsByCategory" t-as="group" t-key="group.category">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-2 mb-1">
+                                    <t t-esc="group.category"/>
+                                </div>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <t t-foreach="group.presets" t-as="preset" t-key="preset.id">
+                                        <button class="o_aw_cfg_preset btn btn-sm btn-light border p-1 text-center"
+                                                t-att-title="preset.name"
+                                                t-on-click="() => this.applyPreset(preset)">
+                                            <t t-set="thumb" t-value="presetThumb(preset.layout)"/>
+                                            <svg t-att-viewBox="thumb.viewBox"
+                                                 preserveAspectRatio="xMidYMid meet">
+                                                <defs>
+                                                    <pattern id="aw_mesh_thumb" width="3" height="3" patternUnits="userSpaceOnUse">
+                                                        <rect width="3" height="3" fill="#c3dce3" fill-opacity="0.35"/>
+                                                        <path d="M0,3 L3,0" stroke="#6a7075" stroke-width="0.5"/>
+                                                    </pattern>
+                                                </defs>
+                                                <rect x="0" y="0"
+                                                      t-att-width="thumb.frame.W" t-att-height="thumb.frame.H"
+                                                      fill="#8a9095" stroke="#6a7075" stroke-width="0.8"/>
+                                                <t t-foreach="thumb.rects" t-as="r" t-key="r.key">
+                                                    <rect t-att-x="r.x" t-att-y="r.y"
+                                                          t-att-width="r.w" t-att-height="r.h"
+                                                          t-att-fill="r.isMesh ? 'url(#aw_mesh_thumb)' : '#c3dce3'"
+                                                          stroke="#9dbfc9" stroke-width="0.5"/>
+                                                </t>
+                                            </svg>
+                                            <div class="o_aw_cfg_preset_name text-muted mt-1">
+                                                <t t-esc="preset.name"/>
+                                            </div>
+                                        </button>
+                                    </t>
+                                </div>
+                            </t>
+
+                            <!-- Empty states are stated rather than rendered as an
+                                 empty strip: an invisible cause looks like a broken
+                                 screen, which is exactly how the Series leaf-type
+                                 mapping went unnoticed. -->
+                            <div t-if="!state.data.presets.length" class="small text-warning mt-2">
+                                <t t-if="!state.data.leaf_types.length">
+                                    No presets can be offered:
+                                    <b><t t-esc="state.data.header.window_series_name"/></b>
+                                    has no leaf types configured.
+                                </t>
+                                <t t-else="">
+                                    No preset matches the leaf types allowed by
+                                    <b><t t-esc="state.data.header.window_series_name"/></b>
+                                    (<t t-esc="state.data.leaf_types.map(t => t.name).join(', ')"/>).
+                                </t>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CENTER: drawing, full height -->
                     <div class="flex-grow-1 d-flex flex-column p-3" style="min-width: 0; min-height: 0;">
                         <div class="o_aw_cfg_canvas_wrap position-relative flex-grow-1"
                              style="min-height: 0;">
@@ -109,8 +176,7 @@
                                  t-on-wheel="onWheel"
                                  t-on-pointerdown="onCanvasPointerDown"
                                  t-on-pointermove="onPointerMove"
-                                 t-on-pointerup="onPointerUp"
-                                 t-on-pointerleave="onPointerUp">
+                                 t-on-pointerup="onPointerUp">
 
                                 <div t-if="!scene"
                                      class="text-muted text-center d-flex flex-column justify-content-center align-items-center h-100 p-4">
@@ -189,16 +255,24 @@
                                     </g>
                                 </t>
 
-                                <!-- draggable dividers -->
-                                <t t-foreach="scene.dividers" t-as="divider" t-key="divider.key">
-                                    <line t-att-x1="divider.x1" t-att-y1="divider.y1"
-                                          t-att-x2="divider.x2" t-att-y2="divider.y2"
-                                          stroke="#6b4a63" stroke-width="1.2" stroke-opacity="0.45"/>
-                                    <rect t-att-x="divider.hitX" t-att-y="divider.hitY"
-                                          t-att-width="divider.hitW" t-att-height="divider.hitH"
-                                          fill="transparent"
-                                          t-att-style="divider.kind === 'v' ? 'cursor: col-resize' : 'cursor: row-resize'"
-                                          t-on-pointerdown="(ev) => this.onDividerPointerDown(divider, ev)"/>
+                                <!-- Draggable dividers. Rendered AFTER the leaves
+                                     so they paint on top and win the pointer;
+                                     stroke width and hit area come from
+                                     dividerHits, which converts a constant CSS
+                                     pixel size into viewBox units, so neither
+                                     thins to a sliver when the drawing is
+                                     scaled down. -->
+                                <t t-foreach="dividerHits" t-as="divider" t-key="divider.key">
+                                    <g t-attf-class="o_aw_divider o_aw_divider_{{divider.kind}}">
+                                        <line class="o_aw_divider_line"
+                                              t-att-x1="divider.x1" t-att-y1="divider.y1"
+                                              t-att-x2="divider.x2" t-att-y2="divider.y2"
+                                              t-att-stroke-width="divider.stroke"/>
+                                        <rect class="o_aw_divider_hit"
+                                              t-att-x="divider.hitX" t-att-y="divider.hitY"
+                                              t-att-width="divider.hitW" t-att-height="divider.hitH"
+                                              t-on-pointerdown="(ev) => this.onDividerPointerDown(divider, ev)"/>
+                                    </g>
                                 </t>
 
                                 <!-- dimension lines -->
@@ -231,110 +305,91 @@
                         </div>
                     </div>
 
-                    <!-- Side panel: intentionally empty, see Stage F scope note -->
-                    <div class="o_aw_cfg_side border-start bg-view p-3 flex-shrink-0 overflow-auto"
-                         style="width: 18rem;">
-                        <div class="small text-muted">
+                    <!-- RIGHT: selected-leaf properties -->
+                    <div class="o_aw_cfg_side border-start bg-view d-flex flex-column flex-shrink-0"
+                         style="width: 260px; min-height: 0;">
+                        <div class="overflow-auto p-3 flex-grow-1" style="min-height: 0;">
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
+                                Selected leaf
+                            </div>
+
+                            <div t-if="!selectedLeaf" class="small text-muted">
+                                Click a leaf in the drawing to edit it.
+                            </div>
+
+                            <t t-else="">
+                                <div class="mb-3 small">
+                                    Row <b><t t-esc="state.selected.row + 1"/></b>,
+                                    leaf <b><t t-esc="state.selected.leaf + 1"/></b>
+                                    &#8212; <t t-esc="formatLength(selectedLeaf.width_mm)"/> wide
+                                </div>
+
+                                <div class="small text-muted mb-1">Leaf type</div>
+                                <div t-if="!state.data.leaf_types.length" class="small text-warning mb-2">
+                                    <b><t t-esc="state.data.header.window_series_name"/></b>
+                                    has no leaf types configured, so none can be
+                                    offered. Set them on the Window Series.
+                                </div>
+                                <div class="d-flex flex-wrap gap-1 mb-3">
+                                    <!-- NOT t-as="lt": OWL rewrites lt/gt/lte/gte/and/or
+                                         into < > <= >= &amp;&amp; || before parsing the
+                                         expression, so the loop variable would compile
+                                         to `const key1 = <.id;`. -->
+                                    <t t-foreach="state.data.leaf_types" t-as="leafType" t-key="leafType.id">
+                                        <button class="btn btn-sm"
+                                                t-att-class="selectedLeaf.leaf_type_id === leafType.id ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-on-click="() => this.setLeafType(leafType.id)">
+                                            <t t-esc="leafType.name"/>
+                                        </button>
+                                    </t>
+                                </div>
+
+                                <t t-if="selectedLeafType and selectedLeafType.has_hinge_side">
+                                    <div class="small text-muted mb-1">Hinge side</div>
+                                    <div class="d-flex flex-wrap gap-1 mb-2">
+                                        <t t-foreach="['left', 'right', 'top', 'bottom']" t-as="side" t-key="side">
+                                            <button class="btn btn-sm text-capitalize"
+                                                    t-att-class="selectedLeaf.hinge_side === side ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-on-click="() => this.setDirection('hinge_side', side)">
+                                                <t t-esc="side"/>
+                                            </button>
+                                        </t>
+                                    </div>
+                                    <div class="small text-muted mb-1">Swing</div>
+                                    <div class="d-flex flex-wrap gap-1 mb-3">
+                                        <t t-foreach="['in', 'out']" t-as="sw" t-key="sw">
+                                            <button class="btn btn-sm text-uppercase"
+                                                    t-att-class="selectedLeaf.swing === sw ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-on-click="() => this.setDirection('swing', sw)">
+                                                <t t-esc="sw"/>
+                                            </button>
+                                        </t>
+                                    </div>
+                                </t>
+
+                                <t t-if="selectedLeafType and selectedLeafType.has_slide_dir">
+                                    <div class="small text-muted mb-1">Slide direction</div>
+                                    <div class="d-flex flex-wrap gap-1 mb-3">
+                                        <t t-foreach="['left', 'right']" t-as="dir" t-key="dir">
+                                            <button class="btn btn-sm text-capitalize"
+                                                    t-att-class="selectedLeaf.slide_dir === dir ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-on-click="() => this.setDirection('slide_dir', dir)">
+                                                <t t-esc="dir"/>
+                                            </button>
+                                        </t>
+                                    </div>
+                                </t>
+                            </t>
+                        </div>
+
+                        <!-- Kept clearly separate, and deliberately empty: BOM,
+                             pricing, checks and the cut list are later steps. -->
+                        <div class="border-top p-3 flex-shrink-0 text-muted small">
                             BOM, pricing, checks and the cut list land here later.
                         </div>
                     </div>
                 </div>
 
-                <!-- Chips -->
-                <!-- Caps at a third of the viewport and scrolls within
-                     itself, so a long preset list can't squeeze the canvas
-                     off the bottom on a short screen. -->
-                <div class="o_aw_cfg_chips border-top bg-view p-3 flex-shrink-0 overflow-auto"
-                     style="max-height: 33vh;">
-                    <t t-foreach="presetsByCategory" t-as="group" t-key="group.category">
-                        <div class="mb-2">
-                            <div class="small text-muted mb-1"><t t-esc="group.category"/></div>
-                            <div class="d-flex flex-wrap gap-1">
-                                <t t-foreach="group.presets" t-as="preset" t-key="preset.id">
-                                    <button class="btn btn-sm btn-outline-primary"
-                                            t-on-click="() => this.applyPreset(preset)">
-                                        <t t-esc="preset.name"/>
-                                    </button>
-                                </t>
-                            </div>
-                        </div>
-                    </t>
-                    <!-- Empty states are stated rather than rendered as an
-                         empty strip: an invisible cause looks like a broken
-                         screen, which is exactly how the Series leaf-type
-                         mapping went unnoticed. -->
-                    <div t-if="!state.data.presets.length" class="small text-warning mb-2">
-                        <t t-if="!state.data.leaf_types.length">
-                            No layout presets can be offered:
-                            <b><t t-esc="state.data.header.window_series_name"/></b>
-                            has no leaf types configured.
-                        </t>
-                        <t t-else="">
-                            No layout preset matches
-                            <b><t t-esc="state.data.header.window_series_name"/></b>'s
-                            allowed leaf types
-                            (<t t-esc="state.data.leaf_types.map(t => t.name).join(', ')"/>).
-                        </t>
-                    </div>
-
-                    <t t-if="selectedLeaf">
-                        <div class="border-top pt-2 mt-2">
-                            <div class="small text-muted mb-1">Leaf type</div>
-                            <div t-if="!state.data.leaf_types.length" class="small text-warning mb-2">
-                                <b><t t-esc="state.data.header.window_series_name"/></b>
-                                has no leaf types configured, so none can be
-                                offered. Set them on the Window Series.
-                            </div>
-                            <div class="d-flex flex-wrap gap-1 mb-2">
-                                <!-- NOT t-as="lt": OWL rewrites lt/gt/lte/gte/and/or
-                                     into < > <= >= &amp;&amp; || before parsing the
-                                     expression, so the loop variable would compile
-                                     to `const key1 = <.id;`. -->
-                                <t t-foreach="state.data.leaf_types" t-as="leafType" t-key="leafType.id">
-                                    <button class="btn btn-sm"
-                                            t-att-class="selectedLeaf.leaf_type_id === leafType.id ? 'btn-primary' : 'btn-outline-secondary'"
-                                            t-on-click="() => this.setLeafType(leafType.id)">
-                                        <t t-esc="leafType.name"/>
-                                    </button>
-                                </t>
-                            </div>
-
-                            <t t-if="selectedLeafType and selectedLeafType.has_hinge_side">
-                                <div class="small text-muted mb-1">Hinge / swing</div>
-                                <div class="d-flex flex-wrap gap-1 mb-2">
-                                    <t t-foreach="['left', 'right', 'top', 'bottom']" t-as="side" t-key="side">
-                                        <button class="btn btn-sm"
-                                                t-att-class="selectedLeaf.hinge_side === side ? 'btn-primary' : 'btn-outline-secondary'"
-                                                t-on-click="() => this.setDirection('hinge_side', side)">
-                                            <t t-esc="side"/>
-                                        </button>
-                                    </t>
-                                    <span class="mx-1"/>
-                                    <t t-foreach="['in', 'out']" t-as="sw" t-key="sw">
-                                        <button class="btn btn-sm"
-                                                t-att-class="selectedLeaf.swing === sw ? 'btn-primary' : 'btn-outline-secondary'"
-                                                t-on-click="() => this.setDirection('swing', sw)">
-                                            <t t-esc="sw"/>
-                                        </button>
-                                    </t>
-                                </div>
-                            </t>
-
-                            <t t-if="selectedLeafType and selectedLeafType.has_slide_dir">
-                                <div class="small text-muted mb-1">Slide direction</div>
-                                <div class="d-flex flex-wrap gap-1">
-                                    <t t-foreach="['left', 'right']" t-as="dir" t-key="dir">
-                                        <button class="btn btn-sm"
-                                                t-att-class="selectedLeaf.slide_dir === dir ? 'btn-primary' : 'btn-outline-secondary'"
-                                                t-on-click="() => this.setDirection('slide_dir', dir)">
-                                            <t t-esc="dir"/>
-                                        </button>
-                                    </t>
-                                </div>
-                            </t>
-                        </div>
-                    </t>
-                </div>
             </t>
         </div>
     </t>

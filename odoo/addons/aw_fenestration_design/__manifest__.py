@@ -47,6 +47,7 @@ row/leaf grid shape:
     ],
     'assets': {
         'web.assets_backend': [
+            'aw_fenestration_design/static/src/**/*.scss',
             'aw_fenestration_design/static/src/**/*.js',
             'aw_fenestration_design/static/src/**/*.xml',
         ],

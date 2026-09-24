@@ -61,6 +61,7 @@ export class DesignConfigurator extends Component {
             zoom: 1, // 1 = fitted to the canvas
             canvasW: 0,
             canvasH: 0,
+            libraryOpen: true,
         });
 
         // Not in state: a drag in progress isn't rendered directly, it only
@@ -85,7 +86,10 @@ export class DesignConfigurator extends Component {
                 this.measure();
             }
         });
-        onWillUnmount(() => this.resizeObserver?.disconnect());
+        onWillUnmount(() => {
+            this.resizeObserver?.disconnect();
+            this.endDrag(); // never leave window listeners behind
+        });
     }
 
     measure() {
@@ -334,6 +338,45 @@ export class DesignConfigurator extends Component {
             category,
             presets,
         }));
+    }
+
+    /**
+     * A preset's layout drawn small: frame plus one rect per leaf, no
+     * glyphs, dimensions or selection. Same tiling arithmetic as scene(),
+     * against a fixed box instead of the design's real size -- a preset
+     * has only relative weights, so there's nothing else it could use.
+     */
+    presetThumb(layout) {
+        const W = 58;
+        const H = 42;
+        const ff = 2.5;
+        const rects = [];
+        const totH = layout.rows.reduce((a, r) => a + (r.h || 1), 0) || 1;
+        let y = ff;
+        for (const row of layout.rows) {
+            const rh = ((row.h || 1) / totH) * (H - 2 * ff);
+            const totW =
+                row.leaves.reduce((a, l) => a + (l.w || 1), 0) || 1;
+            let x = ff;
+            for (const leaf of row.leaves) {
+                const lw = ((leaf.w || 1) / totW) * (W - 2 * ff);
+                rects.push({
+                    key: `${rects.length}`,
+                    x: x + 1,
+                    y: y + 1,
+                    w: Math.max(1, lw - 2),
+                    h: Math.max(1, rh - 2),
+                    isMesh: leaf.type === "MESH",
+                });
+                x += lw;
+            }
+            y += rh;
+        }
+        return { viewBox: `0 0 ${W} ${H}`, frame: { W, H }, rects };
+    }
+
+    toggleLibrary() {
+        this.state.libraryOpen = !this.state.libraryOpen;
     }
 
     /**
@@ -753,14 +796,56 @@ export class DesignConfigurator extends Component {
         );
     }
 
+    /**
+     * Screen-constant sizes, expressed in viewBox units.
+     *
+     * A divider drawn 1.2 units wide with a 12-unit hit area looked fine
+     * at one particular scale and became a near-invisible sliver once the
+     * drawing was scaled down to fit. Dividing by the live scale keeps
+     * both constant in CSS pixels at any fit or zoom level.
+     */
+    get unitsPerPixel() {
+        const k = this.fitScale * this.state.zoom;
+        return k > 0 ? 1 / k : 1;
+    }
+
+    get dividerHits() {
+        const scene = this.scene;
+        if (!scene) {
+            return [];
+        }
+        const hit = 14 * this.unitsPerPixel; // ~14 CSS px, comfortably grabbable
+        const stroke = 2 * this.unitsPerPixel;
+        return scene.dividers.map((d) => ({
+            ...d,
+            stroke,
+            hitX: d.kind === "v" ? d.x1 - hit / 2 : d.x1,
+            hitY: d.kind === "v" ? d.y1 : d.y1 - hit / 2,
+            hitW: d.kind === "v" ? hit : d.x2 - d.x1,
+            hitH: d.kind === "v" ? d.y2 - d.y1 : hit,
+        }));
+    }
+
     onDividerPointerDown(divider, ev) {
         ev.preventDefault();
-        ev.stopPropagation(); // don't also start a pan
+        ev.stopPropagation(); // don't also start a background pan
         const point = this.clientToUser(ev);
         if (!point) {
             return;
         }
-        ev.target.setPointerCapture(ev.pointerId);
+        // Listen on window for the duration of the drag, exactly as the
+        // prototype does. Relying on the events bubbling back to the
+        // canvas was the bug: the canvas also had a pointerleave handler
+        // that ended the drag, so the first move outside the element -- or
+        // any boundary event produced by pointer capture -- killed it
+        // immediately. Window listeners also mean a release anywhere on
+        // the page still ends the drag cleanly.
+        this._onWindowMove = (e) => this.onPointerMove(e);
+        this._onWindowUp = () => this.endDrag();
+        window.addEventListener("pointermove", this._onWindowMove);
+        window.addEventListener("pointerup", this._onWindowUp);
+        window.addEventListener("pointercancel", this._onWindowUp);
+
         const rows = this.state.data.rows;
         if (divider.kind === "v") {
             const leaves = rows[divider.ri].leaves;
@@ -783,6 +868,13 @@ export class DesignConfigurator extends Component {
                 unitsPerMM: this.scene.pxPerMmY,
             };
         }
+    }
+
+    endDrag() {
+        this.dragging = null;
+        window.removeEventListener("pointermove", this._onWindowMove);
+        window.removeEventListener("pointerup", this._onWindowUp);
+        window.removeEventListener("pointercancel", this._onWindowUp);
     }
 
     // -- panning -----------------------------------------------------------
@@ -843,7 +935,8 @@ export class DesignConfigurator extends Component {
     }
 
     onPointerUp() {
-        this.dragging = null;
+        // Only ends a pan. A divider drag is ended by endDrag(), via the
+        // window listeners, so releasing outside the canvas still works.
         if (this.panning) {
             this.panning = null;
             if (this.canvasRef.el) {

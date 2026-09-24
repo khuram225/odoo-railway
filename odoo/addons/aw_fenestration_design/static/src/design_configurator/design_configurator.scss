@@ -1,0 +1,49 @@
+// Dividers. The hit area is transparent but must still receive pointer
+// events, hence fill:none + pointer-events:all -- fill:none alone would
+// make it unhittable, which is a classic way to end up with a divider
+// that looks draggable and isn't.
+.o_aw_divider {
+    .o_aw_divider_line {
+        stroke: #6b4a63;
+        stroke-opacity: 0.55;
+        pointer-events: none;
+    }
+
+    .o_aw_divider_hit {
+        fill: none;
+        pointer-events: all;
+    }
+
+    &:hover .o_aw_divider_line {
+        stroke-opacity: 1;
+    }
+}
+
+.o_aw_divider_v .o_aw_divider_hit {
+    cursor: col-resize;
+}
+
+.o_aw_divider_h .o_aw_divider_hit {
+    cursor: row-resize;
+}
+
+.o_aw_cfg_cat {
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+}
+
+.o_aw_cfg_preset {
+    width: 96px;
+
+    svg {
+        display: block;
+        width: 100%;
+        height: auto;
+    }
+}
+
+.o_aw_cfg_preset_name {
+    font-size: 0.65rem;
+    line-height: 1.1;
+    white-space: normal;
+}
