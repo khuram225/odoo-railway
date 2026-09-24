@@ -52,9 +52,11 @@ row/leaf grid shape:
         'views/design_position_wizard_views.xml',
         'views/design_preset_wizard_views.xml',
         'views/sale_order_views.xml',
+        'views/cut_plan_views.xml',
         'views/menu_views.xml',
         'report/report_shop_drawing.xml',
         'report/report_sale_order.xml',
+        'report/report_cutting_sheet.xml',
     ],
     'assets': {
         'web.assets_backend': [

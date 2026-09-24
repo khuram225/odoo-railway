@@ -25,6 +25,9 @@
                     <button name="action_add_position" type="object"
                             string="Add Position" class="btn-primary"
                             invisible="state not in ('draft', 'sent')"/>
+                    <button name="action_cutting_plan" type="object"
+                            string="Cutting Plan" class="btn-secondary mb-2"
+                            invisible="not aw_design_ids"/>
                     <field name="aw_design_ids" readonly="1">
                         <list>
                             <field name="name"/>

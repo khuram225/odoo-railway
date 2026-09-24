@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_cut_plan_form" model="ir.ui.view">
+        <field name="name">aw.cut.plan.form</field>
+        <field name="model">aw.cut.plan</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_generate" type="object"
+                            string="Regenerate" class="btn-primary"/>
+                    <button name="action_print_cutting_sheet" type="object"
+                            string="Cutting Sheet"/>
+                    <button name="action_print_labels" type="object"
+                            string="Piece Labels"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="alert alert-warning" role="status"
+                         invisible="is_current">
+                        A position changed after this plan was made.
+                        <strong>Out of date — regenerate.</strong>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Built with">
+                            <field name="sale_order_id" readonly="1"/>
+                            <field name="date" readonly="1"/>
+                            <field name="stock_lengths_ft" readonly="1"/>
+                            <field name="kerf_mm" readonly="1"/>
+                            <field name="offcut_min_mm" readonly="1"/>
+                            <field name="is_current" invisible="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                        <group string="Totals">
+                            <field name="bar_count"/>
+                            <field name="feet_bought"/>
+                            <field name="feet_used"/>
+                            <field name="yield_pct"/>
+                            <field name="cost_total" widget="monetary"/>
+                            <!-- Side by side on purpose: the gap between
+                                 what the price assumed and what the plan
+                                 actually wastes is the number worth
+                                 arguing about. -->
+                            <field name="measured_wastage_pct"
+                                   string="Measured wastage %"/>
+                            <field name="assumed_wastage_pct"
+                                   string="Assumed by price structure %"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-danger" role="alert"
+                         invisible="not oversize_note">
+                        <field name="oversize_note" nolabel="1" readonly="1"/>
+                    </div>
+                    <field name="group_ids" readonly="1">
+                        <list>
+                            <field name="product_id"/>
+                            <field name="piece_count" string="Pieces"/>
+                            <field name="bars_summary"/>
+                            <field name="feet_bought"/>
+                            <field name="feet_used"/>
+                            <field name="yield_pct"/>
+                            <field name="rate_per_ft"/>
+                            <field name="cost" widget="monetary"/>
+                            <field name="currency_id" column_invisible="1"/>
+                            <field name="is_overridden" string="Override"/>
+                        </list>
+                        <form>
+                            <sheet>
+                                <group>
+                                    <group>
+                                        <field name="product_id" readonly="1"/>
+                                        <field name="rate_per_ft" readonly="1"/>
+                                        <field name="currency_id" invisible="1"/>
+                                    </group>
+                                    <group>
+                                        <field name="bars_summary" readonly="1"/>
+                                        <field name="yield_pct" readonly="1"/>
+                                        <field name="cost" readonly="1"
+                                               widget="monetary"/>
+                                        <field name="is_overridden" readonly="1"/>
+                                        <button name="action_clear_override"
+                                                type="object"
+                                                string="Use the cheapest again"
+                                                invisible="not is_overridden"/>
+                                    </group>
+                                </group>
+                                <notebook>
+                                    <page string="Options" name="options">
+                                        <field name="scenario_ids" readonly="1">
+                                            <list decoration-success="is_chosen"
+                                                  decoration-muted="not feasible">
+                                                <field name="name"/>
+                                                <field name="bars_summary"/>
+                                                <field name="feet_bought"/>
+                                                <field name="feet_used"/>
+                                                <field name="waste_feet"/>
+                                                <field name="yield_pct"/>
+                                                <field name="cost" widget="monetary"/>
+                                                <field name="currency_id" column_invisible="1"/>
+                                                <field name="is_chosen" string="In use"/>
+                                                <field name="feasible" column_invisible="1"/>
+                                                <field name="blocked_note"/>
+                                                <button name="action_use" type="object"
+                                                        icon="fa-check"
+                                                        title="Use this option"
+                                                        invisible="is_chosen or not feasible"/>
+                                            </list>
+                                        </field>
+                                    </page>
+                                    <page string="Bars" name="bars">
+                                        <field name="bar_ids" readonly="1">
+                                            <list>
+                                                <field name="sequence"/>
+                                                <field name="stock_label" string="Stock"/>
+                                                <field name="remainder_label" string="Remainder"/>
+                                                <field name="is_returnable" string="Return to stock"/>
+                                            </list>
+                                            <form>
+                                                <group>
+                                                    <field name="stock_label" readonly="1"/>
+                                                    <field name="remainder_label" readonly="1"/>
+                                                    <field name="is_returnable" readonly="1"/>
+                                                </group>
+                                                <field name="cut_ids" readonly="1">
+                                                    <list>
+                                                        <field name="sequence"/>
+                                                        <field name="label"/>
+                                                        <field name="length_label" string="Length"/>
+                                                        <field name="length_mm" string="mm"/>
+                                                        <field name="cut_angle" string="Angle"/>
+                                                    </list>
+                                                </field>
+                                            </form>
+                                        </field>
+                                    </page>
+                                </notebook>
+                            </sheet>
+                        </form>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_aw_cut_plan_list" model="ir.ui.view">
+        <field name="name">aw.cut.plan.list</field>
+        <field name="model">aw.cut.plan</field>
+        <field name="arch" type="xml">
+            <list decoration-warning="not is_current">
+                <field name="sale_order_id"/>
+                <field name="date"/>
+                <field name="bar_count"/>
+                <field name="yield_pct"/>
+                <field name="cost_total"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="is_current" string="Up to date"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_aw_cut_plan" model="ir.actions.act_window">
+        <field name="name">Cutting Plans</field>
+        <field name="res_model">aw.cut.plan</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No cutting plans yet</p>
+            <p>Open a quote's Fenestration tab and use Cutting Plan.</p>
+        </field>
+    </record>
+
+</odoo>

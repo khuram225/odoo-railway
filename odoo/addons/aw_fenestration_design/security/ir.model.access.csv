@@ -27,3 +27,13 @@ access_aw_grid_pattern_line_user,aw.grid.pattern.line.user,model_aw_grid_pattern
 access_aw_grid_pattern_line_manager,aw.grid.pattern.line.manager,model_aw_grid_pattern_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_design_check_user,aw.design.check.user,model_aw_design_check,base.group_user,1,0,0,0
 access_aw_design_check_sales,aw.design.check.sales,model_aw_design_check,group_fenestration_sales,1,1,1,1
+access_aw_cut_plan_user,aw.cut.plan.user,model_aw_cut_plan,base.group_user,1,0,0,0
+access_aw_cut_plan_sales,aw.cut.plan.sales,model_aw_cut_plan,group_fenestration_sales,1,1,1,1
+access_aw_cut_plan_group_user,aw.cut.plan.group.user,model_aw_cut_plan_group,base.group_user,1,0,0,0
+access_aw_cut_plan_group_sales,aw.cut.plan.group.sales,model_aw_cut_plan_group,group_fenestration_sales,1,1,1,1
+access_aw_cut_plan_scenario_user,aw.cut.plan.scenario.user,model_aw_cut_plan_scenario,base.group_user,1,0,0,0
+access_aw_cut_plan_scenario_sales,aw.cut.plan.scenario.sales,model_aw_cut_plan_scenario,group_fenestration_sales,1,1,1,1
+access_aw_cut_plan_bar_user,aw.cut.plan.bar.user,model_aw_cut_plan_bar,base.group_user,1,0,0,0
+access_aw_cut_plan_bar_sales,aw.cut.plan.bar.sales,model_aw_cut_plan_bar,group_fenestration_sales,1,1,1,1
+access_aw_cut_plan_cut_user,aw.cut.plan.cut.user,model_aw_cut_plan_cut,base.group_user,1,0,0,0
+access_aw_cut_plan_cut_sales,aw.cut.plan.cut.sales,model_aw_cut_plan_cut,group_fenestration_sales,1,1,1,1

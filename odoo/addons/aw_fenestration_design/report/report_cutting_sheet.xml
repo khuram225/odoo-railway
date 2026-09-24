@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+    For a manual mitre saw. Grouped by profile, bars in order, longest
+    cut first within each bar: that is how an operator works down a
+    length, and it keeps the offcut in one usable piece rather than
+    scattered between cuts.
+    -->
+    <template id="report_cutting_sheet_document">
+        <t t-call="web.external_layout">
+            <div class="page">
+
+                <h2 class="mt-0">
+                    Cutting Sheet
+                    <span class="float-end"
+                          t-esc="doc.sale_order_id.name or ''"/>
+                </h2>
+
+                <div t-if="not doc.is_current"
+                     class="alert alert-warning border border-dark p-2 mb-3">
+                    <strong>⚠ Out of date — a position changed after this
+                    plan was made. Regenerate before cutting.</strong>
+                </div>
+
+                <table class="table table-sm table-borderless mb-3">
+                    <tr>
+                        <td style="width:18%"><strong>Planned</strong></td>
+                        <td style="width:32%"><span t-field="doc.date"/></td>
+                        <td style="width:18%"><strong>Stock lengths</strong></td>
+                        <td><span t-esc="doc.stock_lengths_ft"/> ft</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Kerf</strong></td>
+                        <td><span t-esc="'%g' % doc.kerf_mm"/> mm</td>
+                        <td><strong>Min. offcut</strong></td>
+                        <td><span t-esc="'%g' % doc.offcut_min_mm"/> mm</td>
+                    </tr>
+                </table>
+
+                <div t-if="doc.oversize_note"
+                     class="alert alert-danger p-2 mb-3">
+                    <strong>These pieces are NOT on any bar:</strong>
+                    <div style="white-space: pre-line;"
+                         t-esc="doc.oversize_note"/>
+                </div>
+
+                <t t-foreach="doc.group_ids" t-as="group" t-key="group.id">
+                    <h4 class="mt-4">
+                        <span t-field="group.product_id"/>
+                        <span class="float-end small text-muted">
+                            <span t-esc="group.bars_summary"/>
+                            · yield <span t-esc="'%.1f' % group.yield_pct"/>%
+                            <t t-if="group.is_overridden"> · manual choice</t>
+                        </span>
+                    </h4>
+
+                    <t t-foreach="group.bar_ids" t-as="bar" t-key="bar.id">
+                        <table class="table table-sm o_main_table mb-2">
+                            <thead>
+                                <tr>
+                                    <th colspan="4"
+                                        style="background:#f0f0f0;">
+                                        Bar <span t-esc="bar_index + 1"/>
+                                        of <span t-esc="len(group.bar_ids)"/>
+                                        — <span t-esc="bar.stock_label"/>
+                                        <span class="float-end">
+                                            Remainder
+                                            <span t-esc="bar.remainder_label"/>
+                                            <t t-if="bar.is_returnable">
+                                                — return to stock
+                                            </t>
+                                        </span>
+                                    </th>
+                                </tr>
+                                <tr>
+                                    <th style="width:8%">#</th>
+                                    <th>Label</th>
+                                    <th class="text-end">Length</th>
+                                    <th class="text-end">Angle</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="bar.cut_ids" t-as="cut"
+                                    t-key="cut.id">
+                                    <td><span t-esc="cut_index + 1"/></td>
+                                    <td><span t-esc="cut.label or ''"/></td>
+                                    <td class="text-end">
+                                        <strong t-esc="cut.length_label"/>
+                                        <span class="text-muted small">
+                                            (<span t-esc="'%.1f' % cut.length_mm"/> mm)
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <span t-esc="cut.cut_angle or '—'"/>°
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </t>
+                </t>
+
+                <h4 class="mt-4">Bars to buy</h4>
+                <table class="table table-sm o_main_table">
+                    <thead>
+                        <tr>
+                            <th>Profile</th>
+                            <th>Bars</th>
+                            <th class="text-end">Feet bought</th>
+                            <th class="text-end">Feet used</th>
+                            <th class="text-end">Yield</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="doc.group_ids" t-as="group"
+                            t-key="group.id">
+                            <td><span t-field="group.product_id"/></td>
+                            <td><span t-esc="group.bars_summary"/></td>
+                            <td class="text-end">
+                                <span t-esc="'%.2f' % group.feet_bought"/>
+                            </td>
+                            <td class="text-end">
+                                <span t-esc="'%.2f' % group.feet_used"/>
+                            </td>
+                            <td class="text-end">
+                                <span t-esc="'%.1f' % group.yield_pct"/>%
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="small text-muted">
+                    Measured wastage
+                    <strong t-esc="'%.1f' % doc.measured_wastage_pct"/>%
+                    against
+                    <span t-esc="'%.1f' % doc.assumed_wastage_pct"/>%
+                    assumed by the price structure.
+                </p>
+
+            </div>
+        </t>
+    </template>
+
+    <template id="report_cutting_sheet">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="aw_fenestration_design.report_cutting_sheet_document"/>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_aw_cutting_sheet" model="ir.actions.report">
+        <field name="name">Cutting Sheet</field>
+        <field name="model">aw.cut.plan</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_cutting_sheet</field>
+        <field name="report_file">aw_fenestration_design.report_cutting_sheet</field>
+        <field name="print_report_name">'Cutting Sheet - %s' % (object.sale_order_id.name or '')</field>
+        <field name="binding_model_id" ref="model_aw_cut_plan"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!--
+    Piece labels, A4. Three across so each sticker is wide enough for a
+    label plus a length without wrapping, which matters when they are
+    read off a bench.
+    -->
+    <template id="report_cut_labels_document">
+        <t t-call="web.basic_layout">
+            <div class="page">
+                <div style="display:flex; flex-wrap:wrap;">
+                    <t t-foreach="doc.group_ids" t-as="group" t-key="group.id">
+                        <t t-foreach="group.bar_ids" t-as="bar" t-key="bar.id">
+                            <t t-foreach="bar.cut_ids" t-as="cut"
+                               t-key="cut.id">
+                                <div style="width:33.33%; height:80px; box-sizing:border-box; border:1px dashed #999; padding:6px; margin:0; overflow:hidden;">
+                                    <div style="font-size:13px; font-weight:bold;">
+                                        <span t-esc="cut.label or '—'"/>
+                                    </div>
+                                    <div style="font-size:10px; color:#555;">
+                                        <span t-field="group.product_id"/>
+                                    </div>
+                                    <div style="font-size:12px;">
+                                        <span t-esc="cut.length_label"/>
+                                        <span style="color:#555;">
+                                            (<span t-esc="'%.1f' % cut.length_mm"/> mm)
+                                        </span>
+                                    </div>
+                                    <div style="font-size:10px; color:#555;">
+                                        Angle <span t-esc="cut.cut_angle or '—'"/>°
+                                        · bar <span t-esc="bar.sequence // 10"/>
+                                    </div>
+                                </div>
+                            </t>
+                        </t>
+                    </t>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="report_cut_labels">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="aw_fenestration_design.report_cut_labels_document"/>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_aw_cut_labels" model="ir.actions.report">
+        <field name="name">Piece Labels</field>
+        <field name="model">aw.cut.plan</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_cut_labels</field>
+        <field name="report_file">aw_fenestration_design.report_cut_labels</field>
+        <field name="print_report_name">'Piece Labels - %s' % (object.sale_order_id.name or '')</field>
+        <field name="binding_model_id" ref="model_aw_cut_plan"/>
+        <field name="binding_type">report</field>
+    </record>
+
+</odoo>

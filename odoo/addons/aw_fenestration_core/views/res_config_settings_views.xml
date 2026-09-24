@@ -20,6 +20,20 @@
                             <field name="aw_min_margin_pct"/>
                         </setting>
                     </block>
+                    <block title="Cutting" name="aw_fenestration_cutting_setting_container">
+                        <setting id="aw_stock_lengths_setting" string="Stock bar lengths"
+                                 help="Comma separated, in feet. The cutting plan costs every one of these and picks the cheapest.">
+                            <field name="aw_stock_lengths_ft"/>
+                        </setting>
+                        <setting id="aw_kerf_setting" string="Saw kerf"
+                                 help="Reserved for every cut, including the last on a bar.">
+                            <field name="aw_kerf_mm"/>
+                        </setting>
+                        <setting id="aw_offcut_setting" string="Minimum reusable offcut"
+                                 help="A remainder at least this long is listed as return to stock rather than scrap.">
+                            <field name="aw_offcut_min_mm"/>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

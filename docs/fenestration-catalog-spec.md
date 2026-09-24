@@ -510,7 +510,7 @@ lengths.
 
 ## 8. Phase 6 — Cutting, pricing, stock
 
-### Phase 6a + 6b — pricing  ✅ BUILT
+### Phase 6a + 6b — pricing  ✅ COMPLETE
 
 **As built, differing from the plan:**
 
@@ -549,6 +549,38 @@ lengths.
 **Still blocking a real price:** glass products and every hardware
 product have a cost of 0, so those BOM lines cost nothing. The checks
 name them rather than letting an incomplete price look finished.
+
+### Phase 6c — cutting plan (quote stage)  ✅ BUILT
+
+**As built, differing from the plan:**
+
+1. **A fifth model, `aw.cut.plan.scenario`.** The brief listed four,
+   but the scenario table needs somewhere to live, and a real model
+   makes each option a row with its own "use this" button instead of
+   a JSON blob behind a custom widget.
+2. **An infeasible option is shown, not hidden.** The prototype's
+   `nest()` silently DROPS a piece too long for the bar length being
+   evaluated (`if(!take.length){left.shift();continue;}`), which is
+   invisible in a yield table and surfaces as a missing member on the
+   shop floor. Here a single-length option that cannot hold a piece is
+   marked infeasible with the reason, so "only 16 ft in the yard" can
+   still be chosen where it works and refused where it does not.
+3. **Kerf is charged for every piece, including the last on a bar.**
+   Matches the prototype. It slightly over-reserves, which is the right
+   direction: a plan that buys one bar too few stops the saw.
+4. **Cheapest by cost, with bar-feet as the tie-break**, then declared
+   order. With one per-foot rate per profile these agree; the tie-break
+   only exists so the result is deterministic rather than depending on
+   dict ordering.
+5. **`aw.cut.plan.cut.bom_line_id` is `ondelete='set null'`**, not
+   cascade. Re-exploding a design replaces its BOM lines, and that must
+   not silently delete cuts from a plan already printed — the plan goes
+   "out of date" instead.
+6. **The plan stores the settings it used.** A kerf changed next month
+   must not restate what the shop was already told to cut. Settings are
+   part of the fingerprint, so changing them marks the plan stale too.
+7. **Longest cut first within each bar**, which is how an operator
+   works down a length and keeps the offcut in one usable piece.
 
 ### Original plan
 

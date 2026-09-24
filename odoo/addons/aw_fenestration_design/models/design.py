@@ -294,18 +294,32 @@ class AwDesign(models.Model):
         # 6.0 -> "6", 6.5 -> "6.5" — no trailing ".0" in a quote line
         return ('%.2f' % value).rstrip('0').rstrip('.') or '0'
 
+    @api.model
+    def _render_length(self, mm, uom=None):
+        """One length in the configured unit, WITHOUT needing a record.
+
+        The cutting plan prints lengths too and has no design in hand,
+        so the formatting lives here as a model-level helper rather than
+        being copied there -- two copies of a unit conversion is exactly
+        the kind of thing that quietly drifts apart.
+        """
+        uom = uom or self.env['ir.config_parameter'].sudo().get_param(
+            'aw_fenestration.length_uom', 'ftin')
+        if uom == 'mm':
+            return '%s mm' % self._trim(mm)
+        total_in = mm / 25.4
+        if uom == 'in':
+            return '%s in' % self._trim(total_in)
+        ft = int(total_in // 12)
+        return '%s ft %s in' % (ft, self._trim(total_in - ft * 12))
+
     def _format_length(self, mm):
         """One length, rendered in whatever unit the Fenestration setting
         is currently on. Used for the sale line description and the Sale
         Order's Fenestration tab, so both always speak the same unit the
         design form is being edited in."""
-        if self.length_uom == 'mm':
-            return '%s mm' % self._trim(mm)
-        total_in = mm / 25.4
-        if self.length_uom == 'in':
-            return '%s in' % self._trim(total_in)
-        ft = int(total_in // 12)
-        return '%s ft %s in' % (ft, self._trim(total_in - ft * 12))
+        self.ensure_one()
+        return self._render_length(mm, self.length_uom)
 
     @api.depends('width_mm', 'height_mm')
     def _compute_area(self):

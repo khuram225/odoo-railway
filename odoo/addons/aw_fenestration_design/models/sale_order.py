@@ -47,6 +47,43 @@ class SaleOrder(models.Model):
                     for d in thin))
         return False
 
+    aw_cut_plan_ids = fields.One2many(
+        'aw.cut.plan', 'sale_order_id', string='Cutting Plans')
+
+    def action_cutting_plan(self):
+        """Open this quote's cutting plan, building one if needed.
+
+        Blocked while any position has an error, which is the point:
+        the commonest error is a piece longer than the longest stock
+        bar, and nesting around it would produce a plan that cannot be
+        cut.
+        """
+        self.ensure_one()
+        designs = self.aw_design_ids
+        if not designs:
+            raise UserError(_("This quote has no fenestration positions."))
+        blocking = designs.filtered(lambda d: d.check_error_count)
+        if blocking:
+            raise UserError(_(
+                "Fix these positions before planning the cuts:\n%s",
+                '\n'.join('- %s' % design.display_name
+                          for design in blocking)))
+
+        plan = self.aw_cut_plan_ids[:1]
+        if not plan:
+            plan = self.env['aw.cut.plan'].create(
+                {'sale_order_id': self.id})
+        if not plan.is_current:
+            plan._generate()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Cutting Plan"),
+            'res_model': 'aw.cut.plan',
+            'res_id': plan.id,
+            'view_mode': 'form',
+            'views': [[False, 'form']],
+        }
+
     def _create_fenestration_position(self, series, name=None, location=None):
         """Create the quote line and its design together. The line comes
         first because aw.design.sale_order_line_id is what ties the two

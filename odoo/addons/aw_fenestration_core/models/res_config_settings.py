@@ -36,3 +36,21 @@ class ResConfigSettings(models.TransientModel):
         help="A position priced below this is an error on its Checks and "
              "blocks quote confirmation. Placeholder value -- confirm it "
              "with the business before relying on it.")
+
+    # Cutting plan (spec 8, Phase 6c). ir.config_parameter again.
+    aw_stock_lengths_ft = fields.Char(
+        string='Stock Bar Lengths (ft)', default='14,16,18',
+        config_parameter='aw_fenestration.stock_lengths_ft',
+        help="Comma separated, e.g. '14,16,18'. The cutting plan costs "
+             "every one of these and picks the cheapest.")
+    aw_kerf_mm = fields.Float(
+        string='Saw Kerf (mm)', default=5.0,
+        config_parameter='aw_fenestration.kerf_mm',
+        help="Reserved for every cut, including the last on a bar. "
+             "Over-reserving slightly is the safe direction: a plan "
+             "that buys one bar too few stops the saw.")
+    aw_offcut_min_mm = fields.Float(
+        string='Minimum Reusable Offcut (mm)', default=400.0,
+        config_parameter='aw_fenestration.offcut_min_mm',
+        help="A bar's remainder at least this long is listed as "
+             "'return to stock' rather than scrap.")

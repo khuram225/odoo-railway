@@ -11,4 +11,5 @@ from . import design_preset_wizard
 from . import explosion
 from . import snapshot
 from . import costing
+from . import cut_plan
 from . import sale_order
