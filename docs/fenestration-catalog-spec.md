@@ -68,6 +68,7 @@ Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
 | Solid infill, AC cutout | Seed as infill types | Archivable |
 | Opening symbol | **Triangle apex points to the hinge side, view from inside**; IN/OUT tag for swing; printed as a legend on every drawing | One convention everywhere; legend removes ambiguity |
 | Deductions, sash limits | Placeholder values, clearly marked, editable per Series / section line | Real values come from supplier/shop data |
+| Track numbering and where mesh sits | **Track 1 is innermost, counting outwards; mesh takes the outermost track** | Only a convention; if a system puts mesh on the inside it becomes a Series setting, not a code change. See 4.2. |
 
 ---
 
@@ -152,6 +153,14 @@ Seed:
 `category`; migrate existing values by name, unknown → "Other" layout
 family). Library groups by family, sorted by `sequence`.
 
+**As built** — two things the table above doesn't say:
+- `OTH` / **Other** / `layout` is seeded as well. The table omits it, but
+  the migration rule sends unknown categories there, so it has to exist.
+- `category` is **kept on the preset**, not dropped. It is what the
+  families were migrated from, and the library falls back to it so a
+  database part-way through the migration still groups sensibly. It is
+  hidden on the form except in developer mode.
+
 ### 4.2 Sliding builder
 - `aw.design.leaf.track_no` (Integer, sliders and sliding mesh).
 - Configurator button **Sliding builder** (only when the Series allows
@@ -162,6 +171,21 @@ family). Library groups by family, sorted by `sequence`.
 - Validation: adjacent sliding panels must be on different tracks; a fixed
   panel sits on the outer track; mesh track must be the outermost.
 - **Save as preset** from the builder result.
+
+**Track convention [revisit]** — the two rules above conflict whenever a
+layout has both a fixed panel and a mesh sash, since they can't both own
+"the outermost". As built:
+
+| | |
+|---|---|
+| Track 1 | **innermost**, counting outwards |
+| Glass panels | tracks 1..`tracks` |
+| Fixed panel | the outermost **glass** track, i.e. `tracks` |
+| Mesh sash | `tracks + 1`, outside all of them |
+
+This is a convention, not a constraint of the data: `track_no` is a plain
+integer and any numbering fits. If a system puts mesh on the *inside*,
+this becomes a per-Series setting rather than a code change.
 
 ### 4.3 Save current layout as preset (Stage D)
 Configurator action: name, code, family, optional series → writes
@@ -203,6 +227,16 @@ Twin sash (TWN-*) presets come in P3, since they need mesh attachments —
 "Twin Sash" means glass + mesh on one opening and is reserved for them.
 The prototype's `frenchDoor` was seeded under that name by mistake and is
 now **Casement + Fixed + Casement** (`OPN-CFC`).
+
+**Three codes exist that this table doesn't list**, because presets
+existed before it did and redefining them would have changed what a
+saved design refers to:
+
+| Code | Layout | Why |
+|---|---|---|
+| OPN-CFC | casement + fixed + casement | The renamed `frenchDoor`. Distinct from OPN-FRN, which is the L+R pair with no fixed panel between. |
+| OPN-HOF | hopper over fixed | Pre-dates the table. `OPN-BTM` in the table is a *single* hopper, seeded separately, so this one needed its own code rather than taking OPN-BTM's. |
+| OPN-2A1B | 2-across / 1 below | Pre-dates the table; the table has no equivalent. |
 
 Seed "fill only if empty", as with leaf types. `aw.layout.preset.code`
 already exists (added with the OPN-CFC correction); this table fills in
