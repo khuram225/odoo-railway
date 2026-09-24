@@ -52,6 +52,12 @@ class AwLayoutPreset(models.Model):
     _order = 'sequence, name'
 
     name = fields.Char(required=True)
+    # Stable identifier for a preset, independent of its (editable) name.
+    # Spec 4.6 seeds the full set in Phase 2; only the presets corrected
+    # by _apply_preset_corrections() carry one so far.
+    code = fields.Char(
+        help="Short stable code, e.g. OPN-CFC. Unlike the name, this is "
+             "what other records and documents should refer to.")
     category = fields.Char(
         help="Groups the preset chips in the configurator, e.g. 'Basic', "
              "'Sliding', 'Stacked'. Free text -- add a category by typing "
@@ -135,6 +141,43 @@ class AwLayoutPreset(models.Model):
             lambda p: (not p.series_ids or series in p.series_ids)
             and p._leaf_type_codes() <= set(
                 series.leaf_type_ids.mapped('code')))
+
+    # One-off corrections to seeded presets, keyed by XML id:
+    # (name it was seeded with, name it should have, code).
+    PRESET_CORRECTIONS = {
+        'layout_preset_twin_sash': (
+            'Twin Sash: case+fix+case',
+            'Casement + Fixed + Casement',
+            'OPN-CFC',
+        ),
+    }
+
+    @api.model
+    def _apply_preset_corrections(self):
+        """Fix names and fill codes on seeded presets, once.
+
+        The seed file is noupdate="1", so editing a record there only
+        affects fresh installs and would never reach a database where the
+        preset already exists -- which is all of them.
+
+        The guard here is "only if it still has the name it was seeded
+        with", rather than the fill-only-if-empty used elsewhere, because
+        a name is never empty. Same intent: a preset someone has renamed
+        in the UI is left alone. The code is filled only when empty, since
+        that one can use the usual rule.
+        """
+        for xmlid, (old_name, new_name, code) in self.PRESET_CORRECTIONS.items():
+            preset = self.env.ref(
+                'aw_fenestration_design.%s' % xmlid, raise_if_not_found=False)
+            if not preset:
+                continue
+            values = {}
+            if preset.name == old_name:
+                values['name'] = new_name
+            if not preset.code:
+                values['code'] = code
+            if values:
+                preset.write(values)
 
     @api.model
     def _seed_default_series(self):

@@ -8,6 +8,7 @@
             <list>
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
+                <field name="code"/>
                 <field name="category"/>
                 <field name="series_ids" widget="many2many_tags"
                        string="Window Series (empty = any)"/>
@@ -26,6 +27,7 @@
                     <group>
                         <group>
                             <field name="name"/>
+                            <field name="code" placeholder="e.g. OPN-CFC"/>
                             <field name="category"/>
                         </group>
                         <group>

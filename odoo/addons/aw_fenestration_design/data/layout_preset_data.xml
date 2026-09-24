@@ -46,7 +46,8 @@
         </record>
 
         <record id="layout_preset_twin_sash" model="aw.layout.preset">
-            <field name="name">Twin Sash: case+fix+case</field>
+            <field name="name">Casement + Fixed + Casement</field>
+            <field name="code">OPN-CFC</field>
             <field name="category">Openable Designs</field>
             <field name="sequence">40</field>
             <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "CASEMENT", "hinge": "left", "swing": "in"}, {"w": 1, "type": "FIXED"}, {"w": 1, "type": "CASEMENT", "hinge": "right", "swing": "in"}]}]}</field>

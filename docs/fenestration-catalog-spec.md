@@ -73,7 +73,7 @@ Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
 
 ## 3. Phase 1 — Geometry completeness
 
-### 3.1 Nested subdivision (handoff already issued — verify deployed)
+### 3.1 Nested subdivision (built in Phase 1)
 `aw.design.row.parent_leaf_id`; container leaves; recursive save, drawing,
 rescale, presets, thumbnails; depth limit 3; floating toolbar
 (split V / split H / remove / in-out / hinge side / slide dir).
@@ -111,9 +111,17 @@ selected = filled; mesh panels "M<n>".
 - IN / OUT tag as now.
 - Legend under the drawing: "View from inside · triangle points to hinge".
 
-**P1 test:** Casement Single Glaze → French preset → centre boundary shows
-as meeting, both triangles point outward to their hinges → change it to
-mullion → save → reopen.
+**P1 test:** Casement Single Glaze → select a casement panel → split it
+vertically → set the left sub-panel hinge **left** and the right one hinge
+**right** → the boundary between them shows as *meeting*, both triangles
+point outward to their hinges → change it to *mullion* → save → reopen.
+
+(The original wording tested this via a "French preset". There isn't one
+in Phase 1: the prototype's `frenchDoor` seeds as **Casement + Fixed +
+Casement** (`OPN-CFC`), whose centre panel is fixed, so both its
+boundaries are correctly mullions. `OPN-FRN`, the true L+R pair that
+defaults to *meeting*, arrives with the preset codes in **4.6 / Phase 2**.
+Splitting a panel exercises the same default rule without it.)
 
 ---
 
@@ -191,8 +199,14 @@ full layout to a new position (new sale line, next free position ref).
 | SLD-2P2T-M | SLD | S S + mesh track | Sliding series |
 | CW-3FX / CW-VNT | CW | 3-tier fixed / curtain wall + vent | Curtain Wall Fix |
 
-Twin sash (TWN-*) presets come in P3, since they need mesh attachments.
-Seed "fill only if empty", as with leaf types.
+Twin sash (TWN-*) presets come in P3, since they need mesh attachments —
+"Twin Sash" means glass + mesh on one opening and is reserved for them.
+The prototype's `frenchDoor` was seeded under that name by mistake and is
+now **Casement + Fixed + Casement** (`OPN-CFC`).
+
+Seed "fill only if empty", as with leaf types. `aw.layout.preset.code`
+already exists (added with the OPN-CFC correction); this table fills in
+the rest.
 
 **P2 test:** Double Glaze Sliding → Sliding builder → 4 panels, 2 tracks,
 F S S F → apply → tracks and interlocks shown → save as preset → it appears
