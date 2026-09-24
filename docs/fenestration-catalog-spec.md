@@ -38,11 +38,11 @@ Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
 | French casement / double T&T (sashes meet, no mullion) | `junction_after`, validity rules, drawn distinctly | ✅ P1 |
 | Opening symbol convention | Standard triangle (apex = hinge) + legend | ✅ P1 |
 | Sliding 2–12 panels, tracks, roles | Sliding builder, `track_no`, validation rules | ✅ P2 |
-| Twin sash (glass + mesh on same opening) | Mesh only as a neighbouring leaf | Mesh attachment per panel → **P3** |
-| Pleated / roller mesh | — | Mesh types → **P3** |
-| Louvre, fan, AC cutout, solid panel | — | Infill type per panel → **P3** |
-| Georgian bars | — | Grid pattern per panel → **P3** |
-| Different glass per panel (e.g. frosted bottom) | Glass per design only | Glass override per panel → **P3** |
+| Twin sash (glass + mesh on same opening) | `mesh_type_id` on the panel, TWN-* presets | ✅ P3 |
+| Pleated / roller mesh | `aw.mesh.type`, 7 seeded | ✅ P3 |
+| Louvre, fan, AC cutout, solid panel | `aw.infill.type`, drawn per kind | ✅ P3 |
+| Georgian bars | `aw.grid.pattern`, rows x cols per panel | ✅ P3 |
+| Different glass per panel (e.g. frosted bottom) | `glass_spec_id` on the panel, 7 specs seeded | ✅ P3 |
 | Profile BOM formulas, cut angles | Positions + Profile Sections (product only) | Scope/edge on positions, formulas on lines → **P4** |
 | Hardware quantities & conditions (hinge count, T&T gear size, gaskets per m) | Hardware Set lines (product, qty, leaf type) | Qty/condition formulas, scope → **P4** |
 | Glass / mesh cut sizes | Placeholder in prototype | Deduction formulas per Series → **P4** |
@@ -265,6 +265,8 @@ whenever something is decided without him.
 | 7 | "Other" family | Seeded, though 4.1's table omits it, because 4.1's migration rule needs somewhere to put unknown categories. | Archive it once nothing lands there. |
 | 8 | Starter glass list | Seven specs seeded (5mm clear, 6/8/10/12mm toughened, 6mm frosted, 24mm DGU) so Glass Specs can exist at all. `weight_kg_m2` = 2.5 x glass thickness; the DGU counts its two panes only, not the air gap. | Add, rename or archive freely. |
 | 9 | Glass prices **[revisit]** | Every seeded glass product has a cost of **0**, marked "price to be set from the supplier list" on the product itself. Inventing rates would put fiction into a quote the moment pricing lands. | Enter the real per-m² rates; nothing else depends on the placeholder. |
+| 10 | Deduction formulas **[revisit]** | Every seeded length and deduction formula (6.2, 6.4) is a plausible round number, not a shop-measured one: frame = `W`/`H`, palay = `PW - 10`, fixed glass = `PW - 60`, sash glass = `PW - 80`, mesh = `PW - 10`. | All editable per position and per Series; no code change. |
+| 11 | Panel limits | `max_panel_w/h/kg` all seeded at **0**, which means "not checked", so nobody gets a warning based on an invented limit. | Enter the real ones per Series. |
 
 Still open from section 2 and unchanged: T&T + fixed combos, double
 pleated opening to the sides, vent sash shape, solid infill / AC cutout
@@ -272,9 +274,9 @@ as infill types, and the placeholder deductions and sash limits.
 
 ---
 
-## 5. Phase 3 — Attachments
+## 5. Phase 3 — Attachments  ✅ COMPLETE
 
-### 5.1 Mesh types (attached to a panel)
+### 5.1 Mesh types (attached to a panel) ✅
 New `aw.mesh.type`: `name`, `code`, `family_id` (kind mesh), `mechanism`
 = `fixed` | `hinged` | `pleated` | `roller`, `pull` = `left` | `right` |
 `center` | `sides` | `vertical` | none, `active`,
@@ -290,7 +292,7 @@ PLT-ROL.
 Note: a **Mesh leaf** (its own sliding panel on a mesh track) stays as a
 leaf type for sliding systems. Attached mesh is for openable/fixed panels.
 
-### 5.2 Infill types
+### 5.2 Infill types ✅
 New `aw.infill.type`: `name`, `code`, `kind` = `glass` | `panel` |
 `louvre` | `fan` | `ac`, `uses_glass` (bool), `active`, `line_ids`
 (products/formulas).
@@ -299,17 +301,17 @@ Seed: ADD-GLS (Glass, default), ADD-INF (Solid panel), ADD-LOUV-F (Louvre
 fixed), ADD-LOUV-A (Louvre adjustable), ADD-FAN (Exhaust fan), ADD-AC
 (AC cutout).
 
-### 5.3 Glass per panel
+### 5.3 Glass per panel ✅
 `aw.design.leaf.glass_spec_id` — optional override; empty = the design's
 glass. `aw.glass.spec.weight_kg_m2` (for checks, P4).
 
-### 5.4 Georgian bars
+### 5.4 Georgian bars ✅
 New `aw.grid.pattern`: `name`, `code`, `kind` = `rect` (rows × cols) |
 `perimeter`, bar product, `active`.
 `aw.design.leaf`: `grid_pattern_id`, `grid_rows`, `grid_cols`.
 Seed: ADD-GRID-R (rectangular), ADD-GRID-P (perimeter).
 
-### 5.5 Configurator
+### 5.5 Configurator ✅
 Library click on a mesh/infill item → applies to the selected panel.
 Right panel: mesh, infill, glass, grid fields for the selected panel.
 Drawing: mesh = hatch overlay + badge; infill symbols (panel shading,
@@ -325,6 +327,37 @@ glass override → grid 2×3 → save → reopen.
 ---
 
 ## 6. Phase 4 — BOM rules and explosion engine
+
+**As built, differing from the text below** (the text is the original
+plan; these are the decisions taken while implementing it):
+
+1. **The formula module lives in `aw_fenestration_core`**, not the design
+   module, because `aw.profile.position` is in core and core cannot
+   import from a module that depends on it. `models/formula.py` has no
+   Odoo imports at all, so `scripts/check_formulas.py` can run the real
+   grammar against every seeded formula rather than a copy of it.
+2. **No "Palay Bead" position exists.** 6.2's table lists `Palay Bead - *`,
+   but the 14 seeded positions only have `Fixed Bead - Top/Bottom/Sides`.
+   Nothing was invented to fill the gap; add the position if the shop
+   really uses a separate bead on opening sashes.
+3. **Every seeded position got a scope**, so none are currently
+   unscoped. The "position has no scope, ignored by BOM" warning is
+   there for positions added by hand afterwards.
+4. **`aw.design.thickness_id` is hidden**, not removed (`groups=
+   "base.group_no_one"`). Thickness is per profile and comes from the
+   section line; only finish is genuinely design-level, so nothing in the
+   BOM reads a design thickness. Kept rather than dropped because
+   removing it would lose whatever existing designs have stored.
+5. **Hardware lines keep the plain `qty` alongside `qty_formula`.**
+   `_seed_qty_formulas()` copies the number into the formula once,
+   fill-only-if-empty, so existing Hardware Sets keep working untouched.
+6. **`scope` was added to hardware lines only.** Mesh, infill and grid
+   lines are inherently per-panel, so a scope selector there would offer
+   two choices that cannot be right.
+7. **A missing product is reported, not dropped.** `product_id`, `role`
+   and `length_mm` on `aw.design.bom.line` are no longer required,
+   specifically so an unconfigured position produces a visible warning
+   line instead of silently vanishing from the BOM.
 
 ### 6.1 Formula language
 `safe_eval` expressions, variables (all mm):

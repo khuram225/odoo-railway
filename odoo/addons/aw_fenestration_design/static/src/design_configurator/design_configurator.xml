@@ -901,10 +901,65 @@
                             </t>
                         </div>
 
-                        <!-- Kept clearly separate, and deliberately empty: BOM,
-                             pricing, checks and the cut list are later steps. -->
-                        <div class="border-top p-3 flex-shrink-0 text-muted small">
-                            BOM, pricing, checks and the cut list land here later.
+                        <!-- BOM and Checks (spec 6.5, 6.6). Regenerated on
+                             every save, so this always describes the layout
+                             on screen rather than the previous one. -->
+                        <div class="border-top overflow-auto p-3 flex-shrink-0"
+                             style="max-height: 45%;">
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
+                                Checks
+                            </div>
+                            <div t-if="!checks.length" class="small text-success mb-3">
+                                <i class="fa fa-check me-1"/>Nothing to report.
+                            </div>
+                            <t t-else="">
+                                <div t-foreach="checkErrors" t-as="chk" t-key="chk_index"
+                                     class="small text-danger mb-1">
+                                    <i class="fa fa-times-circle me-1"/><t t-esc="chk.message"/>
+                                </div>
+                                <div t-foreach="checkWarnings" t-as="chk" t-key="chk_index"
+                                     class="small text-warning mb-1">
+                                    <i class="fa fa-exclamation-triangle me-1"/><t t-esc="chk.message"/>
+                                </div>
+                            </t>
+
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-2">
+                                Bill of materials
+                            </div>
+                            <div t-if="bomIsEmpty" class="small text-muted">
+                                Save the design to generate its BOM.
+                            </div>
+                            <t t-foreach="bomGroups" t-as="grp" t-key="grp.kind">
+                                <div class="small fw-bold mt-2"><t t-esc="grp.title"/></div>
+                                <table class="table table-sm o_aw_bom_table mb-2">
+                                    <tbody>
+                                        <tr t-foreach="grp.lines" t-as="bl" t-key="bl.id">
+                                            <td>
+                                                <div><t t-esc="bl.product or bl.label"/></div>
+                                                <div class="text-muted" t-if="bl.product">
+                                                    <t t-esc="bl.label"/>
+                                                </div>
+                                            </td>
+                                            <td class="text-end text-nowrap">
+                                                <t t-if="grp.kind === 'glass' or grp.kind === 'mesh'">
+                                                    <t t-esc="formatLength(bl.glass_w)"/> &#215;
+                                                    <t t-esc="formatLength(bl.glass_h)"/>
+                                                    <div class="text-muted">
+                                                        <t t-esc="bl.area_sqm.toFixed(2)"/> m&#178;
+                                                    </div>
+                                                </t>
+                                                <t t-elif="grp.kind === 'profile'">
+                                                    <t t-esc="formatLength(bl.length_mm)"/>
+                                                    <div class="text-muted" t-if="bl.cut_angle">
+                                                        <t t-esc="bl.cut_angle"/>&#176;
+                                                    </div>
+                                                </t>
+                                            </td>
+                                            <td class="text-end">&#215;<t t-esc="bl.qty"/></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </t>
                         </div>
                     </div>
                 </div>

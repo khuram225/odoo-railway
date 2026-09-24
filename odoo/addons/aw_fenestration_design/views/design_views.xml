@@ -118,6 +118,8 @@
                             <field name="qty"/>
                             <field name="window_series_id"/>
                             <field name="template_id"/>
+                            <field name="profile_section_id"/>
+                            <field name="hardware_set_id"/>
                         </group>
                         <group>
                             <field name="length_uom" invisible="1"/>
@@ -150,7 +152,8 @@
                         <group string="Glazing / Finish">
                             <field name="glass_spec_id"/>
                             <field name="finish_id"/>
-                            <field name="thickness_id"/>
+                            <field name="thickness_id" groups="base.group_no_one"
+                                   help="Not used by the BOM: each profile's thickness comes from its Profile Section line. Kept for developers only."/>
                         </group>
                         <group string="Pricing">
                             <field name="manual_rate"/>
@@ -179,14 +182,27 @@
                         </page>
                         <page string="Bill of Materials" name="bom">
                             <field name="bom_line_ids" readonly="1">
-                                <list>
-                                    <field name="sequence"/>
-                                    <field name="role"/>
+                                <list default_group_by="kind">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="kind"/>
+                                    <field name="panel_no" string="Panel"/>
+                                    <field name="label"/>
                                     <field name="product_id"/>
-                                    <field name="length_mm"/>
+                                    <field name="length_mm" string="Length (mm)"/>
+                                    <field name="cut_angle" string="Angle"/>
+                                    <field name="glass_w" string="W (mm)"/>
+                                    <field name="glass_h" string="H (mm)"/>
+                                    <field name="area_sqm" string="Area (m2)"/>
                                     <field name="qty"/>
-                                    <field name="where"/>
-                                    <field name="unit_cost"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Checks" name="checks">
+                            <field name="check_line_ids" readonly="1">
+                                <list decoration-danger="level == 'error'"
+                                      decoration-warning="level == 'warning'">
+                                    <field name="level"/>
+                                    <field name="message"/>
                                 </list>
                             </field>
                         </page>

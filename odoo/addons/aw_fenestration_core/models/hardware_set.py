@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class AwHardwareSet(models.Model):
@@ -44,6 +44,24 @@ class AwHardwareSetLine(models.Model):
             self.env.ref('aw_fenestration_core.product_category_hardware').id,
         )])
     qty = fields.Float(default=1.0, required=True)
+    # -- 6.3 --------------------------------------------------------------
+    # qty is kept and still shown, but qty_formula is what the engine
+    # reads. The plain number migrates into it once, so an existing
+    # Hardware Set keeps working without anyone retyping it.
+    qty_formula = fields.Char(
+        string='Quantity Formula',
+        help="Result is a count. Variables: W H PW PH CW CH N T. "
+             "Empty falls back to the plain Quantity.")
+    condition_formula = fields.Char(
+        string='Condition',
+        help="The line is only generated when this is true. Empty means "
+             "always.")
+    scope = fields.Selection([
+        ('design', 'Once per design'),
+        ('panel', 'Per panel'),
+        ('junction', 'Per junction'),
+    ], default='panel', required=True)
+
     leaf_type_id = fields.Many2one('aw.leaf.type',
         help="Which leaf type in the design triggers this line. Blank "
              "means every leaf, e.g. a handle.")
@@ -52,3 +70,15 @@ class AwHardwareSetLine(models.Model):
         help="Hardware lines default to optional — a sales user can drop "
              "or swap any line, per the choose/drop mechanism agreed for "
              "this module. Uncheck for a line that must never be removed.")
+
+    @api.model
+    def _seed_qty_formulas(self):
+        """Move the plain qty into qty_formula, once.
+
+        Fill-only-if-empty, so an upgrade never overwrites a formula
+        someone wrote, and existing Hardware Sets keep the quantities
+        they already had.
+        """
+        for line in self.with_context(active_test=False).search(
+                [('qty_formula', 'in', (False, ''))]):
+            line.qty_formula = str(line.qty or 1)

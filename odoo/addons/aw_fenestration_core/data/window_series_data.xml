@@ -17,5 +17,7 @@
     -->
     <data>
         <function model="aw.window.series" name="_seed_default_leaf_types"/>
+        <function model="aw.profile.position" name="_seed_bom_defaults"/>
+        <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>
     </data>
 </odoo>

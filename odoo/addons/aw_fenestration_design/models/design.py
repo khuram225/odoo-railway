@@ -91,6 +91,22 @@ class AwDesign(models.Model):
     glass_spec_id = fields.Many2one(
         'aw.glass.spec', tracking=True, ondelete='restrict')
 
+    # -- which rules this design is built to (spec 6, addition A) ----------
+    # Computed with store=True and readonly=False: they follow the Series
+    # when it changes, which is what you want nine times out of ten, but
+    # stay overridable for the tenth. A plain default would not reset on
+    # a Series change; a plain related would not be overridable.
+    profile_section_id = fields.Many2one(
+        'aw.profile.section', string='Profile Section',
+        compute='_compute_rule_sets', store=True, readonly=False,
+        domain="[('window_type_id', '=', window_series_id)]",
+        tracking=True, ondelete='restrict')
+    hardware_set_id = fields.Many2one(
+        'aw.hardware.set', string='Hardware Set',
+        compute='_compute_rule_sets', store=True, readonly=False,
+        domain="[('window_type_id', '=', window_series_id)]",
+        tracking=True, ondelete='restrict')
+
     # -- finish / thickness -----------------------------------------------
     # These are product.attribute.value records (the Finish/Thickness
     # attributes created for the profile product import), not a hardcoded
@@ -147,6 +163,35 @@ class AwDesign(models.Model):
     size_display = fields.Char(compute='_compute_size_display', string='Size')
     area_sqm = fields.Float(compute='_compute_area', store=True, string='Area (m²)')
     area_sqft = fields.Float(compute='_compute_area', store=True, string='Area (sqft)')
+
+    @api.depends('window_series_id')
+    def _compute_rule_sets(self):
+        """Follow the Series, keeping a choice that still fits it."""
+        for design in self:
+            series = design.window_series_id
+            section = design.profile_section_id
+            if not section or section.window_type_id != series:
+                section = series.profile_section_ids[:1]
+            design.profile_section_id = section
+            hardware = design.hardware_set_id
+            if not hardware or hardware.window_type_id != series:
+                hardware = series.hardware_set_ids[:1]
+            design.hardware_set_id = hardware
+
+    @api.onchange('template_id')
+    def _onchange_template(self):
+        """A Window Template is exactly the bundle of Profile Section +
+        Hardware Set + Glass, so picking one sets all three."""
+        for design in self:
+            template = design.template_id
+            if not template:
+                continue
+            if template.profile_section_id:
+                design.profile_section_id = template.profile_section_id
+            if template.hardware_set_id:
+                design.hardware_set_id = template.hardware_set_id
+            if template.glass_spec_id:
+                design.glass_spec_id = template.glass_spec_id
 
     @api.depends('row_ids.leaf_ids', 'row_ids.leaf_ids.child_row_ids')
     def _compute_counts(self):
@@ -558,6 +603,33 @@ class AwDesign(models.Model):
             # infill, glass or grid at all -- the headings rendered with
             # nothing under them.
             **self._attachment_catalogue(),
+            **self._bom_payload(),
+        }
+
+    def _bom_payload(self):
+        """BOM and checks for the configurator's right-hand column."""
+        self.ensure_one()
+        groups = {}
+        for line in self.bom_line_ids:
+            groups.setdefault(line.kind or 'profile', []).append({
+                'id': line.id,
+                'product': line.product_id.display_name or '',
+                'label': line.label or '',
+                'length_mm': line.length_mm or 0.0,
+                'cut_angle': line.cut_angle or '',
+                'qty': line.qty or 0,
+                'panel_no': line.panel_no or 0,
+                'glass_spec': line.glass_spec_id.display_name or '',
+                'glass_w': line.glass_w or 0.0,
+                'glass_h': line.glass_h or 0.0,
+                'area_sqm': line.area_sqm or 0.0,
+            })
+        return {
+            'bom': groups,
+            'checks': [{
+                'level': c.level,
+                'message': c.message,
+            } for c in self.check_line_ids],
         }
 
     # A panel may be subdivided, its sub-panels subdivided again, and no
@@ -645,6 +717,10 @@ class AwDesign(models.Model):
         # exactly like a typeless panel and a per-record constraint
         # rejected every horizontal split.
         self._check_panels_typed()
+        # Spec 6.5: the BOM is regenerated on every save, so the
+        # right-hand panel always shows THIS layout's, never the previous
+        # one's. The button stays for a manual re-run.
+        self._explode()
         return self.get_configurator_data()
 
     def _check_panels_typed(self):

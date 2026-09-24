@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo import api, fields, models
 
 ROLE_SELECTION = [
     ('frame', 'Frame'),
@@ -33,10 +33,34 @@ class AwDesignBomLine(models.Model):
     design_id = fields.Many2one('aw.design', required=True, ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
 
-    role = fields.Selection(ROLE_SELECTION, required=True)
-    product_id = fields.Many2one('product.product', required=True, ondelete='restrict')
+    # kind replaces role as what the engine writes. role is kept and no
+    # longer required: it was the dormant frame/sash/interlock/bead/mesh
+    # Selection from before positions existed, and dropping it would lose
+    # whatever an old row said.
+    kind = fields.Selection([
+        ('profile', 'Profile'),
+        ('glass', 'Glass'),
+        ('hardware', 'Hardware'),
+        ('mesh', 'Mesh'),
+        ('infill', 'Infill'),
+        ('grid', 'Grid'),
+    ], required=True, default='profile', index=True)
+    role = fields.Selection(ROLE_SELECTION)
+    # Not required: the engine still reports a line whose product is
+    # missing, because a silent gap in a cut list is worse than a line
+    # that says what is wrong. The checks flag it.
+    product_id = fields.Many2one('product.product', ondelete='restrict')
 
-    length_mm = fields.Float(required=True)
+    length_mm = fields.Float()
+    cut_angle = fields.Selection([
+        ('45', '45 deg'), ('90', '90 deg'),
+    ], default='90')
+    label = fields.Char(help="Where this piece goes, e.g. 'P2 Palay - Top'.")
+    panel_no = fields.Integer(string='Panel')
+    glass_spec_id = fields.Many2one('aw.glass.spec', ondelete='restrict')
+    glass_w = fields.Float(string='Width (mm)')
+    glass_h = fields.Float(string='Height (mm)')
+    area_sqm = fields.Float(compute='_compute_area_sqm', store=True)
     qty = fields.Integer(required=True, default=1,
         help="Pieces of this exact length needed — e.g. 2 for a pair of "
              "top/bottom rails. Multiply by aw.design.qty for the total "
@@ -53,3 +77,10 @@ class AwDesignBomLine(models.Model):
         help="Rate at time of explosion (PKR/ft or equivalent) — snapshot, "
              "not a live lookup, same reasoning as the earlier decision "
              "that a quote must not silently recost when reopened.")
+
+    @api.depends('glass_w', 'glass_h', 'qty')
+    def _compute_area_sqm(self):
+        for line in self:
+            line.area_sqm = (
+                (line.glass_w or 0.0) * (line.glass_h or 0.0)
+                / 1000000.0 * (line.qty or 0))

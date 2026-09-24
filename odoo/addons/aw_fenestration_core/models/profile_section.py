@@ -75,6 +75,22 @@ class AwProfileSectionLine(models.Model):
              "actually requested -- this is the general version of what "
              "the old post_init_hook did by hand for 5 hardcoded cases.")
 
+    # -- overrides of the position's defaults (spec 6.2) -------------------
+    # Empty means "use the position's rule", which is the common case; a
+    # line only needs these when this particular profile behaves
+    # differently from the position it sits in.
+    length_formula = fields.Char(
+        string='Length Override',
+        help="Empty means the position's own Length Formula.")
+    length_formula_h = fields.Char(
+        string='Height-edge Length Override')
+    cut_angle = fields.Selection([
+        ('45', '45 deg'), ('90', '90 deg'),
+    ], string='Angle Override')
+    qty_formula = fields.Char(
+        string='Quantity Override',
+        help="Empty means the position's own Quantity Formula.")
+
     is_optional = fields.Boolean(
         default=False,
         help="If checked, a sales user may drop this position from a "
@@ -112,15 +128,27 @@ class AwProfileSectionLine(models.Model):
             line.thickness_attribute_value_ids = thickness_vals
             line.finish_attribute_value_ids = finish_vals
 
+    @api.model
+    def _variant_for(self, product_tmpl, thickness, finish):
+        """Get-or-create the variant for a template + thickness + finish.
+
+        Pulled out of _compute_product_id so the explosion engine can ask
+        for the SAME combination with a different finish -- the design's
+        -- without a second copy of the mapping from product.attribute.value
+        to the template-scoped product.template.attribute.value, which is
+        the part that is easy to get subtly wrong.
+        """
+        if not (product_tmpl and thickness and finish):
+            return self.env['product.product']
+        combination = self.env['product.template.attribute.value']
+        for attribute_value in (thickness, finish):
+            combination |= product_tmpl.attribute_line_ids.product_template_value_ids.filtered(
+                lambda v, attribute_value=attribute_value: v.product_attribute_value_id == attribute_value
+            )
+        return product_tmpl._create_product_variant(combination)
+
     @api.depends('product_tmpl_id', 'thickness_id', 'finish_id')
     def _compute_product_id(self):
         for line in self:
-            if not (line.product_tmpl_id and line.thickness_id and line.finish_id):
-                line.product_id = False
-                continue
-            combination = self.env['product.template.attribute.value']
-            for attribute_value in (line.thickness_id, line.finish_id):
-                combination |= line.product_tmpl_id.attribute_line_ids.product_template_value_ids.filtered(
-                    lambda v, attribute_value=attribute_value: v.product_attribute_value_id == attribute_value
-                )
-            line.product_id = line.product_tmpl_id._create_product_variant(combination)
+            line.product_id = self._variant_for(
+                line.product_tmpl_id, line.thickness_id, line.finish_id)

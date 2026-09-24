@@ -2456,6 +2456,46 @@ export class DesignConfigurator extends Component {
         this.action.doAction(action);
     }
 
+    // -- BOM and checks (spec 6.5, 6.6) ------------------------------------
+    get bom() {
+        return this.state.data?.bom || {};
+    }
+
+    get checks() {
+        return this.state.data?.checks || [];
+    }
+
+    get checkErrors() {
+        return this.checks.filter((c) => c.level === "error");
+    }
+
+    get checkWarnings() {
+        return this.checks.filter((c) => c.level === "warning");
+    }
+
+    /** BOM sections in a fixed reading order, empty ones dropped. */
+    get bomGroups() {
+        const titles = {
+            profile: _t("Profiles"),
+            glass: _t("Glass"),
+            hardware: _t("Hardware"),
+            mesh: _t("Mesh"),
+            infill: _t("Infill"),
+            grid: _t("Grid"),
+        };
+        return ["profile", "glass", "hardware", "mesh", "infill", "grid"]
+            .filter((kind) => (this.bom[kind] || []).length)
+            .map((kind) => ({
+                kind,
+                title: titles[kind],
+                lines: this.bom[kind],
+            }));
+    }
+
+    get bomIsEmpty() {
+        return !this.bomGroups.length;
+    }
+
     // -- save --------------------------------------------------------------
     async save() {
         const data = this.state.data;

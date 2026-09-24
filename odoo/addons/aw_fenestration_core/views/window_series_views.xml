@@ -51,6 +51,42 @@
                             <field name="active" invisible="1"/>
                         </group>
                     </group>
+                    <notebook>
+                        <page string="Deductions" name="deductions">
+                            <p class="text-muted">
+                                How much smaller than its panel each infill
+                                is cut. Variables: PW PH (the panel),
+                                CW CH (its container), W H (the design),
+                                N T.
+                            </p>
+                            <group>
+                                <group string="Glass, fixed panel">
+                                    <field name="glass_fixed_w"/>
+                                    <field name="glass_fixed_h"/>
+                                </group>
+                                <group string="Glass, opening panel">
+                                    <field name="glass_sash_w"/>
+                                    <field name="glass_sash_h"/>
+                                </group>
+                                <group string="Mesh">
+                                    <field name="mesh_w"/>
+                                    <field name="mesh_h"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Limits" name="limits">
+                            <p class="text-muted">
+                                Exceeding a limit is reported as a check on
+                                the design, never a hard block. Zero means
+                                the limit is not checked at all.
+                            </p>
+                            <group>
+                                <field name="max_panel_w"/>
+                                <field name="max_panel_h"/>
+                                <field name="max_panel_kg"/>
+                            </group>
+                        </page>
+                    </notebook>
                 </sheet>
                 <chatter/>
             </form>

@@ -40,6 +40,15 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="code"/>
+                <field name="scope"/>
+                <field name="edge"/>
+                <field name="default_length"/>
+                <!-- Only meaningful for Edge = All four, but shown always:
+                     hiding it per row would leave no hint that the second
+                     formula exists at all. -->
+                <field name="default_length_h"/>
+                <field name="default_angle"/>
+                <field name="default_qty"/>
             </list>
         </field>
     </record>

@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
+
+from .formula import validate_formula
 
 # Starting leaf types per seeded Series, applied ONCE per Series by
 # _seed_default_leaf_types() below. Keyed by XML id so it doesn't depend
@@ -79,6 +82,23 @@ class AwWindowSeries(models.Model):
             if ids:
                 series.leaf_type_ids = [(6, 0, ids)]
 
+    # -- 6.4 deductions and limits ----------------------------------------
+    # Placeholders, marked [revisit] in the spec: plausible round numbers,
+    # not shop-measured ones. A limit of 0 means "not checked", so a
+    # Series nobody has tuned never raises a false alarm.
+    glass_fixed_w = fields.Char(string='Fixed Glass Width', default='PW - 60')
+    glass_fixed_h = fields.Char(string='Fixed Glass Height', default='PH - 60')
+    glass_sash_w = fields.Char(string='Sash Glass Width', default='PW - 80')
+    glass_sash_h = fields.Char(string='Sash Glass Height', default='PH - 80')
+    mesh_w = fields.Char(string='Mesh Width', default='PW - 10')
+    mesh_h = fields.Char(string='Mesh Height', default='PH - 10')
+    max_panel_w = fields.Float(
+        string='Max Panel Width (mm)', help="0 means not checked.")
+    max_panel_h = fields.Float(
+        string='Max Panel Height (mm)', help="0 means not checked.")
+    max_panel_kg = fields.Float(
+        string='Max Panel Weight (kg)', help="0 means not checked.")
+
     product_category_id = fields.Many2one(
         'product.category', string='Profile Product Category',
         help="Where this series's profile products live in the Inventory "
@@ -126,3 +146,21 @@ class AwWindowSeries(models.Model):
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Window Series code must be unique.'),
     ]
+
+    @api.constrains('glass_fixed_w', 'glass_fixed_h', 'glass_sash_w',
+                    'glass_sash_h', 'mesh_w', 'mesh_h')
+    def _check_deduction_formulas(self):
+        for rec in self:
+            for value, label in (
+                (rec.glass_fixed_w, 'Fixed Glass Width'),
+                (rec.glass_fixed_h, 'Fixed Glass Height'),
+                (rec.glass_sash_w, 'Sash Glass Width'),
+                (rec.glass_sash_h, 'Sash Glass Height'),
+                (rec.mesh_w, 'Mesh Width'),
+                (rec.mesh_h, 'Mesh Height'),
+            ):
+                problem = validate_formula(value)
+                if problem:
+                    raise ValidationError(_(
+                        "%(label)s on '%(name)s': %(problem)s",
+                        label=label, name=rec.name, problem=problem))

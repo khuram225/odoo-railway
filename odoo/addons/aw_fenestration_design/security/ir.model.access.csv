@@ -25,3 +25,5 @@ access_aw_grid_pattern_user,aw.grid.pattern.user,model_aw_grid_pattern,base.grou
 access_aw_grid_pattern_manager,aw.grid.pattern.manager,model_aw_grid_pattern,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_grid_pattern_line_user,aw.grid.pattern.line.user,model_aw_grid_pattern_line,base.group_user,1,0,0,0
 access_aw_grid_pattern_line_manager,aw.grid.pattern.line.manager,model_aw_grid_pattern_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_design_check_user,aw.design.check.user,model_aw_design_check,base.group_user,1,0,0,0
+access_aw_design_check_sales,aw.design.check.sales,model_aw_design_check,group_fenestration_sales,1,1,1,1
