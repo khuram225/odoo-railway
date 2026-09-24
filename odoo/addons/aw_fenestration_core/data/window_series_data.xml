@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+    Replaces an earlier record-based file that set leaf_type_ids on all 8
+    Series directly. That file re-asserted the full mapping on every
+    upgrade, so any change made in the UI was silently reverted, which
+    defeats the point of leaf types being data-driven at all.
+
+    This calls a method that fills leaf_type_ids ONLY for a Series that
+    has none, so it applies once per Series and never touches one that
+    has been configured. The block is intentionally updatable rather than
+    noupdate="1": convert.py's _tag_function skips a function inside a
+    noupdate block unless the module is being installed for the first
+    time, which would mean a Series added to the mapping later never got
+    populated on existing databases. Running every upgrade is harmless
+    given the guard.
+    -->
+    <data>
+        <function model="aw.window.series" name="_seed_default_leaf_types"/>
+    </data>
+</odoo>

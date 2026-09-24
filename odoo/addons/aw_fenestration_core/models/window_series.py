@@ -1,5 +1,19 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo import api, fields, models
+
+# Starting leaf types per seeded Series, applied ONCE per Series by
+# _seed_default_leaf_types() below. Keyed by XML id so it doesn't depend
+# on names, which are editable.
+DEFAULT_LEAF_TYPES = {
+    'window_series_dg_sliding': ('fixed', 'slider', 'mesh'),
+    'window_series_sg_sliding': ('fixed', 'slider', 'mesh'),
+    'window_series_dg_fix': ('fixed',),
+    'window_series_sg_fix': ('fixed',),
+    'window_series_curtain_wall_fix': ('fixed', 'casement', 'awning', 'hopper'),
+    'window_series_tiltturn': ('fixed', 'tiltturn'),
+    'window_series_casement_sg': ('fixed', 'casement', 'mesh'),
+    'window_series_casement_dg': ('fixed', 'casement', 'mesh'),
+}
 
 
 class AwWindowSeries(models.Model):
@@ -25,6 +39,45 @@ class AwWindowSeries(models.Model):
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
     color = fields.Integer(string='Color Index')
+
+    @api.model
+    def _seed_default_leaf_types(self):
+        """Give each seeded Series a starting set of leaf types, once.
+
+        Called from a <function> in data/window_series_data.xml, which is
+        an updatable block, so this runs on install and on every upgrade.
+        That is safe, and deliberate, because of the guard below: a Series
+        that already has leaf types is skipped entirely. The whole point
+        of leaf types being data-driven is that they're editable, so an
+        upgrade must never overwrite what someone set in the UI.
+
+        This replaced a plain record-based data file that re-asserted the
+        full mapping on every upgrade and would have silently reverted any
+        such edit.
+
+        One consequence worth knowing: deliberately clearing a Series'
+        leaf types to none is not a stable state -- the next upgrade will
+        refill it from here, because "empty" is exactly the signal this
+        uses for "never configured". Archive the Series instead if it
+        shouldn't be used.
+        """
+        leaf_types = {}
+        for code in {c for codes in DEFAULT_LEAF_TYPES.values() for c in codes}:
+            record = self.env.ref(
+                'aw_fenestration_core.leaf_type_%s' % code,
+                raise_if_not_found=False)
+            if record:
+                leaf_types[code] = record.id
+
+        for series_xmlid, codes in DEFAULT_LEAF_TYPES.items():
+            series = self.env.ref(
+                'aw_fenestration_core.%s' % series_xmlid,
+                raise_if_not_found=False)
+            if not series or series.leaf_type_ids:
+                continue
+            ids = [leaf_types[c] for c in codes if c in leaf_types]
+            if ids:
+                series.leaf_type_ids = [(6, 0, ids)]
 
     product_category_id = fields.Many2one(
         'product.category', string='Profile Product Category',

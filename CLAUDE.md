@@ -83,10 +83,9 @@ field name).
 
 **Two known gaps, deliberately left unresolved rather than guessed** (see
 the consolidation commit for the full reasoning):
-- The 8 real Series seeded in `product_category_data.xml`
-  (`window_series_dg_sliding` etc.) have `leaf_type_ids` and
-  `product_category_id` left **unset** — no mapping table or category
-  mapping was given for them. Set these once that's confirmed.
+- ~~`leaf_type_ids`~~ is now mapped — see the seeding note below.
+  `product_category_id` on the 8 Series is still **unset**: no category
+  mapping was given for them. Set that once it's confirmed.
 - The old 5 roles (frame/sash/interlock/bead/mesh) don't map 1:1 onto the
   12 seeded positions — `sash` and `interlock` have no equivalent at all
   among them. Because of this, the old `post_init_hook`/`hooks.py` that
@@ -105,6 +104,24 @@ the consolidation commit for the full reasoning):
   currently dormant (explosion-engine output, nothing generates it yet).
   Same structural mismatch will need the same treatment once the
   explosion engine actually gets built.
+
+**Seed data that must not fight the UI.** The 8 Series' starting
+`leaf_type_ids` come from `DEFAULT_LEAF_TYPES` in
+`models/window_series.py`, applied by `_seed_default_leaf_types()` via a
+`<function>` in `data/window_series_data.xml`. That method **fills only
+a Series that has none** — deliberately, and this is the pattern to
+copy for any other editable seeded field. The first attempt was a plain
+record-based data file asserting the full mapping, which re-applied on
+every upgrade and would have silently reverted UI edits, defeating the
+point of leaf types being data-driven. Note the block is updatable, not
+`noupdate="1"`: `convert.py`'s `_tag_function` skips a function inside a
+noupdate block unless the module is being *installed*
+(`self.noupdate and self.mode != 'init'`), so a Series added to the
+mapping later would never reach existing databases. Running on every
+upgrade is harmless given the guard. Consequence worth knowing:
+clearing a Series' leaf types to none is not a stable state, since
+"empty" is the signal for "never configured" — archive the Series
+instead.
 
 Seeded via `data/dynamic_seed_data.xml` (Leaf Type + Profile Position, no
 cross-references, safe to load early), then `data/product_category_data.xml`
