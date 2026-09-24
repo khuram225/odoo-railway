@@ -1,0 +1,372 @@
+# Fenestration Design Catalog — Gap Analysis & Implementation Spec
+
+Status: agreed plan, decisions taken without client (Moazzam) input — every
+such decision is marked **[revisit]** and is designed to be changeable in data,
+not code.
+
+Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
+(designs, configurator, BOM). Odoo 19 Community.
+
+---
+
+## 0. Principles (apply to every phase)
+
+1. **Data, not code.** Every list a user might want to extend (families,
+   design types, leaf types, positions, mesh types, infill types, grid
+   patterns, formulas) is a table editable in the UI. Seed data is applied
+   once ("fill only if empty"), never re-imposed on upgrade.
+2. **mm is the stored unit.** Display follows the global length-unit setting.
+3. **One geometry, many views.** The design's rows/leaves tree is the single
+   source; drawing, BOM, cut list, shop drawing and quote PDF are all derived
+   from it.
+4. **No stored fields on core models read on every request** (res.company,
+   res.users). Settings go in `ir.config_parameter`.
+5. **Deploy, then Upgrade.** Every phase ends with the Upgrade + a named
+   browser test.
+
+---
+
+## 1. Gap analysis
+
+| Requirement | Exists today | Gap → Phase |
+|---|---|---|
+| Family → design type | `aw.layout.preset` (layout JSON, thumbnails, `series_ids` filter), text `category` | Family table; codes on presets → **P2** |
+| Parameters W×H, series, glass, finish, thickness | `aw.design` | — |
+| Panel type & opening hand | `aw.leaf.type` (7), hinge side, in/out, slide dir | — |
+| Arbitrary splits (vent over sash, transom over one panel) | Nested subdivision (`parent_leaf_id`) — handoff issued | Confirm deployed → **P1** |
+| Panel identification | Panel numbers (in progress) | — |
+| French casement / double T&T (sashes meet, no mullion) | Every junction treated as mullion | Junction type → **P1** |
+| Opening symbol convention | Hinge dot + fan lines to all corners (non-standard) | Standard triangle + legend → **P1** |
+| Sliding 2–12 panels, tracks, roles | 3 static presets | Sliding builder + `track_no` → **P2** |
+| Twin sash (glass + mesh on same opening) | Mesh only as a neighbouring leaf | Mesh attachment per panel → **P3** |
+| Pleated / roller mesh | — | Mesh types → **P3** |
+| Louvre, fan, AC cutout, solid panel | — | Infill type per panel → **P3** |
+| Georgian bars | — | Grid pattern per panel → **P3** |
+| Different glass per panel (e.g. frosted bottom) | Glass per design only | Glass override per panel → **P3** |
+| Profile BOM formulas, cut angles | Positions + Profile Sections (product only) | Scope/edge on positions, formulas on lines → **P4** |
+| Hardware quantities & conditions (hinge count, T&T gear size, gaskets per m) | Hardware Set lines (product, qty, leaf type) | Qty/condition formulas, scope → **P4** |
+| Glass / mesh cut sizes | Placeholder in prototype | Deduction formulas per Series → **P4** |
+| Explosion engine | Stub | **P4** |
+| Manufacturability checks, coupler | Prototype only | **P4** |
+| Save layout as preset, remaining entry points | Planned (Stage D) | **P2** |
+| Duplicate position | — | **P2** |
+| Shop drawing, quote PDF with elevations | Live SVG only | SVG snapshot + reports → **P5** |
+| Cut list, bar nesting, offcuts | Prototype algorithm | **P6** |
+| Pricing cascade, rate versions | Prototype only | **P6** |
+| Length-lot stock, stock-constrained cutting | `aluminum_inventory` (separate) | **P6** |
+
+---
+
+## 2. Decisions taken without client input **[revisit]**
+
+| Question | Decision | Why it's safe |
+|---|---|---|
+| French casement: mullion or not? | Support both via junction type; French preset defaults to **meeting** | Changeable per junction in the configurator |
+| T&T + fixed combos | Seed both TT-FIX-L and TT-FIX-R | Presets are archivable |
+| Double pleated opening to the sides | Seed as a mesh type | Archivable |
+| Vent sash | Nested split + small hopper/awning panel; seed one preset | Uses existing features |
+| Solid infill, AC cutout | Seed as infill types | Archivable |
+| Opening symbol | **Triangle apex points to the hinge side, view from inside**; IN/OUT tag for swing; printed as a legend on every drawing | One convention everywhere; legend removes ambiguity |
+| Deductions, sash limits | Placeholder values, clearly marked, editable per Series / section line | Real values come from supplier/shop data |
+
+---
+
+## 3. Phase 1 — Geometry completeness
+
+### 3.1 Nested subdivision (handoff already issued — verify deployed)
+`aw.design.row.parent_leaf_id`; container leaves; recursive save, drawing,
+rescale, presets, thumbnails; depth limit 3; floating toolbar
+(split V / split H / remove / in-out / hinge side / slide dir).
+
+### 3.2 Panel numbers (in progress)
+`aw.design.leaf.panel_no`, reading order, recursive; circles in drawing,
+selected = filled; mesh panels "M<n>".
+
+### 3.3 Junction type
+- `aw.design.leaf.junction_after`: `mullion` | `meeting` | `interlock`
+  — the boundary between this leaf and the next leaf in the same row.
+  Empty on the last leaf of a row.
+- Default when a layout is created or edited:
+  - slider next to slider → `interlock`
+  - two opening sashes (casement / tilt & turn) with opposite hinge sides,
+    meeting each other → `meeting`
+  - anything else → `mullion`
+- Horizontal boundaries (between rows / sub-rows) are always transoms.
+- Configurator: clicking a vertical divider selects it; toolbar shows
+  Mullion / Meeting / Interlock. Dragging still resizes.
+- Drawing: mullion = solid bar; meeting = two thin lines with no bar;
+  interlock = the two sash edges overlapping slightly.
+- Presets / `layout_json` carry `junction_after`.
+- Seed two new Profile Positions: **Interlock**, **Meeting Stile**
+  (used in P4 for BOM).
+
+### 3.4 Opening symbols + legend
+- Side-hung / casement: two dashed lines from the handle-side corners
+  meeting at the midpoint of the hinge side (apex = hinge).
+- Top-hung (awning): apex at top edge midpoint. Bottom-hung (hopper): apex
+  at bottom.
+- Tilt & turn: both triangles (side hinge + bottom tilt).
+- Slider: arrow in slide direction (as now), plus track tag "T1/T2…" once
+  P2 exists.
+- IN / OUT tag as now.
+- Legend under the drawing: "View from inside · triangle points to hinge".
+
+**P1 test:** Casement Single Glaze → French preset → centre boundary shows
+as meeting, both triangles point outward to their hinges → change it to
+mullion → save → reopen.
+
+---
+
+## 4. Phase 2 — Catalog structure
+
+### 4.1 Families
+New `aw.layout.family`: `name`, `code`, `sequence`, `active`,
+`kind` = `layout` | `mesh` | `infill`.
+- `layout` families: clicking an item replaces the design layout.
+- `mesh` / `infill` families: clicking an item applies it to the **selected
+  panel** (P3). This mirrors EvA's library, where designs and add-ons live
+  in the same panel.
+
+Seed:
+
+| Code | Name | Kind |
+|---|---|---|
+| OPN | Openable Designs | layout |
+| TT | Tilt & Turn Designs | layout |
+| TWN | Twin Sash Designs | layout |
+| SLD | Sliding Designs | layout |
+| CW | Stick Curtain Wall Designs | layout |
+| MSH | Add-on Mesh | mesh |
+| PLT | Pleated & Pull-down Mesh | mesh |
+| ADD | Add-ons | infill |
+
+`aw.layout.preset`: add `code` (unique), `family_id` (replaces the text
+`category`; migrate existing values by name, unknown → "Other" layout
+family). Library groups by family, sorted by `sequence`.
+
+### 4.2 Sliding builder
+- `aw.design.leaf.track_no` (Integer, sliders and sliding mesh).
+- Configurator button **Sliding builder** (only when the Series allows
+  Slider): panels 2–12, tracks 2/3/4, optional mesh track, per panel role
+  (Fixed / Sliding) and slide direction. Suggested default pattern per
+  count, editable before applying.
+- Generates one row: equal widths, `track_no` assigned, junctions per 3.3.
+- Validation: adjacent sliding panels must be on different tracks; a fixed
+  panel sits on the outer track; mesh track must be the outermost.
+- **Save as preset** from the builder result.
+
+### 4.3 Save current layout as preset (Stage D)
+Configurator action: name, code, family, optional series → writes
+`layout_json` (incl. nesting, junctions, tracks). Presets become authored
+visually; JSON editor stays for admins.
+
+### 4.4 Remaining entry points (Stage D)
+Add Position → configurator directly; quote Fenestration tab rows → open
+configurator; raw form kept for admins.
+
+### 4.5 Duplicate position
+Action on the quote tab and in the configurator: copies a design with its
+full layout to a new position (new sale line, next free position ref).
+
+### 4.6 Seed presets (codes)
+
+| Code | Family | Layout | Series |
+|---|---|---|---|
+| OPN-FIX | OPN | 1 fixed | Fix series |
+| OPN-SHL / OPN-SHR | OPN | 1 casement, hinge L / R | Casement series |
+| OPN-TOP | OPN | 1 awning (hinge top, out) | Casement series |
+| OPN-BTM | OPN | 1 hopper (hinge bottom, in) | Casement series |
+| OPN-FRN | OPN | 2 casements L+R, `meeting` | Casement series |
+| OPN-FXC | OPN | fixed + casement | Casement series |
+| OPN-VNT | OPN | fixed with top awning vent (nested) | Casement series |
+| TT-SGL-L / TT-SGL-R | TT | 1 tilt & turn | Tilt & Turn |
+| TT-DBL | TT | 2 T&T, `meeting` | Tilt & Turn |
+| TT-FIX-L / TT-FIX-R | TT | T&T + fixed | Tilt & Turn |
+| SLD-2P2T | SLD | S S, 2 tracks | Sliding series |
+| SLD-2P2T-F | SLD | F S, 2 tracks | Sliding series |
+| SLD-3P2T | SLD | S F S, 2 tracks | Sliding series |
+| SLD-3P3T | SLD | S S S, 3 tracks | Sliding series |
+| SLD-4P2T | SLD | F S S F, 2 tracks | Sliding series |
+| SLD-4P4T | SLD | S S S S, 4 tracks | Sliding series |
+| SLD-2P2T-M | SLD | S S + mesh track | Sliding series |
+| CW-3FX / CW-VNT | CW | 3-tier fixed / curtain wall + vent | Curtain Wall Fix |
+
+Twin sash (TWN-*) presets come in P3, since they need mesh attachments.
+Seed "fill only if empty", as with leaf types.
+
+**P2 test:** Double Glaze Sliding → Sliding builder → 4 panels, 2 tracks,
+F S S F → apply → tracks and interlocks shown → save as preset → it appears
+in the library → Duplicate position → copy is identical.
+
+---
+
+## 5. Phase 3 — Attachments
+
+### 5.1 Mesh types (attached to a panel)
+New `aw.mesh.type`: `name`, `code`, `family_id` (kind mesh), `mechanism`
+= `fixed` | `hinged` | `pleated` | `roller`, `pull` = `left` | `right` |
+`center` | `sides` | `vertical` | none, `active`,
+`line_ids` → product + qty formula + condition formula (same line model as
+hardware, see P4).
+
+`aw.design.leaf`: `mesh_type_id` (optional), `mesh_hinge_side` (hinged
+mesh; defaults to the panel's hinge side).
+
+Seed: MSH-FIX, MSH-HNG, PLT-SGL-L, PLT-SGL-R, PLT-DBL-C, PLT-DBL-S,
+PLT-ROL.
+
+Note: a **Mesh leaf** (its own sliding panel on a mesh track) stays as a
+leaf type for sliding systems. Attached mesh is for openable/fixed panels.
+
+### 5.2 Infill types
+New `aw.infill.type`: `name`, `code`, `kind` = `glass` | `panel` |
+`louvre` | `fan` | `ac`, `uses_glass` (bool), `active`, `line_ids`
+(products/formulas).
+`aw.design.leaf.infill_type_id` (default Glass).
+Seed: ADD-GLS (Glass, default), ADD-INF (Solid panel), ADD-LOUV-F (Louvre
+fixed), ADD-LOUV-A (Louvre adjustable), ADD-FAN (Exhaust fan), ADD-AC
+(AC cutout).
+
+### 5.3 Glass per panel
+`aw.design.leaf.glass_spec_id` — optional override; empty = the design's
+glass. `aw.glass.spec.weight_kg_m2` (for checks, P4).
+
+### 5.4 Georgian bars
+New `aw.grid.pattern`: `name`, `code`, `kind` = `rect` (rows × cols) |
+`perimeter`, bar product, `active`.
+`aw.design.leaf`: `grid_pattern_id`, `grid_rows`, `grid_cols`.
+Seed: ADD-GRID-R (rectangular), ADD-GRID-P (perimeter).
+
+### 5.5 Configurator
+Library click on a mesh/infill item → applies to the selected panel.
+Right panel: mesh, infill, glass, grid fields for the selected panel.
+Drawing: mesh = hatch overlay + badge; infill symbols (panel shading,
+louvre slats, fan circle, AC box); grid bars drawn over glass.
+
+Twin sash presets now seeded: TWN-FIX, TWN-SHL, TWN-SHR, TWN-TOP, TWN-BTM
+(Casement series, mesh MSH-HNG / MSH-FIX attached).
+
+**P3 test:** casement panel → apply PLT-SGL-L → hatch + badge shown →
+bottom panel of a nested split → infill Louvre → another panel → frosted
+glass override → grid 2×3 → save → reopen.
+
+---
+
+## 6. Phase 4 — BOM rules and explosion engine
+
+### 6.1 Formula language
+`safe_eval` expressions, variables (all mm):
+
+| Var | Meaning |
+|---|---|
+| `W`, `H` | design overall width / height |
+| `PW`, `PH` | panel width / height |
+| `CW`, `CH` | width / height of the container the panel sits in |
+| `N` | panels in the row |
+| `T` | tracks (sliding) |
+
+Functions: `min`, `max`, `round`, `ceil`, `floor`. Invalid formulas are
+rejected on save with a clear message.
+
+### 6.2 Profile positions — where and how many
+`aw.profile.position` gains:
+- `scope`: `frame` (once per design) | `panel_opening` (casement, awning,
+  hopper, T&T, slider) | `panel_fixed` | `panel_mesh` | `mesh_attachment` |
+  `junction_mullion` | `junction_meeting` | `junction_interlock` | `transom`
+- `edge`: `top` | `bottom` | `sides` | `all`
+- `default_length` formula, `default_angle` (45 / 90), `default_qty`
+
+Seed defaults (placeholders **[revisit]**):
+
+| Position | Scope | Edge | Length | Angle |
+|---|---|---|---|---|
+| Outer Frame - Top / Bottom | frame | top / bottom | `W` | 45 |
+| Outer Frame - Sides | frame | sides | `H` | 45 |
+| Palay - Top / Bottom | panel_opening | top / bottom | `PW - 10` | 45 |
+| Palay - Sides | panel_opening | sides | `PH - 10` | 45 |
+| Palay Bead - * | panel_opening | per edge | `PW - 40` / `PH - 40` | 45 |
+| Fixed Bead - * | panel_fixed | per edge | `PW - 40` / `PH - 40` | 45 |
+| Mesh - All Sides | panel_mesh + mesh_attachment | all | `PW - 10` / `PH - 10` | 45 |
+| Divider - Vertical | junction_mullion | — | `CH` | 90 |
+| Divider - Horizontal | transom | — | `CW` | 90 |
+| Interlock | junction_interlock | — | `PH - 10` | 90 |
+| Meeting Stile | junction_meeting | — | `PH - 10` | 90 |
+
+`edge = all` generates 2 pieces of the width formula and 2 of the height
+formula. `sides` generates 2.
+
+`aw.profile.section.line` gains optional overrides: `length_formula`,
+`cut_angle`, `qty_formula`. Empty = the position's default. Existing rule
+kept: several lines on one position → lowest sequence is active, others are
+alternates.
+
+### 6.3 Hardware, mesh and infill lines
+Common line fields: `product_id`, `qty_formula` (default `1`),
+`condition_formula` (empty = always), scope (`design` | `panel` |
+`junction`), leaf type filter (existing).
+Examples: hinges `qty = 2 if PH <= 1200 else 3`; T&T gear chosen by
+`condition PH <= 1400` vs `PH > 1400`; gasket per metre
+`qty = 2*(PW+PH)/1000` with a metre UoM.
+
+### 6.4 Series additions
+`glass_fixed_w`, `glass_fixed_h`, `glass_sash_w`, `glass_sash_h`,
+`mesh_w`, `mesh_h` (formulas; placeholders `PW - 60` etc. **[revisit]**);
+limits `max_panel_w`, `max_panel_h`, `max_panel_kg`.
+
+### 6.5 Explosion engine (`aw.design.action_explode`)
+Walk frame → rows → leaves (recursive) → junctions → attachments.
+Generate `aw.design.bom.line` with:
+`kind` (profile / hardware / glass / mesh / infill / grid), product,
+length, angle, qty × design qty, `panel_no`, label (`D1-P2 sash top`),
+glass/mesh W×H and area. Run automatically on save; button stays for
+re-run. Snapshot unit costs (pricing in P6).
+
+### 6.6 Checks (panel in the configurator's right column)
+Dimensions > 0; leaf types allowed by Series; panel size vs Series limits;
+panel weight from glass `weight_kg_m2`; any profile piece longer than the
+longest stock bar (18 ft) → error with **Split with coupler** action
+(splits the design into two positions joined by a coupling mullion);
+missing product on an active position → warning.
+
+**P4 test:** Double Glaze Sliding Profile 1, SLD-2P2T, 8 ft × 5 ft → explode
+→ frame 4 pieces at 45°, 2 sashes × 4 palay pieces, 1 interlock, glass ×2
+with deducted sizes, rollers/locks from the hardware set → hand-check two
+lengths.
+
+---
+
+## 7. Phase 5 — Drawings and documents
+
+- `aw.design.elevation_svg` (Text) — snapshot written by `save_layout()` from
+  the configurator's rendered SVG, including numbers, symbols and legend.
+- **Shop drawing PDF** per design: elevation, panel schedule (panel no,
+  type, hinge/swing or track/direction, glass, mesh, infill, grid), profile
+  cut list with angles and labels, hardware list.
+- **Quote PDF**: extends the standard Sale PDF with each position's
+  elevation thumbnail and spec lines.
+
+---
+
+## 8. Phase 6 — Cutting, pricing, stock
+
+- **Cut list per sale order**: pool profile pieces by product variant
+  (profile × thickness × finish); nest into stock bars 14 / 16 / 18 ft,
+  mixed lengths allowed; kerf 5 mm; bars, cut sequence, angles, piece
+  labels; offcuts ≥ 400 mm listed for return to stock. Settings (bar
+  lengths, kerf, offcut minimum) in `ir.config_parameter`. Manual mitre saw
+  output: group identical cuts, longest first, printable piece labels.
+- **Pricing**: rates per product variant, effective-dated (native
+  `product.supplierinfo` vs custom table — decide at P6), cost cascade
+  (wastage, labour, margin), manual override, margin floor, price written
+  to the sale order line.
+- **Stock mode**: once length lots exist, plan cuts against actual lots and
+  offcuts first, then new bars.
+
+---
+
+## 9. Later (noted, not scheduled)
+
+Doors family (hinged/sliding doors, thresholds, door hardware); dual colour
+(inside/outside); handle height per opening panel; sill / floor aperture
+distance and survey checklist; coupled multi-frame assemblies beyond the
+coupler split.
