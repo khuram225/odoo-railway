@@ -379,6 +379,7 @@ class AwDesign(models.Model):
                 'swing': leaf.swing or '',
                 'slide_dir': leaf.slide_dir or '',
                 'junction_after': leaf.junction_after or '',
+                'track_no': leaf.track_no or 0,
                 'rows': self._rows_payload(leaf.child_row_ids),
             } for leaf in row.leaf_ids],
         } for row in rows]
@@ -404,12 +405,23 @@ class AwDesign(models.Model):
                 'has_hinge_side': lt.has_hinge_side,
                 'has_slide_dir': lt.has_slide_dir,
             } for lt in series.leaf_type_ids],
-            'presets': [{
-                'id': p.id,
-                'name': p.name,
-                'category': p.category or '',
-                'layout': p._layout(),
-            } for p in presets],
+            'presets': [self._preset_payload(p) for p in presets],
+        }
+
+    @api.model
+    def _preset_payload(self, preset):
+        family = preset.family_id
+        return {
+            'id': preset.id,
+            'name': preset.name,
+            'code': preset.code or '',
+            # family_name falls back to the old text category so the
+            # library still groups sensibly on a database that hasn't run
+            # the family migration yet.
+            'family_name': family.name or preset.category or _("Other"),
+            'family_code': family.code or '',
+            'family_sequence': family.sequence if family else 999,
+            'layout': preset._layout(),
         }
 
     def get_configurator_data(self):
@@ -450,12 +462,7 @@ class AwDesign(models.Model):
                 'has_hinge_side': lt.has_hinge_side,
                 'has_slide_dir': lt.has_slide_dir,
             } for lt in leaf_types],
-            'presets': [{
-                'id': p.id,
-                'name': p.name,
-                'category': p.category or '',
-                'layout': p._layout(),
-            } for p in presets],
+            'presets': [self._preset_payload(p) for p in presets],
         }
 
     # A panel may be subdivided, its sub-panels subdivided again, and no
@@ -494,6 +501,7 @@ class AwDesign(models.Model):
                     'swing': leaf.get('swing') or False,
                     'slide_dir': leaf.get('slide_dir') or False,
                     'junction_after': leaf.get('junction_after') or False,
+                    'track_no': leaf.get('track_no') or 0,
                 }) for leaf in row.get('leaves') or []],
             })
             for leaf_payload, leaf in zip(
@@ -557,6 +565,92 @@ class AwDesign(models.Model):
                 raise UserError(_(
                     "These panels need a leaf type:\n%s",
                     '\n'.join('- Panel %s' % n for n in missing)))
+
+    # -- catalog actions (spec 4.3, 4.5) -----------------------------------
+    def _layout_json_from_rows(self, rows):
+        """Turn the stored geometry back into a preset layout.
+
+        Sizes become RELATIVE weights, which is the whole point of a
+        preset: the mm are used directly because weights are normalised
+        per row anyway, so 1200/600 and 2/1 describe the same shape.
+        Nesting, junctions and tracks all come along.
+        """
+        out = []
+        for row in rows:
+            leaves = []
+            for leaf in row.leaf_ids:
+                entry = {'w': round(leaf.width_mm or 0, 1)}
+                if leaf.child_row_ids:
+                    entry['rows'] = self._layout_json_from_rows(
+                        leaf.child_row_ids)
+                else:
+                    entry['type'] = leaf.leaf_type_id.code or ''
+                    if leaf.hinge_side:
+                        entry['hinge'] = leaf.hinge_side
+                    if leaf.swing:
+                        entry['swing'] = leaf.swing
+                    if leaf.slide_dir:
+                        entry['slide'] = leaf.slide_dir
+                    if leaf.track_no:
+                        entry['track'] = leaf.track_no
+                if leaf.junction_after:
+                    entry['junction'] = leaf.junction_after
+                leaves.append(entry)
+            out.append({'h': round(row.height_mm or 0, 1), 'leaves': leaves})
+        return out
+
+    def action_save_as_preset(self):
+        """Open the save-as-preset wizard for this design's layout."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Save Layout as Preset"),
+            'res_model': 'aw.design.preset.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_design_id': self.id,
+                'default_name': self.name or '',
+                'default_series_ids': [(6, 0, [self.window_series_id.id])],
+            },
+        }
+
+    def copy_position(self):
+        """Duplicate this design onto a new quote line (spec 4.5).
+
+        The layout is copied by round-tripping it through the same
+        payload/_create_rows pair that save_layout uses, rather than
+        Odoo's copy(): row_ids is domained to TOP-LEVEL rows, so a plain
+        copy would silently drop every nested sub-row.
+        """
+        self.ensure_one()
+        order = self.sale_order_line_id.order_id
+        if not order:
+            raise UserError(_(
+                "This design isn't on a quote yet, so there is no line to "
+                "duplicate it onto."))
+
+        rows = self._rows_payload(self.row_ids)
+        copy = order._create_fenestration_position(
+            self.window_series_id, location=self.location)
+        copy.write({
+            'qty': self.qty,
+            'width_mm': self.width_mm,
+            'height_mm': self.height_mm,
+            'glass_spec_id': self.glass_spec_id.id,
+            'finish_id': self.finish_id.id,
+            'thickness_id': self.thickness_id.id,
+            'manual_rate': self.manual_rate,
+        })
+        copy.row_ids.unlink()          # drop the starter row
+        copy._create_rows(rows, parent_leaf=None)
+        copy._renumber_panels()
+        copy._sync_sale_order_line()
+        return copy
+
+    def action_duplicate_position(self):
+        self.ensure_one()
+        return self.copy_position().action_open_configurator()
 
     def _incomplete_dimension_designs(self):
         """Designs still sitting at a zero width or height. Dimensions

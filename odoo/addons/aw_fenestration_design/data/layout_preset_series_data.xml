@@ -15,6 +15,7 @@
     Loads after layout_preset_data.xml so the presets it refers to exist.
     -->
     <data>
+        <function model="aw.layout.family" name="_migrate_preset_categories"/>
         <function model="aw.layout.preset" name="_apply_preset_corrections"/>
         <function model="aw.layout.preset" name="_seed_default_series"/>
     </data>

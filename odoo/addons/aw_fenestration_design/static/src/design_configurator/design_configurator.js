@@ -30,6 +30,10 @@ const AREA_H = VIEW_H - PAD_T - 108;
 // matters visually, it wants a field on aw.window.series, not a constant.
 const FRAME_FACE_MM = 100;
 const MIN_LEAF_MM = 4 * MM_PER_IN; // prototype's IN(4) drag floor
+// Drawn width of a mullion. A constant for now; it properly belongs to
+// the mullion profile's section size, which arrives with the BOM rules in
+// spec section 6.2.
+const MULLION_WIDTH_MM = 60;
 
 const MAX_DEPTH = 3; // matches aw.design.MAX_NESTING_DEPTH
 
@@ -96,6 +100,8 @@ export class DesignConfigurator extends Component {
             canvasW: 0,
             canvasH: 0,
             libraryOpen: true,
+            builderOpen: false,
+            builder: { panels: 2, tracks: 2, mesh: false, roles: [] },
             // Screen-space position of the floating toolbar, in CSS
             // pixels relative to the canvas viewport. Measured from the
             // DOM rather than derived, so it survives zoom and scroll.
@@ -720,6 +726,7 @@ export class DesignConfigurator extends Component {
             hinge_side: leaf.hinge_side || "",
             swing: leaf.swing || "",
             slide_dir: leaf.slide_dir || "",
+            track_no: leaf.track_no || 0,
             junction_after: "",
             rows: [],
         });
@@ -840,16 +847,23 @@ export class DesignConfigurator extends Component {
     }
 
     // -- presets -----------------------------------------------------------
-    get presetsByCategory() {
-        const groups = {};
+    /** The library, grouped by family and ordered by family sequence. */
+    get presetsByFamily() {
+        const groups = new Map();
         for (const preset of this.state.data?.presets || []) {
-            const key = preset.category || _t("Other");
-            (groups[key] = groups[key] || []).push(preset);
+            const key = preset.family_name || _t("Other");
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    family: key,
+                    sequence: preset.family_sequence ?? 999,
+                    presets: [],
+                });
+            }
+            groups.get(key).presets.push(preset);
         }
-        return Object.entries(groups).map(([category, presets]) => ({
-            category,
-            presets,
-        }));
+        return [...groups.values()].sort(
+            (a, b) => a.sequence - b.sequence || a.family.localeCompare(b.family)
+        );
     }
 
     /**
@@ -947,6 +961,7 @@ export class DesignConfigurator extends Component {
                                     ? leaf.slide || ""
                                     : "",
                             junction_after: leaf.junction || "",
+                            track_no: nested ? 0 : leaf.track || 0,
                             rows: nested ? build(leaf.rows, leafW, rowH) : [],
                         };
                     }),
@@ -1492,9 +1507,17 @@ export class DesignConfigurator extends Component {
                 lines: [],
             };
         }
+        // A mullion is a real profile, so it is drawn at its real width in
+        // DRAWING units -- it grows and shrinks with the window like the
+        // frame does, instead of being a fixed number of screen pixels.
+        // The floor keeps it visible when zoomed right out.
+        const barW = Math.max(
+            MULLION_WIDTH_MM * (d.unitsPerMM || 0),
+            4 * (stroke / 2)
+        );
         return {
             kind: "mullion",
-            bars: [{ key: "m", x: x - stroke * 1.5, y, w: stroke * 3, h }],
+            bars: [{ key: "m", x: x - barW / 2, y, w: barW, h }],
             lines: [],
         };
     }
@@ -1836,6 +1859,195 @@ export class DesignConfigurator extends Component {
         const rows = this.rowsAt(path.slice(0, -1));
         const row = rows[path[path.length - 1][0]];
         return row ? this.formatLength(row.height_mm || 0) : "";
+    }
+
+    // -- sliding builder (spec 4.2) ----------------------------------------
+    get canUseSlidingBuilder() {
+        return (this.state.data?.leaf_types || []).some(
+            (t) => t.code === "SLIDER"
+        );
+    }
+
+    toggleSlidingBuilder() {
+        this.state.builderOpen = !this.state.builderOpen;
+        if (this.state.builderOpen) {
+            this.state.builder = this.defaultSlidingPattern(
+                this.state.builder.panels, this.state.builder.tracks,
+                this.state.builder.mesh);
+        }
+    }
+
+    /**
+     * A sensible starting pattern for a panel/track count.
+     *
+     * Sliding panels alternate tracks so neighbours never share one --
+     * two sashes on the same track would collide. With more panels than
+     * tracks the outermost pair is fixed, which is the usual way a wide
+     * opening is made with few tracks.
+     */
+    defaultSlidingPattern(panels, tracks, mesh) {
+        const roles = [];
+        const fixedEnds = panels > tracks * 2 - 1 && panels >= 4;
+        for (let i = 0; i < panels; i++) {
+            const isEnd = i === 0 || i === panels - 1;
+            roles.push({
+                role: fixedEnds && isEnd ? "fixed" : "slider",
+                slide: i < panels / 2 ? "right" : "left",
+                track: 1,
+            });
+        }
+        // Sliders alternate across the available tracks; a fixed panel
+        // sits on the outermost of them.
+        let t = 1;
+        for (const entry of roles) {
+            if (entry.role === "slider") {
+                entry.track = t;
+                t = t >= tracks ? 1 : t + 1;
+            } else {
+                entry.track = tracks;
+            }
+        }
+        return { panels, tracks, mesh, roles };
+    }
+
+    setBuilder(key, value) {
+        const b = this.state.builder;
+        const panels = key === "panels" ? value : b.panels;
+        const tracks = key === "tracks" ? value : b.tracks;
+        const mesh = key === "mesh" ? value : b.mesh;
+        this.state.builder = this.defaultSlidingPattern(panels, tracks, mesh);
+    }
+
+    setBuilderRole(index, role) {
+        this.state.builder.roles[index].role = role;
+        if (role === "fixed") {
+            this.state.builder.roles[index].track = this.state.builder.tracks;
+        }
+    }
+
+    setBuilderSlide(index, slide) {
+        this.state.builder.roles[index].slide = slide;
+    }
+
+    setBuilderTrack(index, track) {
+        this.state.builder.roles[index].track = parseInt(track, 10) || 1;
+    }
+
+    /**
+     * Spec 4.2's rules, checked before the layout is applied rather than
+     * after: adjacent sliding panels must be on different tracks, a fixed
+     * panel sits on the outer track, and the mesh track is outermost.
+     */
+    get slidingBuilderErrors() {
+        const b = this.state.builder;
+        const errors = [];
+        const meshTrack = b.mesh ? b.tracks + 1 : null;
+        b.roles.forEach((entry, i) => {
+            const next = b.roles[i + 1];
+            if (
+                entry.role === "slider" &&
+                next &&
+                next.role === "slider" &&
+                entry.track === next.track
+            ) {
+                errors.push(
+                    _t("Panels %(a)s and %(b)s both slide on track %(t)s.",
+                       { a: i + 1, b: i + 2, t: entry.track })
+                );
+            }
+            if (entry.role === "fixed" && entry.track !== b.tracks) {
+                errors.push(
+                    _t("Panel %(n)s is fixed, so it belongs on the outer " +
+                       "track (%(t)s).", { n: i + 1, t: b.tracks })
+                );
+            }
+            if (entry.track > b.tracks) {
+                errors.push(
+                    _t("Panel %(n)s is on track %(t)s, beyond the %(max)s " +
+                       "available.",
+                       { n: i + 1, t: entry.track, max: b.tracks })
+                );
+            }
+        });
+        if (b.mesh && meshTrack <= b.tracks) {
+            errors.push(_t("The mesh track must be the outermost."));
+        }
+        return errors;
+    }
+
+    applySlidingBuilder() {
+        if (this.slidingBuilderErrors.length) {
+            return;
+        }
+        const b = this.state.builder;
+        const types = this.state.data.leaf_types;
+        const byCode = Object.fromEntries(types.map((t) => [t.code, t]));
+        const width = this.state.data.header.width_mm;
+        const height = this.state.data.header.height_mm;
+        const count = b.panels + (b.mesh ? 1 : 0);
+        const each = count ? width / count : width;
+
+        const leaves = b.roles.map((entry) => {
+            const code = entry.role === "fixed" ? "FIXED" : "SLIDER";
+            const type = byCode[code];
+            return {
+                width_mm: each,
+                is_auto: false,
+                leaf_type_id: type ? type.id : false,
+                leaf_type_code: code,
+                hinge_side: "",
+                swing: "",
+                slide_dir: entry.role === "slider" ? entry.slide : "",
+                track_no: entry.track,
+                junction_after: "",
+                rows: [],
+            };
+        });
+        if (b.mesh && byCode.MESH) {
+            leaves.push({
+                width_mm: each,
+                is_auto: false,
+                leaf_type_id: byCode.MESH.id,
+                leaf_type_code: "MESH",
+                hinge_side: "",
+                swing: "",
+                slide_dir: "left",
+                // Outermost, per 4.2.
+                track_no: b.tracks + 1,
+                junction_after: "",
+                rows: [],
+            });
+        }
+
+        this.state.data.rows = [
+            { height_mm: height, is_auto: false, leaves },
+        ];
+        this.recomputeJunctions(this.state.data.rows);
+        this.state.selected = null;
+        this.state.selectedDivider = null;
+        this.state.builderOpen = false;
+        this.state.dirty = true;
+    }
+
+    // -- catalog actions ----------------------------------------------------
+    async saveAsPreset() {
+        // Saved first, so the wizard reads the layout from the record
+        // rather than needing the whole tree passed through a context.
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const action = await this.orm.call(
+            "aw.design", "action_save_as_preset", [[this.designId]]);
+        this.action.doAction(action);
+    }
+
+    async duplicatePosition() {
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const action = await this.orm.call(
+            "aw.design", "action_duplicate_position", [[this.designId]]);
+        this.action.doAction(action);
     }
 
     // -- save --------------------------------------------------------------

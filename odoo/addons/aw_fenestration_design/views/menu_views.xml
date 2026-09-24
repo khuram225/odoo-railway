@@ -17,6 +17,12 @@
     <!-- menu_aw_fenestration_config is core's Configuration menu, added in
          the units round. Same cross-module reasoning as above: the hard
          dependency guarantees it exists by the time this loads. -->
+    <menuitem id="menu_aw_layout_family"
+              name="Layout Families"
+              parent="aw_fenestration_core.menu_aw_fenestration_config"
+              action="action_aw_layout_family"
+              sequence="5"/>
+
     <menuitem id="menu_aw_layout_preset"
               name="Layout Presets"
               parent="aw_fenestration_core.menu_aw_fenestration_config"

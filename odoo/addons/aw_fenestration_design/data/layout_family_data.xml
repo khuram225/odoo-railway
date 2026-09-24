@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+        Families from spec 4.1, plus "Other". 4.1's own table omits Other,
+        but its migration rule sends unknown categories there, so it has to
+        exist. noupdate="1" keeps names and sequences editable in the UI;
+        new ids added here are still created on upgrade.
+        -->
+
+        <record id="layout_family_opn" model="aw.layout.family">
+            <field name="code">OPN</field>
+            <field name="name">Openable Designs</field>
+            <field name="kind">layout</field>
+            <field name="sequence">10</field>
+        </record>
+        <record id="layout_family_tt" model="aw.layout.family">
+            <field name="code">TT</field>
+            <field name="name">Tilt &amp; Turn Designs</field>
+            <field name="kind">layout</field>
+            <field name="sequence">20</field>
+        </record>
+        <record id="layout_family_twn" model="aw.layout.family">
+            <field name="code">TWN</field>
+            <field name="name">Twin Sash Designs</field>
+            <field name="kind">layout</field>
+            <field name="sequence">30</field>
+        </record>
+        <record id="layout_family_sld" model="aw.layout.family">
+            <field name="code">SLD</field>
+            <field name="name">Sliding Designs</field>
+            <field name="kind">layout</field>
+            <field name="sequence">40</field>
+        </record>
+        <record id="layout_family_cw" model="aw.layout.family">
+            <field name="code">CW</field>
+            <field name="name">Stick Curtain Wall Designs</field>
+            <field name="kind">layout</field>
+            <field name="sequence">50</field>
+        </record>
+        <record id="layout_family_msh" model="aw.layout.family">
+            <field name="code">MSH</field>
+            <field name="name">Add-on Mesh</field>
+            <field name="kind">mesh</field>
+            <field name="sequence">60</field>
+        </record>
+        <record id="layout_family_plt" model="aw.layout.family">
+            <field name="code">PLT</field>
+            <field name="name">Pleated &amp; Pull-down Mesh</field>
+            <field name="kind">mesh</field>
+            <field name="sequence">70</field>
+        </record>
+        <record id="layout_family_add" model="aw.layout.family">
+            <field name="code">ADD</field>
+            <field name="name">Add-ons</field>
+            <field name="kind">infill</field>
+            <field name="sequence">80</field>
+        </record>
+        <record id="layout_family_oth" model="aw.layout.family">
+            <field name="code">OTH</field>
+            <field name="name">Other</field>
+            <field name="kind">layout</field>
+            <field name="sequence">90</field>
+        </record>
+
+    </data>
+</odoo>

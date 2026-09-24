@@ -9,7 +9,7 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="category"/>
+                <field name="family_id"/>
                 <field name="series_ids" widget="many2many_tags"
                        string="Window Series (empty = any)"/>
             </list>
@@ -28,7 +28,9 @@
                         <group>
                             <field name="name"/>
                             <field name="code" placeholder="e.g. OPN-CFC"/>
-                            <field name="category"/>
+                            <field name="family_id"/>
+                            <field name="category" groups="base.group_no_one"
+                                   string="Category (migrated from)"/>
                         </group>
                         <group>
                             <field name="sequence"/>

@@ -33,8 +33,12 @@
                             <field name="size_display"/>
                             <field name="qty"/>
                             <field name="area_sqft"/>
-                            <button name="action_open_design" type="object"
-                                    icon="fa-external-link" title="Open Design"/>
+                            <button name="action_open_configurator" type="object"
+                                    icon="fa-external-link"
+                                    title="Open in the configurator"/>
+                            <button name="action_duplicate_position" type="object"
+                                    icon="fa-copy" title="Duplicate this position"
+                                    invisible="parent.state not in ('draft', 'sent')"/>
                         </list>
                     </field>
                 </page>
@@ -42,8 +46,8 @@
 
             <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="after">
                 <field name="aw_design_ids" column_invisible="1"/>
-                <button name="action_open_design" type="object"
-                        icon="fa-external-link" title="Open Design"
+                <button name="action_open_configurator" type="object"
+                        icon="fa-external-link" title="Open in the configurator"
                         invisible="not aw_design_ids"/>
             </xpath>
 

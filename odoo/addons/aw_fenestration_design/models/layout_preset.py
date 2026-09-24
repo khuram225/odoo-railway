@@ -51,6 +51,10 @@ class AwLayoutPreset(models.Model):
     _description = 'Fenestration Layout Preset'
     _order = 'sequence, name'
 
+    _sql_constraints = [
+        ('code_uniq', 'unique(code)', 'Preset code must be unique.'),
+    ]
+
     name = fields.Char(required=True)
     # Stable identifier for a preset, independent of its (editable) name.
     # Spec 4.6 seeds the full set in Phase 2; only the presets corrected
@@ -58,6 +62,12 @@ class AwLayoutPreset(models.Model):
     code = fields.Char(
         help="Short stable code, e.g. OPN-CFC. Unlike the name, this is "
              "what other records and documents should refer to.")
+    family_id = fields.Many2one(
+        'aw.layout.family', string='Family', ondelete='restrict',
+        help="Groups this preset in the configurator library.")
+    # Kept alongside family_id rather than dropped: it is what the
+    # families were migrated FROM, and deleting it would throw away the
+    # only record of that mapping on databases mid-upgrade.
     category = fields.Char(
         help="Groups the preset chips in the configurator, e.g. 'Basic', "
              "'Sliding', 'Stacked'. Free text -- add a category by typing "
@@ -152,6 +162,23 @@ class AwLayoutPreset(models.Model):
         ),
     }
 
+    # Codes for the presets seeded before spec 4.6 listed them. Filled
+    # only where the preset has none, like every other seed here.
+    PRESET_CODES = {
+        'layout_preset_fixed': 'OPN-FIX',
+        'layout_preset_casement': 'OPN-SHL',
+        'layout_preset_fix_casement': 'OPN-FXC',
+        # 4.6's OPN-BTM is a single hopper, seeded separately; this
+        # one is hopper OVER fixed, which 4.6 doesn't list.
+        'layout_preset_hopper_over_fixed': 'OPN-HOF',
+        'layout_preset_two_across_one_below': 'OPN-2A1B',
+        'layout_preset_2track_fix_slide': 'SLD-2P2T-F',
+        'layout_preset_2track_2panel': 'SLD-2P2T',
+        'layout_preset_3track_mesh': 'SLD-2P2T-M',
+        'layout_preset_stack3': 'CW-3FX',
+        'layout_preset_curtain_wall_vent': 'CW-VNT',
+    }
+
     @api.model
     def _apply_preset_corrections(self):
         """Fix names and fill codes on seeded presets, once.
@@ -178,6 +205,12 @@ class AwLayoutPreset(models.Model):
                 values['code'] = code
             if values:
                 preset.write(values)
+
+        for xmlid, code in self.PRESET_CODES.items():
+            preset = self.env.ref(
+                'aw_fenestration_design.%s' % xmlid, raise_if_not_found=False)
+            if preset and not preset.code:
+                preset.code = code
 
     @api.model
     def _seed_default_series(self):

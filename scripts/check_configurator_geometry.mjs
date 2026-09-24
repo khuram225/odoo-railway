@@ -474,12 +474,20 @@ console.log("\n  and the drawing differs per junction type:");
        JSON.stringify(mull) !== JSON.stringify(lock),
        "all three shapes are distinct in the scene");
 
-    shapeFor("mullion"); // the loop below measures the mullion bar
-    for (const z of [0.25, 4]) {
+    // The mullion is now sized in DRAWING units (~60mm), so unlike the
+    // other adornments it SHOULD grow with zoom -- that is the point.
+    shapeFor("mullion");
+    const d0 = c.adornments.dividers[0];
+    near(d0.shape.bars[0].w, 60 * d0.unitsPerMM, "mullion bar is 60mm wide");
+    const widthAt = (z) => {
         c.state.zoom = z;
-        const px = c.adornments.dividers[0].shape.bars[0].w * c.fitScale * z;
-        near(px, 2 * 3, `zoom ${z * 100}%: mullion bar stays ${px.toFixed(1)}px`);
-    }
+        return c.adornments.dividers[0].shape.bars[0].w * c.fitScale * z;
+    };
+    const wide = widthAt(4), narrow = widthAt(0.25);
+    ok(wide > narrow, `grows with zoom: ${narrow.toFixed(1)}px -> ${wide.toFixed(1)}px`);
+    ok(narrow >= 4 - 1e-9,
+       `and never thinner than 4px on screen (${narrow.toFixed(1)}px)`);
+    c.state.zoom = 1;
     c.state.zoom = 1;
 }
 
@@ -578,6 +586,87 @@ console.log("\nSERIES SWITCH:");
     const nestedUsed = nested.usedLeafTypeCodes(nested.state.data.rows);
     ok(nestedUsed.has("FIXED") && nestedUsed.has("CASEMENT") && nestedUsed.size === 2,
        "recurses into containers and ignores the container itself");
+}
+
+console.log("\nSLIDING BUILDER (spec 4.2):");
+{
+    const SLIDE_TYPES = [
+        { id: 1, code: "FIXED", name: "Fixed", has_hinge_side: false, has_slide_dir: false },
+        { id: 3, code: "SLIDER", name: "Slider", has_hinge_side: false, has_slide_dir: true },
+        { id: 4, code: "MESH", name: "Mesh", has_hinge_side: false, has_slide_dir: true },
+    ];
+    const c = make([{ height_mm: 1500, is_auto: false,
+                      leaves: [panel(2400, "FIXED")] }], 2400, 1500);
+    c.state.data.leaf_types = SLIDE_TYPES;
+    c.state.builderOpen = false;
+    c.state.builder = { panels: 2, tracks: 2, mesh: false, roles: [] };
+
+    ok(c.canUseSlidingBuilder, "offered when the Series allows sliders");
+    c.state.data.leaf_types = SLIDE_TYPES.filter((t) => t.code !== "SLIDER");
+    ok(!c.canUseSlidingBuilder, "hidden when it doesn't");
+    c.state.data.leaf_types = SLIDE_TYPES;
+
+    c.setBuilder("panels", 4);
+    c.setBuilder("tracks", 2);
+    ok(c.slidingBuilderErrors.length === 0,
+       "4 panels / 2 tracks defaults are valid: " +
+       c.state.builder.roles.map((r) => r.role[0].toUpperCase() + "T" + r.track).join(" "));
+
+    c.state.builder.roles[1].role = "slider";
+    c.state.builder.roles[2].role = "slider";
+    c.state.builder.roles[1].track = 1;
+    c.state.builder.roles[2].track = 1;
+    ok(c.slidingBuilderErrors.some((e) => /both slide on track/.test(e)),
+       "adjacent sliders sharing a track: refused");
+
+    c.state.builder.roles[2].track = 2;
+    ok(!c.slidingBuilderErrors.some((e) => /both slide on track/.test(e)),
+       "different tracks: allowed");
+
+    c.state.builder.roles[0].role = "fixed";
+    c.state.builder.roles[0].track = 1;
+    ok(c.slidingBuilderErrors.some((e) => /belongs on the outer track/.test(e)),
+       "fixed panel on an inner track: refused");
+    c.setBuilderRole(0, "fixed");
+    ok(c.state.builder.roles[0].track === c.state.builder.tracks,
+       "choosing Fixed moves it to the outer track automatically");
+
+    c.setBuilder("panels", 4);
+    c.setBuilder("tracks", 2);
+    c.setBuilder("mesh", true);
+    ok(c.slidingBuilderErrors.length === 0, "with a mesh track: still valid");
+    c.applySlidingBuilder();
+    const lv = c.state.data.rows[0].leaves;
+    ok(lv.length === 5, "4 panels + mesh = 5 leaves");
+    ok(lv[4].leaf_type_code === "MESH", "mesh is last");
+    ok(lv[4].track_no === 3, "mesh on the outermost track (" + lv[4].track_no + ")");
+    ok(lv.every((l) => l.track_no >= 1), "every leaf has a track");
+    near(lv.reduce((a, l) => a + l.width_mm, 0), 2400,
+         "widths sum to the design width");
+    ok(lv.some((l) => l.junction_after === "interlock"),
+       "junctions derived: sliders interlock");
+    ok(!c.state.builderOpen, "builder closes after applying");
+    ok(c.state.dirty, "and the design is dirty");
+}
+
+console.log("\n  library grouped by family:");
+{
+    const one = { rows: [{ h: 1, leaves: [{ w: 1, type: "FIXED" }] }] };
+    const c = make([{ height_mm: 1500, is_auto: false,
+                      leaves: [panel(1200, "FIXED")] }], 1200, 1500);
+    c.state.data.presets = [
+        { id: 1, name: "B", family_name: "Sliding Designs", family_sequence: 40, layout: one },
+        { id: 2, name: "A", family_name: "Openable Designs", family_sequence: 10, layout: one },
+        { id: 3, name: "C", family_name: "Openable Designs", family_sequence: 10, layout: one },
+    ];
+    const groups = c.presetsByFamily;
+    ok(groups.length === 2, "two families");
+    ok(groups[0].family === "Openable Designs", "ordered by family sequence");
+    ok(groups[0].presets.length === 2, "presets grouped under their family");
+
+    c.state.data.presets.push({ id: 4, name: "D", layout: one });
+    ok(c.presetsByFamily.length === 3,
+       "a preset with no family still lands in a group");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

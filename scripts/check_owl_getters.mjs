@@ -40,6 +40,11 @@ const TARGETS = [
             selected: null,
             selectedDivider: null,
             toolbar: { show: false, left: 0, top: 0 },
+            builderOpen: false,
+            builder: { panels: 2, tracks: 2, mesh: false, roles: [
+                { role: "slider", slide: "right", track: 1 },
+                { role: "slider", slide: "left", track: 2 },
+            ] },
             data: {
                 id: 1,
                 length_uom: "ftin",
@@ -91,7 +96,9 @@ const TARGETS = [
                     {
                         id: 1,
                         name: "2 Track 2 Panel",
-                        category: "Sliding Designs",
+                        family_name: "Sliding Designs",
+                        family_code: "SLD",
+                        family_sequence: 40,
                         layout: { rows: [{ h: 1, leaves: [{ w: 1, type: "SLIDER" }, { w: 1, type: "SLIDER" }] }] },
                     },
                 ],
@@ -122,6 +129,9 @@ const TARGETS = [
             "selectedPanelHeightText",
             "seriesOptions",
             "junctionOptions",
+            "presetsByFamily",
+            "canUseSlidingBuilder",
+            "slidingBuilderErrors",
         ],
         // Every getter is read under EACH of these. A selection bug only
         // shows in one state -- the crash this check was extended for

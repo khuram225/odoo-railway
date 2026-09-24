@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+        The presets spec 4.6 lists that didn't exist yet. The ones that did
+        keep their records and get their codes filled by
+        _apply_preset_corrections(); this file only adds new ids, which
+        noupdate="1" still creates on upgrade.
+
+        Sliding layouts carry "track" per leaf (spec 4.2). Track 1 is the
+        INNERMOST, counting outwards, and a mesh sash therefore takes the
+        highest track number. See the note in the Phase 2 commit: 4.2 says
+        both "a fixed panel sits on the outer track" and "mesh track must
+        be the outermost", which cannot both hold when a layout has a
+        fixed panel and a mesh sash.
+
+        TWN-* presets are deliberately absent: they need mesh attached to a
+        panel, which is Phase 3.
+        -->
+
+        <record id="layout_preset_casement_right" model="aw.layout.preset">
+            <field name="name">Casement, hinge right</field>
+            <field name="code">OPN-SHR</field>
+            <field name="family_id" ref="layout_family_opn"/>
+            <field name="category">Openable Designs</field>
+            <field name="sequence">21</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_casement_sg'),
+                ref('aw_fenestration_core.window_series_casement_dg')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "CASEMENT", "hinge": "right", "swing": "out"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_awning" model="aw.layout.preset">
+            <field name="name">Awning (top-hung)</field>
+            <field name="code">OPN-TOP</field>
+            <field name="family_id" ref="layout_family_opn"/>
+            <field name="category">Openable Designs</field>
+            <field name="sequence">22</field>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "AWNING", "hinge": "top", "swing": "out"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_hopper" model="aw.layout.preset">
+            <field name="name">Hopper (bottom-hung)</field>
+            <field name="code">OPN-BTM</field>
+            <field name="family_id" ref="layout_family_opn"/>
+            <field name="category">Openable Designs</field>
+            <field name="sequence">23</field>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "HOPPER", "hinge": "bottom", "swing": "in"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_french" model="aw.layout.preset">
+            <field name="name">French Casement (pair)</field>
+            <field name="code">OPN-FRN</field>
+            <field name="family_id" ref="layout_family_opn"/>
+            <field name="category">Openable Designs</field>
+            <field name="sequence">24</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_casement_sg'),
+                ref('aw_fenestration_core.window_series_casement_dg')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "CASEMENT", "hinge": "left", "swing": "out", "junction": "meeting"}, {"w": 1, "type": "CASEMENT", "hinge": "right", "swing": "out"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_vent" model="aw.layout.preset">
+            <field name="name">Fixed with top vent</field>
+            <field name="code">OPN-VNT</field>
+            <field name="family_id" ref="layout_family_opn"/>
+            <field name="category">Openable Designs</field>
+            <field name="sequence">25</field>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "rows": [{"h": 1, "leaves": [{"w": 1, "type": "AWNING", "hinge": "top", "swing": "out"}]}, {"h": 3, "leaves": [{"w": 1, "type": "FIXED"}]}]}]}]}</field>
+        </record>
+
+        <record id="layout_preset_tt_left" model="aw.layout.preset">
+            <field name="name">Tilt &amp; Turn, hinge left</field>
+            <field name="code">TT-SGL-L</field>
+            <field name="family_id" ref="layout_family_tt"/>
+            <field name="category">Tilt &amp; Turn Designs</field>
+            <field name="sequence">30</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_tiltturn')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "TILTTURN", "hinge": "left", "swing": "in"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_tt_right" model="aw.layout.preset">
+            <field name="name">Tilt &amp; Turn, hinge right</field>
+            <field name="code">TT-SGL-R</field>
+            <field name="family_id" ref="layout_family_tt"/>
+            <field name="category">Tilt &amp; Turn Designs</field>
+            <field name="sequence">31</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_tiltturn')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "TILTTURN", "hinge": "right", "swing": "in"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_tt_double" model="aw.layout.preset">
+            <field name="name">Tilt &amp; Turn pair</field>
+            <field name="code">TT-DBL</field>
+            <field name="family_id" ref="layout_family_tt"/>
+            <field name="category">Tilt &amp; Turn Designs</field>
+            <field name="sequence">32</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_tiltturn')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "TILTTURN", "hinge": "left", "swing": "in", "junction": "meeting"}, {"w": 1, "type": "TILTTURN", "hinge": "right", "swing": "in"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_tt_fix_left" model="aw.layout.preset">
+            <field name="name">Tilt &amp; Turn + Fixed (T&amp;T left)</field>
+            <field name="code">TT-FIX-L</field>
+            <field name="family_id" ref="layout_family_tt"/>
+            <field name="category">Tilt &amp; Turn Designs</field>
+            <field name="sequence">33</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_tiltturn')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "TILTTURN", "hinge": "left", "swing": "in"}, {"w": 1, "type": "FIXED"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_tt_fix_right" model="aw.layout.preset">
+            <field name="name">Tilt &amp; Turn + Fixed (T&amp;T right)</field>
+            <field name="code">TT-FIX-R</field>
+            <field name="family_id" ref="layout_family_tt"/>
+            <field name="category">Tilt &amp; Turn Designs</field>
+            <field name="sequence">34</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_tiltturn')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "FIXED"}, {"w": 1, "type": "TILTTURN", "hinge": "right", "swing": "in"}]}]}</field>
+        </record>
+
+        <record id="layout_preset_sld_3p2t" model="aw.layout.preset">
+            <field name="name">3 Panel 2 Track (S F S)</field>
+            <field name="code">SLD-3P2T</field>
+            <field name="family_id" ref="layout_family_sld"/>
+            <field name="category">Sliding Designs</field>
+            <field name="sequence">41</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_dg_sliding'),
+                ref('aw_fenestration_core.window_series_sg_sliding')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "SLIDER", "slide": "right", "track": 1}, {"w": 1, "type": "FIXED", "track": 2}, {"w": 1, "type": "SLIDER", "slide": "left", "track": 1}]}]}</field>
+        </record>
+
+        <record id="layout_preset_sld_3p3t" model="aw.layout.preset">
+            <field name="name">3 Panel 3 Track</field>
+            <field name="code">SLD-3P3T</field>
+            <field name="family_id" ref="layout_family_sld"/>
+            <field name="category">Sliding Designs</field>
+            <field name="sequence">42</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_dg_sliding'),
+                ref('aw_fenestration_core.window_series_sg_sliding')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "SLIDER", "slide": "right", "track": 1}, {"w": 1, "type": "SLIDER", "slide": "right", "track": 2}, {"w": 1, "type": "SLIDER", "slide": "left", "track": 3}]}]}</field>
+        </record>
+
+        <record id="layout_preset_sld_4p2t" model="aw.layout.preset">
+            <field name="name">4 Panel 2 Track (F S S F)</field>
+            <field name="code">SLD-4P2T</field>
+            <field name="family_id" ref="layout_family_sld"/>
+            <field name="category">Sliding Designs</field>
+            <field name="sequence">43</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_dg_sliding'),
+                ref('aw_fenestration_core.window_series_sg_sliding')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "FIXED", "track": 2}, {"w": 1, "type": "SLIDER", "slide": "left", "track": 1}, {"w": 1, "type": "SLIDER", "slide": "right", "track": 1}, {"w": 1, "type": "FIXED", "track": 2}]}]}</field>
+        </record>
+
+        <record id="layout_preset_sld_4p4t" model="aw.layout.preset">
+            <field name="name">4 Panel 4 Track</field>
+            <field name="code">SLD-4P4T</field>
+            <field name="family_id" ref="layout_family_sld"/>
+            <field name="category">Sliding Designs</field>
+            <field name="sequence">44</field>
+            <field name="series_ids" eval="[(6, 0, [
+                ref('aw_fenestration_core.window_series_dg_sliding'),
+                ref('aw_fenestration_core.window_series_sg_sliding')])]"/>
+            <field name="layout_json">{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "SLIDER", "slide": "right", "track": 1}, {"w": 1, "type": "SLIDER", "slide": "right", "track": 2}, {"w": 1, "type": "SLIDER", "slide": "left", "track": 3}, {"w": 1, "type": "SLIDER", "slide": "left", "track": 4}]}]}</field>
+        </record>
+
+    </data>
+</odoo>

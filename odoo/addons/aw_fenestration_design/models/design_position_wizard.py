@@ -32,4 +32,6 @@ class AwDesignPositionWizard(models.TransientModel):
             self.order_id.aw_default_series_id = self.window_series_id
         design = self.order_id._create_fenestration_position(
             self.window_series_id, name=self.name, location=self.location)
-        return design.action_open_design()
+        # Straight into the configurator (spec 4.4). The raw form stays
+        # reachable from there and from the Designs menu for admins.
+        return design.action_open_configurator()

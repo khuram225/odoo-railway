@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_layout_family_list" model="ir.ui.view">
+        <field name="name">aw.layout.family.list</field>
+        <field name="model">aw.layout.family</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="kind"/>
+                <field name="preset_count" string="Presets"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_layout_family_form" model="ir.ui.view">
+        <field name="name">aw.layout.family.form</field>
+        <field name="model">aw.layout.family</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archived"
+                            bg_color="text-bg-danger" invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="kind"/>
+                        </group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <div class="text-muted mb-2">
+                        <b>Layout</b> families replace the whole design layout
+                        when clicked. <b>Mesh</b> and <b>Infill</b> families
+                        apply to the selected panel instead (Phase 3).
+                    </div>
+                    <field name="preset_ids" readonly="1">
+                        <list>
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="code"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_layout_family" model="ir.actions.act_window">
+        <field name="name">Layout Families</field>
+        <field name="res_model">aw.layout.family</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+</odoo>

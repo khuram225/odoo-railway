@@ -83,6 +83,11 @@ class AwDesignLeaf(models.Model):
         ('left', 'Left'), ('right', 'Right'),
     ], help="Shown only for leaf types with has_slide_dir set.")
 
+    track_no = fields.Integer(
+        string='Track',
+        help="Which track a sliding panel runs on, counting 1 from the "
+             "innermost outwards. 0 on anything that doesn't slide.")
+
     junction_after = fields.Selection([
         ('mullion', 'Mullion'),
         ('meeting', 'Meeting'),

@@ -93,6 +93,11 @@
                 <header>
                     <button name="action_open_configurator" type="object"
                             string="Open Configurator" class="btn-primary"/>
+                    <button name="action_save_as_preset" type="object"
+                            string="Save as Preset"/>
+                    <button name="action_duplicate_position" type="object"
+                            string="Duplicate Position"
+                            invisible="not sale_order_line_id"/>
                     <button name="action_explode" type="object"
                             string="Explode BOM"/>
                 </header>

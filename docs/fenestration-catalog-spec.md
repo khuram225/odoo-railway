@@ -33,10 +33,10 @@ Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
 | Family → design type | `aw.layout.preset` (layout JSON, thumbnails, `series_ids` filter), text `category` | Family table; codes on presets → **P2** |
 | Parameters W×H, series, glass, finish, thickness | `aw.design` | — |
 | Panel type & opening hand | `aw.leaf.type` (7), hinge side, in/out, slide dir | — |
-| Arbitrary splits (vent over sash, transom over one panel) | Nested subdivision (`parent_leaf_id`) — handoff issued | Confirm deployed → **P1** |
-| Panel identification | Panel numbers (in progress) | — |
-| French casement / double T&T (sashes meet, no mullion) | Every junction treated as mullion | Junction type → **P1** |
-| Opening symbol convention | Hinge dot + fan lines to all corners (non-standard) | Standard triangle + legend → **P1** |
+| Arbitrary splits (vent over sash, transom over one panel) | Nested subdivision (`parent_leaf_id`), depth 3, floating toolbar | ✅ P1 |
+| Panel identification | `panel_no`, reading order, recursive, drawn as badges | ✅ P1 |
+| French casement / double T&T (sashes meet, no mullion) | `junction_after`, validity rules, drawn distinctly | ✅ P1 |
+| Opening symbol convention | Standard triangle (apex = hinge) + legend | ✅ P1 |
 | Sliding 2–12 panels, tracks, roles | 3 static presets | Sliding builder + `track_no` → **P2** |
 | Twin sash (glass + mesh on same opening) | Mesh only as a neighbouring leaf | Mesh attachment per panel → **P3** |
 | Pleated / roller mesh | — | Mesh types → **P3** |
@@ -71,18 +71,18 @@ Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
 
 ---
 
-## 3. Phase 1 — Geometry completeness
+## 3. Phase 1 — Geometry completeness  ✅ COMPLETE
 
-### 3.1 Nested subdivision (built in Phase 1)
+### 3.1 Nested subdivision ✅
 `aw.design.row.parent_leaf_id`; container leaves; recursive save, drawing,
 rescale, presets, thumbnails; depth limit 3; floating toolbar
 (split V / split H / remove / in-out / hinge side / slide dir).
 
-### 3.2 Panel numbers (in progress)
+### 3.2 Panel numbers ✅
 `aw.design.leaf.panel_no`, reading order, recursive; circles in drawing,
 selected = filled; mesh panels "M<n>".
 
-### 3.3 Junction type
+### 3.3 Junction type ✅
 - `aw.design.leaf.junction_after`: `mullion` | `meeting` | `interlock`
   — the boundary between this leaf and the next leaf in the same row.
   Empty on the last leaf of a row.
@@ -100,7 +100,7 @@ selected = filled; mesh panels "M<n>".
 - Seed two new Profile Positions: **Interlock**, **Meeting Stile**
   (used in P4 for BOM).
 
-### 3.4 Opening symbols + legend
+### 3.4 Opening symbols + legend ✅
 - Side-hung / casement: two dashed lines from the handle-side corners
   meeting at the midpoint of the hinge side (apex = hinge).
 - Top-hung (awning): apex at top edge midpoint. Bottom-hung (hopper): apex

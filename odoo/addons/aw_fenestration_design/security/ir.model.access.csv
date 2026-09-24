@@ -10,3 +10,6 @@ access_aw_design_bom_line_sales,aw.design.bom.line.sales,model_aw_design_bom_lin
 access_aw_design_position_wizard_sales,aw.design.position.wizard.sales,model_aw_design_position_wizard,group_fenestration_sales,1,1,1,1
 access_aw_layout_preset_user,aw.layout.preset.user,model_aw_layout_preset,base.group_user,1,0,0,0
 access_aw_layout_preset_manager,aw.layout.preset.manager,model_aw_layout_preset,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_layout_family_user,aw.layout.family.user,model_aw_layout_family,base.group_user,1,0,0,0
+access_aw_layout_family_manager,aw.layout.family.manager,model_aw_layout_family,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_design_preset_wizard_sales,aw.design.preset.wizard.sales,model_aw_design_preset_wizard,group_fenestration_sales,1,1,1,1

@@ -22,9 +22,13 @@
         pointer-events: none;
     }
 
+    // Same fill and outline as the outer frame: a mullion is the same
+    // kind of thing, a structural profile.
     .o_aw_junction_mullion,
     .o_aw_junction_transom {
-        fill: #6a7075;
+        fill: #8a9095;
+        stroke: #6a7075;
+        stroke-width: 0.5;
     }
 
     .o_aw_junction_interlock {
