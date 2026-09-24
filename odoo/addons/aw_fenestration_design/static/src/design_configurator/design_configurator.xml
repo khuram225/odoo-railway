@@ -261,13 +261,13 @@
                                              same physical size at any zoom. -->
                                         <circle class="o_aw_panel_badge"
                                                 t-att-cx="leaf.badge.cx" t-att-cy="leaf.badge.cy"
-                                                t-att-r="leaf.badge.r"
+                                                t-att-r="adornments.badgeR"
                                                 t-att-fill="leaf.selected ? '#6b4a63' : '#ffffff'"
                                                 t-att-stroke="leaf.selected ? '#6b4a63' : '#6a7075'"
-                                                t-att-stroke-width="leaf.badge.r * 0.12"/>
+                                                t-att-stroke-width="adornments.badgeR * 0.12"/>
                                         <text class="o_aw_panel_badge_text"
                                               t-att-x="leaf.badge.cx" t-att-y="leaf.badge.cy"
-                                              t-att-font-size="leaf.badge.font"
+                                              t-att-font-size="adornments.badgeFont"
                                               t-att-fill="leaf.selected ? '#ffffff' : '#14181b'"
                                               text-anchor="middle" dominant-baseline="central">
                                             <t t-esc="leaf.badge.label"/>
@@ -278,11 +278,11 @@
                                 <!-- Draggable dividers. Rendered AFTER the leaves
                                      so they paint on top and win the pointer;
                                      stroke width and hit area come from
-                                     dividerHits, which converts a constant CSS
-                                     pixel size into viewBox units, so neither
-                                     thins to a sliver when the drawing is
-                                     scaled down. -->
-                                <t t-foreach="dividerHits" t-as="divider" t-key="divider.key">
+                                     the adornments layer, which converts a
+                                     constant CSS pixel size into viewBox units,
+                                     so neither thins to a sliver when the
+                                     drawing is scaled down. -->
+                                <t t-foreach="adornments.dividers" t-as="divider" t-key="divider.key">
                                     <g t-attf-class="o_aw_divider o_aw_divider_{{divider.kind}}">
                                         <line class="o_aw_divider_line"
                                               t-att-x1="divider.x1" t-att-y1="divider.y1"

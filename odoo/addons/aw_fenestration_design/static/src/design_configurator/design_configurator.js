@@ -435,6 +435,22 @@ export class DesignConfigurator extends Component {
     // the same geometry is computed into a plain scene object and the
     // template renders it declaratively, so it re-renders reactively
     // whenever state changes instead of being torn down and rebuilt.
+    //
+    // THE DRAWING IS TWO LAYERS, AND THE ORDER MATTERS:
+    //
+    //   scene       pure drawing units. Frame, panels, divider positions,
+    //               dimension lines, viewBox. Must NOT read unitsPerPixel,
+    //               fitScale, zoom or canvas size -- including the viewBox
+    //               margins, which is why M below is a plain constant.
+    //   adornments  everything sized in screen pixels (badge radius and
+    //               font, divider stroke and hit width), derived from
+    //               scene AFTER the fact.
+    //
+    // fitScale reads scene.vbW/vbH, so anything scene reads back from
+    // fitScale is a cycle. Sizing the panel badges inside scene() did
+    // exactly that and crashed the configurator on open with
+    // "Maximum call stack size exceeded":
+    //     scene -> unitsPerPixel -> fitScale -> scene
     get scene() {
         const data = this.state.data;
         if (!data) {
@@ -461,12 +477,6 @@ export class DesignConfigurator extends Component {
         const dims = [];
         const rows = data.rows;
         const totH = rows.reduce((a, r) => a + (r.height_mm || 0), 0) || 1;
-
-        // Constant-in-CSS-pixels, like the dividers: a radius in viewBox
-        // units would balloon when zoomed in and vanish when zoomed out.
-        const upp = this.unitsPerPixel;
-        const badgeR = 11 * upp;
-        const badgeFont = 11 * upp;
 
         // Panel numbering mirrors aw.design._renumber_panels() exactly, so
         // numbers appear the moment a preset is applied rather than only
@@ -495,11 +505,12 @@ export class DesignConfigurator extends Component {
                     ri,
                     li,
                     panelNo,
+                    // Position and label only -- the badge's RADIUS and FONT
+                    // are screen-sized and live in `adornments`, which is
+                    // computed after this. See the layering note on scene().
                     badge: {
                         cx: rx + lw / 2,
                         cy: ry + rh / 2,
-                        r: badgeR,
-                        font: badgeFont,
                         // EvA marks mesh sashes M<n>; the counter is shared,
                         // so panel 3 being a mesh reads "M3".
                         label: isMesh ? `M${panelNo}` : String(panelNo),
@@ -832,33 +843,45 @@ export class DesignConfigurator extends Component {
     }
 
     /**
-     * Screen-constant sizes, expressed in viewBox units.
+     * One viewBox unit in CSS pixels, for the adornment layer only.
      *
      * A divider drawn 1.2 units wide with a 12-unit hit area looked fine
      * at one particular scale and became a near-invisible sliver once the
      * drawing was scaled down to fit. Dividing by the live scale keeps
-     * both constant in CSS pixels at any fit or zoom level.
+     * such things constant in CSS pixels at any fit or zoom level.
+     *
+     * Reads fitScale, therefore scene. Nothing scene touches may call it.
      */
     get unitsPerPixel() {
         const k = this.fitScale * this.state.zoom;
         return k > 0 ? 1 / k : 1;
     }
 
-    get dividerHits() {
+    /**
+     * The screen-sized layer: everything that must stay the same physical
+     * size however the drawing is scaled. Computed from scene, never the
+     * other way round.
+     */
+    get adornments() {
         const scene = this.scene;
         if (!scene) {
-            return [];
+            return { badgeR: 0, badgeFont: 0, dividers: [] };
         }
-        const hit = 14 * this.unitsPerPixel; // ~14 CSS px, comfortably grabbable
-        const stroke = 2 * this.unitsPerPixel;
-        return scene.dividers.map((d) => ({
-            ...d,
-            stroke,
-            hitX: d.kind === "v" ? d.x1 - hit / 2 : d.x1,
-            hitY: d.kind === "v" ? d.y1 : d.y1 - hit / 2,
-            hitW: d.kind === "v" ? hit : d.x2 - d.x1,
-            hitH: d.kind === "v" ? d.y2 - d.y1 : hit,
-        }));
+        const upp = this.unitsPerPixel;
+        const hit = 14 * upp; // ~14 CSS px, comfortably grabbable
+        const stroke = 2 * upp;
+        return {
+            badgeR: 11 * upp,
+            badgeFont: 11 * upp,
+            dividers: scene.dividers.map((d) => ({
+                ...d,
+                stroke,
+                hitX: d.kind === "v" ? d.x1 - hit / 2 : d.x1,
+                hitY: d.kind === "v" ? d.y1 : d.y1 - hit / 2,
+                hitW: d.kind === "v" ? hit : d.x2 - d.x1,
+                hitH: d.kind === "v" ? d.y2 - d.y1 : hit,
+            })),
+        };
     }
 
     onDividerPointerDown(divider, ev) {

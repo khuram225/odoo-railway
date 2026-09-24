@@ -391,15 +391,36 @@ from `.git/hooks` by default, which isn't tracked — enable once per clone):
   `static/src` (server-side QWeb is a different compiler and is
   unaffected), and ignores names inside comments.
 
+- `scripts/check_owl_getters.mjs` loads each OWL component's real class
+  (stripping only the unresolvable imports and the registry call),
+  builds it against a mocked state and reads every getter once. Catches
+  **getter cycles**, which crash the component on open with `RangeError:
+  Maximum call stack size exceeded` and are invisible to every other
+  check — valid XML, valid JS, `node --check` clean. One shipped:
+  `scene → unitsPerPixel → fitScale → scene`, from sizing the panel
+  badges inside `scene`. Note *why* it runs the real class: the offline
+  arithmetic tests that missed it were standalone reimplementations, so
+  they exercised the maths but never the getters, and a cycle only
+  exists between real getters.
+
+**The configurator's drawing is deliberately two layers, and the order
+is load-bearing**: `scene` is pure drawing units (frame, panels, divider
+positions, dimension lines, viewBox — including its margins) and must
+never read `unitsPerPixel`/`fitScale`/`zoom`/canvas size; `adornments`
+holds everything sized in screen pixels (badge radius and font, divider
+stroke and hit width) and is derived from `scene` afterwards. `fitScale`
+reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
+
 Enable the hook once per clone:
 
 ```
 git config core.hooksPath .githooks
 ```
 
-Until that's run, check manually before committing XML: `python
+Until that's run, check manually before committing XML or JS: `python
 scripts/check_xml_comments.py && python scripts/check_owl_names.py &&
-python scripts/check_load_order.py`.
+node scripts/check_owl_getters.mjs && python
+scripts/check_load_order.py`.
 
 ## Hard-won lessons
 

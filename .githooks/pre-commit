@@ -11,10 +11,12 @@
 #   git config core.hooksPath .githooks
 
 staged_xml=$(git diff --cached --name-only --diff-filter=ACM -- '*.xml')
-if [ -z "$staged_xml" ]; then
+staged_js=$(git diff --cached --name-only --diff-filter=ACM -- '*.js')
+if [ -z "$staged_xml" ] && [ -z "$staged_js" ]; then
     exit 0
 fi
 
 python scripts/check_xml_comments.py $staged_xml || exit 1
 python scripts/check_owl_names.py || exit 1
+node scripts/check_owl_getters.mjs || exit 1
 python scripts/check_load_order.py
