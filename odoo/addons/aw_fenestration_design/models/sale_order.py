@@ -91,16 +91,21 @@ class SaleOrder(models.Model):
         design has to exist before its form can open, so the Series has to
         be settled one way or the other up front."""
         self.ensure_one()
-        if self.aw_default_series_id:
-            design = self._create_fenestration_position(
-                self.aw_default_series_id)
-            return design.action_open_design()
-
         if not self.env['aw.window.series'].search_count([]):
             raise UserError(_(
                 "No Window Series exists yet. Create at least one under "
                 "Fenestration before adding positions to a quote."))
 
+        # The wizard opens even when the quote has a default Series, with
+        # that default pre-filled. It used to be skipped entirely, which
+        # made a one-off Series a detour: create the position, then go and
+        # change it on the design. One dialog, already answered, is
+        # cheaper than that.
+        context = {'default_order_id': self.id}
+        if self.aw_default_series_id:
+            context['default_window_series_id'] = self.aw_default_series_id.id
+            # Don't re-offer to set a default that is already set.
+            context['default_set_as_default'] = False
         return {
             'type': 'ir.actions.act_window',
             'name': _("Add Position"),
@@ -109,7 +114,7 @@ class SaleOrder(models.Model):
             'view_id': self.env.ref(
                 'aw_fenestration_design.view_aw_design_position_wizard_form').id,
             'target': 'new',
-            'context': {'default_order_id': self.id},
+            'context': context,
         }
 
 

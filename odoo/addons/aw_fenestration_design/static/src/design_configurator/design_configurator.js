@@ -11,6 +11,7 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { _t } from "@web/core/l10n/translation";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 
 const MM_PER_IN = 25.4;
 const MM_PER_FT = 304.8;
@@ -65,11 +66,11 @@ const ZOOM_MAX = 4;
 const ZOOM_STEP = 1.25;
 
 /**
- * Visual design configurator.
+ * Visual design configurator: the everyday editing screen for a design.
  *
- * Stage B: everything except the SVG itself, which is Stage C -- the
- * drawing area below is a placeholder on purpose, so the load/edit/save
- * round trip can be verified before the drawing code exists.
+ * Reads and writes the existing aw.design / row / leaf records through
+ * two server methods -- get_configurator_data() to load and
+ * save_layout() to store the whole tree in one transaction.
  */
 export class DesignConfigurator extends Component {
     static template = "aw_fenestration_design.DesignConfigurator";
@@ -79,6 +80,7 @@ export class DesignConfigurator extends Component {
         this.orm = useService("orm");
         this.notification = useService("notification");
         this.action = useService("action");
+        this.dialog = useService("dialog");
 
         this.designId =
             this.props.action.params?.design_id ||
@@ -239,6 +241,93 @@ export class DesignConfigurator extends Component {
         const ft = parseFloat(nums[0]) || 0;
         const inch = parseFloat(nums[1]) || 0;
         return ft * MM_PER_FT + inch * MM_PER_IN;
+    }
+
+    // -- Series -------------------------------------------------------------
+    get seriesOptions() {
+        return this.state.data?.series_options || [];
+    }
+
+    /** Leaf type codes used anywhere in the layout, containers skipped. */
+    usedLeafTypeCodes(rows) {
+        const codes = new Set();
+        const walk = (list) => {
+            for (const row of list) {
+                for (const leaf of row.leaves) {
+                    if (leaf.rows && leaf.rows.length) {
+                        walk(leaf.rows);
+                    } else if (leaf.leaf_type_code) {
+                        codes.add(leaf.leaf_type_code);
+                    }
+                }
+            }
+        };
+        walk(rows);
+        return codes;
+    }
+
+    async onSeriesChange(seriesId) {
+        const id = parseInt(seriesId, 10);
+        const option = this.seriesOptions.find((o) => o.id === id);
+        if (!option) {
+            return;
+        }
+        const allowed = new Set(option.leaf_type_codes);
+        const used = this.usedLeafTypeCodes(this.state.data.rows);
+        const unsupported = [...used].filter((c) => !allowed.has(c));
+
+        if (!unsupported.length) {
+            await this.applySeries(id, { reset: false });
+            return;
+        }
+        // The layout can't survive the switch. Ask rather than silently
+        // discarding work, and leave the old Series in place on cancel.
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Change Window Series"),
+            body: _t(
+                "%(series)s does not allow %(types)s, which this design " +
+                    "uses. Reset layout to a single panel?",
+                { series: option.name, types: unsupported.join(", ") }
+            ),
+            confirmLabel: _t("Reset layout"),
+            confirm: () => this.applySeries(id, { reset: true }),
+            cancel: () => {},
+        });
+    }
+
+    async applySeries(seriesId, { reset }) {
+        const context = await this.orm.call(
+            "aw.design",
+            "get_series_context",
+            [seriesId]
+        );
+        const option = this.seriesOptions.find((o) => o.id === seriesId);
+        this.state.data.header.window_series_id = seriesId;
+        this.state.data.header.window_series_name = option ? option.name : "";
+        this.state.data.leaf_types = context.leaf_types;
+        this.state.data.presets = context.presets;
+
+        if (reset) {
+            const first = context.leaf_types[0];
+            this.state.data.rows = [{
+                height_mm: this.state.data.header.height_mm,
+                is_auto: false,
+                leaves: [{
+                    width_mm: this.state.data.header.width_mm,
+                    is_auto: false,
+                    leaf_type_id: first ? first.id : false,
+                    leaf_type_code: first ? first.code : "",
+                    hinge_side: "",
+                    swing: "",
+                    slide_dir: "",
+                    junction_after: "",
+                    rows: [],
+                }],
+            }];
+        }
+        this.state.selected = null;
+        this.state.selectedDivider = null;
+        this.state.dirty = true;
     }
 
     // -- header ------------------------------------------------------------
@@ -517,9 +606,60 @@ export class DesignConfigurator extends Component {
         this.state.selected = null;
     }
 
+    /**
+     * Which junctions make sense at the selected boundary.
+     *
+     * A mullion always works. Meeting means the two sashes close against
+     * each other, so both sides have to open. Interlock is how two
+     * sliding sashes hook together where they overlap, so both sides have
+     * to slide. Invalid ones are offered but disabled, with the reason as
+     * the tooltip, rather than hidden -- hiding them makes the rule
+     * invisible.
+     */
+    get junctionOptions() {
+        const entry = this.selectedDividerEntry;
+        if (!entry) {
+            return [];
+        }
+        const types = this.state.data.leaf_types || [];
+        const typeOf = (code) => types.find((t) => t.code === code);
+        const opens = (code) => !!typeOf(code)?.has_hinge_side;
+        const slides = (code) => code === "SLIDER";
+        const bothSashes = opens(entry.leftCode) && opens(entry.rightCode);
+        const bothSliders = slides(entry.leftCode) && slides(entry.rightCode);
+        return [
+            {
+                value: "mullion",
+                label: _t("Mullion"),
+                enabled: true,
+                title: _t("Fixed bar between the panels; both close against it."),
+            },
+            {
+                value: "meeting",
+                label: _t("Meeting"),
+                enabled: bothSashes,
+                title: bothSashes
+                    ? _t("No bar; the two sashes close against each other.")
+                    : _t("Only between two opening sashes."),
+            },
+            {
+                value: "interlock",
+                label: _t("Interlock"),
+                enabled: bothSliders,
+                title: bothSliders
+                    ? _t("Sliding sashes hook together where they overlap.")
+                    : _t("Only between two sliding sashes."),
+            },
+        ];
+    }
+
     setJunction(value) {
         const entry = this.selectedDividerEntry;
         if (!entry) {
+            return;
+        }
+        const option = this.junctionOptions.find((o) => o.value === value);
+        if (option && !option.enabled) {
             return;
         }
         const rows = this.rowsAt(entry.path);
@@ -942,6 +1082,9 @@ export class DesignConfigurator extends Component {
                             // dragged rather than by the top level's scale.
                             unitsPerMM: box.w / totW,
                             junction: leaf.junction_after || "mullion",
+                            leftCode: leaf.leaf_type_code || "",
+                            rightCode:
+                                row.leaves[li + 1]?.leaf_type_code || "",
                             selected: this.state.selectedDivider === key,
                             x1: rx + lw,
                             y1: ry + 3,
@@ -1310,6 +1453,52 @@ export class DesignConfigurator extends Component {
         this.setToolbar({ show: true, left, top });
     }
 
+    /**
+     * The three junctions have to LOOK different, not just be stored
+     * differently: a solid bar, two thin lines with a gap and no bar, or
+     * two bars overlapping. Sized from the adornment stroke so they stay
+     * constant on screen at any zoom.
+     */
+    junctionShape(d, stroke) {
+        const y = Math.min(d.y1, d.y2);
+        const h = Math.abs(d.y2 - d.y1);
+        if (d.kind !== "v") {
+            return {
+                kind: "transom",
+                bars: [{ key: "t", x: d.x1, y: y - stroke / 2,
+                         w: Math.abs(d.x2 - d.x1), h: stroke }],
+                lines: [],
+            };
+        }
+        const x = d.x1;
+        if (d.junction === "meeting") {
+            const gap = stroke * 0.9;
+            return {
+                kind: "meeting",
+                bars: [],
+                lines: [
+                    { key: "a", x: x - gap, y1: y, y2: y + h, w: stroke * 0.45 },
+                    { key: "b", x: x + gap, y1: y, y2: y + h, w: stroke * 0.45 },
+                ],
+            };
+        }
+        if (d.junction === "interlock") {
+            return {
+                kind: "interlock",
+                bars: [
+                    { key: "a", x: x - stroke * 1.5, y, w: stroke * 2, h },
+                    { key: "b", x: x - stroke * 0.5, y, w: stroke * 2, h },
+                ],
+                lines: [],
+            };
+        }
+        return {
+            kind: "mullion",
+            bars: [{ key: "m", x: x - stroke * 1.5, y, w: stroke * 3, h }],
+            lines: [],
+        };
+    }
+
     /** The point the toolbar should point at, in SVG user units. */
     toolbarAnchorUnits() {
         const scene = this.scene;
@@ -1416,6 +1605,7 @@ export class DesignConfigurator extends Component {
             dividers: scene.dividers.map((d) => ({
                 ...d,
                 stroke,
+                shape: this.junctionShape(d, stroke),
                 hitX: d.kind === "v" ? d.x1 - hit / 2 : d.x1,
                 hitY: d.kind === "v" ? d.y1 : d.y1 - hit / 2,
                 hitW: d.kind === "v" ? hit : d.x2 - d.x1,
@@ -1559,6 +1749,93 @@ export class DesignConfigurator extends Component {
                 this.canvasRef.el.style.cursor = "";
             }
         }
+    }
+
+    // -- exact sizes by typing ---------------------------------------------
+    /**
+     * Move a size change onto a neighbour so the total never drifts.
+     *
+     * The sibling marked Automatic absorbs it if there is one -- that is
+     * what the flag means. Otherwise the right-hand neighbour does, or
+     * the left-hand one when the edited item is last. Refused outright if
+     * either side would end up below the minimum, leaving the old value
+     * in place, because silently clamping would show a number the user
+     * did not type.
+     */
+    resizeWithin(items, index, target, key, what) {
+        if (items.length < 2) {
+            this.notification.add(
+                _t("This is the only %s in its row, so its size follows the " +
+                   "design. Split it, or change the overall size.", what),
+                { type: "warning" }
+            );
+            return false;
+        }
+        if (!(target >= MIN_LEAF_MM)) {
+            this.notification.add(
+                _t("Minimum %(what)s is %(min)s.",
+                   { what, min: this.formatLength(MIN_LEAF_MM) }),
+                { type: "warning" }
+            );
+            return false;
+        }
+        let absorber = items.findIndex((it, i) => i !== index && it.is_auto);
+        if (absorber === -1) {
+            absorber = index + 1 < items.length ? index + 1 : index - 1;
+        }
+        const delta = target - (items[index][key] || 0);
+        const absorbed = (items[absorber][key] || 0) - delta;
+        if (absorbed < MIN_LEAF_MM) {
+            this.notification.add(
+                _t("There is not enough room: the neighbouring %(what)s would " +
+                   "fall below the minimum of %(min)s.",
+                   { what, min: this.formatLength(MIN_LEAF_MM) }),
+                { type: "warning" }
+            );
+            return false;
+        }
+        items[index][key] = target;
+        items[absorber][key] = absorbed;
+        this.state.dirty = true;
+        return true;
+    }
+
+    setPanelWidth(text) {
+        const path = this.state.selected;
+        if (!this.selectedPanel || !path || !path.length) {
+            return;
+        }
+        const rows = this.rowsAt(path.slice(0, -1));
+        const [ri, li] = path[path.length - 1];
+        this.resizeWithin(
+            rows[ri].leaves, li, this.parseLength(text), "width_mm",
+            _t("panel"));
+    }
+
+    setPanelHeight(text) {
+        const path = this.state.selected;
+        if (!this.selectedPanel || !path || !path.length) {
+            return;
+        }
+        const rows = this.rowsAt(path.slice(0, -1));
+        const ri = path[path.length - 1][0];
+        this.resizeWithin(
+            rows, ri, this.parseLength(text), "height_mm", _t("row"));
+    }
+
+    get selectedPanelWidthText() {
+        const leaf = this.selectedPanel;
+        return leaf ? this.formatLength(leaf.width_mm || 0) : "";
+    }
+
+    get selectedPanelHeightText() {
+        const path = this.state.selected;
+        if (!this.selectedPanel || !path || !path.length) {
+            return "";
+        }
+        const rows = this.rowsAt(path.slice(0, -1));
+        const row = rows[path[path.length - 1][0]];
+        return row ? this.formatLength(row.height_mm || 0) : "";
     }
 
     // -- save --------------------------------------------------------------

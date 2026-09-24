@@ -55,11 +55,18 @@ function make(rows, W = 2438.4, H = 3200.4) {
     c.state = {
         loading: false, dirty: false, zoom: 1, canvasW: 900, canvasH: 600,
         libraryOpen: true, selected: null, selectedDivider: null,
+        toolbar: { show: false, left: 0, top: 0 },
         data: {
             id: 1, length_uom: "ftin", size_display: "",
             header: { name: "D1", location: "", qty: 1, width_mm: W, height_mm: H,
                       window_series_id: 1, window_series_name: "Casement Single Glaze" },
             rows, leaf_types: LEAF_TYPES, presets: [],
+            series_options: [
+                { id: 1, name: "Casement Single Glaze",
+                  leaf_type_codes: ["FIXED", "CASEMENT", "MESH"] },
+                { id: 2, name: "Double Glaze Sliding",
+                  leaf_type_codes: ["FIXED", "SLIDER", "MESH"] },
+            ],
         },
     };
     c.canvasRef = { el: null };
@@ -336,8 +343,10 @@ console.log("\n  a divider is selected on pointerdown, not by a click:");
     ok(!!da, "and the floating toolbar anchors to the divider");
     near(da.x, (d.x1 + d.x2) / 2, "anchored on the divider's mid-line");
     c.endDrag();
-    c.setJunction("interlock");
-    ok(c.scene.dividers[0].junction === "interlock", "setJunction writes through");
+    // interlock is invalid between two casements now, so this asserts on a
+    // junction that IS offered there -- the refusal is covered separately.
+    c.setJunction("mullion");
+    ok(c.scene.dividers[0].junction === "mullion", "setJunction writes through");
 }
 
 console.log("\nSELECTION STATES (the Phase 1 crash):");
@@ -391,6 +400,184 @@ console.log("\nSELECTION STATES (the Phase 1 crash):");
         void c.selectionMode; void c.selectedPanelSize; void c.selectedPanelLabel;
     } catch (e) { threw = e; }
     ok(!threw, "a stale selection path degrades quietly");
+}
+
+console.log("\nJUNCTION VALIDITY (only what makes sense):");
+{
+    const two = (a, b, extraA = {}, extraB = {}) => make([{
+        height_mm: 1500, is_auto: false,
+        leaves: [panel(600, a, extraA), panel(600, b, extraB)],
+    }], 1200, 1500);
+
+    const select = (c) => {
+        c.clientToUser = (ev) => ({ x: ev.clientX, y: ev.clientY });
+        c.onDividerPointerDown(c.scene.dividers[0], {
+            preventDefault() {}, stopPropagation() {}, clientX: 0, clientY: 0 });
+        c.endDrag();
+        return Object.fromEntries(c.junctionOptions.map((o) => [o.value, o]));
+    };
+
+    const sashes = select(two("CASEMENT", "CASEMENT",
+                              { hinge_side: "left" }, { hinge_side: "right" }));
+    ok(sashes.mullion.enabled, "two sashes: mullion allowed");
+    ok(sashes.meeting.enabled, "two sashes: meeting allowed");
+    ok(!sashes.interlock.enabled, "two sashes: interlock NOT allowed");
+    ok(/two sliding/i.test(sashes.interlock.title),
+       `and says why: "${sashes.interlock.title}"`);
+
+    const sliders = select(two("SLIDER", "SLIDER"));
+    ok(sliders.interlock.enabled, "two sliders: interlock allowed");
+    ok(!sliders.meeting.enabled, "two sliders: meeting NOT allowed");
+    ok(/two opening sashes/i.test(sliders.meeting.title),
+       `and says why: "${sliders.meeting.title}"`);
+    ok(sliders.mullion.enabled, "two sliders: mullion still allowed");
+
+    const mixed = select(two("FIXED", "CASEMENT", {}, { hinge_side: "right" }));
+    ok(mixed.mullion.enabled, "fixed + casement: only mullion");
+    ok(!mixed.meeting.enabled && !mixed.interlock.enabled,
+       "fixed + casement: meeting and interlock both refused");
+    ok(mixed.mullion.title.length > 0 && mixed.meeting.title.length > 0,
+       "every option carries a tooltip");
+
+    // A disabled option must not be settable, even programmatically.
+    const c = two("FIXED", "CASEMENT", {}, { hinge_side: "right" });
+    select(c);
+    c.setJunction("interlock");
+    ok(c.scene.dividers[0].junction !== "interlock",
+       "setJunction refuses a disabled option");
+}
+
+console.log("\n  and the drawing differs per junction type:");
+{
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT", { hinge_side: "left" }),
+        panel(600, "CASEMENT", { hinge_side: "right" }),
+    ] }], 1200, 1500);
+    const shapeFor = (j) => {
+        c.state.data.rows[0].leaves[0].junction_after = j;
+        return c.adornments.dividers[0].shape;
+    };
+    const mull = shapeFor("mullion");
+    const meet = shapeFor("meeting");
+    const lock = shapeFor("interlock");
+
+    ok(mull.kind === "mullion" && mull.bars.length === 1 && !mull.lines.length,
+       "mullion: one solid bar, no lines");
+    ok(meet.kind === "meeting" && !meet.bars.length && meet.lines.length === 2,
+       "meeting: two lines and NO bar");
+    ok(lock.kind === "interlock" && lock.bars.length === 2,
+       "interlock: two bars, overlapping");
+    const [a, b] = lock.bars;
+    ok(a.x < b.x && a.x + a.w > b.x, "and they genuinely overlap");
+    ok(JSON.stringify(mull) !== JSON.stringify(meet) &&
+       JSON.stringify(meet) !== JSON.stringify(lock) &&
+       JSON.stringify(mull) !== JSON.stringify(lock),
+       "all three shapes are distinct in the scene");
+
+    shapeFor("mullion"); // the loop below measures the mullion bar
+    for (const z of [0.25, 4]) {
+        c.state.zoom = z;
+        const px = c.adornments.dividers[0].shape.bars[0].w * c.fitScale * z;
+        near(px, 2 * 3, `zoom ${z * 100}%: mullion bar stays ${px.toFixed(1)}px`);
+    }
+    c.state.zoom = 1;
+}
+
+console.log("\nEXACT PANEL SIZES by typing:");
+{
+    const mk = () => make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "FIXED"), panel(600, "FIXED"),
+    ] }], 1200, 1500);
+
+    // These mocks are in ft+in, so sizes are typed that way.
+    const c2 = mk();
+    c2.notification = { add: () => {} };
+    c2.selectLeaf([[0, 0]]);
+    const target = 2 * 304.8 + 6 * 25.4; // 2 ft 6 in
+    c2.setPanelWidth("2 6");
+    const lv = c2.state.data.rows[0].leaves;
+    near(lv[0].width_mm, target, "typed width applied exactly");
+    near(lv[0].width_mm + lv[1].width_mm, 1200, "total width unchanged");
+
+    // Automatic sibling absorbs in preference to the neighbour.
+    const c3 = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(400, "FIXED"), panel(400, "FIXED", { is_auto: true }),
+        panel(400, "FIXED"),
+    ] }], 1200, 1500);
+    c3.notification = { add: () => {} };
+    c3.selectLeaf([[0, 0]]);
+    c3.setPanelWidth("2 0");
+    const l3 = c3.state.data.rows[0].leaves;
+    near(l3[2].width_mm, 400, "non-auto neighbour untouched");
+    near(l3[0].width_mm + l3[1].width_mm + l3[2].width_mm, 1200,
+         "total still exact, the Automatic panel absorbed it");
+
+    // Refusals keep the old value.
+    const c4 = mk();
+    let warned = 0;
+    c4.notification = { add: () => { warned += 1; } };
+    c4.selectLeaf([[0, 0]]);
+    c4.setPanelWidth("0 1");           // 1 inch, below the 4in minimum
+    near(c4.state.data.rows[0].leaves[0].width_mm, 600, "below minimum: refused");
+    ok(warned === 1, "and the user was told");
+
+    c4.setPanelWidth("3 10");          // would starve the neighbour
+    near(c4.state.data.rows[0].leaves[0].width_mm, 600,
+         "no room for the neighbour: refused");
+    ok(warned === 2, "and told again");
+
+    // Sole panel in its row can't be resized this way.
+    const c5 = make([{ height_mm: 1500, is_auto: false,
+                       leaves: [panel(1200, "FIXED")] }], 1200, 1500);
+    let told = 0;
+    c5.notification = { add: () => { told += 1; } };
+    c5.selectLeaf([[0, 0]]);
+    c5.setPanelWidth("2 0");
+    near(c5.state.data.rows[0].leaves[0].width_mm, 1200, "sole panel unchanged");
+    ok(told === 1, "explained rather than silently ignored");
+
+    // Height edits the row, and rows still sum to the design height.
+    const c6 = make([
+        { height_mm: 750, is_auto: false, leaves: [panel(1200, "FIXED")] },
+        { height_mm: 750, is_auto: false, leaves: [panel(1200, "FIXED")] },
+    ], 1200, 1500);
+    c6.notification = { add: () => {} };
+    c6.selectLeaf([[0, 0]]);
+    c6.setPanelHeight("3 0");          // 914.4mm
+    near(c6.state.data.rows[0].height_mm, 914.4, "typed height applied");
+    near(c6.state.data.rows[0].height_mm + c6.state.data.rows[1].height_mm, 1500,
+         "rows still sum to the design height");
+}
+
+console.log("\nSERIES SWITCH:");
+{
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "SLIDER"), panel(600, "SLIDER"),
+    ] }], 1200, 1500);
+    const used = c.usedLeafTypeCodes(c.state.data.rows);
+    ok(used.has("SLIDER") && used.size === 1, "collects the codes actually used");
+
+    const casement = c.seriesOptions.find((o) => o.name === "Casement Single Glaze");
+    const unsupported = [...used].filter(
+        (x) => !casement.leaf_type_codes.includes(x));
+    ok(unsupported.length === 1 && unsupported[0] === "SLIDER",
+       "switching a slider design to Casement would strand SLIDER -> prompts");
+
+    const sliding = c.seriesOptions.find((o) => o.name === "Double Glaze Sliding");
+    ok([...used].every((x) => sliding.leaf_type_codes.includes(x)),
+       "switching to another sliding Series keeps the layout, no prompt");
+
+    // Containers are skipped -- they have no type of their own.
+    const nested = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "FIXED"),
+        { width_mm: 600, is_auto: false, leaf_type_id: false, leaf_type_code: "",
+          hinge_side: "", swing: "", slide_dir: "", junction_after: "",
+          rows: [{ height_mm: 1500, is_auto: false,
+                   leaves: [panel(600, "CASEMENT", { hinge_side: "left" })] }] },
+    ] }], 1200, 1500);
+    const nestedUsed = nested.usedLeafTypeCodes(nested.state.data.rows);
+    ok(nestedUsed.has("FIXED") && nestedUsed.has("CASEMENT") && nestedUsed.size === 2,
+       "recurses into containers and ignores the container itself");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

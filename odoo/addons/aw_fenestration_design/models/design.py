@@ -383,6 +383,35 @@ class AwDesign(models.Model):
             } for leaf in row.leaf_ids],
         } for row in rows]
 
+    @api.model
+    def get_series_context(self, series_id):
+        """Everything that depends on WHICH Series is chosen: the leaf
+        types it can host and the presets that fit them.
+
+        Separate from get_configurator_data so switching Series in the
+        configurator refetches only this, leaving the layout the user is
+        working on untouched.
+        """
+        series = self.env['aw.window.series'].browse(series_id).exists()
+        presets = self.env['aw.layout.preset'].search(
+            [])._allowed_for_series(series) if series else self.env[
+                'aw.layout.preset']
+        return {
+            'leaf_types': [{
+                'id': lt.id,
+                'code': lt.code or '',
+                'name': lt.display_name,
+                'has_hinge_side': lt.has_hinge_side,
+                'has_slide_dir': lt.has_slide_dir,
+            } for lt in series.leaf_type_ids],
+            'presets': [{
+                'id': p.id,
+                'name': p.name,
+                'category': p.category or '',
+                'layout': p._layout(),
+            } for p in presets],
+        }
+
     def get_configurator_data(self):
         """Everything the configurator needs, in one round trip: header,
         geometry, the unit setting, the Series' allowed leaf types, and
@@ -408,6 +437,11 @@ class AwDesign(models.Model):
                 'thickness_id': self.thickness_id.id,
             },
             'size_display': self.size_display,
+            'series_options': [{
+                'id': s.id,
+                'name': s.display_name,
+                'leaf_type_codes': [c for c in s.leaf_type_ids.mapped('code') if c],
+            } for s in self.env['aw.window.series'].search([])],
             'rows': self._rows_payload(self.row_ids),
             'leaf_types': [{
                 'id': lt.id,

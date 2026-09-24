@@ -118,6 +118,10 @@ const TARGETS = [
             "selectionMode",
             "selectedPanel",
             "selectedPanelSize",
+            "selectedPanelWidthText",
+            "selectedPanelHeightText",
+            "seriesOptions",
+            "junctionOptions",
         ],
         // Every getter is read under EACH of these. A selection bug only
         // shows in one state -- the crash this check was extended for

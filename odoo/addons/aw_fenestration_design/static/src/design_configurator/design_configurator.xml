@@ -61,9 +61,15 @@
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Series</label>
-                            <div class="form-control form-control-sm bg-light">
-                                <t t-esc="state.data.header.window_series_name"/>
-                            </div>
+                            <select class="form-select form-select-sm"
+                                    t-on-change="(ev) => this.onSeriesChange(ev.target.value)">
+                                <t t-foreach="seriesOptions" t-as="opt" t-key="opt.id">
+                                    <option t-att-value="opt.id"
+                                            t-att-selected="opt.id === state.data.header.window_series_id">
+                                        <t t-esc="opt.name"/>
+                                    </option>
+                                </t>
+                            </select>
                         </div>
                         <div class="ms-auto d-flex gap-2">
                             <button class="btn btn-sm btn-secondary" t-on-click="openForm">
@@ -196,11 +202,13 @@
                                 </t>
 
                                 <t t-else="">
-                                    <t t-foreach="['mullion', 'meeting', 'interlock']" t-as="jt" t-key="jt">
-                                        <button class="btn btn-sm text-capitalize"
-                                                t-att-class="selectedDividerEntry.junction === jt ? 'btn-primary' : 'btn-light'"
-                                                t-on-click="() => this.setJunction(jt)">
-                                            <t t-esc="jt"/>
+                                    <t t-foreach="junctionOptions" t-as="opt" t-key="opt.value">
+                                        <button class="btn btn-sm"
+                                                t-att-class="selectedDividerEntry.junction === opt.value ? 'btn-primary' : 'btn-light'"
+                                                t-att-disabled="!opt.enabled"
+                                                t-att-title="opt.title"
+                                                t-on-click="() => this.setJunction(opt.value)">
+                                            <t t-esc="opt.label"/>
                                         </button>
                                     </t>
                                 </t>
@@ -329,40 +337,23 @@
                                      drawing is scaled down. -->
                                 <t t-foreach="adornments.dividers" t-as="divider" t-key="divider.key">
                                     <g t-attf-class="o_aw_divider o_aw_divider_{{divider.kind}}{{divider.selected ? ' o_aw_divider_selected' : ''}}">
-                                        <!-- Junction is drawn, not just stored:
-                                             mullion is one solid bar, meeting is
-                                             two thin lines with no bar between,
-                                             interlock is two overlapping edges. -->
-                                        <t t-if="divider.junction === 'meeting'">
-                                            <line class="o_aw_divider_line"
-                                                  t-att-x1="divider.x1 - divider.stroke"
-                                                  t-att-y1="divider.y1"
-                                                  t-att-x2="divider.x2 - divider.stroke"
-                                                  t-att-y2="divider.y2"
-                                                  t-att-stroke-width="divider.stroke * 0.5"/>
-                                            <line class="o_aw_divider_line"
-                                                  t-att-x1="divider.x1 + divider.stroke"
-                                                  t-att-y1="divider.y1"
-                                                  t-att-x2="divider.x2 + divider.stroke"
-                                                  t-att-y2="divider.y2"
-                                                  t-att-stroke-width="divider.stroke * 0.5"/>
+                                        <!-- Junction is drawn, not just stored.
+                                             The shapes come from
+                                             adornments.junctionShape, so each
+                                             type looks different: mullion a
+                                             solid bar, meeting two thin lines
+                                             with a gap and NO bar, interlock two
+                                             bars overlapping. -->
+                                        <t t-foreach="divider.shape.bars" t-as="bar" t-key="bar.key">
+                                            <rect t-attf-class="o_aw_junction o_aw_junction_{{divider.shape.kind}}"
+                                                  t-att-x="bar.x" t-att-y="bar.y"
+                                                  t-att-width="bar.w" t-att-height="bar.h"/>
                                         </t>
-                                        <t t-elif="divider.junction === 'interlock'">
-                                            <rect class="o_aw_divider_interlock"
-                                                  t-att-x="divider.x1 - divider.stroke * 1.5"
-                                                  t-att-y="divider.y1"
-                                                  t-att-width="divider.stroke * 3"
-                                                  t-att-height="divider.y2 - divider.y1"/>
+                                        <t t-foreach="divider.shape.lines" t-as="ln" t-key="ln.key">
                                             <line class="o_aw_divider_line"
-                                                  t-att-x1="divider.x1" t-att-y1="divider.y1"
-                                                  t-att-x2="divider.x2" t-att-y2="divider.y2"
-                                                  t-att-stroke-width="divider.stroke * 0.6"/>
-                                        </t>
-                                        <t t-else="">
-                                            <line class="o_aw_divider_line"
-                                                  t-att-x1="divider.x1" t-att-y1="divider.y1"
-                                                  t-att-x2="divider.x2" t-att-y2="divider.y2"
-                                                  t-att-stroke-width="divider.stroke"/>
+                                                  t-att-x1="ln.x" t-att-y1="ln.y1"
+                                                  t-att-x2="ln.x" t-att-y2="ln.y2"
+                                                  t-att-stroke-width="ln.w"/>
                                         </t>
                                         <rect class="o_aw_divider_hit"
                                               t-att-x="divider.hitX" t-att-y="divider.hitY"
@@ -431,19 +422,36 @@
                                     Boundary between two panels
                                 </div>
                                 <div class="d-flex flex-wrap gap-1 mb-3">
-                                    <t t-foreach="['mullion', 'meeting', 'interlock']" t-as="jt" t-key="jt">
-                                        <button class="btn btn-sm text-capitalize"
-                                                t-att-class="selectedDividerEntry.junction === jt ? 'btn-primary' : 'btn-outline-secondary'"
-                                                t-on-click="() => this.setJunction(jt)">
-                                            <t t-esc="jt"/>
+                                    <t t-foreach="junctionOptions" t-as="opt" t-key="opt.value">
+                                        <button class="btn btn-sm"
+                                                t-att-class="selectedDividerEntry.junction === opt.value ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-att-disabled="!opt.enabled"
+                                                t-att-title="opt.title"
+                                                t-on-click="() => this.setJunction(opt.value)">
+                                            <t t-esc="opt.label"/>
                                         </button>
                                     </t>
                                 </div>
                             </t>
 
                             <t t-else="">
-                                <div class="mb-3 small text-muted">
-                                    <t t-esc="selectedPanelSize"/>
+                                <div class="row g-2 mb-3">
+                                    <div class="col-6">
+                                        <label class="form-label small text-muted mb-0">
+                                            Width (<t t-esc="uomLabel"/>)
+                                        </label>
+                                        <input type="text" class="form-control form-control-sm"
+                                               t-att-value="selectedPanelWidthText"
+                                               t-on-change="(ev) => this.setPanelWidth(ev.target.value)"/>
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small text-muted mb-0">
+                                            Height (<t t-esc="uomLabel"/>)
+                                        </label>
+                                        <input type="text" class="form-control form-control-sm"
+                                               t-att-value="selectedPanelHeightText"
+                                               t-on-change="(ev) => this.setPanelHeight(ev.target.value)"/>
+                                    </div>
                                 </div>
 
                                 <!-- Panel toolbar -->
