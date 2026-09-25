@@ -61,6 +61,12 @@ aw_fenestration_stock) that depend on this one.
         'views/product_catalogue_views.xml',
         'views/menu_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'aw_fenestration_core/static/src/**/*.js',
+            'aw_fenestration_core/static/src/**/*.xml',
+        ],
+    },
     'installable': True,
     'application': True,
 }

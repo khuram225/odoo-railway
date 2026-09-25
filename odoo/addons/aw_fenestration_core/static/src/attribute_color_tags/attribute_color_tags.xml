@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!--
+    PRIMARY inherit: this creates a new template and leaves
+    web.Many2ManyTagsField untouched, so a mistake here breaks this one
+    widget rather than every tag list in the backend.
+
+    Only the <TagsList/> node is replaced. The markup below is the same
+    shape TagsList produces, so a tag with no html_color keeps the
+    standard o_tag_color_N class and looks exactly as it does
+    everywhere else; only a tag WITH a colour gets an inline style.
+    -->
+    <t t-name="aw_fenestration_core.AttributeColorTagsField"
+       t-inherit="web.Many2ManyTagsField"
+       t-inherit-mode="primary">
+        <xpath expr="//TagsList" position="replace">
+            <t t-foreach="tags" t-as="tag" t-key="tag.id">
+                <span class="o_tag position-relative d-inline-flex align-items-center user-select-none mw-100 o_badge badge rounded-pill"
+                      t-attf-class="{{ tag.style ? '' : 'o_tag_color_' + (tag.colorIndex or '0') }}"
+                      t-att-style="tag.style"
+                      t-att-data-tooltip="tag.text"
+                      tabindex="-1">
+                    <div class="o_tag_badge_text text-truncate" t-out="tag.text"/>
+                    <a t-if="tag.onDelete"
+                       t-on-click.stop.prevent="(ev) => tag.onDelete(ev)"
+                       class="o_delete d-flex align-items-center opacity-100-hover ps-1 opacity-75"
+                       data-tooltip="Delete"
+                       aria-label="Delete"
+                       tabindex="-1"
+                       href="#">
+                        <i class="oi oi-close align-text-top"/>
+                    </a>
+                </span>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

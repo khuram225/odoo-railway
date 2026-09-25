@@ -505,6 +505,20 @@ one. Seeded once, guarded by a parameter, because re-imposing the
 display type every upgrade would silently undo a deliberate switch back
 to a dropdown.
 
+**`standard_price` is only ours under Standard Price costing.** Under
+AVCO it IS the running average stock valuation maintains, and
+`stock_account`'s `_change_standard_price()` turns a write into an
+inventory revaluation -- so importing a price list would move the stock
+ledger. Under FIFO it is a leftover valuation ignores. The sync
+therefore writes only when the costing method is `standard`, reports
+what it refused, and the stat button swaps to a disabled "Cost owned by
+stock valuation" one. **`cost_method` is defined by `stock_account`,
+which this module does NOT depend on**, so it is read through
+`product.template._aw_cost_method()`, which checks `_fields` first and
+answers `'standard'` when the field is absent -- no valuation module
+means nothing to corrupt. Naming it in an `@api.depends` would break
+the registry at load on a database without stock_account.
+
 **Costs come from rates, never the other way round.**
 `product.product.aw_rate_per_ft` / `aw_rate_date` are computed and NOT
 stored: the rate in force changes with the date and with every import,

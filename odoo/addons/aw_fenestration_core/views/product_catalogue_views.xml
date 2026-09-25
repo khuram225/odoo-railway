@@ -39,6 +39,8 @@
                             combination — variants are created on
                             demand, and the rate applies either way.
                         </div>
+                        <field name="aw_cost_method" readonly="1"
+                               string="Costing method"/>
                         <field name="aw_current_rate_ids" nolabel="1"
                                colspan="2" readonly="1">
                             <list decoration-muted="not variant_exists">
@@ -65,13 +67,24 @@
             </xpath>
 
             <xpath expr="//div[@name='button_box']" position="inside">
+                <field name="aw_cost_sync_allowed" invisible="1"/>
                 <button name="action_aw_update_costs_from_rates"
                         type="object" class="oe_stat_button"
                         icon="fa-refresh"
-                        invisible="not aw_catalogue_code and not aw_catalogue_page">
+                        invisible="not aw_cost_sync_allowed or (not aw_catalogue_code and not aw_catalogue_page)">
                     <div class="o_field_widget o_stat_info">
                         <span class="o_stat_text">Update costs</span>
                         <span class="o_stat_text">from rates</span>
+                    </div>
+                </button>
+                <button name="action_aw_update_costs_from_rates"
+                        type="object" class="oe_stat_button"
+                        icon="fa-ban" disabled="1"
+                        title="Cost is owned by stock valuation under AVCO and FIFO. Writing it from a supplier rate would revalue your stock."
+                        invisible="aw_cost_sync_allowed or (not aw_catalogue_code and not aw_catalogue_page)">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Cost owned by</span>
+                        <span class="o_stat_text">stock valuation</span>
                     </div>
                 </button>
             </xpath>
@@ -103,10 +116,36 @@
                         <field name="aw_finish_name"/>
                         <field name="aw_rate_per_ft" string="PKR / ft"/>
                         <field name="aw_rate_date" string="Effective from"/>
+                        <field name="aw_cost_from_rate"
+                               string="Cost / m from rate"/>
+                        <field name="aw_cost_method"
+                               string="Costing method"/>
                         <field name="aw_has_rate" invisible="1"/>
+                        <field name="aw_cost_sync_allowed" invisible="1"/>
+                        <div class="text-muted" colspan="2"
+                             invisible="aw_cost_sync_allowed">
+                            Cost is not written from the rate here: under
+                            AVCO and FIFO it belongs to stock valuation.
+                            The figure above is for reference.
+                        </div>
                     </group>
                 </page>
             </xpath>
+        </field>
+    </record>
+
+    <record id="view_product_template_attr_tags_fenestration" model="ir.ui.view">
+        <field name="name">product.template.form.attr.tags.aw_fenestration_core</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            <!-- Paint attribute-value tags with their own html_color
+                 instead of Odoo's 12-colour index, which reads as
+                 random for Finish. Falls back to the normal tag for any
+                 value with no colour. -->
+            <field name="value_ids" position="attributes">
+                <attribute name="widget">aw_attribute_color_tags</attribute>
+            </field>
         </field>
     </record>
 

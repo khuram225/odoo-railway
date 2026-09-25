@@ -191,6 +191,8 @@ class AwProfileRateImport(models.TransientModel):
                 ('product_tmpl_id', 'in',
                  created.mapped('product_tmpl_id').ids),
             ])
+            # Returns (updated, blocked); the blocked ones are left
+            # to the costing method, not forced.
             variants._aw_sync_cost_from_rate()
 
         # Profiles in the catalogue that this list never priced. These

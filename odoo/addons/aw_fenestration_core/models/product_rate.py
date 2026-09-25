@@ -79,26 +79,66 @@ class ProductProduct(models.Model):
             variant.aw_rate_per_ft = rate.price if rate else 0.0
             variant.aw_rate_date = rate.date_from if rate else False
             variant.aw_has_rate = bool(rate)
+            variant.aw_cost_from_rate = (
+                rate.price * FEET_PER_METRE) if rate else 0.0
 
     # ------------------------------------------------------------------
+    aw_cost_from_rate = fields.Float(
+        string='Cost / m from rate', compute='_compute_aw_rate',
+        digits='Product Price',
+        help="What the cost would be if written from the current rate. "
+             "Shown even when the costing method forbids writing it.")
+    aw_cost_sync_allowed = fields.Boolean(
+        compute='_compute_aw_cost_sync_allowed')
+    aw_cost_method = fields.Char(
+        string='Costing Method', compute='_compute_aw_cost_sync_allowed')
+
+    # NOT @api.depends('cost_method'): that field belongs to
+    # stock_account, which this module does not depend on, and naming a
+    # field that may not exist breaks the registry at load. See
+    # _aw_cost_method().
+    @api.depends('product_tmpl_id')
+    def _compute_aw_cost_sync_allowed(self):
+        """Only Standard Price costing owns standard_price.
+
+        Under AVCO the field IS the running average that stock
+        valuation maintains, and under FIFO it is a leftover that
+        valuation ignores. Writing either from a supplier rate does not
+        just put a wrong number on screen -- `_change_standard_price()`
+        turns a change under AVCO into an inventory revaluation, so the
+        stock ledger would move because a price list was imported.
+        """
+        for variant in self:
+            method = variant.product_tmpl_id._aw_cost_method()
+            variant.aw_cost_method = method
+            variant.aw_cost_sync_allowed = method == 'standard'
+
     def _aw_sync_cost_from_rate(self):
         """Write standard_price from the rate, per metre.
 
-        Variants with no rate are LEFT ALONE rather than zeroed: a cost
-        somebody entered by hand is worth more than a zero this module
-        is confident about, and zeroing it would silently change what a
-        quote is measured against.
+        Returns (updated, blocked). Two things are deliberately never
+        written:
+
+        - a variant with NO rate is left alone rather than zeroed: a
+          hand-entered cost is worth more than a zero this module is
+          confident about;
+        - a variant whose product is costed AVCO or FIFO is left alone
+          whatever its rate, because there standard_price belongs to
+          stock valuation.
         """
-        updated = self.env['product.product']
+        updated = blocked = self.env['product.product']
         for variant in self:
             if not variant.aw_has_rate:
+                continue
+            if not variant.aw_cost_sync_allowed:
+                blocked |= variant
                 continue
             cost = variant.aw_rate_per_ft * FEET_PER_METRE
             if float_compare(variant.standard_price, cost,
                              precision_digits=4) != 0:
                 variant.standard_price = cost
                 updated |= variant
-        return updated
+        return updated, blocked
 
 
 class ProductTemplate(models.Model):
@@ -132,20 +172,69 @@ class ProductTemplate(models.Model):
                 '|', ('date_to', '=', False), ('date_to', '>=', today),
             ], order='thickness_id, finish_id, date_from desc')
 
+    aw_cost_sync_allowed = fields.Boolean(
+        compute='_compute_aw_cost_sync_allowed',
+        help="False when the costing method is AVCO or FIFO, where "
+             "stock valuation owns the cost field.")
+    aw_cost_method = fields.Char(
+        string='Costing Method', compute='_compute_aw_cost_sync_allowed')
+
+    def _aw_cost_method(self):
+        """The costing method, safely.
+
+        `cost_method` is defined by **stock_account**, which this module
+        deliberately does not depend on -- pulling in stock valuation
+        and its accounting just to read one selection would be a heavy
+        price. Without that module there is no valuation to corrupt, so
+        the cost field is ours to write and 'standard' is the honest
+        answer.
+
+        Checking `_fields` rather than try/except because a missing
+        field is a normal configuration here, not an error.
+        """
+        self.ensure_one()
+        if 'cost_method' not in self._fields:
+            return 'standard'
+        return self.cost_method or 'standard'
+
+    # No depends on cost_method, for the reason above.
+    @api.depends()
+    def _compute_aw_cost_sync_allowed(self):
+        for template in self:
+            method = template._aw_cost_method()
+            template.aw_cost_method = method
+            template.aw_cost_sync_allowed = method == "standard"
+
     def action_aw_update_costs_from_rates(self):
-        """Cost from the current rate, for every variant that has one."""
+        """Cost from the current rate, for every variant that may have
+        one written."""
         variants = self.mapped('product_variant_ids')
-        updated = variants._aw_sync_cost_from_rate()
-        without = len(variants) - len(updated)
+        updated, blocked = variants._aw_sync_cost_from_rate()
+
+        if blocked:
+            labels = {'average': 'AVCO', 'fifo': 'FIFO',
+                      'standard': 'Standard Price'}
+            methods = ', '.join(sorted({
+                labels.get(variant.aw_cost_method, variant.aw_cost_method)
+                for variant in blocked}))
+            message = _(
+                "Nothing written: %(count)s variant(s) are costed by "
+                "%(methods)s, where stock valuation owns the Cost field. "
+                "Writing it from a supplier rate would revalue your "
+                "stock. The rate per foot is still shown for reference.",
+                count=len(blocked), methods=methods)
+            kind = 'warning'
+        else:
+            message = _(
+                "%(done)s variant cost(s) updated from the current "
+                "rates.", done=len(updated))
+            kind = 'success' if updated else 'warning'
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'type': 'success' if updated else 'warning',
-                'message': _(
-                    "%(done)s variant cost(s) updated. %(skipped)s left "
-                    "alone (no rate, or already correct).",
-                    done=len(updated), skipped=without),
+                'type': kind,
+                'message': message,
                 'next': {'type': 'ir.actions.act_window_close'},
             },
         }
