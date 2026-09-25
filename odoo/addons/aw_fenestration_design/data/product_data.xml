@@ -11,8 +11,18 @@
              a default price isn't silently reverted on every upgrade. -->
         <record id="product_fenestration_position" model="product.template">
             <field name="name">Fenestration Position</field>
-            <field name="type">consu</field>
-            <field name="is_storable" eval="False"/>
+            <!-- Service, not Goods. Since Odoo 17 a consu product is
+                 Goods and confirming a sale runs procurement for it,
+                 which failed here with "No rule has been found to
+                 replenish ... in 'Inter-warehouse transit'". There is
+                 no production or installation flow for windows yet, so
+                 a position is work that is quoted and invoiced, not
+                 goods that are shipped. [revisit] when that flow
+                 exists. Existing databases are moved by
+                 _migrate_position_product_to_service(), since this
+                 block is noupdate. -->
+            <field name="type">service</field>
+            <field name="invoice_policy">order</field>
             <field name="sale_ok" eval="True"/>
             <field name="purchase_ok" eval="False"/>
             <field name="list_price">0.0</field>
@@ -20,5 +30,14 @@
             <field name="description_sale">Configured window/door position. See the linked Design for geometry.</field>
         </record>
 
+    </data>
+
+    <!-- Updatable, not noupdate: the record above is noupdate so a
+         renamed product is not reverted, which also means an existing
+         database never sees the type change. This runs on every
+         upgrade and is a no-op once done. -->
+    <data>
+        <function model="product.template"
+                  name="_migrate_position_product_to_service"/>
     </data>
 </odoo>

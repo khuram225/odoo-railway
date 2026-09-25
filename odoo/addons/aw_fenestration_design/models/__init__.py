@@ -12,4 +12,5 @@ from . import explosion
 from . import snapshot
 from . import costing
 from . import cut_plan
+from . import position_product
 from . import sale_order
