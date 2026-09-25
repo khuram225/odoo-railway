@@ -667,10 +667,6 @@ export class DesignConfigurator extends Component {
         this.onHeaderIdChange("glass_spec_id", ev);
     }
 
-    onFinishChange(ev) {
-        this.onHeaderIdChange("finish_id", ev);
-    }
-
     /**
      * Finish is a colour attribute, so it is picked from swatches
      * rather than a dropdown. Clicking the one already chosen clears

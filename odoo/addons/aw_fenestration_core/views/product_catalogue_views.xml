@@ -33,25 +33,33 @@
                     </group>
                     <group string="Current rates">
                         <div class="text-muted" colspan="2">
-                            The rate in force today for each variant that
-                            exists. Variants are created on demand, so a
-                            thickness/finish nobody has used yet is not
-                            listed here.
+                            Every thickness and finish the current price
+                            list covers for this profile. "Variant
+                            exists" is no until somebody uses that
+                            combination — variants are created on
+                            demand, and the rate applies either way.
                         </div>
-                        <field name="product_variant_ids" nolabel="1"
+                        <field name="aw_current_rate_ids" nolabel="1"
                                colspan="2" readonly="1">
-                            <list>
-                                <field name="aw_thickness_name"/>
-                                <field name="aw_finish_name"/>
-                                <field name="aw_rate_per_ft"
-                                       string="PKR / ft"/>
-                                <field name="aw_rate_date"
+                            <list decoration-muted="not variant_exists">
+                                <field name="thickness_id"/>
+                                <field name="finish_id"/>
+                                <field name="price" string="PKR / ft"/>
+                                <field name="date_from"
                                        string="Effective from"/>
-                                <field name="aw_has_rate" column_invisible="1"/>
-                                <field name="standard_price"
-                                       string="Cost / m"/>
+                                <field name="date_to"
+                                       string="Effective to"
+                                       optional="hide"/>
+                                <field name="vendor_id" optional="hide"/>
+                                <field name="variant_exists"/>
                             </list>
                         </field>
+                        <div class="text-muted" colspan="2"
+                             invisible="aw_current_rate_ids">
+                            No current rate covers this profile. Import a
+                            price list, or check that its effective dates
+                            have not all passed.
+                        </div>
                     </group>
                 </page>
             </xpath>

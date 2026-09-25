@@ -130,6 +130,24 @@ class AwProfileRate(models.Model):
         help="Which file this row came from, so a price can always be "
              "traced back to the list it was quoted on.")
     active = fields.Boolean(default=True)
+    variant_exists = fields.Boolean(
+        string='Variant exists', compute='_compute_variant_exists',
+        help="Whether a product variant has been created for this "
+             "thickness and finish yet. Variants are created on demand, "
+             "so 'no' means nobody has used the combination -- not that "
+             "it cannot be used.")
+
+    @api.depends('product_tmpl_id', 'thickness_id', 'finish_id')
+    def _compute_variant_exists(self):
+        for rate in self:
+            found = False
+            for variant in rate.product_tmpl_id.product_variant_ids:
+                thickness, finish = variant._aw_attribute_values()
+                if (thickness == rate.thickness_id
+                        and finish == rate.finish_id):
+                    found = True
+                    break
+            rate.variant_exists = found
 
     @api.constrains('price')
     def _check_price(self):

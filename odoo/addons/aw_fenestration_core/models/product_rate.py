@@ -104,6 +104,34 @@ class ProductProduct(models.Model):
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
+    aw_current_rate_ids = fields.One2many(
+        'aw.profile.rate', compute='_compute_aw_current_rate_ids',
+        string='Current Rates')
+
+    # No depends: this reads a whole other table on today's date, which
+    # @api.depends cannot express. Same pattern as aw.design.length_uom
+    # reading ir.config_parameter -- a compute whose input is context
+    # rather than sibling fields.
+    @api.depends()
+    def _compute_aw_current_rate_ids(self):
+        """Every rate in force today for this profile.
+
+        Built from aw.profile.rate, NOT from the variants that happen to
+        exist: the question a buyer asks is "what does Chawla price this
+        profile at", and answering it from variants would silently omit
+        every combination nobody has quoted yet. `variant_exists` says
+        which ones have been used, rather than the table quietly
+        dropping them.
+        """
+        today = fields.Date.context_today(self)
+        rates = self.env['aw.profile.rate']
+        for template in self:
+            template.aw_current_rate_ids = rates.search([
+                ('product_tmpl_id', '=', template.id),
+                ('date_from', '<=', today),
+                '|', ('date_to', '=', False), ('date_to', '>=', today),
+            ], order='thickness_id, finish_id, date_from desc')
+
     def action_aw_update_costs_from_rates(self):
         """Cost from the current rate, for every variant that has one."""
         variants = self.mapped('product_variant_ids')
