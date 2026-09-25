@@ -23,8 +23,79 @@
                         </group>
                         <group>
                             <field name="aw_section_dims"/>
-                            <field name="aw_catalogue_thickness"/>
+                            <!-- Kept but hidden: its values are merged
+                                 into the real Thickness attribute, and
+                                 showing both invites someone to trust
+                                 the catalogue's wording over the
+                                 variants that actually exist. -->
+                            <field name="aw_catalogue_thickness" invisible="1"/>
                         </group>
+                    </group>
+                    <group string="Current rates">
+                        <div class="text-muted" colspan="2">
+                            The rate in force today for each variant that
+                            exists. Variants are created on demand, so a
+                            thickness/finish nobody has used yet is not
+                            listed here.
+                        </div>
+                        <field name="product_variant_ids" nolabel="1"
+                               colspan="2" readonly="1">
+                            <list>
+                                <field name="aw_thickness_name"/>
+                                <field name="aw_finish_name"/>
+                                <field name="aw_rate_per_ft"
+                                       string="PKR / ft"/>
+                                <field name="aw_rate_date"
+                                       string="Effective from"/>
+                                <field name="aw_has_rate" column_invisible="1"/>
+                                <field name="standard_price"
+                                       string="Cost / m"/>
+                            </list>
+                        </field>
+                    </group>
+                </page>
+            </xpath>
+
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_aw_update_costs_from_rates"
+                        type="object" class="oe_stat_button"
+                        icon="fa-refresh"
+                        invisible="not aw_catalogue_code and not aw_catalogue_page">
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Update costs</span>
+                        <span class="o_stat_text">from rates</span>
+                    </div>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_product_product_list_fenestration" model="ir.ui.view">
+        <field name="name">product.product.list.inherit.aw_fenestration_core</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_product_tree_view"/>
+        <field name="arch" type="xml">
+            <field name="standard_price" position="before">
+                <field name="aw_rate_per_ft" string="PKR / ft" optional="show"/>
+                <field name="aw_rate_date" string="Rate of" optional="hide"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_product_product_form_fenestration" model="ir.ui.view">
+        <field name="name">product.product.form.inherit.aw_fenestration_core</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_normal_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Fenestration" name="aw_fenestration_variant"
+                      invisible="not aw_rate_per_ft and not aw_rate_date">
+                    <group string="Current rate">
+                        <field name="aw_thickness_name"/>
+                        <field name="aw_finish_name"/>
+                        <field name="aw_rate_per_ft" string="PKR / ft"/>
+                        <field name="aw_rate_date" string="Effective from"/>
+                        <field name="aw_has_rate" invisible="1"/>
                     </group>
                 </page>
             </xpath>

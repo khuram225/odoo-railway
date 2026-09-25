@@ -671,6 +671,22 @@ export class DesignConfigurator extends Component {
         this.onHeaderIdChange("finish_id", ev);
     }
 
+    /**
+     * Finish is a colour attribute, so it is picked from swatches
+     * rather than a dropdown. Clicking the one already chosen clears
+     * it, which is the only way back to "no finish" without a blank
+     * entry in the row.
+     */
+    setFinish(id) {
+        const current = this.state.data.header.finish_id;
+        this.onHeaderChange("finish_id", current === id ? false : id);
+    }
+
+    finishStyle(option) {
+        const colour = option.color || "#cccccc";
+        return `background-color: ${colour};`;
+    }
+
     onSectionChange(ev) {
         this.onHeaderIdChange("profile_section_id", ev);
     }

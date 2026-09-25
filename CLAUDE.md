@@ -488,6 +488,34 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   "Save as preset" crashed while "Add Position" worked. Declare `views`
   and it is safe on both paths.
 
+**Finish is a Color attribute, and where that actually shows.**
+Verified in odoo-src before choosing it: `product.attribute.display_type`
+offers `('color', 'Color')`; the **sale order product configurator**
+renders it as real swatches (`sale.ptav_color` sets
+`background-color: ptav.html_color`, marks the chosen one `active`, and
+uses a `transparent` class when the colour is empty); the **backend**
+shows `html_color` only as an editable `widget="color"` field on the
+attribute's values — on the product form the values appear as tags
+coloured by the separate INTEGER `color` index. That is why
+`_seed_finish_colours()` sets both. The integer is a coarse 12-entry
+palette (No color, Red, Orange, Yellow, Cyan, Purple, Almond, Teal,
+Blue, Raspberry, Green, Violet — `web/.../colorlist/colorlist.js`), so
+it is a nearest match and nothing more; `html_color` is the accurate
+one. Seeded once, guarded by a parameter, because re-imposing the
+display type every upgrade would silently undo a deliberate switch back
+to a dropdown.
+
+**Costs come from rates, never the other way round.**
+`product.product.aw_rate_per_ft` / `aw_rate_date` are computed and NOT
+stored: the rate in force changes with the date and with every import,
+so a stored copy would be wrong the next morning. `standard_price` is
+the stored one and is only written deliberately — by the price-list
+import, by "Update costs from rates", or when
+`aw.profile.section.line._variant_for()` first brings a variant into
+existence. **A variant with no rate is left alone, never zeroed**: a
+hand-entered cost is worth more than a zero this module is confident
+about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
+
 - `scripts/check_catalogue_import.py` dry-runs the catalogue import
   against the real zip without a database: every `existing_products.csv`
   row matches a product by exact name, no `new_products.csv` name

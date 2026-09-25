@@ -86,16 +86,25 @@
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Finish</label>
-                            <select class="form-select form-select-sm"
-                                    t-on-change="onFinishChange">
-                                <option value="">No finish</option>
+                            <!-- Swatches, not a dropdown: Finish is a
+                                 colour attribute and the colour is the
+                                 thing being chosen. Name on hover;
+                                 the selected one is outlined. -->
+                            <div class="d-flex gap-1 align-items-center"
+                                 style="height: calc(1.5em + 0.5rem + 2px);">
                                 <t t-foreach="finishOptions" t-as="opt" t-key="opt.id">
-                                    <option t-att-value="opt.id"
-                                            t-att-selected="opt.id === state.data.header.finish_id">
-                                        <t t-esc="opt.name"/>
-                                    </option>
+                                    <button type="button"
+                                            class="o_aw_finish_swatch"
+                                            t-att-class="{'o_aw_finish_selected': opt.id === state.data.header.finish_id}"
+                                            t-att-title="opt.name"
+                                            t-att-style="finishStyle(opt)"
+                                            t-on-click="() => this.setFinish(opt.id)"/>
                                 </t>
-                            </select>
+                                <span t-if="!finishOptions.length"
+                                      class="small text-muted">
+                                    No finishes configured.
+                                </span>
+                            </div>
                         </div>
                         <div t-if="showSectionPicker">
                             <label class="form-label small text-muted mb-0">Profile Section</label>

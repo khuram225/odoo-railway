@@ -11,3 +11,5 @@ from . import profile_rate
 from . import price_structure
 from . import thickness
 from . import product_catalogue
+from . import product_rate
+from . import finish_colour

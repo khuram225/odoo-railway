@@ -26,5 +26,6 @@
         <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>
         <function model="aw.price.structure" name="_seed_default_structure"/>
         <function model="aw.profile.rate" name="_backfill_date_to"/>
+        <function model="product.attribute" name="_seed_finish_colours"/>
     </data>
 </odoo>

@@ -184,6 +184,15 @@ class AwProfileRateImport(models.TransientModel):
                 ('has_successor', '=', True),
             ])
 
+        # A new price list is exactly when costs go stale, so refresh
+        # them here rather than leaving someone to remember the button.
+        if created:
+            variants = self.env['product.product'].search([
+                ('product_tmpl_id', 'in',
+                 created.mapped('product_tmpl_id').ids),
+            ])
+            variants._aw_sync_cost_from_rate()
+
         # Profiles in the catalogue that this list never priced. These
         # are the ones that will quote at nothing, so they matter more
         # than the unmatched codes.

@@ -114,8 +114,20 @@ class AwCatalogueImport(models.TransientModel):
         new_rows = self._rows(archive, 'new_products.csv', NEW_COLUMNS)
 
         report = defaultdict(list)
-        self._import_existing(archive, existing_rows, report)
+        touched = self._import_existing(archive, existing_rows, report)
         self._import_new(archive, new_rows, report)
+
+        # The catalogue lists thicknesses the price list does not, so
+        # they are added to the Thickness attribute line as well as
+        # recorded as text. Union only -- see
+        # _aw_merge_catalogue_thickness.
+        added, refused = touched._aw_merge_catalogue_thickness()
+        for template, names in added.items():
+            report['thickness_added'].append(
+                '%s: %s' % (template.name, ', '.join(sorted(names))))
+        for template, names in refused.items():
+            report['bad_thickness'].extend(
+                '%s: %s' % (template.name, name) for name in names)
 
         self.write({'state': 'done', 'summary': self._summary(report)})
         return {
@@ -135,6 +147,7 @@ class AwCatalogueImport(models.TransientModel):
         by_name = {}
         for template in Template.search([('name', 'in', wanted)]):
             by_name.setdefault(template.name, template)
+        touched = Template.browse()
 
         for row in rows:
             name = (row.get('product_name') or '').strip()
@@ -154,7 +167,10 @@ class AwCatalogueImport(models.TransientModel):
                 report['image_kept'].append(name)
 
             template.write(values)
+            touched |= template
             report['updated'].append(name)
+
+        return touched
 
     # ------------------------------------------------------------------
     def _import_new(self, archive, rows, report):
@@ -302,6 +318,8 @@ class AwCatalogueImport(models.TransientModel):
                            report['image_kept'], 'text-muted'))
         parts.append(block('New thickness values created',
                            report['new_thickness']))
+        parts.append(block('Thickness values added to the product',
+                           report['thickness_added']))
         parts.append(block('Skipped — a product of this name already exists',
                            report['skipped'], 'text-muted'))
         parts.append(block('Created', report['created'], 'text-muted'))

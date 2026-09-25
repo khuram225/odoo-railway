@@ -148,7 +148,13 @@ class AwProfileSectionLine(models.Model):
             combination |= product_tmpl.attribute_line_ids.product_template_value_ids.filtered(
                 lambda v, attribute_value=attribute_value: v.product_attribute_value_id == attribute_value
             )
-        return product_tmpl._create_product_variant(combination)
+        variant = product_tmpl._create_product_variant(combination)
+        # A variant that has just come into existence has no cost yet,
+        # and the rate for it is already known. Only ever fills; a
+        # variant with no rate is left alone.
+        if variant and not variant.standard_price:
+            variant._aw_sync_cost_from_rate()
+        return variant
 
     @api.depends('product_tmpl_id', 'thickness_id', 'finish_id')
     def _compute_product_id(self):

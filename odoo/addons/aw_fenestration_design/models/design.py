@@ -554,8 +554,9 @@ class AwDesign(models.Model):
             raise_if_not_found=False)
         if not attribute:
             return []
-        return [{'id': v.id, 'name': v.display_name}
-                for v in self.env['product.attribute.value'].search(
+        return [{'id': value.id, 'name': value.display_name,
+                 'color': value.html_color or ''}
+                for value in self.env['product.attribute.value'].search(
                     [('attribute_id', '=', attribute.id)])]
 
     @api.model
