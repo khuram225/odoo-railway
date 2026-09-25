@@ -488,6 +488,37 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   "Save as preset" crashed while "Add Position" worked. Declare `views`
   and it is safe on both paths.
 
+- `scripts/check_catalogue_import.py` dry-runs the catalogue import
+  against the real zip without a database: every `existing_products.csv`
+  row matches a product by exact name, no `new_products.csv` name
+  collides, every referenced image is present, pages are numeric, and
+  the thickness plausibility rule rejects exactly the three known-bad
+  values. It uses the SAME `models/thickness.py` the wizard does, so it
+  cannot drift from the real behaviour. The zip is vendor data and is
+  gitignored, so this skips cleanly when absent.
+
+  **`norm_thickness` lives in `aw_fenestration_core/models/thickness.py`
+  and nowhere else.** `scripts/rebuild_melt_and_import.py` imports it
+  from there (same pattern as `layout_rules.py` / `formula.py`) — it
+  used to own the only copy, and the catalogue import needing the same
+  rule is exactly how two copies start disagreeing and mis-keying
+  attribute values against each other. The module also owns
+  `THICKNESS_MAX_MM = 25`: two catalogue rows carry a length or a
+  section dimension in the thickness column (`2300MM`, and `130MM; 50MM`
+  on a row whose dimensions column is empty), and creating those as
+  Thickness attribute values would put them in every thickness dropdown
+  permanently. They are refused and reported instead.
+
+  **WebP is stored verbatim.** Verified in `odoo-src/odoo/tools/image.py`:
+  `ImageProcess.__init__` sets `self.image = False` for WebP after
+  checking only its resolution, and `image_quality()` opens with
+  `if not self.image: return self.source`. So `image_1920` keeps the
+  bytes and no conversion is needed. The consequence is that
+  `image_128` and friends are the same bytes rather than real
+  thumbnails — harmless at ~4 KB each. **wkhtmltopdf cannot render
+  WebP**, so if a product picture ever needs to appear on a PDF report,
+  convert on import at that point.
+
 - `scripts/check_rate_chain.py` exercises `resolve_chain()` from
   `aw_fenestration_core/models/profile_rate.py` — the function that
   decides when each version of a profile rate stops applying. Getting

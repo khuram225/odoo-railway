@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_product_template_form_fenestration" model="ir.ui.view">
+        <field name="name">product.template.form.inherit.aw_fenestration_core</field>
+        <field name="model">product.template</field>
+        <!-- The BASE product form: product_template_only_form_view is
+             itself a primary inheriting this one, and the notebook
+             lives here. -->
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <!-- Only shown once a product has been matched to the
+                     catalogue, so it stays out of the way on every other
+                     product in the database. -->
+                <page string="Fenestration" name="aw_fenestration"
+                      invisible="not aw_catalogue_code and not aw_catalogue_page">
+                    <group string="Catalogue">
+                        <group>
+                            <field name="aw_catalogue_code"/>
+                            <field name="aw_catalogue_category"/>
+                            <field name="aw_catalogue_page"/>
+                        </group>
+                        <group>
+                            <field name="aw_section_dims"/>
+                            <field name="aw_catalogue_thickness"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ===== import wizard ===== -->
+    <record id="view_aw_catalogue_import_form" model="ir.ui.view">
+        <field name="name">aw.catalogue.import.form</field>
+        <field name="model">aw.catalogue.import</field>
+        <field name="arch" type="xml">
+            <form string="Import Catalogue">
+                <group invisible="state == 'done'">
+                    <field name="state" invisible="1"/>
+                    <field name="file_data" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                    <field name="overwrite_images"/>
+                </group>
+                <div invisible="state == 'done'" class="text-muted">
+                    The catalogue export zip: existing_products.csv,
+                    new_products.csv and their image folders. Existing
+                    products are only updated, never created; new ones are
+                    skipped if a product of that name already exists.
+                </div>
+                <field name="summary" invisible="state != 'done'"
+                       readonly="1" nolabel="1"/>
+                <footer>
+                    <button name="action_import" type="object"
+                            string="Import" class="btn-primary"
+                            invisible="state == 'done'"/>
+                    <button string="Close" class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_catalogue_import" model="ir.actions.act_window">
+        <field name="name">Import Catalogue</field>
+        <field name="res_model">aw.catalogue.import</field>
+        <field name="view_mode">form</field>
+        <field name="views" eval="[(False, 'form')]"/>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

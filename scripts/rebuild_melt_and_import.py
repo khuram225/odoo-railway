@@ -18,6 +18,7 @@ layout used when this was written but can be overridden:
 """
 import argparse
 import csv
+import importlib.util
 import html
 import re
 from collections import defaultdict
@@ -40,24 +41,16 @@ FINISH_LABELS = {
 }
 
 
-def norm_thickness(raw):
-    """Canonicalize a raw thickness string to one spelling per concept.
-    Verified exhaustively against the 33 distinct raw strings in the
-    source CSV: no lowercase 'mm', no space/comma variants, no
-    trailing-zero numeric duplicates (e.g. no '1.60MM' alongside
-    '1.6MM') exist beyond the Std/STD/Std. case already handled here.
-    """
-    raw = raw.strip()
-    if raw == '-':
-        return ''  # no thickness dimension applies to this profile
-    if raw == 'Nor':
-        return 'Normal'
-    if raw in ('Std', 'STD', 'Std.'):
-        return 'Standard'
-    m = re.match(r'^(\d+(?:\.\d+)?)\s*MM?$', raw, re.IGNORECASE)
-    if m:
-        return f'{m.group(1)}MM'
-    return raw  # unrecognized -- none expected, would be caught by review below
+# norm_thickness now lives in the addon, as the single source of the
+# mapping: the catalogue import needs the same rule, and two copies
+# would eventually disagree and mis-key attribute values against each
+# other. Same pattern as layout_rules.py and formula.py -- the module
+# is deliberately free of Odoo imports so this script can use it.
+_thickness = importlib.util.spec_from_file_location(
+    'aw_thickness', MODULE_DIR / 'models' / 'thickness.py')
+_thickness_mod = importlib.util.module_from_spec(_thickness)
+_thickness.loader.exec_module(_thickness_mod)
+norm_thickness = _thickness_mod.norm_thickness
 
 
 def classify(code):

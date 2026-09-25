@@ -71,6 +71,12 @@
               action="action_aw_profile_rate_import"
               sequence="25"/>
 
+    <menuitem id="menu_aw_catalogue_import"
+              name="Import Catalogue"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_catalogue_import"
+              sequence="27"/>
+
     <menuitem id="menu_aw_price_structure"
               name="Price Structures"
               parent="menu_aw_fenestration_config"

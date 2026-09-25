@@ -9,3 +9,5 @@ from . import glass_spec
 from . import window_template
 from . import profile_rate
 from . import price_structure
+from . import thickness
+from . import product_catalogue
