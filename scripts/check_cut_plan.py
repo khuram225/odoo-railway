@@ -159,6 +159,94 @@ def main():
     if result['chosen_key'] == '14':
         fail('15 ft piece', 'chose an infeasible option')
 
+    # ---- the 169 M1 job, DG-26 outer frames ----------------------------
+    # Real data from the client's drawing: 31 windows, one each, outer
+    # frame only, so four DG-26 pieces per window (2 x width,
+    # 2 x height). Settings for this case are the shop's: 3 mm kerf, no
+    # start trim, 25 mm safety margin, everything mitred.
+    #
+    # Only the total and the optimality claim are asserted. Several bar
+    # mixes reach 606 ft, so pinning the mix would be testing this
+    # implementation's tie-breaking rather than the answer.
+    windows = [
+        (102, 99), (22, 99), (24, 48), (79, 229), (122, 22), (36, 24),
+        (24, 53), (24, 48), (30, 45), (52, 90), (42, 22), (19, 55),
+        (19, 48), (44, 84), (27, 46), (101, 83), (43, 90), (19, 116),
+        (137, 115), (19, 115), (48, 85), (60, 83), (24, 46), (51, 84),
+        (24, 48), (41, 84), (24, 48), (41, 84), (88, 92), (67, 18),
+        (141, 28),
+    ]
+    if len(windows) != 31:
+        fail('169 M1', 'expected 31 windows, have %s' % len(windows))
+
+    frames = []
+    for number, (width, height) in enumerate(windows, start=1):
+        for _ in range(2):
+            frames.append({'length': width * 25.4, 'angle': '45',
+                           'label': 'W%02d width' % number})
+        for _ in range(2):
+            frames.append({'length': height * 25.4, 'angle': '45',
+                           'label': 'W%02d height' % number})
+
+    kerf, margin = 3.0, 25.0
+    limit = cut.max_piece_mm(18 * FT, 0.0, margin, kerf, '45')
+    # ~214.85 in at these settings.
+    if not (214.0 < limit / 25.4 < 215.0):
+        fail('169 M1', 'max piece is %.2f in, expected about 214.85'
+             % (limit / 25.4))
+
+    result = cut.solve(frames, STOCK, kerf=kerf, start_trim=0.0,
+                       safety_margin=margin, rate_per_ft=1.0)
+
+    # 1. W04's two 229 in sides are refused; its 79 in pieces are not.
+    oversize = sorted(round(p['length'] / 25.4) for p in result['oversize'])
+    if oversize != [229, 229]:
+        fail('169 M1', 'refused %s, expected exactly the two 229 in sides'
+             % oversize)
+    if result['placed_count'] != 122:
+        fail('169 M1', 'placed %s pieces, expected 122'
+             % result['placed_count'])
+    placed_79 = sum(
+        1 for bar in result['bars'] for c in bar['cuts']
+        if round(c['length'] / 25.4) == 79)
+    if placed_79 != 2:
+        fail('169 M1', "W04's two 79 in pieces were not nested")
+
+    # 2. 599.33 ft of finished frame needs exactly 606 ft of bar,
+    #    and that is provable: the LP bound is ~604.9 and every stock
+    #    length is an even number of feet.
+    finished = sum(c['length'] for bar in result['bars']
+                   for c in bar['cuts']) / FT
+    if abs(finished - 599.3333) > 0.01:
+        fail('169 M1', 'finished frame is %.4f ft, expected 599.33'
+             % finished)
+    if abs(result['feet_bought'] - 606.0) > 1e-6:
+        fail('169 M1', 'bought %.4f ft, expected exactly 606'
+             % result['feet_bought'])
+    if cut.HAS_SOLVER and not result['proven_optimal']:
+        fail('169 M1', 'not reported as proven optimal (bound %.4f ft)'
+             % result['lower_bound_feet'])
+
+    # 3. No bar is over-filled once saw loss and the margin are counted.
+    for bar in result['bars']:
+        consumed = sum(cut.piece_demand_mm(c['length'], kerf, '45')
+                       for c in bar['cuts'])
+        capacity = cut.usable_bar_mm(bar['stock_mm'], 0.0, margin)
+        if consumed > capacity + 1e-6:
+            fail('169 M1', 'a %.0f ft bar holds %.1f mm of cuts in %.1f mm'
+                 % (bar['stock_mm'] / FT, consumed, capacity))
+
+    # ---- the optimality claim must be sound ---------------------------
+    # 14/16/18 ft bars share a gcd of 2, so nothing can total an odd
+    # number of feet. A bound of 604.93 therefore means 606.
+    if abs(cut.achievable_floor(604.9346, [14.0, 16.0, 18.0]) - 606.0) > 1e-9:
+        fail('achievable floor', 'did not round 604.93 up to 606')
+    if abs(cut.achievable_floor(606.0, [14.0, 16.0, 18.0]) - 606.0) > 1e-9:
+        fail('achievable floor', 'moved a total that is already achievable')
+    # Non-integer stock has no lattice to round to; leave it alone.
+    if abs(cut.achievable_floor(100.5, [14.5, 16.0]) - 100.5) > 1e-9:
+        fail('achievable floor', 'invented a lattice for fractional stock')
+
     # ---- empty input is not a crash -----------------------------------
     result = cut.evaluate([], STOCK, kerf=5.0)
     if result['chosen_key'] is not None or result['oversize']:
@@ -171,7 +259,8 @@ def main():
         return 1
 
     print('Bar nesting correct (%s): mitre saw loss, the no-joints rule, '
-          'two provable optima, an FFD-beating case, piece conservation, '
+          'two provable optima, an FFD-beating case, the 169 M1 DG-26 job '
+          '(606 ft, proven optimal), piece conservation, '
           'bar capacity and infeasible options.'
           % ('exact solver' if cut.HAS_SOLVER else 'GREEDY FALLBACK - '
              'pulp not installed'))

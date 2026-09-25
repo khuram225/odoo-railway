@@ -635,12 +635,37 @@ while it has an error**: a collapsed panel hiding the reason a quote
 cannot be confirmed is the one case where remembering the preference is
 wrong.
 
-**Not verified:** the named 169 M1 / DG-26 test. That PDF has no
-extractable text for DG-26 or W04 — five pages of drawings — so the
-data to build it is not in the repo. The optimiser is instead checked
-against cases whose true minimum can be established by hand, including
-one where first-fit-decreasing needs three bars and the exact method
-proves two. **[revisit]** once the DG-26 lengths are available.
+**The 169 M1 / DG-26 case is now a permanent check.** 31 windows,
+outer frame only, 3 mm kerf, no start trim, 25 mm safety margin: W04's
+two 229 in sides are refused (the limit at those settings is 214.85 in)
+while its 79 in pieces nest normally, and the remaining 122 pieces —
+599.33 ft of finished frame — take **exactly 606 ft of bar, proven
+optimal**. Only the total and the claim are asserted; several mixes
+reach 606, so pinning one would test the tie-breaking rather than the
+answer.
+
+Building it found two real bugs, neither of which any earlier case had
+exposed:
+
+1. **The knapsack's reconstruction could disagree with its own DP
+   value**, because it kept one parent pointer per capacity and then
+   clamped the result back within the available counts. Pricing
+   believed an improving column existed, the pattern turned out to be
+   one already held, nothing was added, and generation stopped 21 ft
+   above the true bound — reporting 638 ft where 606 is optimal.
+2. **An LP over a subset of columns is not a lower bound.** It only
+   becomes one once no improving column exists, so claiming optimality
+   against a non-converged LP value was claiming it against a number
+   that is not a bound at all. Convergence is now tracked explicitly,
+   a stall is not mistaken for it, and an unconverged solve falls back
+   to a material bound that always holds.
+
+The optimality test was also unsound and is fixed: it accepted any gap
+smaller than the cheapest bar, which proves nothing (swapping an 18 ft
+for a 16 ft saves two feet without dropping a bar). Totals are integer
+combinations of the stock lengths, so the bound is rounded up to the
+next multiple of their gcd — with 14/16/18 that is 2, which is exactly
+why an LP bound of 604.93 makes 606 provable.
 
 ### Original plan
 

@@ -84,50 +84,124 @@ def piece_demand_mm(length, kerf, angle='45'):
 def _bounded_knapsack(capacity, weights, values, counts):
     """Maximise value within capacity, at most `counts[i]` of item i.
 
-    Integer capacity in mm. Bounded counts are handled by binary
-    splitting, which keeps this O(capacity * sum(log count)) rather
-    than the naive O(capacity * sum(count)).
+    Returns (value, pattern) where value is the value OF THE RETURNED
+    PATTERN, recomputed rather than read off the DP table.
+
+    That distinction is the whole point. An earlier version tracked one
+    parent pointer per capacity and clamped the reconstruction back
+    within `counts` afterwards, which could hand back a pattern worth
+    less than the value it claimed. Pricing then believed an improving
+    column existed, the pattern turned out to be one already in the LP,
+    nothing was added, and column generation stopped ~21 ft above the
+    true bound while reporting that bound as if it were real.
+
+    Bounded counts use binary splitting, so this is
+    O(capacity * sum(log count)) rather than O(capacity * sum(count)).
+    Each split bundle keeps its own take/leave flags, and backtracking
+    runs through them in reverse -- the standard reconstruction, and the
+    only one that stays consistent with the table.
     """
     capacity = int(capacity)
     if capacity <= 0:
         return 0.0, [0] * len(weights)
 
-    best = [0.0] * (capacity + 1)
-    # choice[c] = (item_index, bundle_size) taken to reach c
-    choice = [None] * (capacity + 1)
-
+    bundles = []                      # (item, take, weight, value)
     for index, (weight, value, count) in enumerate(
             zip(weights, values, counts)):
         if weight <= 0 or weight > capacity or count <= 0:
             continue
-        bundle = 1
-        remaining = count
+        remaining, size = count, 1
         while remaining > 0:
-            take = min(bundle, remaining)
-            bundle_weight = weight * take
-            bundle_value = value * take
-            if bundle_weight <= capacity:
-                for cap in range(capacity, bundle_weight - 1, -1):
-                    candidate = best[cap - bundle_weight] + bundle_value
-                    if candidate > best[cap] + 1e-12:
-                        best[cap] = candidate
-                        choice[cap] = (index, take, cap - bundle_weight)
+            take = min(size, remaining)
+            bundles.append((index, take, weight * take, value * take))
             remaining -= take
-            bundle *= 2
+            size *= 2
 
-    # Walk the best cell back to a pattern.
-    top = max(range(capacity + 1), key=lambda c: best[c])
+    best = [0.0] * (capacity + 1)
+    flags = []
+    for _index, _take, bundle_weight, bundle_value in bundles:
+        taken = bytearray(capacity + 1)
+        if bundle_weight <= capacity:
+            for cap in range(capacity, bundle_weight - 1, -1):
+                candidate = best[cap - bundle_weight] + bundle_value
+                if candidate > best[cap] + 1e-12:
+                    best[cap] = candidate
+                    taken[cap] = 1
+        flags.append(taken)
+
+    cap = max(range(capacity + 1), key=lambda c: best[c])
     pattern = [0] * len(weights)
-    cap = top
-    while choice[cap] is not None:
-        index, take, previous = choice[cap]
-        pattern[index] += take
-        cap = previous
-    # Binary splitting can exceed the bound when two bundles of the same
-    # item combine; clamp rather than emit an impossible pattern.
+    for index in range(len(bundles) - 1, -1, -1):
+        item, take, bundle_weight, _value = bundles[index]
+        if flags[index][cap]:
+            pattern[item] += take
+            cap -= bundle_weight
+
+    # Trust the pattern, not the table: if the two ever disagree it is
+    # the pattern that can actually be cut.
     for index, count in enumerate(counts):
-        pattern[index] = min(pattern[index], count)
-    return best[top], pattern
+        if pattern[index] > count:
+            pattern[index] = count
+    realised = sum(values[i] * pattern[i] for i in range(len(pattern)))
+    weight = sum(weights[i] * pattern[i] for i in range(len(pattern)))
+    if weight > capacity:
+        # Should not happen, but a pattern that does not fit must never
+        # reach the LP. Shed the least valuable items until it does.
+        order = sorted(range(len(pattern)),
+                       key=lambda i: (values[i] / weights[i]) if weights[i] else 0)
+        for i in order:
+            while pattern[i] and weight > capacity:
+                pattern[i] -= 1
+                weight -= weights[i]
+        realised = sum(values[i] * pattern[i] for i in range(len(pattern)))
+    return realised, pattern
+
+
+def achievable_floor(bound, costs):
+    """Round a lower bound UP to something a set of bars can actually
+    total.
+
+    Every bar contributes its whole length, so any total is a
+    non-negative integer combination of the stock lengths and is
+    therefore a multiple of their greatest common divisor. With
+    14/16/18 ft stock that divisor is 2, so an LP bound of 604.93 ft
+    means no plan can come in under 606 -- and an integer answer of 606
+    is provably optimal.
+
+    This replaces an unsound test that accepted any gap smaller than the
+    cheapest bar. That does not follow: swapping an 18 for a 16 saves
+    two feet without dropping a bar, so a gap under one bar's cost
+    proves nothing at all.
+
+    Falls back to the raw bound when the lengths are not whole feet,
+    where there is no lattice to round to.
+    """
+    integers = [int(round(cost)) for cost in costs]
+    if any(abs(cost - value) > 1e-6 for cost, value in zip(costs, integers)):
+        return bound
+    if any(value <= 0 for value in integers):
+        return bound
+    step = 0
+    for value in integers:
+        step = math.gcd(step, value)
+    if step <= 0:
+        return bound
+    return math.ceil((bound - 1e-9) / step) * step
+
+
+def material_lower_bound(demand_mm, counts, capacities, costs):
+    """A lower bound that holds even when column generation has not
+    converged.
+
+    Every millimetre of material has to come from somewhere, and the
+    cheapest source is whichever bar has the best cost per usable
+    millimetre. No packing can beat that, so it is always safe -- it is
+    just weaker than the LP bound when the LP bound is available.
+    """
+    total = sum(w * c for w, c in zip(demand_mm, counts))
+    best_rate = min(cost / capacity
+                    for cost, capacity in zip(costs, capacities) if capacity)
+    return total * best_rate
 
 
 # ----------------------------------------------------------------------
@@ -188,37 +262,49 @@ def _solve_lp(patterns, counts, costs, integer=False):
 
 
 def _column_generation(demand_mm, counts, capacities, costs,
-                       max_rounds=60):
-    """Grow the pattern set until no bar prices in."""
+                       max_rounds=200):
+    """Grow the pattern set until no bar prices in.
+
+    Returns (patterns, bound, converged). `converged` matters: an LP
+    solved over a SUBSET of columns is not a lower bound on the full
+    problem, it is only a bound once no improving column exists.
+    Claiming optimality against a non-converged LP value would be
+    claiming it against a number that is not a bound at all.
+    """
     patterns = _trivial_patterns(demand_mm, counts, capacities)
     if not patterns:
-        return None, None, None
+        return None, None, False
     seen = {(stock, row) for stock, row in patterns}
+    weights = [int(math.ceil(w)) for w in demand_mm]
 
-    bound = None
+    bound, converged = None, False
     for _round in range(max_rounds):
         objective, _values, duals = _solve_lp(patterns, counts, costs)
         if objective is None:
-            return None, None, None
+            return None, None, False
         bound = objective
-        added = False
+        added = stalled = False
         for stock_index, capacity in enumerate(capacities):
             value, pattern = _bounded_knapsack(
-                capacity,
-                [int(math.ceil(w)) for w in demand_mm],
-                duals, counts)
-            # Worth more in dual value than the bar costs: an improving
-            # column. The tolerance keeps it from cycling on noise.
-            if value > costs[stock_index] + 1e-6:
-                key = (stock_index, tuple(pattern))
-                if key not in seen and any(pattern):
-                    seen.add(key)
-                    patterns.append(key)
-                    added = True
+                capacity, weights, duals, counts)
+            if value <= costs[stock_index] + 1e-6:
+                continue
+            key = (stock_index, tuple(pattern))
+            if key in seen or not any(pattern):
+                # An improving column we ALREADY hold means pricing and
+                # the LP disagree. Stop spinning -- but this is not
+                # convergence, and saying it was would hand back a
+                # number that is not a bound.
+                stalled = True
+                continue
+            seen.add(key)
+            patterns.append(key)
+            added = True
         if not added:
+            converged = not stalled
             break
 
-    return patterns, bound, True
+    return patterns, bound, converged
 
 
 def _greedy(demand_mm, counts, capacities, costs):
@@ -270,7 +356,7 @@ def solve(pieces, stock_mm_list, kerf=5.0, start_trim=0.0,
     result = {
         'bars': [], 'oversize': [], 'feasible': True,
         'method': 'none', 'proven_optimal': False, 'gap_feet': 0.0,
-        'lower_bound_feet': 0.0,
+        'lower_bound_feet': 0.0, 'converged': False,
     }
     if not stock_list or not pieces:
         result['oversize'] = list(pieces) if not stock_list else []
@@ -304,9 +390,9 @@ def solve(pieces, stock_mm_list, kerf=5.0, start_trim=0.0,
     patterns = None
     if HAS_SOLVER:
         try:
-            patterns, bound, ok = _column_generation(
+            patterns, bound, converged = _column_generation(
                 demand_mm, counts, capacities, costs)
-            if patterns and ok:
+            if patterns:
                 objective, values, _duals = _solve_lp(
                     patterns, counts, costs, integer=True)
                 if objective is not None:
@@ -315,10 +401,24 @@ def solve(pieces, stock_mm_list, kerf=5.0, start_trim=0.0,
                         for _ in range(int(round(value))):
                             chosen.append(patterns[index])
                     result['method'] = 'exact'
-                    result['lower_bound_feet'] = bound or 0.0
-                    gap = (objective or 0.0) - (bound or 0.0)
+                    # Only a converged LP is a bound on the FULL problem.
+                    # Otherwise fall back to the material bound, which
+                    # always holds and is simply weaker.
+                    raw_bound = bound if converged else material_lower_bound(
+                        demand_mm, counts, capacities, costs)
+                    # Round the bound up to a total bars can actually
+                    # make: no plan can land between two multiples of
+                    # the stock lengths' gcd.
+                    safe_bound = achievable_floor(raw_bound or 0.0, costs)
+                    result['lower_bound_feet'] = safe_bound
+                    gap = (objective or 0.0) - safe_bound
                     result['gap_feet'] = max(0.0, gap)
-                    result['proven_optimal'] = gap <= 1e-6
+                    result['converged'] = converged
+                    # Optimal only when generation converged AND the
+                    # answer sits on that bound. An unconverged LP is
+                    # not a bound on the full problem at all.
+                    result['proven_optimal'] = bool(
+                        converged and gap <= 1e-6)
                     patterns = chosen
                 else:
                     patterns = None
