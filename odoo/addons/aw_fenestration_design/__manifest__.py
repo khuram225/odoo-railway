@@ -26,7 +26,7 @@ row/leaf grid shape:
                           cut length. Populated by the explosion engine,
                           not hand-entered. That engine is NOT part of this
                           module yet — see action_explode() below, which is
-                          deliberately a stub. Checks, the coupler action,
+                          deliberately a stub. Checks,
                           and the visual canvas are separate follow-on work
                           too, in that order, per the agreed build sequence.
     """,

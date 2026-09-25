@@ -178,3 +178,41 @@
     pointer-events: none;
     user-select: none;
 }
+
+// Pane resizers. 6px wide but with a wider invisible hit area, because a
+// 6px target is fiddly with a mouse and impossible with a trackpad.
+.o_aw_cfg_resizer {
+    width: 6px;
+    cursor: col-resize;
+    background: transparent;
+    position: relative;
+    user-select: none;
+
+    &::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -3px;
+        right: -3px;
+    }
+
+    &:hover {
+        background: var(--o-color-3, #bbb);
+    }
+}
+
+// Collapsible section headers, both panes.
+.o_aw_cfg_sec {
+    cursor: pointer;
+    user-select: none;
+
+    &:hover {
+        color: var(--o-color-1, #714b67) !important;
+    }
+
+    > i {
+        width: 0.75rem;
+        font-size: 0.7rem;
+    }
+}

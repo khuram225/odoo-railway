@@ -56,6 +56,14 @@ class AwDesignBomLine(models.Model):
         ('45', '45 deg'), ('90', '90 deg'),
     ], default='90')
     label = fields.Char(help="Where this piece goes, e.g. 'P2 Palay - Top'.")
+    # Stable identity for one physical piece (spec 6c-B). Assigned by
+    # the explosion from the design's own geometry, so it survives
+    # re-optimising the cutting plan -- which is the whole point: the
+    # shop writes it on the bar.
+    piece_ref = fields.Char(string='Ref', index=True)
+    unit_no = fields.Integer(
+        string='Unit', default=1,
+        help="Which of the position's units this piece belongs to.")
     panel_no = fields.Integer(string='Panel')
     glass_spec_id = fields.Many2one('aw.glass.spec', ondelete='restrict')
     glass_w = fields.Float(string='Width (mm)')

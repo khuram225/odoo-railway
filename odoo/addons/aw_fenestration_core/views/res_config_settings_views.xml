@@ -29,6 +29,14 @@
                                  help="Reserved for every cut, including the last on a bar.">
                             <field name="aw_kerf_mm"/>
                         </setting>
+                        <setting id="aw_start_trim_setting" string="Bar start trim"
+                                 help="Taken off every bar before anything is cut. Defaults to 0: measure it before setting it.">
+                            <field name="aw_start_trim_mm"/>
+                        </setting>
+                        <setting id="aw_safety_margin_setting" string="Bar safety margin"
+                                 help="Held back on every bar so an arithmetically exact plan still cuts in practice.">
+                            <field name="aw_safety_margin_mm"/>
+                        </setting>
                         <setting id="aw_offcut_setting" string="Minimum reusable offcut"
                                  help="A remainder at least this long is listed as return to stock rather than scrap.">
                             <field name="aw_offcut_min_mm"/>

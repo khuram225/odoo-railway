@@ -12,7 +12,9 @@
                     <button name="action_print_cutting_sheet" type="object"
                             string="Cutting Sheet"/>
                     <button name="action_print_labels" type="object"
-                            string="Piece Labels"/>
+                            string="Labels (A4)"/>
+                    <button name="action_print_thermal_labels" type="object"
+                            string="Labels (50x30)"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
@@ -31,6 +33,9 @@
                             <field name="stock_lengths_ft" readonly="1"/>
                             <field name="kerf_mm" readonly="1"/>
                             <field name="offcut_min_mm" readonly="1"/>
+                            <field name="start_trim_mm" readonly="1"/>
+                            <field name="safety_margin_mm" readonly="1"/>
+                            <field name="max_piece_mm" readonly="1"/>
                             <field name="is_current" invisible="1"/>
                             <field name="currency_id" invisible="1"/>
                         </group>
@@ -44,6 +49,8 @@
                                  what the price assumed and what the plan
                                  actually wastes is the number worth
                                  arguing about. -->
+                            <field name="optimality"/>
+                            <field name="optimality_note"/>
                             <field name="measured_wastage_pct"
                                    string="Measured wastage %"/>
                             <field name="assumed_wastage_pct"
@@ -127,6 +134,7 @@
                                                 <field name="cut_ids" readonly="1">
                                                     <list>
                                                         <field name="sequence"/>
+                                                        <field name="piece_ref" string="Ref"/>
                                                         <field name="label"/>
                                                         <field name="length_label" string="Length"/>
                                                         <field name="length_mm" string="mm"/>

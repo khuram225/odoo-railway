@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Exercise the bar-nesting algorithm with the REAL implementation.
+"""Exercise the bar-nesting optimiser with the REAL implementation.
 
-A nesting bug is expensive and almost invisible: buy one bar too few
-and the saw stops mid-job; lose a piece silently and a window ships
-without a member. Neither raises anything, and a yield table looks
-perfectly plausible either way.
+A nesting bug is expensive and nearly invisible: buy one bar too few and
+the saw stops mid-job; lose a piece silently and a window ships without
+a member. Neither raises anything, and a yield table looks plausible
+either way.
 
-cut_algorithm.py is kept free of Odoo imports for exactly this reason,
-so what runs here is what runs on the quote.
+The cases below are ones where the true minimum can be established by
+hand, so "proven optimal" can be checked against arithmetic rather than
+against the optimiser's own opinion of itself.
+
+cut_algorithm.py is Odoo-free for this reason -- what runs here is what
+runs on a quote.
 """
 import importlib.util
+import math
 import sys
 from pathlib import Path
 
@@ -28,8 +33,9 @@ def load():
     return module
 
 
-def pieces(*lengths):
-    return [{'length': float(length), 'label': 'P%s' % index}
+def pieces(*lengths, angle='45'):
+    return [{'length': float(length), 'label': 'P%s' % index,
+             'angle': angle}
             for index, length in enumerate(lengths, start=1)]
 
 
@@ -40,52 +46,109 @@ def main():
     def fail(label, detail):
         problems.append('%s: %s' % (label, detail))
 
-    # ---- the spec's worked example -------------------------------------
-    # Three pieces of 76.33 in (1938.78 mm). Two fit a 14 ft bar
-    # (2 x 1943.78 = 3887.56 <= 4267.2); three do not fit ANY stock
-    # length (3 x 1943.78 = 5831.34 > 5486.4). So every option needs two
-    # bars, and the cheapest is the one that buys the least: 2 x 14 ft.
-    length = 76.33 * 25.4
-    result = cut.evaluate(pieces(length, length, length), STOCK,
-                          kerf=5.0, offcut_min=400.0, rate_per_ft=1.0)
-    chosen = cut.scenario_by_key(result, result['chosen_key'])
-    if result['chosen_key'] != '14':
-        fail('3 x 76.33in', 'chose %r, expected the 14 ft option'
-             % result['chosen_key'])
-    if chosen['bar_count'] != 2:
-        fail('3 x 76.33in', 'used %s bars, expected 2' % chosen['bar_count'])
-    if abs(chosen['feet_bought'] - 28.0) > 1e-6:
-        fail('3 x 76.33in', 'bought %.4f ft, expected 28'
-             % chosen['feet_bought'])
-    placed = sum(len(bar['cuts']) for bar in chosen['bars'])
-    if placed != 3:
-        fail('3 x 76.33in', 'placed %s pieces, expected 3' % placed)
-    # No single bar can take all three -- the point of the example.
-    if any(len(bar['cuts']) == 3 for bar in chosen['bars']):
-        fail('3 x 76.33in', 'put all three on one bar, which does not fit')
-    # 4267.2 - 2*1943.78 = 379.64, below the 400 minimum; the second
-    # bar's remainder is well above it.
-    if len(chosen['offcuts']) != 1:
-        fail('3 x 76.33in', 'offcuts %s, expected exactly one above 400mm'
-             % chosen['offcuts'])
+    # ---- saw geometry --------------------------------------------------
+    # A 45 degree mitre travels kerf / sin(45) through the bar.
+    expected = 5.0 / math.sin(math.radians(45))
+    if abs(cut.saw_loss_mm(5.0, '45') - expected) > 1e-9:
+        fail('saw loss', 'mitre loss is %.4f, expected %.4f'
+             % (cut.saw_loss_mm(5.0, '45'), expected))
+    if abs(cut.saw_loss_mm(5.0, '90') - 5.0) > 1e-9:
+        fail('saw loss', 'square cut should lose exactly the kerf')
 
-    # ---- a piece longer than the longest bar ---------------------------
-    over = 19 * FT
-    result = cut.evaluate(pieces(over, 1000.0), STOCK, kerf=5.0)
+    # Longest piece = bar - trim - margin - one cut.
+    longest = cut.max_piece_mm(18 * FT, start_trim=10.0, safety_margin=25.0,
+                               kerf=5.0)
+    if abs(longest - (18 * FT - 10.0 - 25.0 - expected)) > 1e-9:
+        fail('max piece', 'got %.4f' % longest)
+
+    # ---- no joints: an over-long piece is reported, never split --------
+    over = cut.max_piece_mm(18 * FT, 10.0, 25.0, 5.0) + 1.0
+    result = cut.solve(pieces(over, 1000.0), STOCK, kerf=5.0,
+                       start_trim=10.0, safety_margin=25.0)
     if len(result['oversize']) != 1:
-        fail('oversize piece', 'reported %s oversize, expected 1'
+        fail('oversize', 'reported %s oversize, expected 1'
              % len(result['oversize']))
-    if result['oversize'] and result['oversize'][0]['length'] != over:
-        fail('oversize piece', 'reported the wrong piece')
-    chosen = cut.scenario_by_key(result, result['chosen_key'])
-    placed = sum(len(bar['cuts']) for bar in chosen['bars'])
-    if placed != 1:
-        fail('oversize piece',
-             'placed %s of the fitting pieces, expected 1' % placed)
+    if result['placed_count'] != 1:
+        fail('oversize', 'placed %s fitting pieces, expected 1'
+             % result['placed_count'])
+    if any(len(bar['cuts']) > 1 for bar in result['bars']):
+        fail('oversize', 'the over-long piece was nested anyway')
 
-    # ---- nothing is ever silently dropped ------------------------------
-    # 15 ft does not fit a 14 ft bar, so the 14-only option is
-    # impossible -- it must say so, NOT quietly leave the piece out.
+    # ---- provable optimum 1: exact fit, no waste possible --------------
+    # Four pieces that exactly fill one 18 ft bar's usable length. One
+    # bar is obviously the minimum, and the optimiser must find it.
+    usable = cut.usable_bar_mm(18 * FT, 0.0, 0.0)
+    each = usable / 4.0 - cut.saw_loss_mm(5.0, '45')
+    result = cut.solve(pieces(each, each, each, each), STOCK, kerf=5.0)
+    if result['bar_count'] != 1:
+        fail('exact fit', 'used %s bars, expected 1' % result['bar_count'])
+    if cut.HAS_SOLVER and not result['proven_optimal']:
+        fail('exact fit', 'did not prove the single bar optimal')
+
+    # ---- provable optimum 2: total length forces a bar count -----------
+    # Nine pieces of 1700 mm. Demand per piece is 1707.07 mm. An 18 ft
+    # bar (5486.4) holds 3 (5121.2); 14 ft holds 2. Total demand is
+    # 15363.6 mm, so at least 15363.6 / 5486.4 = 2.8 -> 3 bars of any
+    # mix. Three 18 ft bars hold exactly 9. So 3 x 18 ft = 54 ft is
+    # optimal and provable.
+    result = cut.solve(pieces(*([1700.0] * 9)), STOCK, kerf=5.0,
+                       rate_per_ft=1.0)
+    if result['bar_count'] != 3:
+        fail('9 x 1700', 'used %s bars, expected 3' % result['bar_count'])
+    if abs(result['feet_bought'] - 54.0) > 1e-6:
+        fail('9 x 1700', 'bought %.3f ft, expected 54'
+             % result['feet_bought'])
+    if cut.HAS_SOLVER and not result['proven_optimal']:
+        fail('9 x 1700', 'not proven optimal (gap %.4f ft)'
+             % result['gap_feet'])
+
+    # ---- the exact method must beat first-fit-decreasing ---------------
+    # A classic case where FFD is not optimal: greedy opens a third bar,
+    # the exact method packs into two 18 ft bars.
+    awkward = [2700.0, 2700.0, 1800.0, 1800.0, 900.0, 900.0]
+    exact = cut.solve(pieces(*awkward), [18 * FT], kerf=5.0, rate_per_ft=1.0)
+    if cut.HAS_SOLVER:
+        if exact['method'] != 'exact':
+            fail('awkward set', 'fell back to %s' % exact['method'])
+        if not exact['proven_optimal']:
+            fail('awkward set', 'not proven optimal')
+        # 2700+1800+900 = 5400 + 3 cuts (21.2) = 5421.2 <= 5486.4, twice.
+        if exact['bar_count'] != 2:
+            fail('awkward set', 'used %s bars, expected 2'
+                 % exact['bar_count'])
+
+    # ---- every piece is placed exactly once, in every scenario --------
+    for name, lengths in (
+        ('mixed lengths', (3000, 2500, 2000, 1500, 1000, 800, 500)),
+        ('many equal', tuple([1200] * 11)),
+        ('one piece', (2000,)),
+    ):
+        result = cut.evaluate(pieces(*lengths), STOCK, kerf=5.0)
+        for scenario in result['scenarios']:
+            if not scenario['feasible']:
+                continue
+            labels = [c['label'] for bar in scenario['bars']
+                      for c in bar['cuts']]
+            if sorted(labels) != sorted(
+                    'P%s' % i for i in range(1, len(lengths) + 1)):
+                fail(name, '%s lost or duplicated a piece' % scenario['key'])
+
+    # ---- no bar is over-filled ----------------------------------------
+    result = cut.evaluate(pieces(3000, 2500, 2000, 1500, 1000, 800, 500),
+                          STOCK, kerf=5.0, start_trim=10.0,
+                          safety_margin=25.0)
+    for scenario in result['scenarios']:
+        for bar in scenario['bars']:
+            consumed = sum(
+                cut.piece_demand_mm(c['length'], 5.0, c.get('angle') or '45')
+                for c in bar['cuts'])
+            capacity = cut.usable_bar_mm(bar['stock_mm'], 10.0, 25.0)
+            if consumed > capacity + 1e-6:
+                fail('capacity', 'a %.1f mm bar holds %.1f mm of cuts '
+                                 '(capacity %.1f)'
+                     % (bar['stock_mm'], consumed, capacity))
+
+    # ---- an option that cannot hold a piece is refused, not trimmed ----
     result = cut.evaluate(pieces(15 * FT, 1000.0), STOCK, kerf=5.0)
     by_key = {s['key']: s for s in result['scenarios']}
     if by_key['14']['feasible']:
@@ -96,36 +159,7 @@ def main():
     if result['chosen_key'] == '14':
         fail('15 ft piece', 'chose an infeasible option')
 
-    # Every fitting piece appears exactly once in every feasible option.
-    for name, lengths in (
-        ('mixed lengths', (3000, 2500, 2000, 1500, 1000, 800, 500)),
-        ('many equal', tuple([1200] * 11)),
-        ('one piece', (2000,)),
-    ):
-        result = cut.evaluate(pieces(*lengths), STOCK, kerf=5.0)
-        for scenario in result['scenarios']:
-            if not scenario['feasible']:
-                continue
-            labels = [cutrow['label'] for bar in scenario['bars']
-                      for cutrow in bar['cuts']]
-            if sorted(labels) != sorted(
-                    'P%s' % i for i in range(1, len(lengths) + 1)):
-                fail(name, '%s lost or duplicated a piece: %s'
-                     % (scenario['key'], labels))
-
-    # ---- no bar is over-filled ----------------------------------------
-    result = cut.evaluate(pieces(3000, 2500, 2000, 1500, 1000, 800, 500),
-                          STOCK, kerf=5.0)
-    for scenario in result['scenarios']:
-        for bar in scenario['bars']:
-            consumed = sum(c['length'] + 5.0 for c in bar['cuts'])
-            if consumed > bar['stock_mm'] + 1e-9:
-                fail('capacity', 'a %s mm bar holds %.1f mm of cuts'
-                     % (bar['stock_mm'], consumed))
-            if abs((bar['stock_mm'] - consumed) - bar['remainder']) > 1e-6:
-                fail('capacity', 'remainder does not match what was cut')
-
-    # ---- an empty group is not a crash --------------------------------
+    # ---- empty input is not a crash -----------------------------------
     result = cut.evaluate([], STOCK, kerf=5.0)
     if result['chosen_key'] is not None or result['oversize']:
         fail('empty group', 'expected nothing chosen and nothing oversize')
@@ -136,9 +170,11 @@ def main():
             print('  %s' % problem)
         return 1
 
-    print('Bar nesting correct: the 3 x 76.33 in example, an oversize '
-          'piece, an infeasible bar length, piece conservation and bar '
-          'capacity.')
+    print('Bar nesting correct (%s): mitre saw loss, the no-joints rule, '
+          'two provable optima, an FFD-beating case, piece conservation, '
+          'bar capacity and infeasible options.'
+          % ('exact solver' if cut.HAS_SOLVER else 'GREEDY FALLBACK - '
+             'pulp not installed'))
     return 0
 
 

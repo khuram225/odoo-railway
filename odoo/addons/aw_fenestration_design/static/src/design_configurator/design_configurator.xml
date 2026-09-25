@@ -145,7 +145,7 @@
 
                     <!-- LEFT: preset library, collapsible -->
                     <div class="o_aw_cfg_library border-end bg-view d-flex flex-column flex-shrink-0"
-                         t-att-style="state.libraryOpen ? 'width: 220px; min-height: 0;' : 'width: 2.25rem; min-height: 0;'">
+                         t-att-style="leftPaneStyle">
                         <button class="btn btn-sm btn-light border-0 rounded-0 text-start d-flex align-items-center gap-1 flex-shrink-0"
                                 t-on-click="toggleLibrary"
                                 t-att-title="state.libraryOpen ? 'Hide preset library' : 'Show preset library'">
@@ -153,6 +153,14 @@
                             <span t-if="state.libraryOpen" class="small text-muted">Layouts</span>
                         </button>
 
+                        <div t-if="state.libraryOpen"
+                             class="d-flex gap-1 px-2 pb-1 flex-shrink-0">
+                            <button class="btn btn-sm btn-link p-0 small"
+                                    t-on-click="expandAllLeft">Expand all</button>
+                            <span class="text-muted small">·</span>
+                            <button class="btn btn-sm btn-link p-0 small"
+                                    t-on-click="collapseAllLeft">Collapse all</button>
+                        </div>
                         <div t-if="state.libraryOpen" class="overflow-auto p-2" style="min-height: 0;">
 
                             <!-- Family strip. Only families with at least one
@@ -282,11 +290,14 @@
                             </t>
 
                             <t t-foreach="presetsByFamily" t-as="group" t-key="group.family">
-                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-2 mb-1"
-                                     t-att-data-aw-family="group.familyId">
-                                    <t t-esc="group.family"/>
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-2 mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                     t-att-data-aw-family="group.familyId"
+                                     t-on-click="() => this.toggleSection('fam:' + group.family)">
+                                    <i t-att-class="sectionIcon('fam:' + group.family)"/>
+                                    <span t-esc="group.family"/>
                                 </div>
-                                <div class="d-flex flex-wrap gap-2">
+                                <div class="d-flex flex-wrap gap-2"
+                                     t-if="!isCollapsed('fam:' + group.family)">
                                     <t t-foreach="group.presets" t-as="preset" t-key="preset.id">
                                         <button class="o_aw_cfg_preset btn btn-sm btn-light border p-1 text-center"
                                                 t-att-title="preset.name"
@@ -393,6 +404,12 @@
                     </div>
 
                     <!-- CENTER: drawing, full height -->
+                    <div class="o_aw_cfg_resizer flex-shrink-0"
+                         t-if="state.libraryOpen"
+                         title="Drag to resize, double-click to reset"
+                         t-on-pointerdown="onLeftDragStart"
+                         t-on-dblclick="onLeftDragReset"/>
+
                     <div class="flex-grow-1 d-flex flex-column p-3" style="min-width: 0; min-height: 0;">
                         <div class="o_aw_cfg_canvas_wrap position-relative flex-grow-1"
                              style="min-height: 0;">
@@ -709,15 +726,33 @@
                     </div>
 
                     <!-- RIGHT: selected-leaf properties -->
+                    <!-- Right border handle. Sits BETWEEN the panes as a
+                         direct child of the flex row, so the drag can read
+                         the row's own bounds. -->
+                    <div class="o_aw_cfg_resizer flex-shrink-0"
+                         title="Drag to resize, double-click to reset"
+                         t-on-pointerdown="onRightDragStart"
+                         t-on-dblclick="onRightDragReset"/>
+
                     <div class="o_aw_cfg_side border-start bg-view d-flex flex-column flex-shrink-0"
-                         style="width: 260px; min-height: 0;">
+                         t-att-style="rightPaneStyle">
+                        <div class="d-flex gap-1 px-3 pt-2 flex-shrink-0">
+                            <button class="btn btn-sm btn-link p-0 small"
+                                    t-on-click="expandAllRight">Expand all</button>
+                            <span class="text-muted small">·</span>
+                            <button class="btn btn-sm btn-link p-0 small"
+                                    t-on-click="collapseAllRight">Collapse all</button>
+                        </div>
                         <div class="overflow-auto p-3 flex-grow-1" style="min-height: 0;">
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                 t-on-click="() => this.toggleSection('panel')">
+                                <i t-att-class="sectionIcon('panel')"/>
                                 <t t-if="selectionMode === 'panel'"><t t-esc="selectedPanelLabel"/></t>
                                 <t t-elif="selectionMode === 'divider'">Junction</t>
                                 <t t-else="">Selection</t>
                             </div>
 
+                            <t t-if="!isCollapsed('panel')">
                             <!-- Exactly three states, branched on one getter.
                                  Nothing here reads state.selected: it is a
                                  path now, and the old deep reads rendered NaN
@@ -836,7 +871,12 @@
 
                                 <!-- Attachments for this panel (spec 5.5) -->
                                 <div class="border-top pt-2 mt-1">
-                                    <div class="small text-muted mb-1">Infill</div>
+                                    <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                         t-on-click="() => this.toggleSection('infill')">
+                                        <i t-att-class="sectionIcon('infill')"/>
+                                        <span>Infill</span>
+                                    </div>
+                                    <t t-if="!isCollapsed('infill')">
                                     <div t-if="!infillTypes.length" class="small text-warning mb-2">
                                         No Infill Types are configured. Add them
                                         under Fenestration &#8250; Configuration.
@@ -872,7 +912,13 @@
                                         </div>
                                     </t>
 
-                                    <div class="small text-muted mb-1">Mesh</div>
+                                    </t>
+                                    <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                         t-on-click="() => this.toggleSection('mesh')">
+                                        <i t-att-class="sectionIcon('mesh')"/>
+                                        <span>Mesh</span>
+                                    </div>
+                                    <t t-if="!isCollapsed('mesh')">
                                     <div t-if="!meshTypes.length" class="small text-warning mb-2">
                                         No Mesh Types are configured. Add them
                                         under Fenestration &#8250; Configuration.
@@ -907,7 +953,13 @@
                                         </div>
                                     </t>
 
-                                    <div class="small text-muted mb-1">Georgian bars</div>
+                                    </t>
+                                    <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                         t-on-click="() => this.toggleSection('grid')">
+                                        <i t-att-class="sectionIcon('grid')"/>
+                                        <span>Georgian bars</span>
+                                    </div>
+                                    <t t-if="!isCollapsed('grid')">
                                     <div t-if="!gridPatterns.length" class="small text-warning mb-2">
                                         No Grid Patterns are configured.
                                     </div>
@@ -935,6 +987,7 @@
                                                    t-on-change="onGridColsChange"/>
                                         </div>
                                     </div>
+                                    </t>
                                 </div>
 
                                 <t t-if="selectedLeafType and selectedLeafType.has_slide_dir">
@@ -950,6 +1003,7 @@
                                     </div>
                                 </t>
                             </t>
+                            </t>
                         </div>
 
                         <!-- Pricing (spec 8). INTERNAL ONLY: none of this
@@ -957,10 +1011,13 @@
                         <div t-if="pricing"
                              class="border-top overflow-auto p-3 flex-shrink-0"
                              style="max-height: 35%;">
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
-                                Pricing
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                 t-on-click="() => this.toggleSection('pricing')">
+                                <i t-att-class="sectionIcon('pricing')"/>
+                                <span>Pricing</span>
                                 <span class="badge bg-secondary ms-1">internal</span>
                             </div>
+                            <t t-if="!isCollapsed('pricing')">
                             <div t-if="pricing.uncosted"
                                  class="small text-warning mb-2">
                                 <i class="fa fa-exclamation-triangle me-1"/>
@@ -1061,6 +1118,7 @@
                                     — below it, the quote cannot be confirmed.
                                 </t>
                             </div>
+                            </t>
                         </div>
 
                         <!-- BOM and Checks (spec 6.5, 6.6). Regenerated on
@@ -1068,9 +1126,12 @@
                              on screen rather than the previous one. -->
                         <div class="border-top overflow-auto p-3 flex-shrink-0"
                              style="max-height: 45%;">
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
-                                Checks
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                 t-on-click="() => this.toggleSection('checks')">
+                                <i t-att-class="sectionIcon('checks')"/>
+                                <span>Checks</span>
                             </div>
+                            <t t-if="!isCollapsed('checks')">
                             <div t-if="!checks.length" class="small text-success mb-3">
                                 <i class="fa fa-check me-1"/>Nothing to report.
                             </div>
@@ -1085,9 +1146,13 @@
                                 </div>
                             </t>
 
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-2">
-                                Bill of materials
+                            </t>
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                 t-on-click="() => this.toggleSection('bom')">
+                                <i t-att-class="sectionIcon('bom')"/>
+                                <span>Bill of materials</span>
                             </div>
+                            <t t-if="!isCollapsed('bom')">
                             <div t-if="bomIsEmpty" class="small text-muted">
                                 Save the design to generate its BOM.
                             </div>
@@ -1121,6 +1186,7 @@
                                         </tr>
                                     </tbody>
                                 </table>
+                            </t>
                             </t>
                         </div>
                     </div>

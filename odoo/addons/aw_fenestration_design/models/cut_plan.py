@@ -22,10 +22,17 @@ from .cut_algorithm import MM_PER_FOOT, evaluate, scenario_by_key
 PARAM_STOCK = 'aw_fenestration.stock_lengths_ft'
 PARAM_KERF = 'aw_fenestration.kerf_mm'
 PARAM_OFFCUT = 'aw_fenestration.offcut_min_mm'
+PARAM_TRIM = 'aw_fenestration.start_trim_mm'
+PARAM_MARGIN = 'aw_fenestration.safety_margin_mm'
 
 DEFAULT_STOCK = '14,16,18'
 DEFAULT_KERF = 5.0
 DEFAULT_OFFCUT = 400.0
+# Start trim defaults to 0 on purpose: nobody has measured what the saw
+# wastes squaring a bar end here, and an invented figure would shorten
+# every bar in the shop silently. 25 mm safety margin is the agreed one.
+DEFAULT_TRIM = 0.0
+DEFAULT_MARGIN = 25.0
 
 
 class AwCutPlan(models.Model):
@@ -47,6 +54,22 @@ class AwCutPlan(models.Model):
     stock_lengths_ft = fields.Char(readonly=True)
     kerf_mm = fields.Float(readonly=True)
     offcut_min_mm = fields.Float(readonly=True)
+    start_trim_mm = fields.Float(readonly=True)
+    safety_margin_mm = fields.Float(readonly=True)
+    max_piece_mm = fields.Float(
+        readonly=True, string='Longest cuttable piece',
+        help="Longest bar less start trim, safety margin and one saw "
+             "cut. Nothing longer can be made: pieces are never joined.")
+
+    # How good the answer is, stated rather than implied. "Optimal"
+    # means the integer solution matched the LP lower bound, not that
+    # the optimiser is pleased with itself.
+    optimality = fields.Selection([
+        ('optimal', 'Proven optimal'),
+        ('gap', 'Near optimal'),
+        ('greedy', 'Approximate (no solver)'),
+    ], readonly=True)
+    optimality_note = fields.Char(readonly=True)
 
     bom_fingerprint = fields.Char(readonly=True)
     is_current = fields.Boolean(compute='_compute_is_current')
@@ -126,6 +149,8 @@ class AwCutPlan(models.Model):
             'stock_ft': sorted(lengths),
             'kerf': number(PARAM_KERF, DEFAULT_KERF),
             'offcut_min': number(PARAM_OFFCUT, DEFAULT_OFFCUT),
+            'start_trim': number(PARAM_TRIM, DEFAULT_TRIM),
+            'safety_margin': number(PARAM_MARGIN, DEFAULT_MARGIN),
         }
 
     # ------------------------------------------------------------------
@@ -147,7 +172,8 @@ class AwCutPlan(models.Model):
         settings = self._settings()
         payload = {
             'settings': [settings['stock_ft'], settings['kerf'],
-                         settings['offcut_min']],
+                         settings['offcut_min'], settings['start_trim'],
+                         settings['safety_margin']],
             'lines': sorted(
                 [line.product_id.id, round(line.length_mm or 0.0, 3),
                  line.cut_angle or '', line.qty or 0, line.label or '']
@@ -188,18 +214,22 @@ class AwCutPlan(models.Model):
                 entry['pieces'].append({
                     'length': round(line.length_mm or 0.0, 2),
                     'label': line.label or '',
-                    'angle': line.cut_angle or '',
+                    'ref': line.piece_ref or '',
+                    'angle': line.cut_angle or '45',
                     'bom_line_id': line.id,
                     'seq': index,
                 })
 
         oversize_notes = []
+        methods, gap_feet, all_proven = set(), 0.0, True
         for product_id, entry in pooled.items():
             product = entry['product']
             rate = self._rate_for_product(product)
             result = evaluate(
                 entry['pieces'], stock_mm, kerf=settings['kerf'],
-                offcut_min=settings['offcut_min'], rate_per_ft=rate)
+                offcut_min=settings['offcut_min'], rate_per_ft=rate,
+                start_trim=settings['start_trim'],
+                safety_margin=settings['safety_margin'])
 
             group = self.env['aw.cut.plan.group'].create({
                 'plan_id': self.id,
@@ -208,17 +238,36 @@ class AwCutPlan(models.Model):
                 'chosen_key': result['chosen_key'] or '',
                 'override_key': overrides.get(product_id, ''),
             })
+            methods.add(result.get('method') or 'none')
+            gap_feet += result.get('gap_feet') or 0.0
+            all_proven = all_proven and bool(result.get('proven_optimal'))
+
             group._store_scenarios(result)
             group._apply_choice(result, settings['offcut_min'])
 
             for piece in result['oversize']:
                 oversize_notes.append(_(
                     "%(label)s on %(product)s is %(len)s mm, longer than "
-                    "the longest stock bar. Split it with a coupler — it "
-                    "is NOT in the bars below.",
+                    "any bar can cut. Pieces are never joined, so this "
+                    "position must be resized — it is NOT in the bars "
+                    "below.",
                     label=piece['label'] or '?',
                     product=product.display_name,
                     len=round(piece['length'])))
+
+        if 'greedy' in methods:
+            optimality = 'greedy'
+            optimality_note = _(
+                "No LP solver on this server, so the bars were packed "
+                "greedily. The result is valid but not proven cheapest.")
+        elif all_proven:
+            optimality = 'optimal'
+            optimality_note = _("Proven optimal: no cheaper set of bars "
+                                "exists for these pieces.")
+        else:
+            optimality = 'gap'
+            optimality_note = _(
+                "Within %.2f ft of optimal.") % gap_feet
 
         self.write({
             'date': fields.Datetime.now(),
@@ -226,6 +275,11 @@ class AwCutPlan(models.Model):
                 '%g' % ft for ft in settings['stock_ft']),
             'kerf_mm': settings['kerf'],
             'offcut_min_mm': settings['offcut_min'],
+            'start_trim_mm': settings['start_trim'],
+            'safety_margin_mm': settings['safety_margin'],
+            'max_piece_mm': self.env['aw.design']._max_piece_mm(),
+            'optimality': optimality,
+            'optimality_note': optimality_note,
             'bom_fingerprint': self._live_fingerprint(),
             'oversize_note': '\n'.join(oversize_notes),
         })
@@ -261,6 +315,55 @@ class AwCutPlan(models.Model):
         return self.env.ref(
             'aw_fenestration_design.action_report_aw_cut_labels'
         ).report_action(self)
+
+    def action_print_thermal_labels(self):
+        return self.env.ref(
+            'aw_fenestration_design.action_report_aw_cut_labels_thermal'
+        ).report_action(self)
+
+    def _sticker_rows(self):
+        """Every cut, in cutting order: group, bar, then cut.
+
+        One flat list rather than nested loops in the template, because
+        a sticker sheet has to flow continuously across pages and both
+        formats need exactly the same rows in exactly the same order.
+        """
+        self.ensure_one()
+        rows = []
+        for group in self.group_ids:
+            product = group.product_id
+            thickness = finish = ''
+            for value in product.product_template_variant_value_ids:
+                if value.attribute_id.name == 'Thickness':
+                    thickness = value.name
+                elif value.attribute_id.name == 'Finish':
+                    finish = value.name
+            for bar_index, bar in enumerate(group.bar_ids, start=1):
+                for cut_index, cut in enumerate(bar.cut_ids, start=1):
+                    design = cut.bom_line_id.design_id
+                    rows.append({
+                        'ref': cut.piece_ref or '—',
+                        'role': cut.label or '',
+                        'profile': product.product_tmpl_id.name or '',
+                        'thickness': thickness,
+                        'finish': finish,
+                        'length': cut.length_label,
+                        'length_mm': cut.length_mm,
+                        'angle': cut.cut_angle or '',
+                        'position': design.name or '',
+                        'location': design.location or '',
+                        'quote': self.sale_order_id.name or '',
+                        'bar_no': bar_index,
+                        'bar_total': len(group.bar_ids),
+                        'cut_no': cut_index,
+                        'stock': bar.stock_label,
+                        # Enough to find the piece again from a phone:
+                        # the quote and the reference identify it
+                        # uniquely, and the reference is stable.
+                        'qr': '%s|%s' % (self.sale_order_id.name or '',
+                                         cut.piece_ref or ''),
+                    })
+        return rows
 
 
 class AwCutPlanGroup(models.Model):
@@ -319,13 +422,16 @@ class AwCutPlanGroup(models.Model):
                 pieces.append({
                     'length': round(line.length_mm or 0.0, 2),
                     'label': line.label or '',
-                    'angle': line.cut_angle or '',
+                    'ref': line.piece_ref or '',
+                    'angle': line.cut_angle or '45',
                     'bom_line_id': line.id,
                     'seq': index,
                 })
         return evaluate(pieces, stock_mm, kerf=settings['kerf'],
                         offcut_min=settings['offcut_min'],
-                        rate_per_ft=self.rate_per_ft), settings
+                        rate_per_ft=self.rate_per_ft,
+                        start_trim=settings['start_trim'],
+                        safety_margin=settings['safety_margin']), settings
 
     def _store_scenarios(self, result):
         self.ensure_one()
@@ -387,6 +493,7 @@ class AwCutPlanGroup(models.Model):
                     'sequence': (position + 1) * 10,
                     'bom_line_id': piece.get('bom_line_id') or False,
                     'label': piece.get('label') or '',
+                    'piece_ref': piece.get('ref') or '',
                     'length_mm': piece['length'],
                     'cut_angle': piece.get('angle') or '',
                 })
@@ -494,7 +601,12 @@ class AwCutPlanCut(models.Model):
     # already been printed. The plan goes "out of date" instead.
     bom_line_id = fields.Many2one(
         'aw.design.bom.line', ondelete='set null', index=True)
-    label = fields.Char(help="e.g. 'D1-P2 sash top'.")
+    label = fields.Char(help="e.g. 'P2 Palay - Top'.")
+    piece_ref = fields.Char(
+        string='Ref', index=True,
+        help="The piece's stable reference, e.g. D1.3. Set by the "
+             "design, not by this plan, so re-optimising never "
+             "renumbers it.")
     length_mm = fields.Float(string='Length (mm)')
     length_label = fields.Char(compute='_compute_length_label')
     cut_angle = fields.Selection([

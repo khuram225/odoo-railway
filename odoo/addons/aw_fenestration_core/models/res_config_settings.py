@@ -49,6 +49,18 @@ class ResConfigSettings(models.TransientModel):
         help="Reserved for every cut, including the last on a bar. "
              "Over-reserving slightly is the safe direction: a plan "
              "that buys one bar too few stops the saw.")
+    aw_start_trim_mm = fields.Float(
+        string='Bar Start Trim (mm)', default=0.0,
+        config_parameter='aw_fenestration.start_trim_mm',
+        help="Taken off every bar before anything is cut, for squaring "
+             "the end. Defaults to 0 because nobody has measured it "
+             "here — an invented figure would shorten every bar in the "
+             "shop silently.")
+    aw_safety_margin_mm = fields.Float(
+        string='Bar Safety Margin (mm)', default=25.0,
+        config_parameter='aw_fenestration.safety_margin_mm',
+        help="Held back on every bar so a plan that is arithmetically "
+             "exact still cuts in practice.")
     aw_offcut_min_mm = fields.Float(
         string='Minimum Reusable Offcut (mm)', default=400.0,
         config_parameter='aw_fenestration.offcut_min_mm',

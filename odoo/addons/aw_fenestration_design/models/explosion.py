@@ -13,24 +13,20 @@ from odoo.addons.aw_fenestration_core.models.formula import (
     evaluate_formula, formula_truthy,
 )
 
-# Longest bar the shop stocks (spec 6.6). A piece longer than this can't
-# be cut from one length and needs a coupler. Confirmed by the client
-# alongside the rate unit: stock lengths are 14/16/18 ft, so 18 is the
-# real ceiling rather than the assumption it started as.
-MAX_STOCK_BAR_MM = 18 * 304.8  # 18 ft
+from .cut_algorithm import max_piece_mm
 
-# How to say "the layout needs this" in the checks, per scope. Phrased
-# as what the reader can see on the drawing, not as the internal scope
-# name: "1 interlock junction" is actionable, "junction_interlock" is
-# not.
 # Keys the checks read that are NOT fields on aw.design.bom.line. Kept
 # as one list because each is stripped in exactly one place, and a new
 # one forgotten there fails the create with an obscure error.
 CHECK_ONLY_KEYS = frozenset({
     'missing_product', 'position_id', 'missing_glass',
-    'glass_without_product', 'glass_spec_name',
+    'glass_without_product', 'glass_spec_name', '_order',
 })
 
+# How to say "the layout needs this" in the checks, per scope. Phrased
+# as what the reader can see on the drawing, not as the internal scope
+# name: "1 interlock junction" is actionable, "junction_interlock" is
+# not.
 SCOPE_DEMAND_LABEL = {
     'frame': ('frame', 'frames'),
     'panel_opening': ('opening panel', 'opening panels'),
@@ -58,6 +54,21 @@ class AwDesign(models.Model):
             levels = design.check_line_ids.mapped('level')
             design.check_error_count = levels.count('error')
             design.check_warning_count = levels.count('warning')
+
+    @api.model
+    def _max_piece_mm(self):
+        """The longest piece that can be cut from one bar.
+
+        Longest stock length, less the start trim, the safety margin and
+        one saw cut. Quoted at 45 degrees because a mitre loses more
+        than a square cut, so the number shown is the one that always
+        holds.
+        """
+        settings = self.env['aw.cut.plan']._settings()
+        longest = max(settings['stock_ft']) * 304.8
+        return max_piece_mm(
+            longest, settings['start_trim'], settings['safety_margin'],
+            settings['kerf'], '45')
 
     # ------------------------------------------------------------------
     # context building
@@ -125,30 +136,76 @@ class AwDesign(models.Model):
         qty_formula = line.qty_formula or position.default_qty or '1'
         qty = int(round(evaluate_formula(qty_formula, context, default=1))) or 1
 
+        # Clockwise from the top, viewed from inside: top 1, right 2,
+        # bottom 3, left 4 (spec B). Carried per piece so the reference
+        # numbering does not have to re-derive which side is which.
         edge = position.edge
         if edge == 'sides':
-            spec = [(length_h, 2)]
+            spec = [(length_h, 2, (2, 4))]
         elif edge == 'all':
-            spec = [(length_w, 2), (length_h, 2)]
+            spec = [(length_w, 2, (1, 3)), (length_h, 2, (2, 4))]
+        elif edge == 'bottom':
+            spec = [(length_w, 1, (3,))]
+        elif edge == 'top':
+            spec = [(length_w, 1, (1,))]
         else:
-            spec = [(length_w, 1)]
+            spec = [(length_w, 1, (0,))]
 
         product = self._profile_variant(line)
         pieces = []
-        for formula, count in spec:
+        # ONE DICT PER PHYSICAL PIECE, not one per formula. Four frame
+        # members cannot share a BOM line and still carry four distinct
+        # references (spec B), and the cut list wants them separate
+        # anyway -- each one is a cut.
+        for formula, count, edges in spec:
             length = evaluate_formula(formula, context, default=0.0)
-            pieces.append({
-                'kind': 'profile',
-                'product_id': product.id,
-                'length_mm': length,
-                'cut_angle': angle,
-                'qty': count * qty,
-                'panel_no': panel_no,
-                'label': '%s %s' % (label, position.name),
-                'position_id': position.id,
-                'missing_product': not product,
-            })
+            for index in range(count * qty):
+                pieces.append({
+                    'kind': 'profile',
+                    'product_id': product.id,
+                    'length_mm': length,
+                    'cut_angle': angle,
+                    'qty': 1,
+                    'panel_no': panel_no,
+                    'label': '%s %s' % (label, position.name),
+                    'position_id': position.id,
+                    'missing_product': not product,
+                    '_order': (
+                        self._piece_rank(position.scope),
+                        panel_no,
+                        edges[index % len(edges)] if edges else 0,
+                        position.sequence or 0,
+                        index,
+                    ),
+                })
         return pieces
+
+    def _piece_reference(self, unit, number, units_total):
+        """'D1.3', or 'D1-2.3' when the position is for several units.
+
+        Derived from the design and the piece's place in it, never from
+        the cutting plan -- re-optimising must never renumber a piece
+        somebody has already written on a bar.
+        """
+        self.ensure_one()
+        base = self.name or '?'
+        if units_total > 1:
+            return '%s-%s.%s' % (base, unit, number)
+        return '%s.%s' % (base, number)
+
+    @staticmethod
+    def _piece_rank(scope):
+        """Frame first, then whatever divides the opening, then panels.
+
+        The order the references are handed out in (spec B), so it has
+        to be stable against anything the optimiser later does.
+        """
+        if scope == 'frame':
+            return 0
+        if scope in ('junction_mullion', 'junction_meeting',
+                     'junction_interlock', 'transom'):
+            return 1
+        return 2
 
     # ------------------------------------------------------------------
     # the walk
@@ -374,10 +431,34 @@ class AwDesign(models.Model):
                 out.extend(self._hardware_line(
                     line, frame_context, _('design')))
 
-        # Everything is per ONE window; the position may be for several.
+        # Everything above is per ONE window; the position may be for
+        # several. Profiles are expanded into one line per physical
+        # piece per unit so each can carry its own reference; everything
+        # else keeps an aggregate quantity, because nobody labels a
+        # screw.
         multiplier = max(1, self.qty or 1)
+        profiles = sorted(
+            (v for v in out if v.get('kind') == 'profile'),
+            key=lambda v: v.get('_order') or ())
+        others = [v for v in out if v.get('kind') != 'profile']
+
         sequence = 0
-        for values in out:
+        for unit in range(1, multiplier + 1):
+            for index, values in enumerate(profiles, start=1):
+                sequence += 10
+                values = {k: v for k, v in values.items()
+                          if k not in CHECK_ONLY_KEYS}
+                values.update({
+                    'design_id': self.id,
+                    'sequence': sequence,
+                    'qty': 1,
+                    'unit_no': unit,
+                    'piece_ref': self._piece_reference(unit, index,
+                                                       multiplier),
+                })
+                self.env['aw.design.bom.line'].create(values)
+
+        for values in others:
             sequence += 10
             values = {k: v for k, v in values.items()
                       if k not in CHECK_ONLY_KEYS}
@@ -467,13 +548,19 @@ class AwDesign(models.Model):
                 "No Price Structure, so this design is costed with no "
                 "wastage, labour or profit.")))
 
+        # No joints and no couplers: every piece comes out of one bar,
+        # so one that cannot is a hard error rather than something the
+        # optimiser works around.
+        limit = self._max_piece_mm()
         for line in self.bom_line_ids:
-            if line.kind == 'profile' and line.length_mm > MAX_STOCK_BAR_MM:
+            if line.kind == 'profile' and line.length_mm > limit:
                 problems.append(('error', _(
-                    "'%(label)s' is %(len)s mm, longer than the longest "
-                    "stock bar (%(max)s mm). It needs a coupler.",
-                    label=line.label or '', len=round(line.length_mm),
-                    max=round(MAX_STOCK_BAR_MM))))
+                    "'%(label)s' is %(len)s, longer than the %(max)s that "
+                    "can be cut from one bar. Reduce the size — pieces "
+                    "are never joined.",
+                    label=line.label or '',
+                    len=self._format_length(line.length_mm),
+                    max=self._format_length(limit))))
 
         for level, message in problems:
             self.env['aw.design.check'].create({

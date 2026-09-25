@@ -140,6 +140,28 @@ const TARGETS = [
 ];
 
 const STUBS = `
+// Browser globals the component legitimately uses. \`window\` is in OWL's
+// RESERVED_WORDS and works fine in the browser; without a stub here the
+// harness reports "window is not defined" for perfectly good code, which
+// is a fault in the harness, not the component.
+const window = {
+    innerWidth: 1440,
+    innerHeight: 900,
+    addEventListener() {},
+    removeEventListener() {},
+    localStorage: {
+        getItem() { return null; },
+        setItem() {},
+        removeItem() {},
+    },
+};
+const getComputedStyle = () => ({ getPropertyValue: () => "" });
+const document = {
+    createElement: () => ({
+        getContext: () => ({ fillRect() {}, drawImage() {} }),
+        toDataURL: () => "data:image/png;base64,",
+    }),
+};
 const Component = class {};
 const useState = (o) => o;
 const useRef = () => ({ el: null });

@@ -77,6 +77,65 @@ const ZOOM_STEP = 1.25;
  * two server methods -- get_configurator_data() to load and
  * save_layout() to store the whole tree in one transaction.
  */
+/**
+ * Pane widths and collapsed sections live in localStorage.
+ *
+ * Per-viewer conveniences, exactly the case browser storage is for:
+ * losing them costs a drag, not data. Every read and write is guarded
+ * because the accessor itself throws in a private window or with site
+ * data blocked, and the configurator has to open regardless.
+ */
+const PANE_MIN_PX = 180;
+const PANE_MAX_FRACTION = 0.45;
+const PANE_DEFAULTS = { left: 220, right: 260 };
+const STORE_PANE = "aw_cfg_pane_";
+const STORE_COLLAPSED = "aw_cfg_collapsed";
+
+/** Right-hand sections, in the order they appear. */
+const RIGHT_SECTIONS = [
+    "panel", "infill", "mesh", "grid", "bom", "pricing", "checks",
+];
+
+function clampPane(value) {
+    const max = Math.max(
+        PANE_MIN_PX, Math.round(window.innerWidth * PANE_MAX_FRACTION));
+    return Math.min(max, Math.max(PANE_MIN_PX, Math.round(value)));
+}
+
+function loadPaneWidth(side, fallback) {
+    try {
+        const raw = window.localStorage.getItem(STORE_PANE + side);
+        const value = parseInt(raw, 10);
+        return Number.isNaN(value) ? fallback : clampPane(value);
+    } catch {
+        return fallback;
+    }
+}
+
+function savePaneWidth(side, value) {
+    try {
+        window.localStorage.setItem(STORE_PANE + side, String(value));
+    } catch {
+        // Nothing to do: the width simply resets next time.
+    }
+}
+
+function loadCollapsed() {
+    try {
+        return JSON.parse(window.localStorage.getItem(STORE_COLLAPSED)) || {};
+    } catch {
+        return {};
+    }
+}
+
+function saveCollapsed(state) {
+    try {
+        window.localStorage.setItem(STORE_COLLAPSED, JSON.stringify(state));
+    } catch {
+        // See above.
+    }
+}
+
 export class DesignConfigurator extends Component {
     static template = "aw_fenestration_design.DesignConfigurator";
     static props = { ...standardActionServiceProps };
@@ -98,6 +157,9 @@ export class DesignConfigurator extends Component {
             selected: null, // path: [[rowIdx, leafIdx], ...]
             selectedDivider: null, // divider key
             zoom: 1, // 1 = fitted to the canvas
+            paneLeft: loadPaneWidth("left", 220),
+            paneRight: loadPaneWidth("right", 260),
+            collapsed: loadCollapsed(),
             canvasW: 0,
             canvasH: 0,
             libraryOpen: true,
@@ -252,6 +314,129 @@ export class DesignConfigurator extends Component {
     }
 
     // -- Series -------------------------------------------------------------
+    // -- panes -------------------------------------------------------
+    // Screen-pixel values, so they belong with the adornments layer's
+    // kind of getter, never with `scene`: the drawing must not read a
+    // pane width or the cycle scene -> fitScale -> scene comes back.
+    get leftPaneStyle() {
+        if (!this.state.libraryOpen) {
+            return "width: 2.25rem; min-height: 0;";
+        }
+        return `width: ${this.state.paneLeft}px; min-height: 0;`;
+    }
+
+    get rightPaneStyle() {
+        return `width: ${this.state.paneRight}px; min-height: 0;`;
+    }
+
+    /**
+     * Drag a pane border. Widths are read off the pointer's absolute
+     * position rather than accumulated deltas, so a fast drag that
+     * outruns a few pointermove events still lands where the cursor is.
+     */
+    onPaneDragStart(side, ev) {
+        ev.preventDefault();
+        const host = ev.currentTarget.parentElement;
+        const bounds = host ? host.getBoundingClientRect() : null;
+        const move = (moveEv) => {
+            if (!bounds) {
+                return;
+            }
+            const width = side === "left"
+                ? moveEv.clientX - bounds.left
+                : bounds.right - moveEv.clientX;
+            this.state[side === "left" ? "paneLeft" : "paneRight"] =
+                clampPane(width);
+        };
+        const up = () => {
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+            savePaneWidth(side, side === "left"
+                ? this.state.paneLeft : this.state.paneRight);
+            // The canvas ResizeObserver has already re-measured, so the
+            // drawing re-fits on its own.
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+    }
+
+    onPaneReset(side) {
+        const value = PANE_DEFAULTS[side];
+        this.state[side === "left" ? "paneLeft" : "paneRight"] = value;
+        savePaneWidth(side, value);
+    }
+
+    onLeftDragStart(ev) {
+        this.onPaneDragStart("left", ev);
+    }
+
+    onRightDragStart(ev) {
+        this.onPaneDragStart("right", ev);
+    }
+
+    onLeftDragReset() {
+        this.onPaneReset("left");
+    }
+
+    onRightDragReset() {
+        this.onPaneReset("right");
+    }
+
+    // -- collapsible sections ----------------------------------------
+    /**
+     * Checks ignores the stored state while it has an error. A
+     * collapsed panel hiding the reason a quote cannot be confirmed is
+     * the one case where remembering the user's preference is the wrong
+     * thing to do.
+     */
+    isCollapsed(key) {
+        if (key === "checks" && this.checkErrors.length) {
+            return false;
+        }
+        return !!this.state.collapsed[key];
+    }
+
+    sectionIcon(key) {
+        return this.isCollapsed(key) ? "fa fa-chevron-right" : "fa fa-chevron-down";
+    }
+
+    toggleSection(key) {
+        this.state.collapsed = {
+            ...this.state.collapsed,
+            [key]: !this.state.collapsed[key],
+        };
+        saveCollapsed(this.state.collapsed);
+    }
+
+    get leftSectionKeys() {
+        return this.presetsByFamily.map((group) => `fam:${group.family}`);
+    }
+
+    setAllCollapsed(keys, collapsed) {
+        const next = { ...this.state.collapsed };
+        for (const key of keys) {
+            next[key] = collapsed;
+        }
+        this.state.collapsed = next;
+        saveCollapsed(next);
+    }
+
+    expandAllLeft() {
+        this.setAllCollapsed(this.leftSectionKeys, false);
+    }
+
+    collapseAllLeft() {
+        this.setAllCollapsed(this.leftSectionKeys, true);
+    }
+
+    expandAllRight() {
+        this.setAllCollapsed(RIGHT_SECTIONS, false);
+    }
+
+    collapseAllRight() {
+        this.setAllCollapsed(RIGHT_SECTIONS, true);
+    }
+
     get seriesOptions() {
         return this.state.data?.series_options || [];
     }
@@ -2581,8 +2766,40 @@ export class DesignConfigurator extends Component {
         return this.state.data?.bom || {};
     }
 
+    /**
+     * Errors the client can see without a round trip.
+     *
+     * No joints and no couplers, so a frame member longer than one bar
+     * can hold is simply not makeable. The server reports it too, on
+     * save -- this is here so the person typing the size is told
+     * immediately rather than after a save that looked like it worked.
+     */
+    get dimensionErrors() {
+        const limits = this.state.data?.limits;
+        const header = this.state.data?.header;
+        if (!limits || !header || !limits.max_piece_mm) {
+            return [];
+        }
+        const out = [];
+        for (const [field, piece] of [
+            ["width_mm", "top and bottom"],
+            ["height_mm", "jambs"],
+        ]) {
+            const value = header[field] || 0;
+            if (value > limits.max_piece_mm) {
+                out.push({
+                    level: "error",
+                    message: `The frame ${piece} would be ${this.formatLength(value)}, `
+                        + `longer than the ${limits.max_piece_label} that can be cut `
+                        + `from one bar. Pieces are never joined — reduce the size.`,
+                });
+            }
+        }
+        return out;
+    }
+
     get checks() {
-        return this.state.data?.checks || [];
+        return [...this.dimensionErrors, ...(this.state.data?.checks || [])];
     }
 
     get checkErrors() {

@@ -676,6 +676,13 @@ class AwDesign(models.Model):
                 # a missing key and wiped the price override.
                 'manual_rate': self.manual_rate,
             },
+            'limits': {
+                # So the configurator can refuse an over-long piece the
+                # moment a size is typed, rather than only after a save
+                # that runs the explosion.
+                'max_piece_mm': self._max_piece_mm(),
+                'max_piece_label': self._format_length(self._max_piece_mm()),
+            },
             'finish_options': self._finish_options(),
             'default_glass_spec_id': series.default_glass_spec_id.id,
             **self._rule_set_options(series),

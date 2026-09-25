@@ -36,6 +36,12 @@
                         <td><strong>Min. offcut</strong></td>
                         <td><span t-esc="'%g' % doc.offcut_min_mm"/> mm</td>
                     </tr>
+                    <tr>
+                        <td><strong>Longest piece</strong></td>
+                        <td><span t-esc="'%.1f' % doc.max_piece_mm"/> mm</td>
+                        <td><strong>Optimality</strong></td>
+                        <td><span t-esc="doc.optimality_note or ''"/></td>
+                    </tr>
                 </table>
 
                 <div t-if="doc.oversize_note"
@@ -59,7 +65,7 @@
                         <table class="table table-sm o_main_table mb-2">
                             <thead>
                                 <tr>
-                                    <th colspan="4"
+                                    <th colspan="5"
                                         style="background:#f0f0f0;">
                                         Bar <span t-esc="bar_index + 1"/>
                                         of <span t-esc="len(group.bar_ids)"/>
@@ -74,7 +80,8 @@
                                     </th>
                                 </tr>
                                 <tr>
-                                    <th style="width:8%">#</th>
+                                    <th style="width:6%">#</th>
+                                    <th style="width:16%">Ref</th>
                                     <th>Label</th>
                                     <th class="text-end">Length</th>
                                     <th class="text-end">Angle</th>
@@ -84,6 +91,9 @@
                                 <tr t-foreach="bar.cut_ids" t-as="cut"
                                     t-key="cut.id">
                                     <td><span t-esc="cut_index + 1"/></td>
+                                    <td>
+                                        <strong t-esc="cut.piece_ref or ''"/>
+                                    </td>
                                     <td><span t-esc="cut.label or ''"/></td>
                                     <td class="text-end">
                                         <strong t-esc="cut.length_label"/>
@@ -160,38 +170,62 @@
     </record>
 
     <!--
-    Piece labels, A4. Three across so each sticker is wide enough for a
-    label plus a length without wrapping, which matters when they are
-    read off a bench.
+    Piece stickers. One shared template drives both formats, so an A4
+    sheet and a thermal label can never disagree about what a piece is.
+    Rows come from _sticker_rows() in CUTTING order (group, bar, cut):
+    the operator peels them in the order the saw works, not in the order
+    the BOM happened to be built.
     -->
+    <template id="report_cut_sticker">
+        <div t-attf-style="box-sizing:border-box; overflow:hidden; #{style}">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                <div t-attf-style="font-weight:bold; line-height:1.1; font-size:#{ref_size};">
+                    <span t-esc="row['ref']"/>
+                </div>
+                <img t-att-src="'/report/barcode/QR/%s' % row['qr']"
+                     t-attf-style="width:#{qr_size}; height:#{qr_size};"/>
+            </div>
+            <div t-attf-style="font-size:#{small}; line-height:1.25;">
+                <div><span t-esc="row['role']"/></div>
+                <div>
+                    <span t-esc="row['profile']"/>
+                    <t t-if="row['thickness']"> &#183; <span t-esc="row['thickness']"/></t>
+                    <t t-if="row['finish']"> &#183; <span t-esc="row['finish']"/></t>
+                </div>
+                <div style="font-weight:bold;">
+                    <span t-esc="row['length']"/>
+                    (<span t-esc="'%.1f' % row['length_mm']"/> mm)
+                    <t t-if="row['angle']">
+                        &#183; <span t-esc="row['angle']"/>&#176;/<span t-esc="row['angle']"/>&#176;
+                    </t>
+                </div>
+                <div>
+                    <span t-esc="row['position']"/>
+                    <t t-if="row['location']"> &#183; <span t-esc="row['location']"/></t>
+                </div>
+                <div>
+                    <span t-esc="row['quote']"/> &#183; bar
+                    <span t-esc="row['bar_no']"/>/<span t-esc="row['bar_total']"/>
+                    &#183; cut <span t-esc="row['cut_no']"/>
+                </div>
+            </div>
+        </div>
+    </template>
+
     <template id="report_cut_labels_document">
         <t t-call="web.basic_layout">
             <div class="page">
                 <div style="display:flex; flex-wrap:wrap;">
-                    <t t-foreach="doc.group_ids" t-as="group" t-key="group.id">
-                        <t t-foreach="group.bar_ids" t-as="bar" t-key="bar.id">
-                            <t t-foreach="bar.cut_ids" t-as="cut"
-                               t-key="cut.id">
-                                <div style="width:33.33%; height:80px; box-sizing:border-box; border:1px dashed #999; padding:6px; margin:0; overflow:hidden;">
-                                    <div style="font-size:13px; font-weight:bold;">
-                                        <span t-esc="cut.label or '—'"/>
-                                    </div>
-                                    <div style="font-size:10px; color:#555;">
-                                        <span t-field="group.product_id"/>
-                                    </div>
-                                    <div style="font-size:12px;">
-                                        <span t-esc="cut.length_label"/>
-                                        <span style="color:#555;">
-                                            (<span t-esc="'%.1f' % cut.length_mm"/> mm)
-                                        </span>
-                                    </div>
-                                    <div style="font-size:10px; color:#555;">
-                                        Angle <span t-esc="cut.cut_angle or '—'"/>°
-                                        · bar <span t-esc="bar.sequence // 10"/>
-                                    </div>
-                                </div>
+                    <t t-foreach="doc._sticker_rows()" t-as="row"
+                       t-key="row_index">
+                        <div style="width:33.33%; height:95px; padding:4px;">
+                            <t t-call="aw_fenestration_design.report_cut_sticker">
+                                <t t-set="style" t-value="'border:1px dashed #999; padding:5px; height:100%;'"/>
+                                <t t-set="ref_size" t-value="'15px'"/>
+                                <t t-set="small" t-value="'8px'"/>
+                                <t t-set="qr_size" t-value="'34px'"/>
                             </t>
-                        </t>
+                        </div>
                     </t>
                 </div>
             </div>
@@ -207,12 +241,63 @@
     </template>
 
     <record id="action_report_aw_cut_labels" model="ir.actions.report">
-        <field name="name">Piece Labels</field>
+        <field name="name">Piece Labels (A4 sheet)</field>
         <field name="model">aw.cut.plan</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">aw_fenestration_design.report_cut_labels</field>
         <field name="report_file">aw_fenestration_design.report_cut_labels</field>
         <field name="print_report_name">'Piece Labels - %s' % (object.sale_order_id.name or '')</field>
+        <field name="binding_model_id" ref="model_aw_cut_plan"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <!-- 50 x 30 mm thermal stock: one sticker per page, no margins. -->
+    <record id="paperformat_aw_thermal_label" model="report.paperformat">
+        <field name="name">Fenestration Thermal Label 50x30</field>
+        <field name="format">custom</field>
+        <field name="page_width">50</field>
+        <field name="page_height">30</field>
+        <field name="orientation">Portrait</field>
+        <field name="margin_top">1</field>
+        <field name="margin_bottom">1</field>
+        <field name="margin_left">1</field>
+        <field name="margin_right">1</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">0</field>
+        <field name="dpi">203</field>
+    </record>
+
+    <template id="report_cut_labels_thermal_document">
+        <t t-call="web.basic_layout">
+            <t t-foreach="doc._sticker_rows()" t-as="row" t-key="row_index">
+                <div class="page" style="page-break-after: always;">
+                    <t t-call="aw_fenestration_design.report_cut_sticker">
+                        <t t-set="style" t-value="'width:100%; height:100%;'"/>
+                        <t t-set="ref_size" t-value="'13px'"/>
+                        <t t-set="small" t-value="'7px'"/>
+                        <t t-set="qr_size" t-value="'26px'"/>
+                    </t>
+                </div>
+            </t>
+        </t>
+    </template>
+
+    <template id="report_cut_labels_thermal">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-call="aw_fenestration_design.report_cut_labels_thermal_document"/>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_aw_cut_labels_thermal" model="ir.actions.report">
+        <field name="name">Piece Labels (50x30 thermal)</field>
+        <field name="model">aw.cut.plan</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_cut_labels_thermal</field>
+        <field name="report_file">aw_fenestration_design.report_cut_labels_thermal</field>
+        <field name="print_report_name">'Piece Labels 50x30 - %s' % (object.sale_order_id.name or '')</field>
+        <field name="paperformat_id" ref="paperformat_aw_thermal_label"/>
         <field name="binding_model_id" ref="model_aw_cut_plan"/>
         <field name="binding_type">report</field>
     </record>

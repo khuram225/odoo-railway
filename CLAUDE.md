@@ -211,7 +211,7 @@ class of bug.
 
 Data model only, deliberately — `aw.design.action_explode()` is a stub that
 raises `NotImplementedError`. The explosion engine, manufacturability
-checks, the coupler action, and the visual canvas are separate follow-on
+checks and the visual canvas are separate follow-on
 work, not in this module. `aw.design` (top-level, chatter, `active`) →
 `aw.design.row` → `aw.design.leaf` (both plain child models, no chatter,
 matching the `.line`-model convention) → `aw.design.bom.line` (explosion
@@ -516,6 +516,22 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   the VALUE being written rather than one per record — a second import
   of the Chawla list closes ~3473 rates at once and they nearly all
   share a date_to.
+
+- `scripts/check_cut_plan.py` exercises the bar-nesting optimiser
+  (`cut_algorithm.py`, kept Odoo-free for that purpose). **The LP/MIP
+  needs `pulp==2.9.0`** — pinned in `odoo/Dockerfile`, because pulp 4.x
+  is a rewrite with a different API and *no bundled solver*, so an
+  unpinned install silently degrades the optimiser to its greedy
+  fallback. The check prints which path it took, so a machine without
+  pulp still passes but says so. Cases are ones whose true optimum can
+  be shown by hand, including one where FFD needs three bars and the
+  exact method proves two.
+
+- `scripts/check_owl_getters.mjs` stubs `window`, `document` and
+  `getComputedStyle`. These are real browser globals the component
+  legitimately uses (`window` is in OWL's RESERVED_WORDS); without the
+  stubs the harness reports "window is not defined" for correct code,
+  which is a fault in the harness rather than the component.
 
 - `scripts/check_kanban_fields.py` rejects `t-if`/`t-elif`/`t-else`/
   `t-foreach`/`t-as`/`t-call` placed directly on a `<field>` inside a

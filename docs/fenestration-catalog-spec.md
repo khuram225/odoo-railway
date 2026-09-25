@@ -47,7 +47,7 @@ Modules: `aw_fenestration_core` (master data), `aw_fenestration_design`
 | Hardware quantities & conditions (hinge count, T&T gear size, gaskets per m) | Hardware Set lines (product, qty, leaf type) | Qty/condition formulas, scope → **P4** |
 | Glass / mesh cut sizes | Placeholder in prototype | Deduction formulas per Series → **P4** |
 | Explosion engine | Stub | **P4** |
-| Manufacturability checks, coupler | Prototype only | **P4** |
+| Manufacturability checks | Prototype only | **P4** |
 | Save layout as preset, remaining entry points | Both done; configurator is the default entry point | ✅ P2 |
 | Duplicate position | Quote tab and configurator | ✅ P2 |
 | Shop drawing, quote PDF with elevations | Live SVG only | SVG snapshot + reports → **P5** |
@@ -451,8 +451,8 @@ re-run. Snapshot unit costs (pricing in P6).
 ### 6.6 Checks (panel in the configurator's right column)
 Dimensions > 0; leaf types allowed by Series; panel size vs Series limits;
 panel weight from glass `weight_kg_m2`; any profile piece longer than the
-longest stock bar (18 ft) → error with **Split with coupler** action
-(splits the design into two positions joined by a coupling mullion);
+longest cuttable length → **hard error** (no joints, no couplers: the
+design must be resized);
 missing product on an active position → warning; a **required** position
 the layout needs but the Profile Section has no line for → warning naming
 the section, the position and the count that triggered it; no Profile
@@ -582,6 +582,66 @@ name them rather than letting an incomplete price look finished.
 7. **Longest cut first within each bar**, which is how an operator
    works down a length and keeps the offcut in one usable piece.
 
+### Phase 6c revision — no joints, exact optimiser  ✅ BUILT
+
+**A. No joints, no couplers.** Every piece must come out of one bar:
+longest stock length less start trim, safety margin and one saw cut.
+Longer is a hard error, raised in the configurator the moment a size is
+typed (client-side, from `limits.max_piece_mm`) as well as by the
+checks on save. The coupler action and all joint/special-order wording
+are gone from code, checks and this spec. The optimiser never splits a
+piece.
+
+**B. Piece references.** `<position>.<n>`, frame first clockwise from
+the top viewed from inside (.1 top, .2 right, .3 bottom, .4 left), then
+dividers, then per panel in panel order. `<position>-<unit>.<n>` when
+the design quantity is more than one. Derived from the design's own
+geometry, never from the plan, so re-optimising cannot renumber a piece
+somebody has already written on a bar.
+
+*Consequence worth knowing:* profile BOM lines are now **one per
+physical piece** with `qty = 1`. Four frame members cannot share one
+line and still carry four distinct references. Hardware, glass and the
+rest keep an aggregate quantity — nobody labels a screw.
+
+**C. Exact optimiser.** Pattern-based column generation: LP over
+patterns, bounded-knapsack pricing per stock length, then an integer
+solve over the collected columns. The LP objective is a true lower
+bound, so "proven optimal" means the integer answer matched it, not
+that the optimiser is pleased with itself; otherwise the gap in feet is
+reported. Saw loss is `kerf / sin 45°` per mitre — using the plain kerf
+under-reserves on every cut and eventually costs a piece.
+
+- **pulp is pinned to 2.9.0** in the Dockerfile. pulp 4.x is a rewrite
+  with a different API *and no bundled solver*, so an unpinned "pulp"
+  silently drops the optimiser to its greedy fallback — 70 ft where the
+  exact method buys 54, on the nine-piece test.
+- Without a solver the greedy fallback still produces a valid plan and
+  says `Approximate (no solver)` rather than claiming optimality.
+
+**D. Stickers** in cutting order (group, bar, cut), one shared template
+driving both an A4 sheet and a 50 × 30 mm thermal label, so the two
+formats cannot disagree. Reference large, plus role, profile/thickness/
+finish, length in the configured unit and mm, angles, position,
+location, quote, bar and cut number, and a QR of `quote|reference`.
+
+**E. Configurator panes** resizable by dragging the border (180 px to
+45% of the window, double-click to reset, widths in `localStorage`).
+Every section in both panes collapses from a chevron header — the left
+pane's families, and Selected panel / Infill / Mesh / Georgian bars /
+Pricing / Checks / BOM on the right — with Expand all / Collapse all
+per pane and the state remembered. **Checks ignores the stored state
+while it has an error**: a collapsed panel hiding the reason a quote
+cannot be confirmed is the one case where remembering the preference is
+wrong.
+
+**Not verified:** the named 169 M1 / DG-26 test. That PDF has no
+extractable text for DG-26 or W04 — five pages of drawings — so the
+data to build it is not in the repo. The optimiser is instead checked
+against cases whose true minimum can be established by hand, including
+one where first-fit-decreasing needs three bars and the exact method
+proves two. **[revisit]** once the DG-26 lengths are available.
+
 ### Original plan
 
 - **Cut list per sale order**: pool profile pieces by product variant
@@ -603,5 +663,4 @@ name them rather than letting an incomplete price look finished.
 
 Doors family (hinged/sliding doors, thresholds, door hardware); dual colour
 (inside/outside); handle height per opening panel; sill / floor aperture
-distance and survey checklist; coupled multi-frame assemblies beyond the
-coupler split.
+distance and survey checklist.
