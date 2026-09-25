@@ -140,6 +140,39 @@ class ProductProduct(models.Model):
                 updated |= variant
         return updated, blocked
 
+    def action_aw_update_costs_from_rates(self):
+        """Cost from the current rate, for these variants."""
+        variants = self
+        updated, blocked = variants._aw_sync_cost_from_rate()
+
+        if blocked:
+            labels = {'average': 'AVCO', 'fifo': 'FIFO',
+                      'standard': 'Standard Price'}
+            methods = ', '.join(sorted({
+                labels.get(variant.aw_cost_method, variant.aw_cost_method)
+                for variant in blocked}))
+            message = _(
+                "Nothing written: %(count)s variant(s) are costed by "
+                "%(methods)s, where stock valuation owns the Cost field. "
+                "Writing it from a supplier rate would revalue your "
+                "stock. The rate per foot is still shown for reference.",
+                count=len(blocked), methods=methods)
+            kind = 'warning'
+        else:
+            message = _(
+                "%(done)s variant cost(s) updated from the current "
+                "rates.", done=len(updated))
+            kind = 'success' if updated else 'warning'
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': kind,
+                'message': message,
+                'next': {'type': 'ir.actions.act_window_close'},
+            },
+        }
+
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
@@ -206,35 +239,14 @@ class ProductTemplate(models.Model):
             template.aw_cost_sync_allowed = method == "standard"
 
     def action_aw_update_costs_from_rates(self):
-        """Cost from the current rate, for every variant that may have
-        one written."""
-        variants = self.mapped('product_variant_ids')
-        updated, blocked = variants._aw_sync_cost_from_rate()
+        """Cost from the current rate, for this template's variants.
 
-        if blocked:
-            labels = {'average': 'AVCO', 'fifo': 'FIFO',
-                      'standard': 'Standard Price'}
-            methods = ', '.join(sorted({
-                labels.get(variant.aw_cost_method, variant.aw_cost_method)
-                for variant in blocked}))
-            message = _(
-                "Nothing written: %(count)s variant(s) are costed by "
-                "%(methods)s, where stock valuation owns the Cost field. "
-                "Writing it from a supplier rate would revalue your "
-                "stock. The rate per foot is still shown for reference.",
-                count=len(blocked), methods=methods)
-            kind = 'warning'
-        else:
-            message = _(
-                "%(done)s variant cost(s) updated from the current "
-                "rates.", done=len(updated))
-            kind = 'success' if updated else 'warning'
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'type': kind,
-                'message': message,
-                'next': {'type': 'ir.actions.act_window_close'},
-            },
-        }
+        Delegates to product.product so there is ONE implementation.
+        The button also has to exist here because
+        `product.product_normal_form_view` is a primary inherit of the
+        product.template form on model product.product -- a button
+        added to the template form lands on the variant form too, and
+        the Upgrade refuses it if the method is missing there.
+        """
+        return self.mapped(
+            'product_variant_ids').action_aw_update_costs_from_rates()

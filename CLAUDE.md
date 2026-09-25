@@ -633,6 +633,28 @@ about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
   stubs the harness reports "window is not defined" for correct code,
   which is a fault in the harness rather than the component.
 
+- `scripts/check_view_buttons.py` requires every
+  `<button type="object" name="X">` in our views to name a method the
+  model really has. **The obvious version of this check would miss the
+  bug it was written for.** A stat button was added to
+  product.template's form inside `//div[@name='button_box']`; the
+  method exists on product.template, so "does the declaring view's
+  model have it?" says yes — but `product.product_normal_form_view` is
+  `mode="primary"` on **product.product** and inherits the
+  product.template form, so the button propagated into the variant form
+  and the Upgrade died with *"... is not a valid action on
+  product.product"*. The rule is therefore: the method must exist on
+  the declaring view's model **and on the model of every view that
+  transitively inherits the view being patched**.
+
+  It also follows `field[@name='x']` hops inside an `xpath` expr —
+  without that it reports a false positive on every button inserted
+  into an embedded list, because a button under
+  `//field[@name='order_line']/list/...` belongs to sale.order.line,
+  not sale.order. Python scanning is limited to `models/`, `wizard/`
+  and `report/` of the dependency closure, which took it from 42 s to
+  4.5 s. Needs `../odoo-src`; skips cleanly without it.
+
 - `scripts/check_kanban_fields.py` rejects `t-if`/`t-elif`/`t-else`/
   `t-foreach`/`t-as`/`t-call` placed directly on a `<field>` inside a
   **kanban** arch. A kanban `<field>` is not markup: the web client
