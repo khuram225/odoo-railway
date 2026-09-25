@@ -263,7 +263,7 @@ def _solve_lp(patterns, counts, costs, integer=False):
 
 
 def _column_generation(demand_mm, counts, capacities, costs,
-                       max_rounds=200, deadline=None):
+                       max_rounds=200, deadline=None, seeds=None):
     """Grow the pattern set until no bar prices in.
 
     Returns (patterns, bound, converged). `converged` matters: an LP
@@ -276,6 +276,20 @@ def _column_generation(demand_mm, counts, capacities, costs,
     if not patterns:
         return None, None, False
     seen = {(stock, row) for stock, row in patterns}
+    # Seed with the greedy packing's own patterns. Two reasons, and the
+    # second is the important one:
+    #
+    #   - the LP starts from a sensible basis instead of "one length
+    #     repeated down a bar", so it converges in fewer rounds;
+    #   - the integer solve ALWAYS has the greedy answer available to
+    #     fall back on, so a run that is cut short by the time budget
+    #     can never come back worse than greedy. The budget then only
+    #     decides "proven" versus "within N ft" -- never a nonsense
+    #     total.
+    for key in (seeds or ()):
+        if key not in seen:
+            seen.add(key)
+            patterns.append(key)
     weights = [int(math.ceil(w)) for w in demand_mm]
 
     bound, converged = None, False
@@ -365,6 +379,7 @@ def solve(pieces, stock_mm_list, kerf=5.0, start_trim=0.0,
         'bars': [], 'oversize': [], 'feasible': True,
         'method': 'none', 'proven_optimal': False, 'gap_feet': 0.0,
         'lower_bound_feet': 0.0, 'converged': False,
+        'greedy_feet': 0.0,
     }
     if not stock_list or not pieces:
         result['oversize'] = list(pieces) if not stock_list else []
@@ -395,11 +410,19 @@ def solve(pieces, stock_mm_list, kerf=5.0, start_trim=0.0,
     counts = [len(buckets[key]) for key in demand_mm]
     costs = [v / MM_PER_FOOT for v in stock_list]
 
+    # Computed once and used twice: as the seed for column generation,
+    # and as the fallback if there is no solver at all.
+    greedy_patterns = _greedy(demand_mm, counts, capacities, costs)
+    result['greedy_feet'] = (
+        sum(costs[stock] for stock, _row in greedy_patterns)
+        if greedy_patterns else 0.0)
+
     patterns = None
     if HAS_SOLVER:
         try:
             patterns, bound, converged = _column_generation(
-                demand_mm, counts, capacities, costs, deadline=deadline)
+                demand_mm, counts, capacities, costs, deadline=deadline,
+                seeds=greedy_patterns)
             if patterns:
                 objective, values, _duals = _solve_lp(
                     patterns, counts, costs, integer=True)
@@ -435,7 +458,7 @@ def solve(pieces, stock_mm_list, kerf=5.0, start_trim=0.0,
             patterns = None
 
     if patterns is None:
-        patterns = _greedy(demand_mm, counts, capacities, costs)
+        patterns = greedy_patterns
         result['method'] = 'greedy'
         result['proven_optimal'] = False
         if patterns is None:

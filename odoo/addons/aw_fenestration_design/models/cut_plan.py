@@ -13,11 +13,14 @@ longer exists.
 """
 import hashlib
 import json
+import time
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from .cut_algorithm import MM_PER_FOOT, evaluate, scenario_by_key
+from .cut_algorithm import (
+    MM_PER_FOOT, evaluate, scenario_by_key, solve,
+)
 
 PARAM_STOCK = 'aw_fenestration.stock_lengths_ft'
 PARAM_KERF = 'aw_fenestration.kerf_mm'
@@ -475,14 +478,11 @@ class AwCutPlanGroup(models.Model):
             group.is_overridden = bool(group.override_key)
             group.active_key = group.override_key or group.chosen_key
 
-    def _evaluate(self):
-        """Re-run the algorithm for this group alone."""
+    def _pieces(self):
+        """This group's pieces, exactly as the plan builds them."""
         self.ensure_one()
-        plan = self.plan_id
-        settings = plan._settings()
-        stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
         pieces = []
-        for line in plan._profile_lines():
+        for line in self.plan_id._profile_lines():
             if line.product_id != self.product_id:
                 continue
             for index in range(max(1, line.qty or 1)):
@@ -494,12 +494,46 @@ class AwCutPlanGroup(models.Model):
                     'bom_line_id': line.id,
                     'seq': index,
                 })
-        return evaluate(pieces, stock_mm, kerf=settings['kerf'],
+        return pieces
+
+    def _evaluate(self):
+        """Re-run every option for this group."""
+        self.ensure_one()
+        settings = self.plan_id._settings()
+        stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
+        return evaluate(self._pieces(), stock_mm, kerf=settings['kerf'],
                         offcut_min=settings['offcut_min'],
                         rate_per_ft=self.rate_per_ft,
                         start_trim=settings['start_trim'],
                         safety_margin=settings['safety_margin'],
                         time_budget=settings['budget']), settings
+
+    def _solve_option(self, key):
+        """Solve ONE option with the whole budget.
+
+        When the estimator picks an option the plan only half-solved --
+        "only 16 ft in the yard today" -- they are going to cut from it,
+        so it deserves the full budget rather than the quarter it got
+        while four options shared one. Generating the plan spends the
+        budget finding the best CHOICE; this spends it on the choice
+        actually made.
+        """
+        self.ensure_one()
+        settings = self.plan_id._settings()
+        stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
+        if key and key != 'mixed':
+            wanted = [value for value in stock_mm
+                      if abs(value / MM_PER_FOOT - float(key)) < 1e-6]
+        else:
+            wanted = stock_mm
+        result = solve(
+            self._pieces(), wanted or stock_mm, kerf=settings['kerf'],
+            start_trim=settings['start_trim'],
+            safety_margin=settings['safety_margin'],
+            offcut_min=settings['offcut_min'],
+            rate_per_ft=self.rate_per_ft,
+            deadline=time.monotonic() + settings['budget'])
+        return result, settings
 
     def _store_scenarios(self, result):
         self.ensure_one()
@@ -538,8 +572,13 @@ class AwCutPlanGroup(models.Model):
     def _apply_choice(self, result, offcut_min):
         """Write the bars for whichever option is in force."""
         self.ensure_one()
+        return self._apply_scenario(
+            scenario_by_key(result, self.active_key), offcut_min)
+
+    def _apply_scenario(self, scenario, offcut_min):
+        """Write the bars and totals for one solved option."""
+        self.ensure_one()
         self.bar_ids.unlink()
-        scenario = scenario_by_key(result, self.active_key)
         if not scenario:
             self.write({'piece_count': 0, 'bar_count': 0, 'bars_summary': '',
                         'feet_bought': 0, 'feet_used': 0, 'yield_pct': 0,
@@ -579,8 +618,17 @@ class AwCutPlanGroup(models.Model):
     def action_clear_override(self):
         for group in self:
             group.override_key = ''
-            result, settings = group._evaluate()
-            group._apply_choice(result, settings['offcut_min'])
+            result, settings = group._solve_option(group.chosen_key)
+            group._apply_scenario(result, settings['offcut_min'])
+            group.write({
+                'solve_method': result.get('method') or 'none',
+                'gap_feet': result.get('gap_feet') or 0.0,
+                'proven_optimal': bool(result.get('proven_optimal')),
+            })
+            scenario = group.scenario_ids.filtered(
+                lambda s: s.key == group.chosen_key)
+            if scenario:
+                scenario[:1]._absorb(result)
         return True
 
 
@@ -631,9 +679,36 @@ class AwCutPlanScenario(models.Model):
         # algorithm chose, so "overridden" means what it says.
         group.override_key = (
             '' if self.key == group.chosen_key else self.key)
-        result, settings = group._evaluate()
-        group._apply_choice(result, settings['offcut_min'])
+        # Solved fresh with the FULL budget. The bars are only ever
+        # stored for the option in force, so switching has to solve
+        # anyway -- and this is the plan they will cut from, so it gets
+        # the whole budget rather than the share it had while four
+        # options competed.
+        result, settings = group._solve_option(self.key)
+        group._apply_scenario(result, settings['offcut_min'])
+        self._absorb(result)
+        group.write({
+            'solve_method': result.get('method') or 'none',
+            'gap_feet': result.get('gap_feet') or 0.0,
+            'proven_optimal': bool(result.get('proven_optimal')),
+        })
         return True
+
+    def _absorb(self, result):
+        """Update this row from a fresh solve of the same option, so the
+        table stops showing the half-solved figures."""
+        self.ensure_one()
+        self.write({
+            'bar_count': result['bar_count'],
+            'bars_summary': self.group_id._summarise_bars(
+                result['bars_by_length']),
+            'feet_bought': result['feet_bought'],
+            'feet_used': result['feet_used'],
+            'waste_feet': result['waste_feet'],
+            'yield_pct': result['yield_pct'],
+            'cost': result['cost'],
+            'proven_optimal': bool(result.get('proven_optimal')),
+        })
 
 
 class AwCutPlanBar(models.Model):
