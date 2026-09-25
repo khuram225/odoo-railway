@@ -542,6 +542,18 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   scenario is solved FIRST so it gets the budget — it is almost always
   the chosen one, and the single-length options are alternatives.
 
+  **Column generation is seeded with the greedy packing's patterns**,
+  which is what makes the budget safe: the integer solve always has
+  that answer to fall back on, so running out of time decides "proven"
+  versus "within N ft" and never a nonsense total. Without the seeding,
+  a 2 s budget on the DG-26 job returned 952/912/936/638 ft against
+  greedy's 630/624/630/630 — every option worse than simply packing
+  first-fit. `check_cut_plan.py` asserts each option's total is at most
+  its own greedy total, at short budgets, and runs that assertion
+  ALWAYS (the skip flag does not cover it). **Selecting an option
+  re-solves that one option with the whole budget**, since it is the
+  plan the shop will cut from.
+
 - `scripts/check_owl_getters.mjs` stubs `window`, `document` and
   `getComputedStyle`. These are real browser globals the component
   legitimately uses (`window` is in OWL's RESERVED_WORDS); without the

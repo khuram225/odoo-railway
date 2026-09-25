@@ -635,6 +635,15 @@ while it has an error**: a collapsed panel hiding the reason a quote
 cannot be confirmed is the one case where remembering the preference is
 wrong.
 
+**The time budget is made safe by seeding.** Column generation starts
+from the greedy packing's own patterns, so the integer solve always has
+that answer available and an option cut short by the budget can never
+come back worse than greedy — the budget decides "proven" versus
+"within N ft", never the total. Measured without it, a 2 s budget on
+the DG-26 job returned 952/912/936/638 ft against greedy's
+630/624/630/630. Selecting an option re-solves that one with the whole
+budget, because it is the plan actually being cut from.
+
 **The 169 M1 / DG-26 case is now a permanent check.** 31 windows,
 outer frame only, 3 mm kerf, no start trim, 25 mm safety margin: W04's
 two 229 in sides are refused (the limit at those settings is 214.85 in)
