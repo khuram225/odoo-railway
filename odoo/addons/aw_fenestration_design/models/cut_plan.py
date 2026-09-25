@@ -24,6 +24,7 @@ PARAM_KERF = 'aw_fenestration.kerf_mm'
 PARAM_OFFCUT = 'aw_fenestration.offcut_min_mm'
 PARAM_TRIM = 'aw_fenestration.start_trim_mm'
 PARAM_MARGIN = 'aw_fenestration.safety_margin_mm'
+PARAM_BUDGET = 'aw_fenestration.solve_budget_s'
 
 DEFAULT_STOCK = '14,16,18'
 DEFAULT_KERF = 5.0
@@ -33,6 +34,10 @@ DEFAULT_OFFCUT = 400.0
 # every bar in the shop silently. 25 mm safety margin is the agreed one.
 DEFAULT_TRIM = 0.0
 DEFAULT_MARGIN = 25.0
+# Per profile group. The 31-window DG-26 job solves in about 9 s, so 20
+# gives real jobs room while stopping a pathological one from holding a
+# request open.
+DEFAULT_BUDGET = 20.0
 
 
 class AwCutPlan(models.Model):
@@ -52,6 +57,7 @@ class AwCutPlan(models.Model):
     # The settings AS USED, not as they are now. A kerf changed next
     # month must not silently restate what the shop was told to cut.
     stock_lengths_ft = fields.Char(readonly=True)
+    solve_budget_s = fields.Float(readonly=True)
     kerf_mm = fields.Float(readonly=True)
     offcut_min_mm = fields.Float(readonly=True)
     start_trim_mm = fields.Float(readonly=True)
@@ -151,6 +157,7 @@ class AwCutPlan(models.Model):
             'offcut_min': number(PARAM_OFFCUT, DEFAULT_OFFCUT),
             'start_trim': number(PARAM_TRIM, DEFAULT_TRIM),
             'safety_margin': number(PARAM_MARGIN, DEFAULT_MARGIN),
+            'budget': number(PARAM_BUDGET, DEFAULT_BUDGET),
         }
 
     # ------------------------------------------------------------------
@@ -200,8 +207,9 @@ class AwCutPlan(models.Model):
         overrides = {
             group.product_id.id: group.override_key
             for group in self.group_ids if group.override_key}
-
-        self.group_ids.unlink()
+        # Everything already solved, by product, so an unchanged group
+        # can be left exactly as it is.
+        existing = {group.product_id.id: group for group in self.group_ids}
 
         pooled = {}
         for line in self._profile_lines():
@@ -222,21 +230,43 @@ class AwCutPlan(models.Model):
 
         oversize_notes = []
         methods, gap_feet, all_proven = set(), 0.0, True
+        reused = 0
         for product_id, entry in pooled.items():
             product = entry['product']
             rate = self._rate_for_product(product)
+            fingerprint = self._group_fingerprint(
+                entry['pieces'], settings, rate)
+
+            # Nothing about this profile moved, so re-solving it would
+            # spend the budget to arrive back where it already is.
+            previous = existing.pop(product_id, None)
+            if (previous and previous.piece_fingerprint == fingerprint
+                    and previous.bar_ids):
+                reused += 1
+                methods.add(previous.solve_method or 'exact')
+                gap_feet += previous.gap_feet or 0.0
+                all_proven = all_proven and previous.proven_optimal
+                continue
+
             result = evaluate(
                 entry['pieces'], stock_mm, kerf=settings['kerf'],
                 offcut_min=settings['offcut_min'], rate_per_ft=rate,
                 start_trim=settings['start_trim'],
-                safety_margin=settings['safety_margin'])
+                safety_margin=settings['safety_margin'],
+                time_budget=settings['budget'])
 
+            if previous:
+                previous.unlink()
             group = self.env['aw.cut.plan.group'].create({
                 'plan_id': self.id,
                 'product_id': product.id,
                 'rate_per_ft': rate,
+                'piece_fingerprint': fingerprint,
                 'chosen_key': result['chosen_key'] or '',
                 'override_key': overrides.get(product_id, ''),
+                'solve_method': result.get('method') or 'none',
+                'gap_feet': result.get('gap_feet') or 0.0,
+                'proven_optimal': bool(result.get('proven_optimal')),
             })
             methods.add(result.get('method') or 'none')
             gap_feet += result.get('gap_feet') or 0.0
@@ -254,6 +284,11 @@ class AwCutPlan(models.Model):
                     label=piece['label'] or '?',
                     product=product.display_name,
                     len=round(piece['length'])))
+
+        # Whatever is left in `existing` is a profile the BOM no longer
+        # uses.
+        for stale in existing.values():
+            stale.unlink()
 
         if 'greedy' in methods:
             optimality = 'greedy'
@@ -277,12 +312,35 @@ class AwCutPlan(models.Model):
             'offcut_min_mm': settings['offcut_min'],
             'start_trim_mm': settings['start_trim'],
             'safety_margin_mm': settings['safety_margin'],
+            'solve_budget_s': settings['budget'],
             'max_piece_mm': self.env['aw.design']._max_piece_mm(),
             'optimality': optimality,
             'optimality_note': optimality_note,
             'bom_fingerprint': self._live_fingerprint(),
             'oversize_note': '\n'.join(oversize_notes),
         })
+
+    @api.model
+    def _group_fingerprint(self, pieces, settings, rate):
+        """What would change this group's answer, and nothing else.
+
+        Lengths and angles because they are the problem; the saw and bar
+        settings because they change the packing; the rate because it
+        decides which option is cheapest. Labels and references are
+        deliberately excluded -- renaming a piece does not change how it
+        nests, and re-solving for that would throw away a good plan.
+        """
+        payload = {
+            'pieces': sorted(
+                (round(piece['length'], 2), piece.get('angle') or '45')
+                for piece in pieces),
+            'settings': [settings['stock_ft'], settings['kerf'],
+                         settings['offcut_min'], settings['start_trim'],
+                         settings['safety_margin']],
+            'rate': round(rate, 6),
+        }
+        blob = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+        return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
     def _rate_for_product(self, product):
         """Per-foot rate for a variant, on the quote's order date.
@@ -381,6 +439,11 @@ class AwCutPlanGroup(models.Model):
         string='Profile')
     rate_per_ft = fields.Float(string='Rate / ft')
 
+    piece_fingerprint = fields.Char(
+        readonly=True,
+        help="Digest of this group's pieces and the settings they were "
+             "solved with. A regeneration re-solves only the groups "
+             "whose digest moved.")
     chosen_key = fields.Char(
         readonly=True, help="What the algorithm picked.")
     override_key = fields.Char(
@@ -391,6 +454,10 @@ class AwCutPlanGroup(models.Model):
     scenario_ids = fields.One2many(
         'aw.cut.plan.scenario', 'group_id', string='Options')
     bar_ids = fields.One2many('aw.cut.plan.bar', 'group_id', string='Bars')
+
+    solve_method = fields.Char(readonly=True)
+    gap_feet = fields.Float(readonly=True)
+    proven_optimal = fields.Boolean(readonly=True)
 
     piece_count = fields.Integer(readonly=True)
     bar_count = fields.Integer(readonly=True)
@@ -431,7 +498,8 @@ class AwCutPlanGroup(models.Model):
                         offcut_min=settings['offcut_min'],
                         rate_per_ft=self.rate_per_ft,
                         start_trim=settings['start_trim'],
-                        safety_margin=settings['safety_margin']), settings
+                        safety_margin=settings['safety_margin'],
+                        time_budget=settings['budget']), settings
 
     def _store_scenarios(self, result):
         self.ensure_one()
@@ -451,6 +519,7 @@ class AwCutPlanGroup(models.Model):
                 'waste_feet': scenario['waste_feet'],
                 'yield_pct': scenario['yield_pct'],
                 'cost': scenario['cost'],
+                'proven_optimal': bool(scenario.get('proven_optimal')),
                 'blocked_note': (
                     _("No bar of this length can hold a %s mm piece.")
                     % round(scenario['blocked_by'][0])
@@ -527,6 +596,11 @@ class AwCutPlanScenario(models.Model):
     name = fields.Char(required=True, string='Option')
     feasible = fields.Boolean(default=True)
     blocked_note = fields.Char()
+    proven_optimal = fields.Boolean(
+        readonly=True,
+        help="False means this option ran out of solver budget, not "
+             "that it is genuinely this expensive. The chosen option is "
+             "solved first, so it is the one most likely to be proven.")
 
     bar_count = fields.Integer(string='Bars')
     bars_summary = fields.Char(string='By length')

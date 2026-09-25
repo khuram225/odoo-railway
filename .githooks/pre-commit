@@ -13,6 +13,12 @@
 # Odoo's own RelaxNG schema rejects (see
 # scripts/check_view_schemas.py).
 #
+# The cutting-plan check runs a real solve (the 169 M1 DG-26 job) and
+# takes about 14s. For a quick local commit:
+#     AW_SKIP_SLOW_CHECKS=1 git commit ...
+# It prints a loud line when it skips, and the FULL suite must still run
+# before a deploy -- a skipped check nobody notices is not a check.
+#
 # Not active by default: git only runs hooks from .git/hooks, which isn't
 # tracked. One-time setup per clone:
 #   git config core.hooksPath .githooks

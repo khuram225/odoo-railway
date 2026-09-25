@@ -527,6 +527,21 @@ reads `scene.vbW/vbH`, so anything `scene` reads back from it is a cycle.
   be shown by hand, including one where FFD needs three bars and the
   exact method proves two.
 
+  **`AW_SKIP_SLOW_CHECKS=1` skips the 169 M1 case** for a quick local
+  commit; it says so loudly, and the full suite still has to run before
+  a deploy.
+
+  **Plan generation is guarded three ways**, because the same solve that
+  takes 9s here takes 28s across all four scenarios of a group: a
+  per-group `piece_fingerprint` so a regeneration re-solves only what
+  moved; a per-group time budget
+  (`aw_fenestration.solve_budget_s`, default 20s) after which the best
+  plan found is kept and reported as "within N ft" rather than proven;
+  and the solve runs ONLY from Generate/Regenerate, never on design
+  save. Opening a stale plan shows its banner and waits. The mixed
+  scenario is solved FIRST so it gets the budget — it is almost always
+  the chosen one, and the single-length options are alternatives.
+
 - `scripts/check_owl_getters.mjs` stubs `window`, `document` and
   `getComputedStyle`. These are real browser globals the component
   legitimately uses (`window` is in OWL's RESERVED_WORDS); without the

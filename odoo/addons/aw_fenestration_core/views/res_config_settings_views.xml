@@ -37,6 +37,10 @@
                                  help="Held back on every bar so an arithmetically exact plan still cuts in practice.">
                             <field name="aw_safety_margin_mm"/>
                         </setting>
+                        <setting id="aw_solve_budget_setting" string="Solver budget per profile"
+                                 help="When it runs out the best plan found so far is kept, reported as within N ft of optimal rather than proven.">
+                            <field name="aw_solve_budget_s"/>
+                        </setting>
                         <setting id="aw_offcut_setting" string="Minimum reusable offcut"
                                  help="A remainder at least this long is listed as return to stock rather than scrap.">
                             <field name="aw_offcut_min_mm"/>

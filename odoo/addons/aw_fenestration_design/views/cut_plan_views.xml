@@ -31,6 +31,7 @@
                             <field name="sale_order_id" readonly="1"/>
                             <field name="date" readonly="1"/>
                             <field name="stock_lengths_ft" readonly="1"/>
+                            <field name="solve_budget_s" readonly="1"/>
                             <field name="kerf_mm" readonly="1"/>
                             <field name="offcut_min_mm" readonly="1"/>
                             <field name="start_trim_mm" readonly="1"/>
@@ -72,6 +73,7 @@
                             <field name="rate_per_ft"/>
                             <field name="cost" widget="monetary"/>
                             <field name="currency_id" column_invisible="1"/>
+                            <field name="proven_optimal" string="Proven"/>
                             <field name="is_overridden" string="Override"/>
                         </list>
                         <form>
@@ -107,6 +109,7 @@
                                                 <field name="yield_pct"/>
                                                 <field name="cost" widget="monetary"/>
                                                 <field name="currency_id" column_invisible="1"/>
+                                                <field name="proven_optimal" string="Proven"/>
                                                 <field name="is_chosen" string="In use"/>
                                                 <field name="feasible" column_invisible="1"/>
                                                 <field name="blocked_note"/>

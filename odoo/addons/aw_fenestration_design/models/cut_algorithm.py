@@ -26,6 +26,7 @@ module falls back to first-fit-decreasing and says so, because a plan
 that silently stops being optimal is worse than one that admits it.
 """
 import math
+import time
 from collections import defaultdict
 
 MM_PER_FOOT = 304.8
@@ -262,7 +263,7 @@ def _solve_lp(patterns, counts, costs, integer=False):
 
 
 def _column_generation(demand_mm, counts, capacities, costs,
-                       max_rounds=200):
+                       max_rounds=200, deadline=None):
     """Grow the pattern set until no bar prices in.
 
     Returns (patterns, bound, converged). `converged` matters: an LP
@@ -279,6 +280,12 @@ def _column_generation(demand_mm, counts, capacities, costs,
 
     bound, converged = None, False
     for _round in range(max_rounds):
+        # Out of time: keep every column found so far and stop. The
+        # patterns are still valid, so the plan is still cuttable -- it
+        # just is not proven cheapest, and `converged` staying False is
+        # what makes the caller say so instead of claiming otherwise.
+        if deadline is not None and time.monotonic() >= deadline:
+            break
         objective, _values, duals = _solve_lp(patterns, counts, costs)
         if objective is None:
             return None, None, False
@@ -345,7 +352,8 @@ def _greedy(demand_mm, counts, capacities, costs):
 
 
 def solve(pieces, stock_mm_list, kerf=5.0, start_trim=0.0,
-          safety_margin=0.0, offcut_min=400.0, rate_per_ft=0.0):
+          safety_margin=0.0, offcut_min=400.0, rate_per_ft=0.0,
+          deadline=None):
     """Nest one profile group. Returns bars plus how good the answer is.
 
     Pieces too long for the longest bar are returned in `oversize` and
@@ -391,7 +399,7 @@ def solve(pieces, stock_mm_list, kerf=5.0, start_trim=0.0,
     if HAS_SOLVER:
         try:
             patterns, bound, converged = _column_generation(
-                demand_mm, counts, capacities, costs)
+                demand_mm, counts, capacities, costs, deadline=deadline)
             if patterns:
                 objective, values, _duals = _solve_lp(
                     patterns, counts, costs, integer=True)
@@ -504,7 +512,8 @@ def _summarise(result, pieces, offcut_min, rate_per_ft):
 
 
 def evaluate(pieces, stock_mm_list, kerf=5.0, offcut_min=400.0,
-             rate_per_ft=0.0, start_trim=0.0, safety_margin=0.0):
+             rate_per_ft=0.0, start_trim=0.0, safety_margin=0.0,
+             time_budget=None):
     """Every stock-length option plus Mixed, each solved exactly.
 
     A single-length option that cannot hold one of the pieces is marked
@@ -517,10 +526,16 @@ def evaluate(pieces, stock_mm_list, kerf=5.0, offcut_min=400.0,
         return {'scenarios': [], 'oversize': list(pieces),
                 'chosen_key': None}
 
+    # ONE deadline for the whole group, not one per scenario. The
+    # budget is what the estimator is willing to wait for this profile,
+    # and the mixed solve is the expensive one -- giving each scenario
+    # its own budget would quietly multiply the wait by four.
+    deadline = (time.monotonic() + time_budget) if time_budget else None
+
     def run(subset):
         return solve(pieces, subset, kerf=kerf, start_trim=start_trim,
                      safety_margin=safety_margin, offcut_min=offcut_min,
-                     rate_per_ft=rate_per_ft)
+                     rate_per_ft=rate_per_ft, deadline=deadline)
 
     full = run(stock_list)
     scenarios = []

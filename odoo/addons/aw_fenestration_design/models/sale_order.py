@@ -73,7 +73,11 @@ class SaleOrder(models.Model):
         if not plan:
             plan = self.env['aw.cut.plan'].create(
                 {'sale_order_id': self.id})
-        if not plan.is_current:
+        # Solve ONLY when there is nothing to show. A stale plan opens
+        # with its "out of date" banner and waits for Regenerate --
+        # opening a quote should never block on an optimiser, and the
+        # estimator may want to read the old plan before replacing it.
+        if not plan.group_ids:
             plan._generate()
         return {
             'type': 'ir.actions.act_window',

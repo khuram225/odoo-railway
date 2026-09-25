@@ -61,6 +61,12 @@ class ResConfigSettings(models.TransientModel):
         config_parameter='aw_fenestration.safety_margin_mm',
         help="Held back on every bar so a plan that is arithmetically "
              "exact still cuts in practice.")
+    aw_solve_budget_s = fields.Float(
+        string='Cutting Solver Budget (s)', default=20.0,
+        config_parameter='aw_fenestration.solve_budget_s',
+        help="Per profile group. When it runs out the best plan found "
+             "so far is kept and reported as 'within N ft of optimal' "
+             "rather than proven.")
     aw_offcut_min_mm = fields.Float(
         string='Minimum Reusable Offcut (mm)', default=400.0,
         config_parameter='aw_fenestration.offcut_min_mm',
