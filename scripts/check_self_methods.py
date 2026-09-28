@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Every `self._method(...)` in our models must actually exist.
+"""Every `self._method(...)` must exist, and every `self.x = ...` must
+be a field.
+
+Two failures that pyflakes cannot see, because both are valid Python
+whatever `self` turns out to be, and both only surface when the line
+runs.
 
 pyflakes cannot see this: `self._starting_system()` is valid Python
 whatever `self` turns out to be, so an undefined method is only found
@@ -15,9 +20,16 @@ silently never inserted. The calls shipped. Confirming the wizard with
 "'aw.design.position.wizard' object has no attribute
 '_starting_system'".
 
+The second: **Odoo 19 records use `__slots__`**, so a record cannot
+carry ad-hoc attributes -- only fields. `self._aw_spans = {}` in the
+explosion engine raised
+"'aw.design' object has no attribute '_aw_spans'" on the very first
+save of any design.
+
 Resolution follows `_name`/`_inherit` across OUR modules, and allows
 anything defined on the same model by core or on BaseModel -- calling
-`self._compute_field()` or `self.env` is not our business to police.
+`self._compute_field()` or writing a core field is not our business to
+police.
 
 Needs ../odoo-src to know what core provides; skips cleanly without it.
 """
@@ -32,6 +44,10 @@ ADDONS = ROOT / 'odoo' / 'addons'
 ODOO_SRC = ROOT.parent / 'odoo-src'
 OUR_MODULES = ('aw_fenestration_core', 'aw_fenestration_design',
                'aluminum_inventory', 'hello_check')
+
+# Assignable on a record without being a field of it. Deliberately
+# tiny: the point of the check is that almost nothing qualifies.
+ALLOWED_ATTRIBUTES = {'env'}
 
 
 def load_buttons_helpers():
@@ -87,6 +103,27 @@ def class_models(node):
     return names
 
 
+def self_assignments(node):
+    """(attribute, line) for every `self.x = ...` inside this class."""
+    found = []
+    for child in ast.walk(node):
+        targets = []
+        if isinstance(child, ast.Assign):
+            targets = child.targets
+        elif isinstance(child, (ast.AugAssign, ast.AnnAssign)):
+            targets = [child.target]
+        for target in targets:
+            for item in (target.elts
+                         if isinstance(target, (ast.Tuple, ast.List))
+                         else [target]):
+                if (isinstance(item, ast.Attribute)
+                        and isinstance(item.value, ast.Name)
+                        and item.value.id == 'self'):
+                    found.append((item.attr,
+                                  getattr(child, 'lineno', 0)))
+    return found
+
+
 def self_calls(node):
     """(method name, line) for every self._x(...) inside this class."""
     found = []
@@ -113,7 +150,7 @@ def main():
     core = helpers.core_module_dirs()
     our_dirs = [ADDONS / name for name in OUR_MODULES
                 if (ADDONS / name).is_dir()]
-    methods, _comodels = helpers.scan_python(
+    methods, _comodels, fieldnames = helpers.scan_python(
         list(core.values()) + our_dirs)
     allowed_everywhere = base_model_methods()
 
@@ -155,13 +192,28 @@ def main():
                         % (path.relative_to(ROOT), line, name,
                            ' / '.join(sorted(models))))
 
+                writable = set()
+                for model in models:
+                    writable |= fieldnames.get(model, set())
+                for name, line in self_assignments(node):
+                    checked += 1
+                    if name in writable or name in ALLOWED_ATTRIBUTES:
+                        continue
+                    problems.append(
+                        '%s:%s: self.%s = ... is not a field of %s '
+                        '(records use __slots__, so this raises at '
+                        'runtime)'
+                        % (path.relative_to(ROOT), line, name,
+                           ' / '.join(sorted(models))))
+
     if problems:
         print('Missing methods (these raise AttributeError at runtime):')
         for problem in sorted(set(problems)):
             print('  %s' % problem)
         return 1
 
-    print('%s self._method() call(s) all resolve on their model.' % checked)
+    print('%s self._method() call(s) and self.x assignment(s) are '
+          'sound.' % checked)
     return 0
 
 

@@ -210,7 +210,8 @@ class AwDesign(models.Model):
     # ------------------------------------------------------------------
     # the walk
     # ------------------------------------------------------------------
-    def _explode_rows(self, rows, by_scope, box_w, box_h, out, demand):
+    def _explode_rows(self, rows, by_scope, box_w, box_h, out, demand,
+                      spans):
         """Recursive walk: rows, panels, junctions, then into containers.
 
         Mirrors the drawing's own recursion, so a nested split produces
@@ -243,7 +244,7 @@ class AwDesign(models.Model):
                     # whatever divides it, handled one level down.
                     self._explode_rows(
                         leaf.child_row_ids, by_scope, leaf_w, row_h, out,
-                        demand)
+                        demand, spans)
                 else:
                     self._explode_panel(leaf, by_scope, context, out, demand)
 
@@ -252,7 +253,7 @@ class AwDesign(models.Model):
                     # The divider spans the row's height, which is what
                     # a span rating is about.
                     self._explode_junction(
-                        leaf, by_scope, context, out, demand, row_h)
+                        leaf, by_scope, context, out, demand, row_h, spans)
 
             # A transom between this row and the next.
             if row_index < len(rows) - 1:
@@ -261,7 +262,8 @@ class AwDesign(models.Model):
                     panels_in_row=panels_in_row)
                 demand['transom'] = demand.get('transom', 0) + 1
                 for line in self._divider_lines(
-                        'transom', by_scope, row.divider_line_id, box_w):
+                        'transom', by_scope, row.divider_line_id, box_w,
+                        spans):
                     out.extend(self._profile_pieces(
                         line, context, _('transom')))
 
@@ -353,20 +355,20 @@ class AwDesign(models.Model):
                 line, context, label, leaf.panel_no))
 
     def _explode_junction(self, leaf, by_scope, context, out, demand,
-                          span_mm=0.0):
+                          span_mm=0.0, spans=None):
         self.ensure_one()
         junction = leaf.junction_after or 'mullion'
         scope = 'junction_%s' % junction
         label = _('junction after P%s') % (leaf.panel_no or 0)
         demand[scope] = demand.get(scope, 0) + 1
         for line in self._divider_lines(
-                scope, by_scope, leaf.divider_line_id, span_mm):
+                scope, by_scope, leaf.divider_line_id, span_mm, spans):
             out.extend(self._profile_pieces(line, context, label))
         for line in self.hardware_set_id.line_ids:
             if line.scope == 'junction':
                 out.extend(self._hardware_line(line, context, label))
 
-    def _divider_lines(self, scope, by_scope, chosen, span_mm):
+    def _divider_lines(self, scope, by_scope, chosen, span_mm, spans):
         """The section line to build this divider from.
 
         `by_scope` holds only the winning line per position (lowest
@@ -380,21 +382,29 @@ class AwDesign(models.Model):
         self.ensure_one()
         default = by_scope.get(scope, [])
         if not chosen:
-            self._record_span(scope, default[:1], span_mm)
+            self._record_span(default[:1], span_mm, spans)
             return default
         if (chosen.section_id != self.profile_section_id
                 or chosen.position_id.scope != scope):
-            self._record_span(scope, default[:1], span_mm)
+            self._record_span(default[:1], span_mm, spans)
             return default
-        self._record_span(scope, [chosen], span_mm)
+        self._record_span([chosen], span_mm, spans)
         return [chosen]
 
-    def _record_span(self, scope, lines, span_mm):
-        """Remember the longest span each option was asked to carry."""
-        if not lines or not span_mm:
+    @staticmethod
+    def _record_span(lines, span_mm, spans):
+        """Remember the longest span each option was asked to carry.
+
+        `spans` is a plain dict threaded through the walk. It used to
+        be set on the record, which looked convenient and is not
+        possible: Odoo 19 records use __slots__, so `self._aw_spans = {}`
+        raised AttributeError on the first save of any design. A record
+        can hold fields and nothing else.
+        """
+        if spans is None or not lines or not span_mm:
             return
         line = lines[0]
-        seen = self._aw_spans.setdefault(line.id, [line, 0.0])
+        seen = spans.setdefault(line.id, [line, 0.0])
         seen[1] = max(seen[1], span_mm)
 
     def _hardware_line(self, line, context, label, panel_no=0):
@@ -453,9 +463,9 @@ class AwDesign(models.Model):
         by_scope = self._section_lines_by_scope()
         out = []
         demand = {'frame': 1}
-        # Longest span asked of each divider option, filled during the
-        # walk and read by the checks.
-        self._aw_spans = {}
+        # Longest span asked of each divider option. Local to this
+        # explosion and passed down the walk -- see _record_span.
+        spans = {}
 
         frame_context = self._formula_context()
         for line in by_scope.get('frame', []):
@@ -463,7 +473,7 @@ class AwDesign(models.Model):
 
         self._explode_rows(
             self.row_ids, by_scope, self.width_mm, self.height_mm, out,
-            demand)
+            demand, spans)
 
         for line in self.hardware_set_id.line_ids:
             if line.scope == 'design':
@@ -510,9 +520,9 @@ class AwDesign(models.Model):
 
         # Cost before the checks run, so the checks can report on it.
         self._cost_bom_lines()
-        self._run_checks(exploded=out, demand=demand)
+        self._run_checks(exploded=out, demand=demand, spans=spans)
 
-    def _run_checks(self, exploded=None, demand=None):
+    def _run_checks(self, exploded=None, demand=None, spans=None):
         """Spec 6.6. Warnings are things to look at; errors are things
         that cannot be made as drawn."""
         self.ensure_one()
@@ -579,7 +589,7 @@ class AwDesign(models.Model):
         # A divider carrying more than its option is rated for. Never a
         # block: the shop may know better than the table, and the table
         # is seeded with 0 (no limit) anyway.
-        for line, span in (getattr(self, '_aw_spans', None) or {}).values():
+        for line, span in (spans or {}).values():
             if not line.max_span_mm or span <= line.max_span_mm:
                 continue
             heavier = self.profile_section_id.line_ids.filtered(

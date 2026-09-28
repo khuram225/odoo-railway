@@ -633,7 +633,14 @@ about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
   stubs the harness reports "window is not defined" for correct code,
   which is a fault in the harness rather than the component.
 
-- `scripts/check_self_methods.py` requires every `self._method(...)`
+- `scripts/check_self_methods.py` covers two runtime-only failures.
+  First, every `self._method(...)` must resolve on that model. Second,
+  **every `self.x = ...` must be a FIELD**: Odoo 19 records use
+  `__slots__`, so a record cannot carry ad-hoc attributes, and
+  `self._aw_spans = {}` in the explosion engine broke the save of every
+  design with *"'aw.design' object has no attribute '_aw_spans'"*. Per-
+  explosion state belongs in a local dict threaded through the walk,
+  not on the record. Requires every `self._method(...)`
   in our models to resolve on that model. **pyflakes cannot see this** —
   `self._starting_system()` is valid Python whatever `self` turns out
   to be, so a missing method only surfaces when a user clicks the

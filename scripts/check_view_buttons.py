@@ -80,9 +80,15 @@ def core_module_dirs():
 # what each model has
 # ----------------------------------------------------------------------
 def scan_python(directories):
-    """model -> set(method names), and model -> {field: comodel}."""
+    """model -> methods, model -> {field: comodel}, model -> field names.
+
+    The third is what check_self_methods.py needs to tell "writing a
+    field" from "inventing an attribute": Odoo 19 records use
+    __slots__, so only fields can be assigned on self.
+    """
     methods = defaultdict(set)
     comodels = defaultdict(dict)
+    fieldnames = defaultdict(set)
     for directory in directories:
         candidates = list(directory.glob('*.py'))
         for sub in ('models', 'wizard', 'wizards', 'report', 'reports'):
@@ -121,12 +127,32 @@ def scan_python(directories):
                         for name in names:
                             methods[name].add(statement.name)
                     elif isinstance(statement, ast.Assign):
+                        field = _field_name(statement)
+                        if field:
+                            for name in names:
+                                fieldnames[name].add(field)
                         comodel = _comodel(statement)
                         if comodel:
                             field, target = comodel
                             for name in names:
                                 comodels[name][field] = target
-    return methods, comodels
+    return methods, comodels, fieldnames
+
+
+def _field_name(statement):
+    """The attribute name of any `x = fields.Something(...)`."""
+    target = statement.targets[0]
+    if not isinstance(target, ast.Name):
+        return None
+    call = statement.value
+    if not isinstance(call, ast.Call):
+        return None
+    func = call.func
+    if (isinstance(func, ast.Attribute)
+            and isinstance(func.value, ast.Name)
+            and func.value.id == 'fields'):
+        return target.id
+    return None
 
 
 def _comodel(statement):
@@ -250,7 +276,8 @@ def main():
                 if (ADDONS / name).is_dir()]
     our_names = [name for name in OUR_MODULES if (ADDONS / name).is_dir()]
 
-    methods, comodels = scan_python(list(core.values()) + our_dirs)
+    methods, comodels, _fields = scan_python(
+        list(core.values()) + our_dirs)
     views, ours = scan_views(
         list(core.values()) + our_dirs, list(core.keys()) + our_names)
 
