@@ -76,6 +76,11 @@ class AwLayoutPreset(models.Model):
              "one, no schema change.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
+    family_ids = fields.Many2many(
+        'aw.window.family', string='Glazing Families',
+        help="Empty means every family. Replaces the old per-system "
+             "list: a layout suits a family, and which system carries "
+             "it is decided by the panels.")
     series_ids = fields.Many2many(
         'aw.window.series', string='Window Series',
         help="Offer this preset only on these Series. Leave empty to "
@@ -152,8 +157,10 @@ class AwLayoutPreset(models.Model):
         check on all 8 Series, so a curtain-wall layout was offered on
         sliding Series. Leaf types can't express category intent.
         """
+        family = series.family_id
         return self.filtered(
-            lambda p: (not p.series_ids or series in p.series_ids)
+            lambda p: (not p.family_ids or family in p.family_ids)
+            and (not p.series_ids or series in p.series_ids)
             and p._leaf_type_codes() <= set(
                 series.leaf_type_ids.mapped('code')))
 
@@ -248,3 +255,26 @@ class AwLayoutPreset(models.Model):
                     ids.append(series.id)
             if ids:
                 preset.series_ids = [(6, 0, ids)]
+
+    @api.model
+    def _migrate_series_to_family(self):
+        """Map each preset's systems onto their families, once.
+
+        Union of the families of whatever systems it was assigned to.
+        series_ids is KEPT and still honoured -- a preset pinned to one
+        specific system stays pinned, and dropping that would quietly
+        widen where it is offered.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        key = 'aw_fenestration.preset_family_migrated'
+        if param.get_param(key):
+            return 0
+        migrated = 0
+        for preset in self.with_context(active_test=False).search(
+                [('series_ids', '!=', False), ('family_ids', '=', False)]):
+            families = preset.series_ids.mapped('family_id')
+            if families:
+                preset.family_ids = [(6, 0, families.ids)]
+                migrated += 1
+        param.set_param(key, '1')
+        return migrated

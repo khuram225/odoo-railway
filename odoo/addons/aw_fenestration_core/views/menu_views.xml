@@ -23,8 +23,14 @@
               action="action_aw_profile_position"
               sequence="4"/>
 
+    <menuitem id="menu_aw_window_family"
+              name="Glazing Families"
+              parent="menu_aw_fenestration_master_data"
+              action="action_aw_window_family"
+              sequence="8"/>
+
     <menuitem id="menu_aw_window_series"
-              name="Window Series"
+              name="Profile Systems"
               parent="menu_aw_fenestration_master_data"
               action="action_aw_window_series"
               sequence="10"/>

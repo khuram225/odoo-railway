@@ -18,6 +18,42 @@ DEFAULT_LEAF_TYPES = {
     'window_series_casement_dg': ('fixed', 'casement', 'mesh'),
 }
 
+# The 169 M1 job puts awnings and hoppers in bathrooms, so an Openable
+# system has to host them. ADDED to whatever a system already allows,
+# never replacing -- the same fill-only rule as everywhere else here.
+EXTRA_LEAF_TYPES = {
+    'window_series_casement_sg': ('awning', 'hopper'),
+    'window_series_casement_dg': ('awning', 'hopper'),
+}
+
+# xmlid -> (name as seeded, new name, family code, system role).
+# The rename only fires where the name is STILL the seeded one: a
+# system someone has renamed by hand is theirs, not ours.
+SYSTEM_IDENTITY = {
+    'window_series_dg_sliding':
+        ('Double Glaze Sliding', 'Double Glaze \u2013 Sliding', 'DG', 'sliding'),
+    'window_series_dg_fix':
+        ('Double Glaze Fix', 'Double Glaze \u2013 Fixed', 'DG', 'fixed'),
+    'window_series_casement_dg':
+        ('Casement Double Glaze', 'Double Glaze \u2013 Openable', 'DG',
+         'openable'),
+    'window_series_sg_sliding':
+        ('Single Glaze Sliding', 'Single Glaze \u2013 Sliding', 'SG', 'sliding'),
+    'window_series_sg_fix':
+        ('Single Glaze Fix', 'Single Glaze \u2013 Fixed', 'SG', 'fixed'),
+    'window_series_casement_sg':
+        ('Casement Single Glaze', 'Single Glaze \u2013 Openable', 'SG',
+         'openable'),
+    # [revisit] Single glaze tilt & turn: the client has only confirmed
+    # a double-glazed one.
+    'window_series_tiltturn':
+        ('Tilt & Turn Series', 'Tilt & Turn', 'DG', 'tiltturn'),
+    'window_series_curtain_wall_fix':
+        ('Curtain Wall Fix', 'Curtain Wall', 'CW', 'fixed'),
+}
+
+FAMILY_SEEDED_PARAM = 'aw_fenestration.series_family_seeded'
+
 
 class AwWindowSeries(models.Model):
     """A specific product family: Double Glaze Sliding, Single Glaze Fix,
@@ -37,6 +73,21 @@ class AwWindowSeries(models.Model):
 
     name = fields.Char(required=True, tracking=True)
     code = fields.Char(tracking=True, help="Short code, e.g. BOX, COLLAR, ROUND, GSL, HINGED, CURTAIN")
+    # The UI calls this a Profile system; the model name is unchanged
+    # because renaming it would break every stored reference and the
+    # whole BOM chain for the sake of a label.
+    family_id = fields.Many2one(
+        'aw.window.family', string='Glazing Family', tracking=True,
+        ondelete='restrict', index=True)
+    system_role = fields.Selection([
+        ('sliding', 'Sliding'),
+        ('openable', 'Openable'),
+        ('tiltturn', 'Tilt & Turn'),
+        ('fixed', 'Fixed'),
+    ], string='System Role', tracking=True,
+        help="What this system is FOR, which is how a design picks one "
+             "from the panels that have been drawn. Without it the "
+             "choice would have to be guessed from the name.")
     leaf_type_ids = fields.Many2many('aw.leaf.type', tracking=True,
         help="Which leaf mechanisms this Series can host.")
     sequence = fields.Integer(default=10)
@@ -171,3 +222,61 @@ class AwWindowSeries(models.Model):
                     raise ValidationError(_(
                         "%(label)s on '%(name)s': %(problem)s",
                         label=label, name=rec.name, problem=problem))
+
+    # ------------------------------------------------------------------
+    @api.model
+    def _seed_family_and_names(self):
+        """Give each seeded system its family, role and new name, once.
+
+        Guarded by a parameter rather than fill-only-if-empty because
+        the rename has no "empty" state to test -- a name is always
+        set. The name is only changed where it still EQUALS the seeded
+        one, so a system someone has renamed keeps their name and still
+        gets its family and role.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(FAMILY_SEEDED_PARAM):
+            return 0
+
+        families = {
+            family.code: family
+            for family in self.env['aw.window.family'].with_context(
+                active_test=False).search([])}
+        leaf_types = {
+            leaf.code.lower(): leaf
+            for leaf in self.env['aw.leaf.type'].with_context(
+                active_test=False).search([]) if leaf.code}
+
+        touched = 0
+        for xmlid, (seeded, new_name, code, role) in SYSTEM_IDENTITY.items():
+            series = self.env.ref(
+                'aw_fenestration_core.%s' % xmlid, raise_if_not_found=False)
+            if not series:
+                continue
+            values = {}
+            if series.name == seeded:
+                values['name'] = new_name
+            if not series.family_id and families.get(code):
+                values['family_id'] = families[code].id
+            if not series.system_role:
+                values['system_role'] = role
+            if values:
+                series.write(values)
+                touched += 1
+
+        # Awning and hopper on the Openable systems, added never removed.
+        for xmlid, codes in EXTRA_LEAF_TYPES.items():
+            series = self.env.ref(
+                'aw_fenestration_core.%s' % xmlid, raise_if_not_found=False)
+            if not series:
+                continue
+            wanted = self.env['aw.leaf.type']
+            for code in codes:
+                leaf = leaf_types.get(code)
+                if leaf and leaf not in series.leaf_type_ids:
+                    wanted |= leaf
+            if wanted:
+                series.leaf_type_ids = [(4, leaf.id) for leaf in wanted]
+
+        param.set_param(FAMILY_SEEDED_PARAM, '1')
+        return touched

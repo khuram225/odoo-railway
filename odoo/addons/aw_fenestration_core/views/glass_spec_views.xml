@@ -8,6 +8,7 @@
             <list>
                 <field name="name"/>
                 <field name="product_id"/>
+                <field name="glazing"/>
                 <field name="thickness_mm"/>
             </list>
         </field>

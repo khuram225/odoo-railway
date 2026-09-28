@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo.exceptions import UserError
+from odoo import _, fields, models
 
 
 class AwDesignPositionWizard(models.TransientModel):
@@ -14,8 +15,16 @@ class AwDesignPositionWizard(models.TransientModel):
 
     order_id = fields.Many2one(
         'sale.order', required=True, ondelete='cascade')
+    family_id = fields.Many2one(
+        'aw.window.family', string='Glazing Family', required=True,
+        ondelete='restrict',
+        help="The profile system is worked out from the panels you "
+             "draw, so this is the only thing to decide up front.")
+    # No longer asked for: the family is the question now, and
+    # _starting_system() supplies a system so aw.design's required
+    # field is satisfied. Kept so a caller that still passes one works.
     window_series_id = fields.Many2one(
-        'aw.window.series', string='Window Series', required=True)
+        'aw.window.series', string='Profile System')
     name = fields.Char(
         string='Position Ref',
         help="Leave blank to auto-number (D1, D2, ...).")
@@ -29,9 +38,11 @@ class AwDesignPositionWizard(models.TransientModel):
     def action_confirm(self):
         self.ensure_one()
         if self.set_as_default:
-            self.order_id.aw_default_series_id = self.window_series_id
+            self.order_id.aw_default_family_id = self.family_id
+            self.order_id.aw_default_series_id = self._starting_system()
         design = self.order_id._create_fenestration_position(
-            self.window_series_id, name=self.name, location=self.location)
+            self._starting_system(), name=self.name,
+            location=self.location, family=self.family_id)
         # Straight into the configurator (spec 4.4). The raw form stays
         # reachable from there and from the Designs menu for admins.
         return design.action_open_configurator()

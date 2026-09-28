@@ -16,7 +16,11 @@
     given the guard.
     -->
     <data>
+        <function model="aw.window.family" name="_seed_families"/>
         <function model="aw.window.series" name="_seed_default_leaf_types"/>
+        <function model="aw.window.series" name="_seed_family_and_names"/>
+        <function model="aw.glass.spec" name="_seed_glazing"/>
+        <function model="aw.profile.section" name="_seed_dg_openable_section"/>
         <!-- Runs BEFORE _seed_bom_defaults so the Palay Bead xmlids
              already point at the surviving records when it looks them
              up. -->

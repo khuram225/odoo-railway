@@ -10,6 +10,11 @@ class SaleOrder(models.Model):
     # so it's a real column and can carry this One2many.
     aw_design_ids = fields.One2many(
         'aw.design', 'sale_order_id', string='Fenestration Designs')
+    aw_default_family_id = fields.Many2one(
+        'aw.window.family', string='Default Glazing Family',
+        ondelete='restrict',
+        help="What every new position on this quote starts as. The "
+             "profile system follows from the panels drawn.")
     aw_default_series_id = fields.Many2one(
         'aw.window.series', string='Default Window Series',
         ondelete='restrict',
@@ -88,7 +93,8 @@ class SaleOrder(models.Model):
             'views': [[False, 'form']],
         }
 
-    def _create_fenestration_position(self, series, name=None, location=None):
+    def _create_fenestration_position(self, series, name=None,
+                                      location=None, family=None):
         """Create the quote line and its design together. The line comes
         first because aw.design.sale_order_line_id is what ties the two
         together. Shared by both entry points -- the direct button when
@@ -118,6 +124,9 @@ class SaleOrder(models.Model):
             'location': location or False,
             'qty': 1,
             'window_series_id': series.id,
+            # Falls back to the system's own family so a caller that
+            # predates families still produces a consistent design.
+            'family_id': (family or series.family_id).id or False,
             'sale_order_line_id': line.id,
         })
         # A design with no rows at all gives the configurator nothing to
@@ -145,9 +154,9 @@ class SaleOrder(models.Model):
         design has to exist before its form can open, so the Series has to
         be settled one way or the other up front."""
         self.ensure_one()
-        if not self.env['aw.window.series'].search_count([]):
+        if not self.env['aw.window.family'].search_count([]):
             raise UserError(_(
-                "No Window Series exists yet. Create at least one under "
+                "No Glazing Family exists yet. Create at least one under "
                 "Fenestration before adding positions to a quote."))
 
         # The wizard opens even when the quote has a default Series, with
@@ -156,10 +165,14 @@ class SaleOrder(models.Model):
         # change it on the design. One dialog, already answered, is
         # cheaper than that.
         context = {'default_order_id': self.id}
-        if self.aw_default_series_id:
-            context['default_window_series_id'] = self.aw_default_series_id.id
+        if self.aw_default_family_id:
+            context['default_family_id'] = self.aw_default_family_id.id
             # Don't re-offer to set a default that is already set.
             context['default_set_as_default'] = False
+        elif self.aw_default_series_id.family_id:
+            # A quote from before families still has a default system.
+            context['default_family_id'] = \
+                self.aw_default_series_id.family_id.id
         return {
             'type': 'ir.actions.act_window',
             'name': _("Add Position"),

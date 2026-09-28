@@ -25,3 +25,5 @@ access_aw_price_structure_line_user,aw.price.structure.line.user,model_aw_price_
 access_aw_price_structure_line_manager,aw.price.structure.line.manager,model_aw_price_structure_line,group_fenestration_manager,1,1,1,1
 access_aw_profile_rate_import_manager,aw.profile.rate.import.manager,model_aw_profile_rate_import,group_fenestration_manager,1,1,1,1
 access_aw_catalogue_import_manager,aw.catalogue.import.manager,model_aw_catalogue_import,group_fenestration_manager,1,1,1,1
+access_aw_window_family_user,aw.window.family.user,model_aw_window_family,base.group_user,1,0,0,0
+access_aw_window_family_manager,aw.window.family.manager,model_aw_window_family,group_fenestration_manager,1,1,1,1

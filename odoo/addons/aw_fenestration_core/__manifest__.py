@@ -50,6 +50,7 @@ aw_fenestration_stock) that depend on this one.
         'data/glass_spec_data.xml',
         'data/chawla_attributes_data.xml',
         'data/chawla_profiles_data.xml',
+        'views/window_family_views.xml',
         'views/window_series_views.xml',
         'views/dynamic_views.xml',
         'views/profile_section_views.xml',

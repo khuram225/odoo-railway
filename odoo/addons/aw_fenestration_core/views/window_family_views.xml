@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_window_family_list" model="ir.ui.view">
+        <field name="name">aw.window.family.list</field>
+        <field name="model">aw.window.family</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="glazing"/>
+                <field name="series_count" string="Systems"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_window_family_form" model="ir.ui.view">
+        <field name="name">aw.window.family.form</field>
+        <field name="model">aw.window.family</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                        </group>
+                        <group>
+                            <field name="glazing"/>
+                            <field name="sequence"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                    </group>
+                    <field name="series_ids" readonly="1">
+                        <list>
+                            <field name="name"/>
+                            <field name="system_role"/>
+                            <field name="leaf_type_ids" widget="many2many_tags"/>
+                        </list>
+                    </field>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_window_family" model="ir.actions.act_window">
+        <field name="name">Glazing Families</field>
+        <field name="res_model">aw.window.family</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a Glazing Family</p>
+            <p>The layer a quote starts from: Double Glaze, Single Glaze,
+               Curtain Wall. Which profile system carries a design is
+               worked out from the panels drawn in it.</p>
+        </field>
+    </record>
+
+</odoo>

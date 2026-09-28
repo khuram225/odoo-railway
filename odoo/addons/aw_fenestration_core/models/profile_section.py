@@ -94,6 +94,19 @@ class AwProfileSectionLine(models.Model):
         string='Quantity Override',
         help="Empty means the position's own Quantity Formula.")
 
+    # Several lines can sit on one position as alternatives -- the
+    # lowest sequence wins unless a design picks another. These name
+    # the choice and say when it stops being adequate.
+    option_label = fields.Char(
+        help="What to call this alternative in the configurator, e.g. "
+             "'Economy' or 'Heavy duty'. Empty falls back to the "
+             "product name.")
+    max_span_mm = fields.Float(
+        string='Max span (mm)',
+        help="Longest span this option is rated for. 0 means no limit. "
+             "A divider longer than this is a warning, never a block: "
+             "the shop may know better than the table.")
+
     is_optional = fields.Boolean(
         default=False,
         help="If checked, a sales user may drop this position from a "

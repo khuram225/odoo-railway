@@ -2,8 +2,10 @@ from . import formula
 from . import res_config_settings
 from . import leaf_type
 from . import profile_position
+from . import window_family
 from . import window_series
 from . import profile_section
+from . import section_seed
 from . import hardware_set
 from . import glass_spec
 from . import window_template

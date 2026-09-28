@@ -16,7 +16,7 @@
             <form string="Add Position">
                 <group>
                     <field name="order_id" invisible="1"/>
-                    <field name="window_series_id"/>
+                    <field name="family_id"/>
                     <field name="name" placeholder="Auto-numbered if blank"/>
                     <field name="location" placeholder="e.g. Drawing room"/>
                     <field name="set_as_default"/>

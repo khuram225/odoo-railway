@@ -124,7 +124,8 @@
                             <field name="name"/>
                             <field name="location"/>
                             <field name="qty"/>
-                            <field name="window_series_id"/>
+                            <field name="family_id"/>
+                            <field name="window_series_id" string="Profile System"/>
                             <field name="template_id"/>
                             <field name="profile_section_id"/>
                             <field name="hardware_set_id"/>

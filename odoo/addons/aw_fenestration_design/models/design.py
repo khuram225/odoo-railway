@@ -412,7 +412,7 @@ class AwDesign(models.Model):
     CONFIGURATOR_HEADER_FIELDS = (
         'name', 'location', 'qty', 'width_mm', 'height_mm',
         'window_series_id', 'glass_spec_id', 'finish_id', 'thickness_id',
-        'profile_section_id', 'hardware_set_id',
+        'profile_section_id', 'hardware_set_id', 'family_id',
         'manual_rate',
     )
 
@@ -472,6 +472,8 @@ class AwDesign(models.Model):
         return [{
             'height_mm': row.height_mm,
             'is_auto': row.is_auto,
+                'divider_line_id': row.divider_line_id.id,
+            'divider_line_id': row.divider_line_id.id,
             'leaves': [{
                 'width_mm': leaf.width_mm,
                 'is_auto': leaf.is_auto,
@@ -483,6 +485,8 @@ class AwDesign(models.Model):
                 'swing': leaf.swing or '',
                 'slide_dir': leaf.slide_dir or '',
                 'junction_after': leaf.junction_after or '',
+                'divider_line_id': leaf.divider_line_id.id,
+                'divider_line_id': leaf.divider_line_id.id,
                 'track_no': leaf.track_no or 0,
                 'mesh_type_id': leaf.mesh_type_id.id,
                 'mesh_type_code': leaf.mesh_type_id.code or '',
@@ -560,6 +564,40 @@ class AwDesign(models.Model):
                     [('attribute_id', '=', attribute.id)])]
 
     @api.model
+    def _divider_options(self):
+        """The Profile Section's alternatives for each divider kind.
+
+        Only offered when there is a real choice: one line for a
+        position is not an option, it is just what the section says.
+        """
+        self.ensure_one()
+        vertical, horizontal = [], []
+        for line in self.profile_section_id.line_ids.sorted(
+                lambda l: (l.sequence, l.id)):
+            scope = line.position_id.scope
+            entry = {
+                'id': line.id,
+                'name': (line.option_label
+                         or line.product_id.display_name
+                         or line.product_tmpl_id.display_name or '?'),
+                'max_span_mm': line.max_span_mm or 0.0,
+            }
+            if scope in ('junction_mullion', 'junction_meeting',
+                         'junction_interlock'):
+                vertical.append(entry)
+            elif scope == 'transom':
+                horizontal.append(entry)
+        return {
+            'vertical': vertical if len(vertical) > 1 else [],
+            'horizontal': horizontal if len(horizontal) > 1 else [],
+        }
+
+    def _glass_context(self):
+        """Context carrying this design's glass domain."""
+        self.ensure_one()
+        domain = self.family_id._glass_domain() if self.family_id else []
+        return self.with_context(aw_glass_domain=domain)
+
     def _attachment_catalogue(self):
         """Mesh, infill, glass and grid choices for the right panel and
         the library's mesh/infill families."""
@@ -580,9 +618,12 @@ class AwDesign(models.Model):
                 'family_sequence': (
                     i.family_id.sequence if i.family_id else 999),
             } for i in self.env['aw.infill.type'].search([])],
+            # Only the glass this family can use. Curtain wall's family
+            # is 'none', whose domain is empty, so it still sees all.
             'glass_specs': [{
                 'id': g.id, 'name': g.display_name,
-            } for g in self.env['aw.glass.spec'].search([])],
+            } for g in self.env['aw.glass.spec'].search(
+                self.env.context.get('aw_glass_domain') or [])],
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
                 'kind': g.kind,
@@ -672,6 +713,8 @@ class AwDesign(models.Model):
                 'thickness_id': self.thickness_id.id,
                 'profile_section_id': self.profile_section_id.id,
                 'hardware_set_id': self.hardware_set_id.id,
+                'family_id': self.family_id.id,
+                'family_name': self.family_id.display_name or '',
                 # No control in the configurator, but it IS in the save
                 # allow-list, so without it here every save round-tripped
                 # a missing key and wiped the price override.
@@ -684,6 +727,15 @@ class AwDesign(models.Model):
                 'max_piece_mm': self._max_piece_mm(),
                 'max_piece_label': self._format_length(self._max_piece_mm()),
             },
+            'family_options': [
+                {'id': family.id, 'name': family.display_name,
+                 'glazing': family.glazing}
+                for family in self.env['aw.window.family'].search([])],
+            'system_label': self.window_series_id.display_name or '',
+            'system_options': [
+                {'id': system.id, 'name': system.display_name}
+                for system in self._candidate_systems()],
+            'divider_options': self._divider_options(),
             'finish_options': self._finish_options(),
             'default_glass_spec_id': series.default_glass_spec_id.id,
             **self._rule_set_options(series),
@@ -707,7 +759,7 @@ class AwDesign(models.Model):
             # get_series_context, so on open the configurator had no mesh,
             # infill, glass or grid at all -- the headings rendered with
             # nothing under them.
-            **self._attachment_catalogue(),
+            **self._glass_context()._attachment_catalogue(),
             **self._bom_payload(),
             **self._pricing_payload(),
         }
@@ -762,6 +814,7 @@ class AwDesign(models.Model):
                 'parent_leaf_id': parent_leaf.id if parent_leaf else False,
                 'height_mm': row.get('height_mm') or 0.0,
                 'is_auto': row.get('is_auto', False),
+                'divider_line_id': row.get('divider_line_id') or False,
                 'leaf_ids': [(0, 0, {
                     'width_mm': leaf.get('width_mm') or 0.0,
                     'is_auto': leaf.get('is_auto', False),
@@ -774,6 +827,8 @@ class AwDesign(models.Model):
                     'swing': leaf.get('swing') or False,
                     'slide_dir': leaf.get('slide_dir') or False,
                     'junction_after': leaf.get('junction_after') or False,
+                    'divider_line_id': leaf.get('divider_line_id') or False,
+                    'divider_line_id': leaf.get('divider_line_id') or False,
                     'track_no': leaf.get('track_no') or 0,
                     'mesh_type_id': leaf.get('mesh_type_id') or False,
                     'mesh_hinge_side': leaf.get('mesh_hinge_side') or False,
@@ -822,6 +877,9 @@ class AwDesign(models.Model):
 
         self.row_ids.unlink()
         self._create_rows(payload.get('rows') or [], parent_leaf=None)
+        # The system follows from the panels that now exist, so this has
+        # to run after the rows are rebuilt and before the explosion.
+        self._resolve_system()
         # Authoritative numbering: the client numbers panels the same way
         # for display, but the server decides what's stored, so a payload
         # that arrived with stale or absent numbers still lands numbered.

@@ -21,6 +21,12 @@ class AwGlassSpec(models.Model):
             'categ_id', 'child_of',
             self.env.ref('aw_fenestration_core.product_category_glass').id,
         )])
+    glazing = fields.Selection([
+        ('single', 'Single glazed'),
+        ('double', 'Double glazed'),
+    ], default='single', tracking=True,
+        help="Which glazing family may use this spec. A sealed unit is "
+             "double; a single pane, however thick, is single.")
     thickness_mm = fields.Float(string='Thickness (mm)')
     weight_kg_m2 = fields.Float(
         string='Weight (kg/m²)',
@@ -32,3 +38,27 @@ class AwGlassSpec(models.Model):
     _sql_constraints = [
         ('name_uniq', 'unique(name)', 'A glass spec name must be unique.'),
     ]
+
+    @api.model
+    def _seed_glazing(self):
+        """Mark the sealed units double, once.
+
+        Everything seeded is a single pane except the DGU, so the
+        default already covers the rest; this only has to find the
+        units. Matches on "DGU" in the name rather than on thickness,
+        because a 24 mm single pane would be a strange thing to own but
+        is not impossible, and thickness alone cannot tell them apart.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        key = 'aw_fenestration.glass_glazing_seeded'
+        if param.get_param(key):
+            return 0
+        marked = 0
+        for spec in self.with_context(active_test=False).search([]):
+            if spec.glazing == 'double':
+                continue
+            if 'DGU' in (spec.name or '').upper():
+                spec.glazing = 'double'
+                marked += 1
+        param.set_param(key, '1')
+        return marked

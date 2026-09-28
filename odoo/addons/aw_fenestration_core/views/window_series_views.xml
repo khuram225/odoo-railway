@@ -9,6 +9,8 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="code"/>
+                <field name="family_id"/>
+                <field name="system_role"/>
                 <field name="leaf_type_ids" widget="many2many_tags"/>
                 <field name="profile_section_count" string="Sections"/>
                 <field name="hardware_set_count" string="Hardware Sets"/>
@@ -43,6 +45,8 @@
                         <group>
                             <field name="name"/>
                             <field name="code"/>
+                            <field name="family_id"/>
+                            <field name="system_role"/>
                             <field name="leaf_type_ids" widget="many2many_tags"/>
                         </group>
                         <group>
@@ -95,11 +99,11 @@
     </record>
 
     <record id="action_aw_window_series" model="ir.actions.act_window">
-        <field name="name">Window Series</field>
+        <field name="name">Profile Systems</field>
         <field name="res_model">aw.window.series</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first Window Series</p>
+            <p class="o_view_nocontent_smiling_face">Create your first Profile System</p>
             <p>A Window Series is a specific product family — Double Glaze Sliding,
                Single Glaze Fix, Curtain Wall Fix, Tilt &amp; Turn Series, Casement
                Single Glaze, etc. Leaf Types picks which leaf mechanisms it can

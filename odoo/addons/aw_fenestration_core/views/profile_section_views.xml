@@ -38,6 +38,8 @@
                                  rule, which is the usual case, so these are
                                  optional columns rather than required
                                  ones. -->
+                            <field name="option_label"/>
+                            <field name="max_span_mm" optional="hide"/>
                             <field name="length_formula" optional="hide"/>
                             <field name="length_formula_h" optional="hide"/>
                             <field name="cut_angle" optional="hide"/>

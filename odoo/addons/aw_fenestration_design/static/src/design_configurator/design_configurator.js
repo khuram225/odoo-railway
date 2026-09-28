@@ -470,6 +470,77 @@ export class DesignConfigurator extends Component {
         return `${symbol} ${rounded.toLocaleString()}`;
     }
 
+    // -- glazing family ----------------------------------------------
+    get familyOptions() {
+        return this.state.data?.family_options || [];
+    }
+
+    get systemLabel() {
+        return this.state.data?.system_label || "";
+    }
+
+    get systemOptions() {
+        return this.state.data?.system_options || [];
+    }
+
+    /** Only a choice when more than one system could carry the layout. */
+    get showSystemPicker() {
+        return this.systemOptions.length > 1;
+    }
+
+    onFamilyChange(ev) {
+        this.onHeaderIdChange("family_id", ev);
+    }
+
+    onSystemChange(ev) {
+        this.onHeaderIdChange("window_series_id", ev);
+    }
+
+    // -- divider options ---------------------------------------------
+    get dividerOptions() {
+        const entry = this.selectedDividerEntry;
+        const options = this.state.data?.divider_options;
+        if (!entry || !options) {
+            return [];
+        }
+        return (entry.kind === "h" ? options.horizontal : options.vertical)
+            || [];
+    }
+
+    get selectedDividerLineId() {
+        const entry = this.selectedDividerEntry;
+        if (!entry) {
+            return false;
+        }
+        const rows = this.rowsAt(entry.path);
+        if (entry.kind === "h") {
+            return rows[entry.ri]?.divider_line_id || false;
+        }
+        return rows[entry.ri]?.leaves[entry.li]?.divider_line_id || false;
+    }
+
+    /**
+     * Store the choice where the divider lives: a vertical divider
+     * belongs to the leaf on its left, a horizontal one to the row
+     * above it. The same places the junction type is already kept, so
+     * the two cannot drift apart.
+     */
+    setDividerOption(lineId) {
+        const entry = this.selectedDividerEntry;
+        if (!entry) {
+            return;
+        }
+        const rows = this.rowsAt(entry.path);
+        const current = this.selectedDividerLineId;
+        const value = current === lineId ? false : lineId;
+        if (entry.kind === "h") {
+            rows[entry.ri].divider_line_id = value;
+        } else {
+            rows[entry.ri].leaves[entry.li].divider_line_id = value;
+        }
+        this.state.dirty = true;
+    }
+
     get glassSpecOptions() {
         return this.state.data?.glass_specs || [];
     }

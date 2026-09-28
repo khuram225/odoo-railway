@@ -112,6 +112,15 @@ class AwDesignLeaf(models.Model):
         help="Which track a sliding panel runs on, counting 1 from the "
              "innermost outwards. 0 on anything that doesn't slide.")
 
+    # Which Profile Section line builds the divider on this leaf's
+    # RIGHT boundary. Empty means the lowest-sequence line, which is
+    # the rule alternates already followed -- so an untouched design
+    # behaves exactly as before.
+    divider_line_id = fields.Many2one(
+        'aw.profile.section.line', string='Divider Option',
+        ondelete='set null',
+        help="Leave empty for the section's default option.")
+
     junction_after = fields.Selection([
         ('mullion', 'Mullion'),
         ('meeting', 'Meeting'),

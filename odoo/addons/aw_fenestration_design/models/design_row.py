@@ -46,6 +46,13 @@ class AwDesignRow(models.Model):
     height_inch_total = fields.Float(string='Height (in)',
         compute='_compute_height_inch_total', inverse='_inverse_height_inch_total')
 
+    # The transom on this row's BOTTOM boundary. Same rule as the
+    # vertical divider on a leaf.
+    divider_line_id = fields.Many2one(
+        'aw.profile.section.line', string='Transom Option',
+        ondelete='set null',
+        help="Leave empty for the section's default option.")
+
     is_auto = fields.Boolean(
         string='Automatic',
         help="If checked, this row's height is the one that absorbs "

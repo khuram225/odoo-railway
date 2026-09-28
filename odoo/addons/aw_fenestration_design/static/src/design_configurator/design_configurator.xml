@@ -17,6 +17,22 @@
                 <!-- Header -->
                 <div class="o_aw_cfg_header border-bottom bg-view p-3 flex-shrink-0">
                     <div class="d-flex flex-wrap gap-3 align-items-end">
+                        <!-- Family first: it is the question a quote
+                             actually starts from. The profile system
+                             below follows from the panels drawn. -->
+                        <div>
+                            <label class="form-label small text-muted mb-0">Glazing</label>
+                            <select class="form-select form-select-sm"
+                                    t-on-change="onFamilyChange">
+                                <option value="">Choose...</option>
+                                <t t-foreach="familyOptions" t-as="opt" t-key="opt.id">
+                                    <option t-att-value="opt.id"
+                                            t-att-selected="opt.id === state.data.header.family_id">
+                                        <t t-esc="opt.name"/>
+                                    </option>
+                                </t>
+                            </select>
+                        </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Position</label>
                             <input type="text" class="form-control form-control-sm"
@@ -59,17 +75,24 @@
                                    t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onDimensionChange('height_mm', ev.target.value)"/>
                         </div>
+                        <!-- Derived, not chosen: a label unless more
+                             than one system could carry this layout. -->
                         <div>
-                            <label class="form-label small text-muted mb-0">Series</label>
-                            <select class="form-select form-select-sm"
-                                    t-on-change="onSeriesSelectChange">
-                                <t t-foreach="seriesOptions" t-as="opt" t-key="opt.id">
+                            <label class="form-label small text-muted mb-0">Frame</label>
+                            <select t-if="showSystemPicker"
+                                    class="form-select form-select-sm"
+                                    t-on-change="onSystemChange">
+                                <t t-foreach="systemOptions" t-as="opt" t-key="opt.id">
                                     <option t-att-value="opt.id"
                                             t-att-selected="opt.id === state.data.header.window_series_id">
                                         <t t-esc="opt.name"/>
                                     </option>
                                 </t>
                             </select>
+                            <div t-else="" class="form-control form-control-sm bg-view border-0 text-truncate"
+                                 t-att-title="systemLabel">
+                                <t t-esc="systemLabel or '—'"/>
+                            </div>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Glass</label>
@@ -778,7 +801,8 @@
                                     Boundary between two panels
                                 </div>
                                 <div class="d-flex flex-wrap gap-1 mb-3">
-                                    <t t-foreach="junctionOptions" t-as="opt" t-key="opt.value">
+
+                                                                    <t t-foreach="junctionOptions" t-as="opt" t-key="opt.value">
                                         <button class="btn btn-sm"
                                                 t-att-class="selectedDividerEntry.junction === opt.value ? 'btn-primary' : 'btn-outline-secondary'"
                                                 t-att-disabled="!opt.enabled"
@@ -788,6 +812,20 @@
                                         </button>
                                     </t>
                                 </div>
+
+                                <t t-if="dividerOptions.length">
+                                    <div class="small text-muted mb-1 mt-2">Divider profile</div>
+                                    <div class="d-flex flex-wrap gap-1 mb-2">
+                                        <t t-foreach="dividerOptions" t-as="opt" t-key="opt.id">
+                                            <button class="btn btn-sm"
+                                                    t-att-class="opt.id === selectedDividerLineId ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-att-title="opt.max_span_mm ? 'Rated to ' + opt.max_span_mm + ' mm' : ''"
+                                                    t-on-click="() => this.setDividerOption(opt.id)">
+                                                <t t-esc="opt.name"/>
+                                            </button>
+                                        </t>
+                                    </div>
+                                </t>
                             </t>
 
                             <t t-else="">

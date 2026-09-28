@@ -249,8 +249,10 @@ class AwDesign(models.Model):
 
                 # The junction AFTER this panel, if there is a next one.
                 if leaf_index < len(leaves) - 1:
+                    # The divider spans the row's height, which is what
+                    # a span rating is about.
                     self._explode_junction(
-                        leaf, by_scope, context, out, demand)
+                        leaf, by_scope, context, out, demand, row_h)
 
             # A transom between this row and the next.
             if row_index < len(rows) - 1:
@@ -258,7 +260,8 @@ class AwDesign(models.Model):
                     container_w=box_w, container_h=box_h,
                     panels_in_row=panels_in_row)
                 demand['transom'] = demand.get('transom', 0) + 1
-                for line in by_scope.get('transom', []):
+                for line in self._divider_lines(
+                        'transom', by_scope, row.divider_line_id, box_w):
                     out.extend(self._profile_pieces(
                         line, context, _('transom')))
 
@@ -349,17 +352,50 @@ class AwDesign(models.Model):
             out.extend(self._hardware_line(
                 line, context, label, leaf.panel_no))
 
-    def _explode_junction(self, leaf, by_scope, context, out, demand):
+    def _explode_junction(self, leaf, by_scope, context, out, demand,
+                          span_mm=0.0):
         self.ensure_one()
         junction = leaf.junction_after or 'mullion'
         scope = 'junction_%s' % junction
         label = _('junction after P%s') % (leaf.panel_no or 0)
         demand[scope] = demand.get(scope, 0) + 1
-        for line in by_scope.get(scope, []):
+        for line in self._divider_lines(
+                scope, by_scope, leaf.divider_line_id, span_mm):
             out.extend(self._profile_pieces(line, context, label))
         for line in self.hardware_set_id.line_ids:
             if line.scope == 'junction':
                 out.extend(self._hardware_line(line, context, label))
+
+    def _divider_lines(self, scope, by_scope, chosen, span_mm):
+        """The section line to build this divider from.
+
+        `by_scope` holds only the winning line per position (lowest
+        sequence), which is right for everything else but not for a
+        divider the estimator has deliberately switched. An explicit
+        choice is honoured whenever it still belongs to this design's
+        Profile Section and this scope; otherwise the default stands,
+        because a line left over from another section would silently
+        put the wrong profile in the cut list.
+        """
+        self.ensure_one()
+        default = by_scope.get(scope, [])
+        if not chosen:
+            self._record_span(scope, default[:1], span_mm)
+            return default
+        if (chosen.section_id != self.profile_section_id
+                or chosen.position_id.scope != scope):
+            self._record_span(scope, default[:1], span_mm)
+            return default
+        self._record_span(scope, [chosen], span_mm)
+        return [chosen]
+
+    def _record_span(self, scope, lines, span_mm):
+        """Remember the longest span each option was asked to carry."""
+        if not lines or not span_mm:
+            return
+        line = lines[0]
+        seen = self._aw_spans.setdefault(line.id, [line, 0.0])
+        seen[1] = max(seen[1], span_mm)
 
     def _hardware_line(self, line, context, label, panel_no=0):
         if not formula_truthy(line.condition_formula, context):
@@ -417,6 +453,9 @@ class AwDesign(models.Model):
         by_scope = self._section_lines_by_scope()
         out = []
         demand = {'frame': 1}
+        # Longest span asked of each divider option, filled during the
+        # walk and read by the checks.
+        self._aw_spans = {}
 
         frame_context = self._formula_context()
         for line in by_scope.get('frame', []):
@@ -536,6 +575,36 @@ class AwDesign(models.Model):
                 problems.append(('warning', _(
                     "%(count)s BOM line(s) have no cost: %(reason)s.",
                     count=count, reason=reason)))
+
+        # A divider carrying more than its option is rated for. Never a
+        # block: the shop may know better than the table, and the table
+        # is seeded with 0 (no limit) anyway.
+        for line, span in (getattr(self, '_aw_spans', None) or {}).values():
+            if not line.max_span_mm or span <= line.max_span_mm:
+                continue
+            heavier = self.profile_section_id.line_ids.filtered(
+                lambda other, l=line: (
+                    other.position_id == l.position_id
+                    and other.id != l.id
+                    and (not other.max_span_mm
+                         or other.max_span_mm >= span)))
+            problems.append(('warning', _(
+                "A %(pos)s spans %(span)s, more than '%(option)s' is "
+                "rated for (%(max)s).%(advice)s",
+                pos=line.position_id.name,
+                span=self._format_length(span),
+                option=line.option_label or line.product_id.display_name,
+                max=self._format_length(line.max_span_mm),
+                advice=(_(" Use '%s' instead.")
+                        % (heavier[0].option_label
+                           or heavier[0].product_id.display_name))
+                if heavier else '')))
+
+        # Spec 9: sliding and opening panels need different outer
+        # frames, so one frame cannot carry both.
+        mixed = self._mixed_frame_error()
+        if mixed:
+            problems.append(('error', mixed))
 
         floor = self._min_margin_pct()
         if self._below_margin_floor():

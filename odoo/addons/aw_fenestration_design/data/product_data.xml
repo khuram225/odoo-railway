@@ -39,5 +39,7 @@
     <data>
         <function model="product.template"
                   name="_migrate_position_product_to_service"/>
+        <function model="aw.design" name="_migrate_family_from_series"/>
+        <function model="aw.layout.preset" name="_migrate_series_to_family"/>
     </data>
 </odoo>

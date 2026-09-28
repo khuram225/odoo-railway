@@ -695,7 +695,72 @@ why an LP bound of 604.93 makes 606 provable.
 
 ---
 
-## 9. Later (noted, not scheduled)
+## 9. Phase 7a — Glazing families  ✅ BUILT
+
+A quote starts from a **glazing family** (Double Glaze, Single Glaze,
+Curtain Wall), not from a profile system. Which system carries a design
+follows from the panels drawn in it, so nobody has to decide the frame
+before they have drawn anything.
+
+- `aw.window.family`: name, code, glazing (single/double/none),
+  sequence, active. Seeded DG / SG / CW, fill-only-if-empty by code.
+- `aw.window.series` is presented as **Profile system** everywhere in
+  the UI. **The model name is unchanged on purpose** — renaming it
+  would break every stored reference and the whole BOM chain for a
+  label. It gains `family_id` and `system_role`.
+- **`system_role` is an addition to the brief.** Resolving "the
+  family's Sliding system" needs the systems to say what they are FOR;
+  the alternative was matching on names, which are editable. Seeded
+  sliding / openable / tiltturn / fixed.
+- The rename runs once, guarded by a parameter, and only where the name
+  still EQUALS the seeded one — a system someone renamed keeps their
+  name and still gets its family and role.
+- Awning and Hopper added to both Openable systems (169 M1 bathrooms),
+  added never removed.
+- `window_series_id` stays stored and authoritative. It is now derived,
+  but it is still a real field holding a real system, so the BOM,
+  rates, cutting plan and reports are untouched.
+- System resolution: tilt & turn panel → Tilt & Turn; any other
+  opening panel → Openable; a slider → Sliding; all fixed → the Fixed
+  system **if it has a Profile Section**, else Openable, because a
+  system with no section cannot produce a BOM. A deliberate choice
+  between two valid systems is kept.
+- Divider options: `option_label` and `max_span_mm` on
+  `aw.profile.section.line`; the chosen line is stored on
+  `aw.design.leaf` (its right boundary) and `aw.design.row` (its bottom
+  boundary), empty meaning the lowest-sequence line — so an untouched
+  design behaves exactly as before. A span over the rating is a
+  **warning naming the heavier option**, never a block.
+- Glass: `glazing` on `aw.glass.spec`; the family filters both the
+  design glass and the panel override. Curtain Wall's `none` accepts
+  everything.
+- Migrations, each once and guarded: designs and quotes take their
+  family from the system they already use; presets gain `family_ids`
+  mapped from `series_ids`. **`series_ids` is kept and still honoured**
+  — a preset pinned to one specific system stays pinned, and dropping
+  that would quietly widen where it is offered.
+
+**Profile Section "Double Glaze – Openable – Profile 1"** seeded from
+the client's breakdown: Outer Frame = RE-8, Dividers = RE-1 (Economy,
+seq 10) and RE-3 (Heavy duty, seq 20), Palay = RE-15, Palay Bead =
+RE-10. All six RE- profiles matched by **exact** name; a prefix match
+would have been actively wrong, since RE-1 is a prefix of RE-10 through
+RE-16 and RE-127. The price list's "M.F" spelling is a documented
+fallback (none of these six need it).
+
+**For client review — added to the list above:**
+
+| # | Item | Decided | If he disagrees |
+|---|---|---|---|
+| 18 | Tilt & Turn is Double Glaze only | Only a DG tilt & turn was confirmed. | Add an SG one; it is a new row, not a code change. |
+| 19 | RE-13 not placed | The client listed it with no position. Guessing one would put a real profile into a real cut list. | Say where it goes and it becomes one more section line. |
+| 20 | Divider span ratings | `max_span_mm` seeded at **0** (no limit) for RE-1 and RE-3 — no rating was given, and an invented one would raise warnings nobody asked for. | Enter the real spans; the warning then names the heavier option automatically. |
+| 21 | Sliding + opening in one frame | Treated as an **error**: the two need different outer frames, so the BOM would not be cuttable. | Downgrade to a warning if the shop really does build these. |
+| 22 | All-fixed with no Fixed section | Falls back to the family's Openable system, because a system with no Profile Section produces no BOM at all. | Give the Fixed systems their own sections and it resolves there instead. |
+
+---
+
+## 10. Later (noted, not scheduled)
 
 Doors family (hinged/sliding doors, thresholds, door hardware); dual colour
 (inside/outside); handle height per opening panel; sill / floor aperture

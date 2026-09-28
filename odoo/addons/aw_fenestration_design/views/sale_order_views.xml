@@ -19,8 +19,9 @@
             <xpath expr="//notebook" position="inside">
                 <page string="Fenestration" name="aw_fenestration">
                     <group>
-                        <field name="aw_default_series_id"
+                        <field name="aw_default_family_id"
                                readonly="state not in ('draft', 'sent')"/>
+                        <field name="aw_default_series_id" invisible="1"/>
                     </group>
                     <button name="action_add_position" type="object"
                             string="Add Position" class="btn-primary"
