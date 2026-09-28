@@ -46,4 +46,5 @@ python scripts/check_kanban_fields.py || exit 1
 python scripts/check_rate_chain.py || exit 1
 python scripts/check_cut_plan.py || exit 1
 python scripts/check_catalogue_import.py || exit 1
+python scripts/check_section_seed.py || exit 1
 python scripts/check_load_order.py

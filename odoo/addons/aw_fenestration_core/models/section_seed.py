@@ -15,16 +15,34 @@ product lookup:
 RE-13 is deliberately NOT placed: the client listed it without saying
 where it goes. Guessing a position would put a real profile into a real
 cut list. Marked [revisit] in the spec.
+
+**The thickness has to come from the product, not from a preference.**
+This section originally seeded every line with 'Normal', and the price
+list sells all six RE- profiles only in 'Std' -> 'Standard'. Thickness
+is a Dynamic-creation attribute, so a value the template does not carry
+makes no variant at all: every profile line read "No product", nothing
+resolved a rate, and the design priced at zero. _seed_thickness_for()
+now takes the product's own thickness when it has exactly one, and says
+so when there is a real choice rather than guessing.
+_fix_dg_openable_thickness() is the one-shot that corrects the sections
+already created.
 """
 import logging
 
 from odoo import api, models
 
+from .thickness import choose_thickness
+
 _logger = logging.getLogger(__name__)
 
 SECTION_NAME = 'Double Glaze – Openable – Profile 1'
+# What the section is called once the RE thicknesses are corrected.
+# "Profile 1" was the client's own heading for the breakdown; the set
+# is the thing worth naming now that we know what is in it.
+SECTION_NAME_FIXED = 'Double Glaze – Openable – RE set'
 SECTION_SERIES_XMLID = 'window_series_casement_dg'
 SEEDED_PARAM = 'aw_fenestration.section_dg_openable_seeded'
+THICKNESS_FIX_PARAM = 'aw_fenestration.section_dg_openable_thickness_fixed'
 
 # position xmlid -> [(product name, sequence, option label, max span mm)]
 SECTION_LINES = {
@@ -72,6 +90,87 @@ class AwProfileSection(models.Model):
         return Template.browse()
 
     @api.model
+    def _seed_thickness_for(self, template, preferred):
+        """The thickness to seed on a line for `template`.
+
+        Returns (value, warning). Seeding a thickness the product is
+        not sold in resolves to no variant at all, silently -- this
+        whole section shipped asking six RE- profiles for 'Normal'
+        when the price list sells every one of them only in 'Std', so
+        every profile line read "No product" and nothing could be
+        costed.
+
+        The DECISION is `thickness.choose_thickness`, kept Odoo-free so
+        `scripts/check_section_seed.py` can run the real rule against
+        the real seed data. This method only maps records to names and
+        back: a check that reimplemented the rule would agree with
+        itself for ever, and the rule disagreeing with the data is
+        exactly the bug.
+        """
+        # This file runs before chawla_attributes_data.xml in the
+        # manifest, so on a FRESH install the attribute does not exist
+        # yet. Neither caller can reach here in that state (there are no
+        # profiles and no section either), but a bare env.ref would be
+        # one reordering away from breaking the install.
+        attribute = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness',
+            raise_if_not_found=False)
+        if not (template and attribute):
+            return preferred, ''
+        options = self.env['aw.profile.section.line']._template_values(
+            template, attribute)
+        by_name = {value.name: value for value in options}
+        chosen, problem = choose_thickness(
+            preferred.name if preferred else '', sorted(by_name))
+        return (by_name.get(chosen, preferred),
+                '%s %s' % (template.name, problem) if problem else '')
+
+    @api.model
+    def _fix_dg_openable_thickness(self):
+        """One-shot: point the seeded RE lines at a thickness that exists.
+
+        Scoped deliberately -- it only touches lines still carrying the
+        seeded 'Normal', and only renames a section still carrying the
+        seeded name, so a section somebody has since corrected or
+        renamed by hand is left exactly as they left it. Writing
+        thickness_id recomputes product_id, which resolves (and creates)
+        the right variant and pulls its cost from the rate.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(THICKNESS_FIX_PARAM):
+            return False
+        param.set_param(THICKNESS_FIX_PARAM, '1')
+
+        sections = self.with_context(active_test=False).search(
+            [('name', '=', SECTION_NAME)])
+        if not sections:
+            return False
+        normal = self.env.ref(
+            'aw_fenestration_core.aw_attr_val_thickness_normal',
+            raise_if_not_found=False)
+
+        changed, warnings = 0, []
+        for section in sections:
+            for line in section.line_ids:
+                if normal and line.thickness_id != normal:
+                    continue          # already corrected by hand
+                value, warning = self._seed_thickness_for(
+                    line.product_tmpl_id, normal)
+                if warning:
+                    warnings.append(warning)
+                if value and value != line.thickness_id:
+                    line.thickness_id = value
+                    changed += 1
+            section.name = SECTION_NAME_FIXED
+        _logger.info(
+            "aw_fenestration_core: corrected the thickness on %s line(s) "
+            "of '%s', now '%s'", changed, SECTION_NAME, SECTION_NAME_FIXED)
+        if warnings:
+            _logger.warning(
+                "aw_fenestration_core: left alone -- %s", '; '.join(warnings))
+        return True
+
+    @api.model
     def _seed_dg_openable_section(self):
         """Create the section once, and report anything not found."""
         param = self.env['ir.config_parameter'].sudo()
@@ -83,8 +182,11 @@ class AwProfileSection(models.Model):
             raise_if_not_found=False)
         if not series:
             return False
+        # Either spelling counts as "already there": the section gets
+        # renamed by _fix_dg_openable_thickness, and matching only the
+        # original name would seed a second copy of it.
         if self.with_context(active_test=False).search_count(
-                [('name', '=', SECTION_NAME),
+                [('name', 'in', (SECTION_NAME, SECTION_NAME_FIXED)),
                  ('window_type_id', '=', series.id)]):
             param.set_param(SEEDED_PARAM, '1')
             return False
@@ -96,7 +198,7 @@ class AwProfileSection(models.Model):
             'aw_fenestration_core.aw_attr_val_finish_natural',
             raise_if_not_found=False)
 
-        lines, missing = [], []
+        lines, missing, thickness_warnings = [], [], []
         for position_xmlid, options in SECTION_LINES.items():
             position = self.env.ref(
                 'aw_fenestration_core.%s' % position_xmlid,
@@ -109,10 +211,17 @@ class AwProfileSection(models.Model):
                 if not template:
                     missing.append('%s (for %s)' % (code, position.name))
                     continue
+                # The preferred thickness is a preference, not a fact
+                # about this product -- see _seed_thickness_for.
+                line_thickness, warning = self._seed_thickness_for(
+                    template, thickness)
+                if warning:
+                    thickness_warnings.append(warning)
                 lines.append((0, 0, {
                     'position_id': position.id,
                     'product_tmpl_id': template.id,
-                    'thickness_id': thickness.id if thickness else False,
+                    'thickness_id': (
+                        line_thickness.id if line_thickness else False),
                     'finish_id': finish.id if finish else False,
                     'sequence': sequence,
                     'option_label': label,
@@ -132,5 +241,10 @@ class AwProfileSection(models.Model):
             _logger.warning(
                 "aw_fenestration_core: '%s' seeded without %s",
                 SECTION_NAME, '; '.join(missing))
+        if thickness_warnings:
+            _logger.warning(
+                "aw_fenestration_core: '%s' kept the preferred thickness "
+                "on a product that may not be sold in it -- %s",
+                SECTION_NAME, '; '.join(thickness_warnings))
         param.set_param(SEEDED_PARAM, '1')
         return True

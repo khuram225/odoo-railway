@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
 
 
 class AwProfileSection(models.Model):
@@ -129,20 +129,71 @@ class AwProfileSectionLine(models.Model):
         self.thickness_id = False
         self.finish_id = False
 
+    @api.model
+    def _template_values(self, product_tmpl, attribute):
+        """The values of `attribute` this TEMPLATE actually offers.
+
+        Thickness and Finish are Dynamic-creation attributes, so what
+        exists as an attribute value globally is not what any one
+        profile is sold in -- every RE- profile in the price list is
+        sold only in 'Standard', while 'Normal' exists and is offered
+        by other profiles. Asking a template for a value it does not
+        carry yields no variant at all, silently.
+        """
+        values = self.env['product.attribute.value']
+        for attr_line in product_tmpl.attribute_line_ids:
+            if attr_line.attribute_id == attribute:
+                values |= attr_line.value_ids
+        return values
+
     @api.depends('product_tmpl_id')
     def _compute_available_attribute_values(self):
         thickness_attr = self.env.ref('aw_fenestration_core.aw_attribute_thickness')
         finish_attr = self.env.ref('aw_fenestration_core.aw_attribute_finish')
         for line in self:
-            thickness_vals = self.env['product.attribute.value']
-            finish_vals = self.env['product.attribute.value']
-            for attr_line in line.product_tmpl_id.attribute_line_ids:
-                if attr_line.attribute_id == thickness_attr:
-                    thickness_vals |= attr_line.value_ids
-                elif attr_line.attribute_id == finish_attr:
-                    finish_vals |= attr_line.value_ids
-            line.thickness_attribute_value_ids = thickness_vals
-            line.finish_attribute_value_ids = finish_vals
+            line.thickness_attribute_value_ids = self._template_values(
+                line.product_tmpl_id, thickness_attr)
+            line.finish_attribute_value_ids = self._template_values(
+                line.product_tmpl_id, finish_attr)
+
+    @api.model
+    def _variant_problem(self, product_tmpl, thickness, finish):
+        """Why a template + thickness + finish resolves to no variant.
+
+        "No product for 'P1 Outer Frame - Top'" is true and useless: it
+        says the line produced nothing, not which of its three parts is
+        at fault. This names it -- "RE-8 has no 'Normal' thickness;
+        available: Standard" -- which is the difference between a
+        warning somebody can act on and one they learn to ignore.
+
+        Returns '' when the combination is fine, so a caller can use it
+        as the reason a product is missing and nothing more.
+        """
+        if not product_tmpl:
+            return _("A Profile Section line has no profile product set.")
+        thickness_attr = self.env.ref('aw_fenestration_core.aw_attribute_thickness')
+        finish_attr = self.env.ref('aw_fenestration_core.aw_attribute_finish')
+        for value, attribute, label in (
+                (thickness, thickness_attr, _("thickness")),
+                (finish, finish_attr, _("finish"))):
+            options = self._template_values(product_tmpl, attribute)
+            if not value:
+                return _(
+                    "No %(what)s is chosen for %(product)s.",
+                    what=label, product=product_tmpl.display_name)
+            if not options:
+                return _(
+                    "%(product)s has no %(what)s to choose from, so no "
+                    "variant of it can be made.",
+                    product=product_tmpl.display_name, what=label)
+            if value not in options:
+                return _(
+                    "%(product)s has no '%(wanted)s' %(what)s; "
+                    "available: %(options)s.",
+                    product=product_tmpl.display_name, wanted=value.name,
+                    what=label,
+                    options=', '.join(sorted(options.mapped('name'))))
+        return ''
 
     @api.model
     def _variant_for(self, product_tmpl, thickness, finish):

@@ -740,13 +740,27 @@ before they have drawn anything.
   — a preset pinned to one specific system stays pinned, and dropping
   that would quietly widen where it is offered.
 
-**Profile Section "Double Glaze – Openable – Profile 1"** seeded from
-the client's breakdown: Outer Frame = RE-8, Dividers = RE-1 (Economy,
-seq 10) and RE-3 (Heavy duty, seq 20), Palay = RE-15, Palay Bead =
-RE-10. All six RE- profiles matched by **exact** name; a prefix match
-would have been actively wrong, since RE-1 is a prefix of RE-10 through
-RE-16 and RE-127. The price list's "M.F" spelling is a documented
-fallback (none of these six need it).
+**Profile Section "Double Glaze – Openable – RE set"** (renamed from
+"– Profile 1", which was the client's heading for the breakdown rather
+than a name for the set) seeded from the client's breakdown: Outer
+Frame = RE-8, Dividers = RE-1 (Economy, seq 10) and RE-3 (Heavy duty,
+seq 20), Palay = RE-15, Palay Bead = RE-10. All six RE- profiles
+matched by **exact** name; a prefix match would have been actively
+wrong, since RE-1 is a prefix of RE-10 through RE-16 and RE-127. The
+price list's "M.F" spelling is a documented fallback (none of these six
+need it).
+
+**Thickness comes from the product, not from a preference.** The first
+version of this seed put `Normal` on every line, and the price list
+sells all six RE- profiles only in `Std` → `Standard`. Thickness is a
+Dynamic-creation attribute, so a value the template does not carry
+resolves to **no variant at all**, silently: every profile line read
+"No product", nothing found a rate, and the design priced at zero. The
+seed now takes the product's own thickness when it has exactly one and
+reports a real choice instead of guessing; a one-shot pass corrects the
+sections already created, and the design check now names the cause
+("RE-8 has no 'Normal' thickness; available: Standard") instead of
+"No product for …".
 
 **For client review — added to the list above:**
 

@@ -59,6 +59,33 @@ def thickness_mm(value):
     return float(match.group(1)) if match else None
 
 
+def choose_thickness(preferred, available):
+    """Which thickness to put on a seeded Profile Section line.
+
+    `preferred` and `available` are plain value NAMES, so this stays
+    Odoo-free and `scripts/check_section_seed.py` can run the real rule
+    against the real seed data rather than a second copy of it. That
+    matters here: the rule and the data disagreeing is precisely the
+    bug, and a check that reimplemented the rule would agree with
+    itself for ever.
+
+    Returns (name, problem). A thickness the product is not sold in
+    makes NO variant -- the attribute is Dynamic-creation -- so the
+    line silently resolves to no product and nothing can be costed.
+    One available thickness is not a choice and is taken. A real
+    choice is never guessed: the preference is kept so the line still
+    exists, and the problem is returned for the caller to report.
+    """
+    if preferred and preferred in available:
+        return preferred, ''
+    if len(available) == 1:
+        return available[0], ''
+    if not available:
+        return preferred, 'offers no thickness at all'
+    return preferred, "offers no '%s' thickness, only %s" % (
+        preferred, ', '.join(sorted(available)))
+
+
 def implausible_thickness(value):
     """True when a value cannot be a wall thickness.
 

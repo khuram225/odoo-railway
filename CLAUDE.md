@@ -561,6 +561,30 @@ about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
   WebP**, so if a product picture ever needs to appear on a PDF report,
   convert on import at that point.
 
+- `scripts/check_section_seed.py` asserts every profile a Profile
+  Section seeds is sold in a thickness the seed can actually pick.
+  **Thickness and Finish are Dynamic-creation attributes, so a
+  combination naming a value the TEMPLATE does not carry makes no
+  variant at all — silently.** The seeded "Double Glaze – Openable"
+  section asked all six RE- profiles for `Normal`; the price list
+  sells every one of them only in `Std` → `Standard`. Result: "No
+  product" on every profile line, no rate, no cost, a design that
+  priced at zero, and nothing anywhere that said why. The mismatch
+  exists only ACROSS two files — the preference in `section_seed.py`
+  and the attribute lines in `chawla_profiles_data.xml` — so no
+  single-file check could see it. It runs the REAL decision,
+  `choose_thickness()` out of `models/thickness.py` (Odoo-free for
+  that purpose, like `layout_rules.py` and `resolve_chain`); putting
+  the old "always store the preference" rule back fails it on all
+  five seeded codes, which is how it was verified. The runtime half
+  is `aw.profile.section.line._variant_problem()`, which turns "No
+  product for 'P1 Outer Frame - Top'" into "RE-8 has no 'Normal'
+  thickness; available: Standard" — the difference between a warning
+  somebody can act on and one they learn to ignore. **Seed a
+  thickness from the product, not from a preference:** take its own
+  when it has exactly one, and say so when there is a real choice
+  rather than guessing.
+
 - `scripts/check_rate_chain.py` exercises `resolve_chain()` from
   `aw_fenestration_core/models/profile_rate.py` — the function that
   decides when each version of a profile rate stops applying. Getting

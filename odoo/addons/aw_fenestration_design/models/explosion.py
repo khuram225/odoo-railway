@@ -19,7 +19,8 @@ from .cut_algorithm import max_piece_mm
 # as one list because each is stripped in exactly one place, and a new
 # one forgotten there fails the create with an obscure error.
 CHECK_ONLY_KEYS = frozenset({
-    'missing_product', 'position_id', 'missing_glass',
+    'missing_product', 'missing_product_reason', 'position_id',
+    'missing_glass',
     'glass_without_product', 'glass_spec_name', '_order',
 })
 
@@ -122,6 +123,13 @@ class AwDesign(models.Model):
         return self.env['aw.profile.section.line']._variant_for(
             line.product_tmpl_id, line.thickness_id, finish)
 
+    def _profile_variant_problem(self, line):
+        """Why _profile_variant found nothing, in words the reader can
+        act on. Asked only when it found nothing."""
+        finish = self.finish_id or line.finish_id
+        return self.env['aw.profile.section.line']._variant_problem(
+            line.product_tmpl_id, line.thickness_id, finish)
+
     def _profile_pieces(self, line, context, label, panel_no=0):
         """Turn one section line into cut pieces.
 
@@ -152,6 +160,10 @@ class AwDesign(models.Model):
             spec = [(length_w, 1, (0,))]
 
         product = self._profile_variant(line)
+        # Worked out once per section line rather than per piece: four
+        # frame members share one line, and they would all give the
+        # same answer.
+        reason = '' if product else self._profile_variant_problem(line)
         pieces = []
         # ONE DICT PER PHYSICAL PIECE, not one per formula. Four frame
         # members cannot share a BOM line and still carry four distinct
@@ -170,6 +182,7 @@ class AwDesign(models.Model):
                     'label': '%s %s' % (label, position.name),
                     'position_id': position.id,
                     'missing_product': not product,
+                    'missing_product_reason': reason,
                     '_order': (
                         self._piece_rank(position.scope),
                         panel_no,
@@ -552,10 +565,22 @@ class AwDesign(models.Model):
 
         problems.extend(self._missing_section_line_problems(demand or {}))
 
+        # Deduplicated on the REASON, not the label: one wrong thickness
+        # on one section line produces a piece per frame member per
+        # panel, and twelve copies of the same sentence is how a real
+        # warning gets scrolled past.
+        reasons = set()
         for values in (exploded or []):
-            if values.get('missing_product'):
+            if not values.get('missing_product'):
+                continue
+            reason = values.get('missing_product_reason')
+            if reason:
+                reasons.add(reason)
+            else:
                 problems.append(('warning', _(
                     "No product for '%s'.", values.get('label') or '')))
+        for reason in sorted(reasons):
+            problems.append(('warning', reason))
 
         # Glass is chosen once, so it is reported once -- naming the two
         # places it can be set, since "no product for P1 glass" told the
