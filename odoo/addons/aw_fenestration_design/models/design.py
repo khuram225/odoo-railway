@@ -472,7 +472,6 @@ class AwDesign(models.Model):
         return [{
             'height_mm': row.height_mm,
             'is_auto': row.is_auto,
-                'divider_line_id': row.divider_line_id.id,
             'divider_line_id': row.divider_line_id.id,
             'leaves': [{
                 'width_mm': leaf.width_mm,
@@ -485,7 +484,6 @@ class AwDesign(models.Model):
                 'swing': leaf.swing or '',
                 'slide_dir': leaf.slide_dir or '',
                 'junction_after': leaf.junction_after or '',
-                'divider_line_id': leaf.divider_line_id.id,
                 'divider_line_id': leaf.divider_line_id.id,
                 'track_no': leaf.track_no or 0,
                 'mesh_type_id': leaf.mesh_type_id.id,
@@ -827,7 +825,6 @@ class AwDesign(models.Model):
                     'swing': leaf.get('swing') or False,
                     'slide_dir': leaf.get('slide_dir') or False,
                     'junction_after': leaf.get('junction_after') or False,
-                    'divider_line_id': leaf.get('divider_line_id') or False,
                     'divider_line_id': leaf.get('divider_line_id') or False,
                     'track_no': leaf.get('track_no') or 0,
                     'mesh_type_id': leaf.get('mesh_type_id') or False,

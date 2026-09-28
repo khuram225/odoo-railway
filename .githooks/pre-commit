@@ -30,6 +30,7 @@ if [ -z "$staged_xml" ] && [ -z "$staged_js" ] && [ -z "$staged_py" ]; then
     exit 0
 fi
 
+python scripts/check_python_names.py || exit 1
 python scripts/check_xml_comments.py $staged_xml || exit 1
 python scripts/check_owl_names.py || exit 1
 node scripts/check_owl_getters.mjs || exit 1

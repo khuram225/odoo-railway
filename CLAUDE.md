@@ -633,6 +633,20 @@ about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
   stubs the harness reports "window is not defined" for correct code,
   which is a fault in the harness rather than the component.
 
+- `scripts/check_python_names.py` runs **pyflakes** over our addons
+  and scripts. **`python -m compileall` only checks SYNTAX**, which is
+  the gap this closes: a name used but never imported is valid syntax
+  and explodes at import time, and in Odoo that means the module fails
+  to load and the instance refuses to start. `@api.model` was added to
+  `glass_spec.py`, which imported only `fields, models`; every check
+  here passed, the deploy went out, and the container died with
+  *"NameError: name 'api' is not defined … Failed to initialize
+  database"*. The same first run also found three duplicated dict keys
+  where a patch had inserted the same line twice and the second
+  silently won. "Imported but unused" is ignored — Odoo modules import
+  for side effects, and a warning nobody can act on is one everyone
+  learns to skip.
+
 - `scripts/check_view_buttons.py` requires every
   `<button type="object" name="X">` in our views to name a method the
   model really has. **The obvious version of this check would miss the
