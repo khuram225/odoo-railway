@@ -4,12 +4,15 @@ from odoo import _, fields, models
 
 
 class AwDesignPositionWizard(models.TransientModel):
-    """Asks for the Window Series when the quote has no default one set.
-    Only reason this exists: aw.design.window_series_id is required, and
-    Add Position opens the design's form immediately, so the design has
-    to be creatable before the user sees it. Name and location are here
-    purely as a convenience -- both are editable on the design form right
-    afterwards."""
+    """Asks for the glazing FAMILY when the quote has no default one.
+
+    The profile system is no longer asked for: it is derived from the
+    panels drawn (see aw.design._resolve_system). This wizard still
+    exists because aw.design.window_series_id is required and Add
+    Position opens the design immediately, so a starting system has to
+    be supplied before the user sees anything -- see _starting_system.
+    Name and location are a convenience, editable on the design form
+    right afterwards."""
     _name = 'aw.design.position.wizard'
     _description = 'Add Fenestration Position'
 
@@ -31,15 +34,38 @@ class AwDesignPositionWizard(models.TransientModel):
     location = fields.Char(help="e.g. 'Drawing room', 'Bathroom'.")
     set_as_default = fields.Boolean(
         string='Use as default for this quote', default=True,
-        help="Sets this Series as the quote's default, so further "
-             "positions skip this dialog. Each design's own Series can "
+        help="Sets this family as the quote's default, so further "
+             "positions skip this dialog. Each design's own family can "
              "still be changed afterwards.")
+
+    def _starting_system(self):
+        """A profile system to create the design in, before anything is
+        drawn.
+
+        aw.design.window_series_id is required and the design must
+        exist before its configurator can open, so something has to be
+        chosen now. The family's Openable system is the safe starting
+        point: it hosts fixed lights as well as opening ones, so the
+        first panel rarely forces a change, and _resolve_system()
+        corrects it on the first save regardless.
+        """
+        self.ensure_one()
+        systems = self.family_id.series_ids.filtered('active')
+        if not systems:
+            raise UserError(_(
+                "'%s' has no profile systems yet. Add one under "
+                "Fenestration before quoting it.",
+                self.family_id.display_name))
+        openable = systems.filtered(lambda s: s.system_role == 'openable')
+        return (openable or systems)[0]
 
     def action_confirm(self):
         self.ensure_one()
         if self.set_as_default:
+            # The FAMILY is the quote's default now. The system is
+            # derived per design from the panels drawn, so pinning one
+            # on the quote would be recording a guess as a decision.
             self.order_id.aw_default_family_id = self.family_id
-            self.order_id.aw_default_series_id = self._starting_system()
         design = self.order_id._create_fenestration_position(
             self._starting_system(), name=self.name,
             location=self.location, family=self.family_id)

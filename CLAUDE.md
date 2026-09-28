@@ -633,6 +633,20 @@ about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
   stubs the harness reports "window is not defined" for correct code,
   which is a fault in the harness rather than the component.
 
+- `scripts/check_self_methods.py` requires every `self._method(...)`
+  in our models to resolve on that model. **pyflakes cannot see this** —
+  `self._starting_system()` is valid Python whatever `self` turns out
+  to be, so a missing method only surfaces when a user clicks the
+  button. It shipped once: a patch added the CALLS and was meant to add
+  the definition in the same pass, but its anchor named
+  `action_create` when the method is `action_confirm`, so the
+  definition was silently never inserted. **That replacement was the
+  one without an assert** — every other anchor in the same patch had
+  one and would have failed loudly. Resolution follows `_name`/
+  `_inherit` across our modules and allows anything core or BaseModel
+  provides. Reuses `check_view_buttons.py`'s model scanner rather than
+  keeping a second copy of the dependency-closure walk.
+
 - `scripts/check_python_names.py` runs **pyflakes** over our addons
   and scripts. **`python -m compileall` only checks SYNTAX**, which is
   the gap this closes: a name used but never imported is valid syntax
