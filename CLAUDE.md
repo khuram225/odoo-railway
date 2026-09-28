@@ -443,6 +443,41 @@ from `.git/hooks` by default, which isn't tracked — enable once per clone):
   expression, because that expression is never compiled — the static
   rule in `check_owl_names.py` is what covers that.
 
+- `scripts/check_configurator_geometry.mjs` drives the **real**
+  `DesignConfigurator` class (same load trick as the getters harness)
+  through the layout arithmetic: splitting, removing, rescaling,
+  equalizing, presets and the right-hand tabs. It had somehow never
+  been wired into the hook, so it was only ever run by hand — it is
+  in `.githooks/pre-commit` now. Everything it asserts is a sum that
+  has to come out exact: panels adding up to their container, a
+  container's children refitted when a sibling moves, an opening
+  redistributed without being resized.
+
+**The right-hand column is tabs (Panel | BOM | Pricing | Checks), not
+four stacked collapsibles.** It is ~260px wide and each section had a
+hard `max-height`, so four things competed for one column and none of
+them could be read. `RIGHT_SECTIONS` now covers only the Panel tab's own
+sub-sections. **Checks opens itself when a save produces an error, from
+`surfaceCheckErrors()` — called after load and after save, never from a
+getter or a render.** The collapsible version forced itself open on
+every render while an error stood, which is right for a section the user
+can scroll past and wrong for a tab: it would take the column hostage
+with no way to look at the BOM that caused the error. `activeRightTab`
+is resolved rather than read straight from state, because Pricing is not
+offered on a design that has none and a remembered `"pricing"` would
+otherwise leave the column blank.
+
+**Split offers 2, 3 or 4, and that is not the same as splitting twice**
+— halving a half gives 50/25/25 plus a nesting level nobody asked for.
+`splitPanel(direction, parts)` clamps its count (it arrives from a
+template expression) and divides through `equalShares()` → `fitToTotal()`,
+so the exact-sum and residue handling is the one already in use rather
+than a second copy that rounds differently. **Equalize** evens out the
+panels in a row or the rows in a stack while **preserving the total** —
+it redistributes, it never resizes the opening — and deliberately
+ignores `is_auto`, since "make these equal" is a more specific
+instruction than the flag and both cannot be honoured at once.
+
 **The configurator's drawing is deliberately two layers, and the order
 is load-bearing**: `scene` is pure drawing units (frame, panels, divider
 positions, dimension lines, viewBox — including its margins) and must
@@ -811,4 +846,17 @@ scripts/check_act_window_views.py && python scripts/check_load_order.py`.
   A read-only list with no parent record to read (a top-level list
   view, or an embedded one whose parent lacks the field) can't switch
   columns at all — give it one preformatted column instead, the way
-  `aw.design.size_display` handles unit switching.
+  `aw.design.size_display` handles unit switching.
+- **Two fields on one model may not share a `string=`.** Odoo's
+  `_reflect_fields` logs *"Two fields (a, b) of model have the same
+  label"* on every registry load, and the ambiguity is real wherever
+  fields are listed by name — export, filters, a field picker. It bit
+  three pairs here: `width_inch_total`/`width_in` (the whole ft+in
+  written as one number vs. the INCHES PART of the pair) → "Width
+  (total in)", the same for height, and `bars_summary`/`bar_ids` on
+  `aw.cut.plan.group` → "Bar mix", since one is the mix
+  ("3 x 16 ft, 2 x 14 ft") and the other is the bars themselves. The
+  warning comes from the FIELD definitions, not the views, so a
+  `string=` override in a view neither causes it nor fixes it — and
+  those overrides are worth keeping where only one of the pair is
+  ever visible at a time.

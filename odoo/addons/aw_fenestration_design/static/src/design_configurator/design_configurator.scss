@@ -238,3 +238,32 @@
         outline-offset: 1px;
     }
 }
+
+// Right-hand tabs. The column is narrow, so the labels have to stay on
+// one line: nav-tabs wraps by default and a wrapped tab bar eats the
+// height the content needs.
+.o_aw_cfg_tabs {
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    .nav-link {
+        white-space: nowrap;
+        border-bottom-color: transparent;
+    }
+
+    // Never let a badge push the row taller than the tab text.
+    .badge {
+        font-size: 0.65rem;
+        line-height: 1;
+        padding: 0.2em 0.45em;
+    }
+}
+
+// The direction marker in the floating split toolbar. A label, not a
+// button: the numbers beside it are what is clickable.
+.o_aw_cfg_tool_icon {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 0.15rem 0 0.35rem;
+    color: var(--bs-secondary-color, #6c757d);
+}

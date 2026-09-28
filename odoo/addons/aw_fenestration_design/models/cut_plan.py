@@ -464,7 +464,12 @@ class AwCutPlanGroup(models.Model):
 
     piece_count = fields.Integer(readonly=True)
     bar_count = fields.Integer(readonly=True)
-    bars_summary = fields.Char(readonly=True, string='Bars')
+    # NOT 'Bars': bar_ids above is already called that, and this is
+    # the MIX ('3 x 16 ft, 2 x 14 ft') rather than the bars
+    # themselves.
+    bars_summary = fields.Char(
+        readonly=True, string='Bar mix',
+        help="How many bars of each stock length this option buys.")
     feet_bought = fields.Float(readonly=True)
     feet_used = fields.Float(readonly=True)
     yield_pct = fields.Float(readonly=True, string='Yield %')

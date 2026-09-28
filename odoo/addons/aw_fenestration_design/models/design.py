@@ -63,8 +63,13 @@ class AwDesign(models.Model):
     width_in = fields.Float(string='Width (in)',
         compute='_compute_width_ftin', inverse='_inverse_width_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    width_inch_total = fields.Float(string='Width (in)',
-        compute='_compute_width_inch_total', inverse='_inverse_width_inch_total')
+    # NOT 'Width (in)': width_in is the INCHES PART of the ft/in
+    # pair, and two fields on one model sharing a label is a real
+    # ambiguity wherever they are listed by name -- export,
+    # filters, a studio field picker.
+    width_inch_total = fields.Float(string='Width (total in)',
+        compute='_compute_width_inch_total', inverse='_inverse_width_inch_total',
+        help="Whole inches plus a fraction, e.g. 102.5 -- the ft/in pair written as one number. Same dimension as the pair beside it.")
 
     height_mm = fields.Float(string='Height (mm)', default=0.0, tracking=True)
     height_ft = fields.Integer(string='Height (ft)',
@@ -72,8 +77,9 @@ class AwDesign(models.Model):
     height_in = fields.Float(string='Height (in)',
         compute='_compute_height_ftin', inverse='_inverse_height_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    height_inch_total = fields.Float(string='Height (in)',
-        compute='_compute_height_inch_total', inverse='_inverse_height_inch_total')
+    height_inch_total = fields.Float(string='Height (total in)',
+        compute='_compute_height_inch_total', inverse='_inverse_height_inch_total',
+        help="Whole inches plus a fraction, e.g. 102.5 -- the ft/in pair written as one number. Same dimension as the pair beside it.")
 
     # -- master-data links -----------------------------------------------
     # Confirmed against models/window_template.py: window_type_id is still

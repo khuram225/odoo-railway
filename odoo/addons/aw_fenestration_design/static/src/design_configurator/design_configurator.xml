@@ -474,15 +474,44 @@
                                  t-attf-style="left: {{state.toolbar.left}}px; top: {{state.toolbar.top}}px;">
 
                                 <t t-if="selectionMode === 'panel'">
-                                    <button class="btn btn-sm btn-light" title="Split into two side by side"
-                                            t-att-disabled="!canSplit"
-                                            t-on-click="() => this.splitPanel('vertical')">
+                                    <!-- Icon then counts, twice: the
+                                         toolbar floats over the drawing
+                                         and has to stay narrow, so the
+                                         direction is the icon and the
+                                         number of parts is the button. -->
+                                    <span class="o_aw_cfg_tool_icon" title="Split side by side">
                                         <i class="fa fa-columns"/>
-                                    </button>
-                                    <button class="btn btn-sm btn-light" title="Split into two stacked"
-                                            t-att-disabled="!canSplit"
-                                            t-on-click="() => this.splitPanel('horizontal')">
+                                    </span>
+                                    <t t-foreach="splitCounts" t-as="n" t-key="n">
+                                        <button class="btn btn-sm btn-light px-2"
+                                                t-att-title="'Split into ' + n + ' side by side'"
+                                                t-att-disabled="!canSplit"
+                                                t-on-click="() => this.splitPanel('vertical', n)">
+                                            <t t-esc="n"/>
+                                        </button>
+                                    </t>
+                                    <span class="o_aw_cfg_tool_icon" title="Split stacked">
                                         <i class="fa fa-bars"/>
+                                    </span>
+                                    <t t-foreach="splitCounts" t-as="n" t-key="n">
+                                        <button class="btn btn-sm btn-light px-2"
+                                                t-att-title="'Split into ' + n + ' stacked'"
+                                                t-att-disabled="!canSplit"
+                                                t-on-click="() => this.splitPanel('horizontal', n)">
+                                            <t t-esc="n"/>
+                                        </button>
+                                    </t>
+                                    <button class="btn btn-sm btn-light px-2"
+                                            title="Make the panels in this row equally wide"
+                                            t-att-disabled="!canEqualizeWidths"
+                                            t-on-click="equalizeWidths">
+                                        <i class="fa fa-arrows-h"/>
+                                    </button>
+                                    <button class="btn btn-sm btn-light px-2"
+                                            title="Make the rows in this stack equally tall"
+                                            t-att-disabled="!canEqualizeHeights"
+                                            t-on-click="equalizeHeights">
+                                        <i class="fa fa-arrows-v"/>
                                     </button>
                                     <button class="btn btn-sm btn-light text-danger" title="Remove this panel"
                                             t-att-disabled="!canRemove"
@@ -768,14 +797,34 @@
 
                     <div class="o_aw_cfg_side border-start bg-view d-flex flex-column flex-shrink-0"
                          t-att-style="rightPaneStyle">
-                        <div class="d-flex gap-1 px-3 pt-2 flex-shrink-0">
+                        <!-- Tabs, not four stacked collapsibles with a
+                             max-height each: the column is ~260px wide
+                             and four things competing for it meant none
+                             of them had room to be read. -->
+                        <ul class="nav nav-tabs o_aw_cfg_tabs flex-nowrap px-2 pt-2 flex-shrink-0">
+                            <li t-foreach="rightTabs" t-as="tab" t-key="tab.key"
+                                class="nav-item">
+                                <button class="nav-link py-1 px-2 small d-flex align-items-center gap-1"
+                                        t-att-class="tab.key === activeRightTab ? 'active' : ''"
+                                        t-on-click="() => this.setRightTab(tab.key)">
+                                    <t t-esc="tab.label"/>
+                                    <span t-if="tab.badge" class="badge rounded-pill"
+                                          t-att-class="tab.danger ? 'text-bg-danger' : 'text-bg-secondary'"
+                                          t-esc="tab.badge"/>
+                                </button>
+                            </li>
+                        </ul>
+
+                        <div t-if="activeRightTab === 'panel'"
+                             class="d-flex gap-1 px-3 pt-2 flex-shrink-0">
                             <button class="btn btn-sm btn-link p-0 small"
                                     t-on-click="expandAllRight">Expand all</button>
                             <span class="text-muted small">·</span>
                             <button class="btn btn-sm btn-link p-0 small"
                                     t-on-click="collapseAllRight">Collapse all</button>
                         </div>
-                        <div class="overflow-auto p-3 flex-grow-1" style="min-height: 0;">
+                        <div t-if="activeRightTab === 'panel'"
+                             class="overflow-auto p-3 flex-grow-1" style="min-height: 0;">
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
                                  t-on-click="() => this.toggleSection('panel')">
                                 <i t-att-class="sectionIcon('panel')"/>
@@ -848,21 +897,49 @@
                                     </div>
                                 </div>
 
-                                <!-- Panel toolbar -->
-                                <div class="d-flex flex-wrap gap-1 mb-3">
-                                    <button class="btn btn-sm btn-outline-secondary"
-                                            title="Split into two side by side"
-                                            t-att-disabled="!canSplit"
-                                            t-on-click="() => this.splitPanel('vertical')">
-                                        <i class="fa fa-columns"/> Split V
+                                <!-- Panel toolbar. Splitting into 3 or 4
+                                     in one go is not the same as
+                                     splitting twice: halving a half
+                                     gives 50/25/25 and a nesting level
+                                     nobody asked for. -->
+                                <div class="d-flex align-items-center gap-1 mb-1">
+                                    <span class="small text-muted" style="width: 4.5rem;">
+                                        <i class="fa fa-columns me-1"/>Across
+                                    </span>
+                                    <t t-foreach="splitCounts" t-as="n" t-key="n">
+                                        <button class="btn btn-sm btn-outline-secondary px-2"
+                                                t-att-title="'Split into ' + n + ' side by side'"
+                                                t-att-disabled="!canSplit"
+                                                t-on-click="() => this.splitPanel('vertical', n)">
+                                            <t t-esc="n"/>
+                                        </button>
+                                    </t>
+                                    <button class="btn btn-sm btn-outline-secondary px-2 ms-1"
+                                            title="Make the panels in this row equally wide"
+                                            t-att-disabled="!canEqualizeWidths"
+                                            t-on-click="equalizeWidths">
+                                        <i class="fa fa-arrows-h"/>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-secondary"
-                                            title="Split into two stacked"
-                                            t-att-disabled="!canSplit"
-                                            t-on-click="() => this.splitPanel('horizontal')">
-                                        <i class="fa fa-bars"/> Split H
+                                </div>
+                                <div class="d-flex align-items-center gap-1 mb-3">
+                                    <span class="small text-muted" style="width: 4.5rem;">
+                                        <i class="fa fa-bars me-1"/>Down
+                                    </span>
+                                    <t t-foreach="splitCounts" t-as="n" t-key="n">
+                                        <button class="btn btn-sm btn-outline-secondary px-2"
+                                                t-att-title="'Split into ' + n + ' stacked'"
+                                                t-att-disabled="!canSplit"
+                                                t-on-click="() => this.splitPanel('horizontal', n)">
+                                            <t t-esc="n"/>
+                                        </button>
+                                    </t>
+                                    <button class="btn btn-sm btn-outline-secondary px-2 ms-1"
+                                            title="Make the rows in this stack equally tall"
+                                            t-att-disabled="!canEqualizeHeights"
+                                            t-on-click="equalizeHeights">
+                                        <i class="fa fa-arrows-v"/>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-danger"
+                                    <button class="btn btn-sm btn-outline-danger px-2 ms-auto"
                                             title="Remove this panel"
                                             t-att-disabled="!canRemove"
                                             t-on-click="removePanel">
@@ -1055,16 +1132,13 @@
 
                         <!-- Pricing (spec 8). INTERNAL ONLY: none of this
                              appears on the customer quote PDF. -->
-                        <div t-if="pricing"
-                             class="border-top overflow-auto p-3 flex-shrink-0"
-                             style="max-height: 35%;">
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
-                                 t-on-click="() => this.toggleSection('pricing')">
-                                <i t-att-class="sectionIcon('pricing')"/>
+                        <div t-if="pricing and activeRightTab === 'pricing'"
+                             class="overflow-auto p-3 flex-grow-1"
+                             style="min-height: 0;">
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2 d-flex align-items-center gap-1">
                                 <span>Pricing</span>
                                 <span class="badge bg-secondary ms-1">internal</span>
                             </div>
-                            <t t-if="!isCollapsed('pricing')">
                             <div t-if="pricing.uncosted"
                                  class="small text-warning mb-2">
                                 <i class="fa fa-exclamation-triangle me-1"/>
@@ -1165,20 +1239,16 @@
                                     — below it, the quote cannot be confirmed.
                                 </t>
                             </div>
-                            </t>
                         </div>
 
-                        <!-- BOM and Checks (spec 6.5, 6.6). Regenerated on
-                             every save, so this always describes the layout
-                             on screen rather than the previous one. -->
-                        <div class="border-top overflow-auto p-3 flex-shrink-0"
-                             style="max-height: 45%;">
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
-                                 t-on-click="() => this.toggleSection('checks')">
-                                <i t-att-class="sectionIcon('checks')"/>
-                                <span>Checks</span>
-                            </div>
-                            <t t-if="!isCollapsed('checks')">
+                        <!-- Checks (spec 6.6). Regenerated on every save,
+                             so this always describes the layout on screen
+                             rather than the previous one. The tab opens
+                             itself when a save produces an error; see
+                             surfaceCheckErrors(). -->
+                        <div t-if="activeRightTab === 'checks'"
+                             class="overflow-auto p-3 flex-grow-1"
+                             style="min-height: 0;">
                             <div t-if="!checks.length" class="small text-success mb-3">
                                 <i class="fa fa-check me-1"/>Nothing to report.
                             </div>
@@ -1192,14 +1262,12 @@
                                     <i class="fa fa-exclamation-triangle me-1"/><t t-esc="chk.message"/>
                                 </div>
                             </t>
+                        </div>
 
-                            </t>
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
-                                 t-on-click="() => this.toggleSection('bom')">
-                                <i t-att-class="sectionIcon('bom')"/>
-                                <span>Bill of materials</span>
-                            </div>
-                            <t t-if="!isCollapsed('bom')">
+                        <!-- Bill of materials (spec 6.5). -->
+                        <div t-if="activeRightTab === 'bom'"
+                             class="overflow-auto p-3 flex-grow-1"
+                             style="min-height: 0;">
                             <div t-if="bomIsEmpty" class="small text-muted">
                                 Save the design to generate its BOM.
                             </div>
@@ -1233,7 +1301,6 @@
                                         </tr>
                                     </tbody>
                                 </table>
-                            </t>
                             </t>
                         </div>
                     </div>

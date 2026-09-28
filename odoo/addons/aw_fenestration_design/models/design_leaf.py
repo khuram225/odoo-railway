@@ -38,8 +38,9 @@ class AwDesignLeaf(models.Model):
     width_in = fields.Float(string='Width (in)',
         compute='_compute_width_ftin', inverse='_inverse_width_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    width_inch_total = fields.Float(string='Width (in)',
-        compute='_compute_width_inch_total', inverse='_inverse_width_inch_total')
+    width_inch_total = fields.Float(string='Width (total in)',
+        compute='_compute_width_inch_total', inverse='_inverse_width_inch_total',
+        help="Whole inches plus a fraction, e.g. 102.5 -- the ft/in pair written as one number. Same dimension as the pair beside it.")
 
     is_auto = fields.Boolean(
         string='Automatic',

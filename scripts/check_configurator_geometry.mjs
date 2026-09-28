@@ -783,5 +783,125 @@ console.log("\n  TWN presets carry mesh through applyPreset:");
     ok(leaf.mesh_hinge_side === "left", "mesh hinge follows the panel");
 }
 
+// ---------------------------------------------------------------------
+console.log("\nSPLIT into 2, 3 or 4 equal parts:");
+{
+    // 3 and 4 exist because splitting twice is NOT the same thing:
+    // halving a half gives 50/25/25, plus a nesting level nobody asked
+    // for. These have to come out equal and add up in one step.
+    for (const n of [2, 3, 4]) {
+        const c = make([{ height_mm: 3000, is_auto: false,
+                          leaves: [panel(2400, "FIXED")] }], 2400, 3000);
+        c.selectLeaf([[0, 0]]);
+        c.splitPanel("vertical", n);
+        const kids = c.state.data.rows[0].leaves[0].rows[0].leaves;
+        ok(kids.length === n, `vertical ${n} -> ${n} panels`);
+        near(kids.reduce((a, l) => a + l.width_mm, 0), 2400,
+             `vertical ${n} widths sum to the parent`);
+        ok(kids.every((l) => Math.abs(l.width_mm - 2400 / n) < 0.001),
+           `vertical ${n} panels are equal`);
+    }
+    for (const n of [2, 3, 4]) {
+        const c = make([{ height_mm: 3000, is_auto: false,
+                          leaves: [panel(2400, "FIXED")] }], 2400, 3000);
+        c.selectLeaf([[0, 0]]);
+        c.splitPanel("horizontal", n);
+        const rows = c.state.data.rows[0].leaves[0].rows;
+        ok(rows.length === n, `horizontal ${n} -> ${n} rows`);
+        near(rows.reduce((a, r) => a + r.height_mm, 0), 3000,
+             `horizontal ${n} heights sum to the parent`);
+    }
+    // The count is clamped, not trusted: it reaches splitPanel from a
+    // template expression.
+    const c = make([{ height_mm: 3000, is_auto: false,
+                      leaves: [panel(2400, "FIXED")] }], 2400, 3000);
+    c.selectLeaf([[0, 0]]);
+    c.splitPanel("vertical", 99);
+    ok(c.state.data.rows[0].leaves[0].rows[0].leaves.length === 4,
+       "a silly count clamps to 4 rather than drawing 99 panels");
+}
+
+console.log("\nEQUALIZE evens out what is there, keeping the total:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false, leaves: [
+        panel(1800, "FIXED"), panel(400, "FIXED"), panel(200, "FIXED"),
+    ] }], 2400, 3000);
+    c.selectLeaf([[0, 1]]);
+    ok(c.canEqualizeWidths, "three panels across can be equalized");
+    ok(!c.canEqualizeHeights, "one row has no stack to equalize");
+    c.equalizeWidths();
+    const leaves = c.state.data.rows[0].leaves;
+    near(leaves.reduce((a, l) => a + l.width_mm, 0), 2400,
+         "the opening is NOT resized, only redistributed");
+    ok(leaves.every((l) => Math.abs(l.width_mm - 800) < 0.001),
+       "all three are 800 wide");
+}
+
+console.log("\n  Equalize refits a container's children:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false, leaves: [
+        panel(1800, "FIXED"), panel(600, "FIXED"),
+    ] }], 2400, 3000);
+    c.selectLeaf([[0, 0]]);
+    c.splitPanel("vertical", 2);       // 1800 -> 900 + 900
+    c.selectLeaf([[0, 1]]);
+    c.equalizeWidths();                // top level -> 1200 + 1200
+    const top = c.state.data.rows[0].leaves;
+    near(top[0].width_mm, 1200, "container evened out");
+    const kids = top[0].rows[0].leaves;
+    near(kids.reduce((a, l) => a + l.width_mm, 0), 1200,
+         "its children were refitted to its new width");
+}
+
+console.log("\n  Equalize heights across a stack:");
+{
+    const c = make([
+        { height_mm: 2400, is_auto: false, leaves: [panel(2400, "FIXED")] },
+        { height_mm: 600, is_auto: false, leaves: [panel(2400, "FIXED")] },
+    ], 2400, 3000);
+    c.selectLeaf([[1, 0]]);
+    ok(c.canEqualizeHeights, "two rows can be equalized");
+    c.equalizeHeights();
+    const rows = c.state.data.rows;
+    near(rows[0].height_mm, 1500, "top row halved the stack");
+    near(rows[0].height_mm + rows[1].height_mm, 3000,
+         "the design's height is unchanged");
+}
+
+console.log("\nRIGHT-HAND TABS:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false,
+                      leaves: [panel(2400, "FIXED")] }], 2400, 3000);
+    c.state.rightTab = "panel";
+    ok(c.rightTabs.map((t) => t.key).join(",") === "panel,bom,checks",
+       "Pricing is not offered on a design that has none");
+    ok(c.activeRightTab === "panel", "panel is the active tab");
+
+    // A remembered tab that no longer exists must not leave the column
+    // blank with no way back.
+    c.state.rightTab = "pricing";
+    ok(c.activeRightTab === "panel", "an unavailable tab falls back to Panel");
+
+    c.state.data.checks = [
+        { level: "warning", message: "one" },
+        { level: "warning", message: "two" },
+    ];
+    const warned = c.rightTabs.find((t) => t.key === "checks");
+    ok(warned.badge === 2 && !warned.danger, "warnings badge, not red");
+
+    c.state.data.checks.push({ level: "error", message: "three" });
+    const bad = c.rightTabs.find((t) => t.key === "checks");
+    ok(bad.badge === 3 && bad.danger, "an error makes the badge red");
+
+    // Opens itself on new results, and ONLY then -- a tab that forced
+    // itself open every render would take the column hostage.
+    c.state.rightTab = "bom";
+    c.surfaceCheckErrors();
+    ok(c.activeRightTab === "checks", "an error brings Checks to the front");
+    c.setRightTab("bom");
+    ok(c.activeRightTab === "bom",
+       "the user can still look away from a standing error");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

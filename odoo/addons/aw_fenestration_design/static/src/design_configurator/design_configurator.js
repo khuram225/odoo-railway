@@ -90,11 +90,25 @@ const PANE_MAX_FRACTION = 0.45;
 const PANE_DEFAULTS = { left: 220, right: 260 };
 const STORE_PANE = "aw_cfg_pane_";
 const STORE_COLLAPSED = "aw_cfg_collapsed";
+const STORE_RIGHT_TAB = "aw_cfg_right_tab";
 
-/** Right-hand sections, in the order they appear. */
-const RIGHT_SECTIONS = [
-    "panel", "infill", "mesh", "grid", "bom", "pricing", "checks",
-];
+/**
+ * Collapsible sections WITHIN the Panel tab. The right-hand column used
+ * to stack panel, pricing, BOM and checks in one scroller with four
+ * collapsibles and a hard max-height on each; four things competing for
+ * one column meant none of them had room. They are tabs now, and only
+ * the panel's own sub-sections still collapse.
+ */
+const RIGHT_SECTIONS = ["panel", "infill", "mesh", "grid"];
+
+/** Right-hand tabs, in the order they appear. */
+const RIGHT_TABS = ["panel", "bom", "pricing", "checks"];
+const RIGHT_TAB_LABELS = {
+    panel: "Panel",
+    bom: "BOM",
+    pricing: "Pricing",
+    checks: "Checks",
+};
 
 function clampPane(value) {
     const max = Math.max(
@@ -136,6 +150,23 @@ function saveCollapsed(state) {
     }
 }
 
+function loadRightTab() {
+    try {
+        const raw = window.localStorage.getItem(STORE_RIGHT_TAB);
+        return RIGHT_TABS.includes(raw) ? raw : "panel";
+    } catch {
+        return "panel";
+    }
+}
+
+function saveRightTab(key) {
+    try {
+        window.localStorage.setItem(STORE_RIGHT_TAB, key);
+    } catch {
+        // See above.
+    }
+}
+
 export class DesignConfigurator extends Component {
     static template = "aw_fenestration_design.DesignConfigurator";
     static props = { ...standardActionServiceProps };
@@ -160,6 +191,7 @@ export class DesignConfigurator extends Component {
             paneLeft: loadPaneWidth("left", 220),
             paneRight: loadPaneWidth("right", 260),
             collapsed: loadCollapsed(),
+            rightTab: loadRightTab(),
             canvasW: 0,
             canvasH: 0,
             libraryOpen: true,
@@ -230,6 +262,7 @@ export class DesignConfigurator extends Component {
         // boundary drew as a mullion however its panels were hinged.
         // Only fills blanks -- a junction someone chose is left alone.
         this.fillMissingJunctions(this.state.data.rows);
+        this.surfaceCheckErrors();
     }
 
     /** Set junction_after only where it is empty. */
@@ -384,15 +417,12 @@ export class DesignConfigurator extends Component {
 
     // -- collapsible sections ----------------------------------------
     /**
-     * Checks ignores the stored state while it has an error. A
-     * collapsed panel hiding the reason a quote cannot be confirmed is
-     * the one case where remembering the user's preference is the wrong
-     * thing to do.
+     * Checks used to override the stored state while it had an error,
+     * so a collapsed section could never hide the reason a quote
+     * cannot be confirmed. It is a tab now and keeps that guarantee a
+     * different way -- see surfaceCheckErrors().
      */
     isCollapsed(key) {
-        if (key === "checks" && this.checkErrors.length) {
-            return false;
-        }
         return !!this.state.collapsed[key];
     }
 
@@ -435,6 +465,60 @@ export class DesignConfigurator extends Component {
 
     collapseAllRight() {
         this.setAllCollapsed(RIGHT_SECTIONS, true);
+    }
+
+    // -- right-hand tabs ---------------------------------------------
+    /**
+     * The tab actually showing.
+     *
+     * Resolved rather than read straight out of state: Pricing is not
+     * offered on a design that has none, and a remembered "pricing"
+     * would otherwise leave the column blank with no way back.
+     */
+    get activeRightTab() {
+        const key = this.state.rightTab;
+        return this.rightTabs.some((tab) => tab.key === key) ? key : "panel";
+    }
+
+    /**
+     * The tab bar, as data. Built here rather than branched in the
+     * template so the badge rules live in one readable place.
+     */
+    get rightTabs() {
+        const errors = this.checkErrors.length;
+        const total = errors + this.checkWarnings.length;
+        return RIGHT_TABS.filter((key) => key !== "pricing" || this.pricing).map(
+            (key) => ({
+                key,
+                label: RIGHT_TAB_LABELS[key],
+                // Only Checks carries a count. A zero badge is noise:
+                // the tab body already says "Nothing to report".
+                badge: key === "checks" && total ? total : 0,
+                danger: key === "checks" && errors > 0,
+            })
+        );
+    }
+
+    setRightTab(key) {
+        this.state.rightTab = key;
+        saveRightTab(key);
+    }
+
+    /**
+     * Bring an error to the front, once per set of results.
+     *
+     * Called after a load and after a save -- NOT from a getter or a
+     * render. The collapsible version of Checks forced itself open on
+     * every render while an error stood, which is right for a section
+     * the user can see past and wrong for a tab: it would take the
+     * column hostage and there would be no way to look at the BOM that
+     * caused the error. Switching on new results surfaces the problem
+     * and still leaves the user in charge afterwards.
+     */
+    surfaceCheckErrors() {
+        if (this.checkErrors.length) {
+            this.setRightTab("checks");
+        }
     }
 
     get seriesOptions() {
@@ -867,45 +951,63 @@ export class DesignConfigurator extends Component {
         return next;
     }
 
+    /**
+     * `n` shares of `total` that sum to exactly `total`.
+     *
+     * Goes through fitToTotal with every entry at zero and nothing
+     * flagged Automatic, which is its "spread evenly" path, so the
+     * exact-sum and residue handling is the one already in use rather
+     * than a second copy that rounds differently.
+     */
+    equalShares(total, n) {
+        return this.fitToTotal(
+            new Array(n).fill(0), new Array(n).fill(false), total);
+    }
+
     // Both recurse: a container's children have to be refitted to the
     // container's NEW size, or a nested split stops adding up as soon as
     // the overall dimensions change.
-    rescaleWidths(totalWidth) {
-        const walk = (rows, total) => {
-            for (const row of rows) {
-                const sizes = this.fitToTotal(
-                    row.leaves.map((l) => l.width_mm),
-                    row.leaves.map((l) => l.is_auto),
-                    total
-                );
-                row.leaves.forEach((leaf, i) => {
-                    leaf.width_mm = sizes[i];
-                    if (leaf.rows && leaf.rows.length) {
-                        walk(leaf.rows, sizes[i]);
-                    }
-                });
+    // Named methods rather than closures over the whole design, because
+    // Equalize needs to refit ONE container's subtree rather than the
+    // design's -- same recursion, a different starting point.
+    rescaleWidthsIn(rows, total) {
+        for (const row of rows) {
+            const sizes = this.fitToTotal(
+                row.leaves.map((l) => l.width_mm),
+                row.leaves.map((l) => l.is_auto),
+                total
+            );
+            row.leaves.forEach((leaf, i) => {
+                leaf.width_mm = sizes[i];
+                if (leaf.rows && leaf.rows.length) {
+                    this.rescaleWidthsIn(leaf.rows, sizes[i]);
+                }
+            });
+        }
+    }
+
+    rescaleHeightsIn(rows, total) {
+        const sizes = this.fitToTotal(
+            rows.map((r) => r.height_mm),
+            rows.map((r) => r.is_auto),
+            total
+        );
+        rows.forEach((row, i) => {
+            row.height_mm = sizes[i];
+            for (const leaf of row.leaves) {
+                if (leaf.rows && leaf.rows.length) {
+                    this.rescaleHeightsIn(leaf.rows, sizes[i]);
+                }
             }
-        };
-        walk(this.state.data.rows, totalWidth);
+        });
+    }
+
+    rescaleWidths(totalWidth) {
+        this.rescaleWidthsIn(this.state.data.rows, totalWidth);
     }
 
     rescaleHeights(totalHeight) {
-        const walk = (rows, total) => {
-            const sizes = this.fitToTotal(
-                rows.map((r) => r.height_mm),
-                rows.map((r) => r.is_auto),
-                total
-            );
-            rows.forEach((row, i) => {
-                row.height_mm = sizes[i];
-                for (const leaf of row.leaves) {
-                    if (leaf.rows && leaf.rows.length) {
-                        walk(leaf.rows, sizes[i]);
-                    }
-                }
-            });
-        };
-        walk(this.state.data.rows, totalHeight);
+        this.rescaleHeightsIn(this.state.data.rows, totalHeight);
     }
 
     // -- tree navigation ---------------------------------------------------
@@ -982,6 +1084,15 @@ export class DesignConfigurator extends Component {
         return `${this.formatLength(leaf.width_mm || 0)} \u00d7 ${this.formatLength(
             row.height_mm || 0
         )}`;
+    }
+
+    /**
+     * How many parts Split offers. Four is the practical ceiling for a
+     * single opening; beyond that the panels are narrower than the
+     * profiles framing them.
+     */
+    get splitCounts() {
+        return [2, 3, 4];
     }
 
     get canSplit() {
@@ -1139,19 +1250,24 @@ export class DesignConfigurator extends Component {
     }
 
     /**
-     * Turn the selected panel into a container of two.
+     * Turn the selected panel into a container of `parts` equal pieces.
      *
-     * "vertical" means a vertical divider, i.e. two panels side by side:
-     * one sub-row, two leaves. "horizontal" is one leaf per sub-row,
-     * stacked. The panel keeps its own width/height; the children split it.
-     * Both children inherit the original's type and direction so a split
-     * never silently invents a panel type.
+     * "vertical" means vertical dividers, i.e. panels side by side: one
+     * sub-row, `parts` leaves. "horizontal" is one leaf per sub-row,
+     * stacked. The panel keeps its own width/height; the children split
+     * it. Every child inherits the original's type and direction so a
+     * split never silently invents a panel type.
+     *
+     * Two used to be the only option, and a three- or four-light
+     * opening meant splitting in two and then splitting one half again,
+     * which gives unequal panels and a nesting level nobody wanted.
      */
-    splitPanel(direction) {
+    splitPanel(direction, parts = 2) {
         const leaf = this.selectedLeaf;
         if (!leaf || !this.canSplit) {
             return;
         }
+        const count = Math.max(2, Math.min(4, Math.round(parts) || 2));
         // A leaf has no height of its own -- height belongs to the row that
         // holds it. Server-loaded leaves therefore have no height_mm at
         // all, and using it directly put NaN into every nested coordinate.
@@ -1174,16 +1290,21 @@ export class DesignConfigurator extends Component {
         });
 
         if (direction === "vertical") {
-            const half = (leaf.width_mm || 0) / 2;
-            const a = { ...child(), width_mm: half };
-            const b = { ...child(), width_mm: half };
-            leaf.rows = [{ height_mm: rowHeight, is_auto: false, leaves: [a, b] }];
+            // Split exactly, then let fitToTotal place the residue, so
+            // the children always add up to the parent however the
+            // division falls. See its note on NOT rounding to whole mm.
+            const widths = this.equalShares(leaf.width_mm || 0, count);
+            leaf.rows = [{
+                height_mm: rowHeight,
+                is_auto: false,
+                leaves: widths.map((w) => ({ ...child(), width_mm: w })),
+            }];
         } else {
-            const half = rowHeight / 2;
-            leaf.rows = [
-                { height_mm: half, is_auto: false, leaves: [child()] },
-                { height_mm: half, is_auto: false, leaves: [child()] },
-            ];
+            leaf.rows = this.equalShares(rowHeight, count).map((h) => ({
+                height_mm: h,
+                is_auto: false,
+                leaves: [{ ...child(), height_mm: h }],
+            }));
         }
         // A container is not a panel: it carries no type of its own.
         leaf.leaf_type_id = false;
@@ -1195,6 +1316,85 @@ export class DesignConfigurator extends Component {
         this.recomputeJunctions(this.state.data.rows);
         // Select the first child, so the toolbar stays on something real.
         this.state.selected = [...this.state.selected, [0, 0]];
+        this.state.dirty = true;
+    }
+
+    /**
+     * The rows and the row index the selected panel sits in.
+     *
+     * Both Equalize actions work on the selected panel's SIBLINGS
+     * rather than on the panel itself, so they share this.
+     */
+    selectionSiblings() {
+        const sel = this.state.selected;
+        if (!sel || !sel.length) {
+            return null;
+        }
+        const rows = this.rowsAt(sel.slice(0, -1));
+        const [ri] = sel[sel.length - 1];
+        return rows[ri] ? { rows, ri } : null;
+    }
+
+    /** More than one panel across, so there is something to even out. */
+    get canEqualizeWidths() {
+        const found = this.selectionSiblings();
+        return !!found && found.rows[found.ri].leaves.length > 1;
+    }
+
+    /** More than one row in this stack. */
+    get canEqualizeHeights() {
+        const found = this.selectionSiblings();
+        return !!found && found.rows.length > 1;
+    }
+
+    /**
+     * Give every panel in the selected panel's row the same width.
+     *
+     * The row's TOTAL is preserved -- this evens out what is already
+     * there, it does not resize the opening. A child container is
+     * rescaled with its new width, the same rule rescaleWidths follows,
+     * or a nested split stops adding up the moment a sibling moves.
+     *
+     * Automatic is deliberately ignored here: the user asking for equal
+     * panels is a more specific instruction than the flag, and
+     * honouring both is not possible.
+     */
+    equalizeWidths() {
+        const found = this.selectionSiblings();
+        if (!found || !this.canEqualizeWidths) {
+            return;
+        }
+        const row = found.rows[found.ri];
+        const total = row.leaves.reduce((a, l) => a + (l.width_mm || 0), 0);
+        const widths = this.equalShares(total, row.leaves.length);
+        row.leaves.forEach((leaf, i) => {
+            leaf.width_mm = widths[i];
+            leaf.is_auto = false;
+            if (leaf.rows && leaf.rows.length) {
+                this.rescaleWidthsIn(leaf.rows, widths[i]);
+            }
+        });
+        this.state.dirty = true;
+    }
+
+    /** Give every row in the selected panel's stack the same height. */
+    equalizeHeights() {
+        const found = this.selectionSiblings();
+        if (!found || !this.canEqualizeHeights) {
+            return;
+        }
+        const { rows } = found;
+        const total = rows.reduce((a, r) => a + (r.height_mm || 0), 0);
+        const heights = this.equalShares(total, rows.length);
+        rows.forEach((row, i) => {
+            row.height_mm = heights[i];
+            row.is_auto = false;
+            for (const leaf of row.leaves) {
+                if (leaf.rows && leaf.rows.length) {
+                    this.rescaleHeightsIn(leaf.rows, heights[i]);
+                }
+            }
+        });
         this.state.dirty = true;
     }
 
@@ -3024,6 +3224,10 @@ export class DesignConfigurator extends Component {
         ]);
         this.state.dirty = false;
         this.state.selected = null;
+        // The save regenerates the checks, so this is the moment a new
+        // error can appear. A success toast over an error nobody sees
+        // is worse than no toast at all.
+        this.surfaceCheckErrors();
         this.notification.add(_t("Design saved."), { type: "success" });
     }
 

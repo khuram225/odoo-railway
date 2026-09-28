@@ -43,8 +43,9 @@ class AwDesignRow(models.Model):
     height_in = fields.Float(string='Height (in)',
         compute='_compute_height_ftin', inverse='_inverse_height_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    height_inch_total = fields.Float(string='Height (in)',
-        compute='_compute_height_inch_total', inverse='_inverse_height_inch_total')
+    height_inch_total = fields.Float(string='Height (total in)',
+        compute='_compute_height_inch_total', inverse='_inverse_height_inch_total',
+        help="Whole inches plus a fraction, e.g. 102.5 -- the ft/in pair written as one number. Same dimension as the pair beside it.")
 
     # The transom on this row's BOTTOM boundary. Same rule as the
     # vertical divider on a leaf.
