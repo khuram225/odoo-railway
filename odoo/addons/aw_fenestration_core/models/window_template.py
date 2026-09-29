@@ -40,9 +40,17 @@ class AwWindowTemplate(models.Model):
     profile_section_id = fields.Many2one(
         'aw.profile.section', required=True, ondelete='restrict',
         domain="[('window_type_id', '=', window_type_id)]", tracking=True)
+    # NOT required. No hardware list exists for this business yet, and
+    # a required field would have forced either a placeholder set --
+    # which puts zero hardware into every quote while looking
+    # configured -- or no specification at all. Empty is honest, and
+    # the design checks say so once per design rather than letting the
+    # absence pass unmentioned.
     hardware_set_id = fields.Many2one(
-        'aw.hardware.set', required=True, ondelete='restrict',
-        domain="[('window_type_id', '=', window_type_id)]", tracking=True)
+        'aw.hardware.set', ondelete='restrict',
+        domain="[('window_type_id', '=', window_type_id)]", tracking=True,
+        help="Leave empty until a hardware list exists. A design built "
+             "to this spec will warn that its hardware cost is missing.")
     glass_spec_id = fields.Many2one(
         'aw.glass.spec', required=True, ondelete='restrict', tracking=True)
     # Optional, unlike the three above: most systems are quoted in
@@ -122,7 +130,12 @@ class AwWindowTemplate(models.Model):
                     "'%s'." % (rec.profile_section_id.name,
                                rec.profile_section_id.window_type_id.name,
                                rec.window_type_id.name))
-            if rec.hardware_set_id.window_type_id != rec.window_type_id:
+            # `and` guards the empty case: an unset hardware set has
+            # no window_type_id, which would otherwise read as a
+            # mismatch and make the field required by the back door.
+            if (rec.hardware_set_id
+                    and rec.hardware_set_id.window_type_id
+                    != rec.window_type_id):
                 raise ValidationError(
                     "Hardware Set '%s' belongs to Series '%s', not "
                     "'%s'." % (rec.hardware_set_id.name,

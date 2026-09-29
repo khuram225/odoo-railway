@@ -106,6 +106,30 @@ class TestDesignSave(TransactionCase):
             "Re-saving changed the BOM line count; the explosion is "
             "not clearing what it replaces.")
 
+    def test_missing_hardware_warns_once(self):
+        """A spec with no hardware says so ONCE, not once per line.
+
+        The Hardware Set is optional on a Specification -- no hardware
+        list exists for this business yet, and a placeholder set would
+        price hardware at zero in every quote while looking configured.
+        The absence is one fact about the spec, so it is one warning; a
+        warning repeated per panel is one people learn to scroll past.
+        """
+        self.design.hardware_set_id = False
+        self.design.save_layout(self._payload())
+
+        missing = [
+            check for check in self.design.check_line_ids
+            if 'hardware cost is missing' in (check.message or '')
+        ]
+        self.assertEqual(
+            len(missing), 1,
+            "Expected exactly one missing-hardware warning, got %s: %s"
+            % (len(missing), [c.message for c in missing]))
+        self.assertEqual(missing[0].level, 'warning',
+                         "Missing hardware is a warning, not an error: a "
+                         "window can still be quoted without it.")
+
     def test_checks_are_regenerated(self):
         """Checks belong to the layout that is there now."""
         self.design.save_layout(self._payload())

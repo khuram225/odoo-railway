@@ -421,25 +421,37 @@ class AwDesign(models.Model):
         return self.env.ref(
             'aw_fenestration_core.pos_lock_bar', raise_if_not_found=False)
 
-    @staticmethod
-    def _lock_edge(leaf):
-        """Which edge of the sash the lock is on: opposite the hinge.
+    #: Every lock side is "the far edge from the way the sash moves",
+    #: which is one mapping for both mechanisms rather than two.
+    _OPPOSITE_EDGE = {
+        'left': 'right', 'right': 'left',
+        'top': 'bottom', 'bottom': 'top',
+    }
 
-        Hinge left -> the lock is on the right, and so on round. A
-        top-hung sash locks at the bottom, a bottom-hung one at the top,
-        and a tilt & turn locks opposite its side hinge -- all of which
-        is the same rule, so it is written once.
+    @classmethod
+    def _lock_edge(cls, leaf):
+        """Which edge of the sash the lock is on.
 
-        A SLIDING sash gets no lock bar and that is deliberate, not an
-        omission: a slider has no hinge to be opposite, and what it
-        locks against is the meeting stile, which the Interlock and
-        Meeting Stile positions already put in the cut list. Inventing
-        a side would put a real profile on a real bar. [revisit]
+        HINGED: opposite the hinge. Hinge left -> the lock is on the
+        right, and so on round; a top-hung sash locks at the bottom, a
+        bottom-hung one at the top, and a tilt & turn locks opposite
+        its side hinge.
+
+        SLIDING: the edge the sash CLOSES TOWARDS, which is opposite
+        its slide direction -- a sash that slides left to open shuts
+        to the right, so the lock bar is on its right edge. Same
+        mapping, because both are "the far edge from the way the sash
+        moves". The PROFILE differs (the client's sliding systems use
+        a different lock bar), but that comes from the sliding
+        system's own spec, not from here: a system with no Lock Bar
+        line simply produces no piece.
+
+        [revisit] The client is to confirm the side and the profile
+        code for Double Glaze - Sliding.
         """
-        return {
-            'left': 'right', 'right': 'left',
-            'top': 'bottom', 'bottom': 'top',
-        }.get(leaf.hinge_side or '', '')
+        if leaf.hinge_side:
+            return cls._OPPOSITE_EDGE.get(leaf.hinge_side, '')
+        return cls._OPPOSITE_EDGE.get(leaf.slide_dir or '', '')
 
     def _lock_side_length(self, edge, by_scope, context):
         """LS: the sash profile length already generated for `edge`.
@@ -792,6 +804,22 @@ class AwDesign(models.Model):
             problems.append(('warning', _(
                 "No Price Structure, so this design is costed with no "
                 "wastage, labour or profit.")))
+
+        # ONCE per design, not once per hardware line that did not
+        # appear: the absence is one fact about the spec, and a warning
+        # repeated per line is a warning people learn to scroll past.
+        # A spec may legitimately have no Hardware Set -- no hardware
+        # list exists for this business yet, and a placeholder set
+        # would put zero hardware into every quote while looking
+        # configured. Saying so is the honest alternative.
+        if not self.hardware_set_id:
+            problems.append(('warning', _(
+                "No hardware in this spec — hardware cost is missing.")))
+        elif not self.hardware_set_id.line_ids:
+            problems.append(('warning', _(
+                "No hardware in this spec — hardware cost is missing. "
+                "'%s' has no lines.",
+                self.hardware_set_id.display_name)))
 
         # No joints and no couplers: every piece comes out of one bar,
         # so one that cannot is a hard error rather than something the

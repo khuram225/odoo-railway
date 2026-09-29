@@ -242,13 +242,13 @@ class AwProfileSection(models.Model):
     def _seed_dg_openable_spec(self):
         """The RE specification over the RE set, once.
 
-        A spec needs a hardware set, which is required on the model and
-        which nothing seeds -- this module has never shipped one, by
-        design (no hardware list has been given). So this takes the
-        system's own first hardware set and does NOTHING if there is
-        none, rather than creating an empty one just to satisfy a
-        required field: an empty hardware set would quietly put zero
-        hardware into every quote and look configured while doing it.
+        Seeded WITHOUT a hardware set, deliberately: no hardware list
+        exists for this business yet, and a placeholder set would put
+        zero hardware into every quote while looking configured. The
+        field is optional for exactly this reason, and a design built
+        to a spec with no hardware is warned about it once, by the
+        checks. The system's own first hardware set is taken if one
+        happens to exist, but nothing is invented.
         """
         param = self.env['ir.config_parameter'].sudo()
         if param.get_param(SPEC_SEEDED_PARAM):
@@ -274,18 +274,16 @@ class AwProfileSection(models.Model):
 
         hardware = series.hardware_set_ids[:1]
         if not hardware:
-            _logger.warning(
-                "aw_fenestration_core: '%s' not seeded -- %s has no "
-                "Hardware Set, and a specification requires one. Add a "
-                "Hardware Set and upgrade again.",
-                SPEC_NAME, series.display_name)
-            return False
+            _logger.info(
+                "aw_fenestration_core: '%s' seeded with no Hardware Set "
+                "-- none exists yet. Designs built to it will warn that "
+                "their hardware cost is missing.", SPEC_NAME)
 
         Spec.create({
             'name': SPEC_NAME,
             'window_type_id': series.id,
             'profile_section_id': section.id,
-            'hardware_set_id': hardware.id,
+            'hardware_set_id': hardware.id if hardware else False,
             'glass_spec_id': glass.id,
             'is_default': not Spec.search_count([
                 ('window_type_id', '=', series.id),

@@ -1276,13 +1276,14 @@ export class DesignConfigurator extends Component {
     /**
      * The lock bar on the selected panel.
      *
-     * Only meaningful on an opening sash: the lock sits opposite the
-     * hinge, so a fixed light has no side for it and a slider locks
-     * against its meeting stile instead (see _lock_edge on the server).
+     * Every OPENING sash has one, hinged or sliding; a fixed light has
+     * no side for it. The profile comes from the system's own spec, so
+     * a system with no Lock Bar line simply produces no piece -- the
+     * toggle is still the right place to say whether this sash locks.
      */
     get showLockToggle() {
         const type = this.selectedLeafType;
-        return !!type && type.has_hinge_side;
+        return !!type && (type.has_hinge_side || type.has_slide_dir);
     }
 
     get panelHasLock() {
@@ -1293,20 +1294,12 @@ export class DesignConfigurator extends Component {
     }
 
     /**
-     * Which side the lock bar lands on, in words.
-     *
-     * Kept in step with _lock_edge() on the server by being the same
-     * rule: opposite the hinge. Written out here so the toggle says
+     * Which side the lock bar lands on, in words, so the toggle says
      * what it will do rather than leaving the reader to derive it.
      */
     get lockEdgeLabel() {
-        const opposite = {
-            left: "right",
-            right: "left",
-            top: "bottom",
-            bottom: "top",
-        };
-        return opposite[this.selectedPanel?.hinge_side || ""] || "lock";
+        const panel = this.selectedPanel;
+        return (panel && this.lockEdge(panel)) || "lock";
     }
 
     toggleLock() {
@@ -2215,25 +2208,40 @@ export class DesignConfigurator extends Component {
     }
 
     /**
+     * The edge a sash locks on: the far edge from the way it moves.
+     *
+     * Hinged, it is opposite the hinge; sliding, it is opposite the
+     * slide direction, because a sash that slides left to open shuts
+     * to the right. One mapping for both, matching _lock_edge() on the
+     * server exactly -- two places drawing different conclusions from
+     * one sash would be worse than the duplication.
+     */
+    lockEdge(leaf) {
+        const opposite = {
+            left: "right",
+            right: "left",
+            top: "bottom",
+            bottom: "top",
+        };
+        return (
+            opposite[leaf.hinge_side || ""] ||
+            opposite[leaf.slide_dir || ""] ||
+            ""
+        );
+    }
+
+    /**
      * The lock mark: a short bar on the sash's lock side.
      *
-     * Returns null for anything that has no lock bar -- a fixed light,
-     * a slider (which locks against its meeting stile, see _lock_edge
-     * on the server), or a sash whose Lock has been turned off. Same
-     * rule as lockEdgeLabel and as the server, deliberately: three
-     * places drawing three different conclusions from one hinge would
-     * be worse than the duplication.
+     * Returns null for anything with no lock side -- a fixed light, a
+     * sash whose direction is not set yet, or one whose Lock has been
+     * turned off.
      */
     lockMark(x, y, w, h, leaf) {
         if (leaf.has_lock === false) {
             return null;
         }
-        const edge = {
-            left: "right",
-            right: "left",
-            top: "bottom",
-            bottom: "top",
-        }[leaf.hinge_side || ""];
+        const edge = this.lockEdge(leaf);
         if (!edge) {
             return null;
         }

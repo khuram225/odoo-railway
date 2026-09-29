@@ -458,8 +458,15 @@ word the user reads says "Specification" / "Spec".** Renaming a model
 rewrites every stored reference and every xmlid for a label, so it was
 not renamed — if you are looking for the Spec, it is `template_id` on
 `aw.design` and `aw.window.template` in core. A spec is one Profile
-Section + one Hardware Set + one Glass Spec, optionally a default
-Finish, `is_default` and `sequence`, per **profile system**. At most one
+Section + one Glass Spec, optionally a Hardware Set, a default Finish,
+`is_default` and `sequence`, per **profile system**. **`hardware_set_id`
+is NOT required**: no hardware list exists for this business yet, and a
+required field forces either a placeholder set — which prices hardware
+at zero in every quote while looking configured — or no spec at all.
+Empty is honest, and `_run_checks` says *"No hardware in this spec —
+hardware cost is missing"* **once per design**, not once per line that
+failed to appear: the absence is one fact about the spec, and a warning
+repeated per line is one people learn to scroll past. At most one
 default per system, enforced in Python rather than by a partial unique
 index, because the rule involves `active` and an index would fight
 archiving.
@@ -498,13 +505,21 @@ matched back to their overrides **by order**, since `copy()` preserves
 it and matching on product breaks on exactly the sets that carry two
 lines for one product.
 
-**The lock bar (phase 7d) sits opposite the hinge**, which covers every
-case in one rule: left→right, right→left, top-hung→bottom,
-bottom-hung→top, tilt & turn→opposite its side hinge. **A slider gets
-none, deliberately** — it has no hinge to be opposite, and what it locks
-against is the meeting stile, which the Interlock and Meeting Stile
-positions already put in the cut list. Inventing a side would put a real
-profile on a real bar. [revisit if the client wants one]
+**The lock bar (phase 7d) goes on the far edge from the way the sash
+moves**, which is one mapping for both mechanisms. Hinged: opposite the
+hinge — left→right, right→left, top-hung→bottom, bottom-hung→top, tilt &
+turn→opposite its side hinge. **Sliding: opposite the slide direction**,
+because a sash that slides left to open shuts to the right. The first
+version gave sliders none, on the reasoning that they lock against the
+meeting stile; the client's actual point was that a sliding system uses
+a *different lock bar profile*, not that there is none. The profile
+comes from the sliding system's own spec, so a system with no Lock Bar
+line produces no piece — which is the state today. [revisit: the client
+is to confirm the side and the profile code for Double Glaze – Sliding.]
+`_lock_edge` is a classmethod over one `_OPPOSITE_EDGE` map, and
+`lockEdge()` in the configurator is deliberately the same mapping: two
+places drawing different conclusions from one sash would be worse than
+the duplication.
 
 `pos_lock_bar` has **no `edge`**, and that is what makes one piece
 rather than a pair: which side is a per-panel decision, not a property

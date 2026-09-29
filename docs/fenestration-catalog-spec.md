@@ -759,11 +759,13 @@ default, and that is the one a new design starts from. Menu:
 Fenestration > Master Data > Specifications (managers edit).
 
 Seeded: **Double Glaze – Openable – RE spec** — the RE set section plus
-24mm DGU, marked default. It needs a Hardware Set, which this module has
-never shipped because no hardware list has been given; if the system has
-none the seed **warns and does nothing** rather than creating an empty
-set, which would put zero hardware into every quote while looking
-configured. Add a Hardware Set and upgrade again.
+24mm DGU, marked default, and **no Hardware Set**. The field is optional
+precisely because no hardware list exists yet: a placeholder set would
+price hardware at zero in every quote while looking configured. Instead
+a design built to a spec with no hardware — or with one that has no
+lines — gets the warning *"No hardware in this spec — hardware cost is
+missing"*, **once per design**. No placeholder hardware sets are created
+anywhere.
 
 The spec is applied when the profile system is resolved, and **never
 overwrites a part already chosen by hand**. Changing spec re-fills the
@@ -787,9 +789,12 @@ sent quotes are never re-exploded automatically.
 
 ### Phase 7d — Lock bar
 
-Position **Lock Bar**, on opening panels, on the lock side = **opposite
-the hinge**: hinge left → right side, right → left, top-hung → bottom,
-bottom-hung → top, tilt & turn → opposite its side hinge. New formula
+Position **Lock Bar**, on opening panels, on the lock side = **the far
+edge from the way the sash moves**. Hinged: opposite the hinge — hinge
+left → right side, right → left, top-hung → bottom, bottom-hung → top,
+tilt & turn → opposite its side hinge. **Sliding: opposite the slide
+direction** — a sash that slides left to open shuts to the right, so its
+lock bar is on its right edge. New formula
 variable **LS** = the sash profile length on the lock side. Default
 length `0.8 * LS`, angle 90, quantity 1, generated only when the panel's
 **Lock** is on (Panel tab toggle, default on; a small lock mark appears
@@ -798,11 +803,14 @@ the profile the client listed without a position back in phase 4, and
 this is where it goes. Each spec defines its own lock bar, because each
 spec points at its own Profile Section.
 
-**A sliding sash gets no lock bar** and that is a decision, not an
-omission: a slider has no hinge to be opposite, and what it locks
-against is the meeting stile, which the Interlock and Meeting Stile
-positions already put in the cut list. [revisit] — confirm with the
-client whether a sliding sash needs a separate lock bar.
+A sliding sash uses the **same** Lock toggle, the same `0.8 * LS`
+default and the same 90°; only the PROFILE differs, and that comes from
+the sliding system's own spec. No sliding spec is defined yet, so no
+piece is generated for a slider today — the toggle is still the right
+place to record whether that sash locks.
+
+**[revisit]** The client is to confirm the side and the profile code for
+**Double Glaze – Sliding**.
 
 **Thickness comes from the product, not from a preference.** The first
 version of this seed put `Normal` on every line, and the price list

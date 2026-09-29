@@ -904,7 +904,7 @@ console.log("\nRIGHT-HAND TABS:");
 }
 
 // ---------------------------------------------------------------------
-console.log("\nLOCK BAR (phase 7d): opposite the hinge, opening sashes only");
+console.log("\nLOCK BAR (phase 7d): the far edge from the way the sash moves");
 {
     const c = make([{ height_mm: 3000, is_auto: false, leaves: [
         panel(800, "CASEMENT", { hinge_side: "left", swing: "out" }),
@@ -925,14 +925,31 @@ console.log("\nLOCK BAR (phase 7d): opposite the hinge, opening sashes only");
 
     ok(marks[2] === null, "a fixed light has no lock side, so no mark");
 
-    // A slider locks against its meeting stile, which the Interlock and
-    // Meeting Stile positions already cover. Inventing a side would put
-    // a real profile on a real bar.
+    // A SLIDING sash locks on the edge it closes towards, which is
+    // opposite its slide direction: slides left to open -> shuts to the
+    // right -> lock bar on its right edge. The PROFILE differs (the
+    // sliding systems use their own), but that comes from the system's
+    // spec, not from the geometry.
     const slider = make([{ height_mm: 3000, is_auto: false,
                            leaves: [panel(2400, "SLIDER", { slide_dir: "left" })] }],
                         2400, 3000);
-    ok(slider.scene.leaves[0].attach.lock === null,
-       "a slider gets no lock bar, deliberately");
+    const sm = slider.scene.leaves[0].attach.lock;
+    ok(!!sm, "a sliding sash gets a lock mark too");
+    ok(sm.x1 === sm.x2, "slide left -> a VERTICAL mark");
+    near(sm.x1, slider.scene.leaves[0].x + slider.scene.leaves[0].w,
+         "slides left to open -> the mark is on the RIGHT edge");
+
+    const right = make([{ height_mm: 3000, is_auto: false,
+                          leaves: [panel(2400, "SLIDER", { slide_dir: "right" })] }],
+                       2400, 3000);
+    near(right.scene.leaves[0].attach.lock.x1, right.scene.leaves[0].x,
+         "slides right to open -> the mark is on the LEFT edge");
+
+    // Direction not set yet: no side to put it on, and nothing invented.
+    const undecided = make([{ height_mm: 3000, is_auto: false,
+                              leaves: [panel(2400, "SLIDER")] }], 2400, 3000);
+    ok(undecided.scene.leaves[0].attach.lock === null,
+       "a sash with no direction set yet gets no mark");
 }
 
 console.log("\n  the Lock toggle:");
@@ -956,6 +973,14 @@ console.log("\n  the Lock toggle:");
                           leaves: [panel(2400, "FIXED")] }], 2400, 3000);
     fixed.selectLeaf([[0, 0]]);
     ok(!fixed.showLockToggle, "not offered on a fixed light");
+
+    const slider = make([{ height_mm: 3000, is_auto: false,
+                           leaves: [panel(2400, "SLIDER", { slide_dir: "left" })] }],
+                        2400, 3000);
+    slider.selectLeaf([[0, 0]]);
+    ok(slider.showLockToggle, "offered on a sliding sash as well");
+    ok(slider.lockEdgeLabel === "right",
+       "and names the edge it closes towards: right");
 }
 
 console.log("\nSPEC TAB (phase 7c):");

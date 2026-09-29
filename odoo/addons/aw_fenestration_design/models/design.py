@@ -868,10 +868,10 @@ class AwDesign(models.Model):
         if not name:
             raise UserError(_("Give the new specification a name."))
         system = self.window_series_id
-        if not (system and self.profile_section_id and self.hardware_set_id):
+        if not (system and self.profile_section_id):
             raise UserError(_(
-                "This window needs a profile system, a Profile Section "
-                "and a Hardware Set before it can become a spec."))
+                "This window needs a profile system and a Profile "
+                "Section before it can become a spec."))
 
         by_position, by_hardware = self._overrides_by_key()
         source_lines = self.hardware_set_id.line_ids.sorted(
@@ -886,7 +886,11 @@ class AwDesign(models.Model):
                     'thickness_id': change.thickness_id.id,
                 })
 
-        hardware = self.hardware_set_id.copy({'name': name})
+        # A window with no hardware set copies none: the new spec is
+        # as complete as the window it came from, and no more.
+        hardware = (self.hardware_set_id.copy({'name': name})
+                    if self.hardware_set_id
+                    else self.env['aw.hardware.set'])
         # A copied line is NOT the line an override points at, so they
         # are matched back by ORDER -- copy() preserves it. Matching on
         # product instead would break on exactly the sets that carry two
@@ -907,7 +911,7 @@ class AwDesign(models.Model):
             'name': name,
             'window_type_id': system.id,
             'profile_section_id': section.id,
-            'hardware_set_id': hardware.id,
+            'hardware_set_id': hardware.id if hardware else False,
             'glass_spec_id': self.glass_spec_id.id,
             'finish_id': self.finish_id.id,
             'notes': _("Saved from window %s.", self.name or ''),
@@ -915,7 +919,7 @@ class AwDesign(models.Model):
         self.write({
             'template_id': spec.id,
             'profile_section_id': section.id,
-            'hardware_set_id': hardware.id,
+            'hardware_set_id': hardware.id if hardware else False,
         })
         self.override_ids.unlink()
         self._explode()
