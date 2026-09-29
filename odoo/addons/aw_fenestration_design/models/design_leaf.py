@@ -73,6 +73,17 @@ class AwDesignLeaf(models.Model):
     leaf_has_hinge_side = fields.Boolean(related='leaf_type_id.has_hinge_side', readonly=True)
     leaf_has_slide_dir = fields.Boolean(related='leaf_type_id.has_slide_dir', readonly=True)
 
+    # Phase 7d. Default True, and that direction is deliberate: an
+    # opening sash normally locks, so the failure to avoid is a lock bar
+    # silently missing from a cut list. _init_column writes True onto
+    # every existing leaf, which is also what we want.
+    has_lock = fields.Boolean(
+        string='Lock', default=True,
+        help="An opening panel's lock bar, fitted on the lock side "
+             "(opposite the hinge). Untick for a sash with no lock. "
+             "Only has an effect when the Profile Section has a Lock "
+             "Bar line.")
+
     hinge_side = fields.Selection([
         ('left', 'Left'), ('right', 'Right'),
         ('top', 'Top'), ('bottom', 'Bottom'),

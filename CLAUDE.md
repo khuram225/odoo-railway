@@ -453,6 +453,74 @@ from `.git/hooks` by default, which isn't tracked — enable once per clone):
   container's children refitted when a sibling moves, an opening
   redistributed without being resized.
 
+**Specifications (phase 7c). The model is `aw.window.template`; every
+word the user reads says "Specification" / "Spec".** Renaming a model
+rewrites every stored reference and every xmlid for a label, so it was
+not renamed — if you are looking for the Spec, it is `template_id` on
+`aw.design` and `aw.window.template` in core. A spec is one Profile
+Section + one Hardware Set + one Glass Spec, optionally a default
+Finish, `is_default` and `sequence`, per **profile system**. At most one
+default per system, enforced in Python rather than by a partial unique
+index, because the rule involves `active` and an index would fight
+archiving.
+
+`_apply_spec(force=False)` is the whole design of the thing. Running
+BY ITSELF — `_resolve_spec()` on every save, right after
+`_resolve_system()` — it **fills blanks only**, so a Profile Section or
+glass somebody chose deliberately is never overwritten. Reached because
+somebody PICKED a spec, it **overwrites**, because that is what picking
+one means. The finish is filled either way and never forced: a spec's
+finish is a default for a system that happens to be one colour, and the
+design's own finish drives every profile variant in the BOM.
+
+**Per-window changes are `aw.design.override`, and what they key on is
+load-bearing.** A profile override keys on the **PROFILE POSITION**, so
+changing the spec underneath still leaves it pointing at the right slot;
+a hardware override keys on the **hardware set LINE**, because a set can
+legitimately carry two lines for the same product with different
+conditions. A profile override stores a **template plus a thickness,
+never a variant** — the design's finish resolves the variant, exactly as
+the spec's own lines do, so recolouring the window moves the change with
+it instead of stranding it on last week's finish. The client sends no
+thickness when picking a replacement: it cannot know which ones that
+profile is sold in, so the server decides with the same
+`choose_thickness()` the seed uses. Without that, a change would land on
+a thickness the template does not carry and resolve to **no variant at
+all**, silently — the RE bug again, one layer up.
+
+`is_changed`/`change_note` are stored on the BOM LINE, not derived on
+read: the BOM is the record of what was quoted, and an override deleted
+afterwards must not silently rewrite a line that was already priced and
+sent. "Save as new spec" bakes the changes into **copies** of the
+section and hardware set; the originals are never written back, because
+every other quote is built from them. The copied hardware lines are
+matched back to their overrides **by order**, since `copy()` preserves
+it and matching on product breaks on exactly the sets that carry two
+lines for one product.
+
+**The lock bar (phase 7d) sits opposite the hinge**, which covers every
+case in one rule: left→right, right→left, top-hung→bottom,
+bottom-hung→top, tilt & turn→opposite its side hinge. **A slider gets
+none, deliberately** — it has no hinge to be opposite, and what it locks
+against is the meeting stile, which the Interlock and Meeting Stile
+positions already put in the cut list. Inventing a side would put a real
+profile on a real bar. [revisit if the client wants one]
+
+`pos_lock_bar` has **no `edge`**, and that is what makes one piece
+rather than a pair: which side is a per-panel decision, not a property
+of the position. It is `is_required = False`, so a system without one
+does not warn on every opening panel. The new formula variable **`LS` is
+the sash profile length already generated for that panel's lock side**,
+read from the same section line the panel's own stile comes from — NOT
+`PH`. The stile is the panel less the section's own deduction, so
+`0.8 * PH` and `0.8 * LS` differ by 8mm on a 1m sash, and the lock bar
+is specified as a fraction of the stile it is fitted to.
+
+Because the lock bar's position is scope `panel_opening` like the
+sash profiles, `_explode_panel` **skips it in the normal loop** and
+handles it separately — otherwise it would be generated on every
+opening panel with `LS = 0`, i.e. a zero-length piece.
+
 **The right-hand column is tabs (Panel | BOM | Pricing | Checks), not
 four stacked collapsibles.** It is ~260px wide and each section had a
 hard `max-height`, so four things competed for one column and none of
@@ -846,17 +914,30 @@ scripts/check_act_window_views.py && python scripts/check_load_order.py`.
   A read-only list with no parent record to read (a top-level list
   view, or an embedded one whose parent lacks the field) can't switch
   columns at all — give it one preformatted column instead, the way
-  `aw.design.size_display` handles unit switching.
-- **Two fields on one model may not share a `string=`.** Odoo's
-  `_reflect_fields` logs *"Two fields (a, b) of model have the same
-  label"* on every registry load, and the ambiguity is real wherever
-  fields are listed by name — export, filters, a field picker. It bit
-  three pairs here: `width_inch_total`/`width_in` (the whole ft+in
-  written as one number vs. the INCHES PART of the pair) → "Width
-  (total in)", the same for height, and `bars_summary`/`bar_ids` on
-  `aw.cut.plan.group` → "Bar mix", since one is the mix
-  ("3 x 16 ft, 2 x 14 ft") and the other is the bars themselves. The
-  warning comes from the FIELD definitions, not the views, so a
-  `string=` override in a view neither causes it nor fixes it — and
-  those overrides are worth keeping where only one of the pair is
+  `aw.design.size_display` handles unit switching.
+
+- **Two fields on one model may not share a `string=`.** Odoo's
+
+  `_reflect_fields` logs *"Two fields (a, b) of model have the same
+
+  label"* on every registry load, and the ambiguity is real wherever
+
+  fields are listed by name — export, filters, a field picker. It bit
+
+  three pairs here: `width_inch_total`/`width_in` (the whole ft+in
+
+  written as one number vs. the INCHES PART of the pair) → "Width
+
+  (total in)", the same for height, and `bars_summary`/`bar_ids` on
+
+  `aw.cut.plan.group` → "Bar mix", since one is the mix
+
+  ("3 x 16 ft, 2 x 14 ft") and the other is the bars themselves. The
+
+  warning comes from the FIELD definitions, not the views, so a
+
+  `string=` override in a view neither causes it nor fixes it — and
+
+  those overrides are worth keeping where only one of the pair is
+
   ever visible at a time.

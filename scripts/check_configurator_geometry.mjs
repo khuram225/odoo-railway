@@ -873,7 +873,7 @@ console.log("\nRIGHT-HAND TABS:");
     const c = make([{ height_mm: 3000, is_auto: false,
                       leaves: [panel(2400, "FIXED")] }], 2400, 3000);
     c.state.rightTab = "panel";
-    ok(c.rightTabs.map((t) => t.key).join(",") === "panel,bom,checks",
+    ok(c.rightTabs.map((t) => t.key).join(",") === "panel,spec,bom,checks",
        "Pricing is not offered on a design that has none");
     ok(c.activeRightTab === "panel", "panel is the active tab");
 
@@ -901,6 +901,101 @@ console.log("\nRIGHT-HAND TABS:");
     c.setRightTab("bom");
     ok(c.activeRightTab === "bom",
        "the user can still look away from a standing error");
+}
+
+// ---------------------------------------------------------------------
+console.log("\nLOCK BAR (phase 7d): opposite the hinge, opening sashes only");
+{
+    const c = make([{ height_mm: 3000, is_auto: false, leaves: [
+        panel(800, "CASEMENT", { hinge_side: "left", swing: "out" }),
+        panel(800, "CASEMENT", { hinge_side: "top", swing: "out" }),
+        panel(800, "FIXED"),
+    ] }], 2400, 3000);
+
+    const marks = c.scene.leaves.map((l) => l.attach.lock);
+    ok(!!marks[0], "a hinged sash gets a lock mark");
+    ok(marks[0].x1 === marks[0].x2, "hinge left -> a VERTICAL mark");
+    near(marks[0].x1, c.scene.leaves[0].x + c.scene.leaves[0].w,
+         "hinge left -> the mark is on the RIGHT edge");
+
+    ok(!!marks[1], "a top-hung sash gets one too");
+    ok(marks[1].y1 === marks[1].y2, "top-hung -> a HORIZONTAL mark");
+    near(marks[1].y1, c.scene.leaves[1].y + c.scene.leaves[1].h,
+         "top-hung -> the mark is along the BOTTOM edge");
+
+    ok(marks[2] === null, "a fixed light has no lock side, so no mark");
+
+    // A slider locks against its meeting stile, which the Interlock and
+    // Meeting Stile positions already cover. Inventing a side would put
+    // a real profile on a real bar.
+    const slider = make([{ height_mm: 3000, is_auto: false,
+                           leaves: [panel(2400, "SLIDER", { slide_dir: "left" })] }],
+                        2400, 3000);
+    ok(slider.scene.leaves[0].attach.lock === null,
+       "a slider gets no lock bar, deliberately");
+}
+
+console.log("\n  the Lock toggle:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false,
+                      leaves: [panel(2400, "CASEMENT", { hinge_side: "left" })] }],
+                   2400, 3000);
+    c.selectLeaf([[0, 0]]);
+    ok(c.showLockToggle, "offered on a hinged sash");
+    ok(c.panelHasLock, "an absent has_lock reads as ON, as the server holds");
+    ok(c.lockEdgeLabel === "right", "and it says which side: right");
+
+    c.toggleLock();
+    ok(c.state.data.rows[0].leaves[0].has_lock === false, "toggled off");
+    ok(c.scene.leaves[0].attach.lock === null, "so the mark goes");
+    ok(c.state.dirty, "and the design is dirty");
+    c.toggleLock();
+    ok(c.panelHasLock, "and back on again");
+
+    const fixed = make([{ height_mm: 3000, is_auto: false,
+                          leaves: [panel(2400, "FIXED")] }], 2400, 3000);
+    fixed.selectLeaf([[0, 0]]);
+    ok(!fixed.showLockToggle, "not offered on a fixed light");
+}
+
+console.log("\nSPEC TAB (phase 7c):");
+{
+    const c = make([{ height_mm: 3000, is_auto: false,
+                      leaves: [panel(2400, "CASEMENT")] }], 2400, 3000);
+    c.state.data.spec_options = [{ id: 7, name: "RE spec", is_default: true }];
+    c.state.data.header.template_id = 7;
+    c.state.data.header.template_name = "RE spec";
+    c.state.data.spec_parts = {
+        profiles: [
+            { position_id: 1, position_name: "Outer Frame - Top",
+              product_name: "RE-8", spec_name: "RE-8", changed: false },
+            { position_id: 2, position_name: "Lock Bar",
+              product_name: "RE-27", spec_name: "RE-13", changed: true },
+        ],
+        hardware: [
+            { line_id: 5, line_name: "Handle", product_name: "Handle",
+              spec_name: "Handle", qty: 1, changed: false },
+        ],
+    };
+
+    ok(c.specName === "RE spec", "the header names the spec");
+    ok(!c.showSpecPicker, "one spec is not a choice, so no dropdown");
+    c.state.data.spec_options.push({ id: 8, name: "Heavy duty" });
+    ok(c.showSpecPicker, "two specs -> a dropdown");
+
+    ok(c.changeCount === 1, "one part differs from the spec");
+    const tab = c.rightTabs.find((t) => t.key === "spec");
+    ok(tab.badge === 1, "the Spec tab badges the change count");
+    ok(!tab.danger, "a change is not an error, so the badge is not red");
+
+    ok(c.sourceLabel(c.specProfiles[0]) === "spec", "unchanged part: spec");
+    ok(c.sourceLabel(c.specProfiles[1]) === "changed", "changed part: changed");
+
+    ok(!c.canSaveAsSpec, "no name typed, so Save as new spec is disabled");
+    c.state.specName = "  RE heavy  ";
+    ok(c.canSaveAsSpec, "a name enables it");
+    c.state.specName = "   ";
+    ok(!c.canSaveAsSpec, "whitespace is not a name");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

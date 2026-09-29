@@ -54,7 +54,7 @@
               sequence="40"/>
 
     <menuitem id="menu_aw_window_template"
-              name="Window Templates"
+              name="Specifications"
               parent="menu_aw_fenestration_master_data"
               action="action_aw_window_template"
               sequence="50"/>

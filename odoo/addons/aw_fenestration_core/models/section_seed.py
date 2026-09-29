@@ -12,9 +12,9 @@ product lookup:
   the six need it today; the fallback is there because the next section
   the client sends may.
 
-RE-13 is deliberately NOT placed: the client listed it without saying
-where it goes. Guessing a position would put a real profile into a real
-cut list. Marked [revisit] in the spec.
+RE-13 is the LOCK BAR, confirmed in Phase 7d. It was listed without a
+position originally and deliberately left unplaced rather than guessed;
+now that the client has said where it goes, it is seeded like the rest.
 
 **The thickness has to come from the product, not from a preference.**
 This section originally seeded every line with 'Normal', and the price
@@ -67,7 +67,15 @@ SECTION_LINES = {
     'pos_palay_bead_top': [('RE-10', 10, '', 0.0)],
     'pos_palay_bead_bottom': [('RE-10', 10, '', 0.0)],
     'pos_palay_bead_sides': [('RE-10', 10, '', 0.0)],
+    # Phase 7d. One piece, on the lock side of an opening panel.
+    'pos_lock_bar': [('RE-13', 10, '', 0.0)],
 }
+
+# The specification seeded over that section (phase 7c). "Spec" is the
+# user-facing word for aw.window.template throughout.
+SPEC_NAME = 'Double Glaze – Openable – RE spec'
+SPEC_GLASS_XMLID = 'glass_spec_dgu_24'
+SPEC_SEEDED_PARAM = 'aw_fenestration.spec_dg_openable_seeded'
 
 
 class AwProfileSection(models.Model):
@@ -171,6 +179,123 @@ class AwProfileSection(models.Model):
         return True
 
     @api.model
+    def _sections_by_seed_name(self):
+        """The seeded section, under either spelling it has had."""
+        return self.with_context(active_test=False).search(
+            [('name', 'in', (SECTION_NAME, SECTION_NAME_FIXED))])
+
+    @api.model
+    def _seed_lock_bar_line(self):
+        """Add the Lock Bar line to a section seeded before phase 7d.
+
+        Separate from _seed_dg_openable_section because that one is
+        guarded by a parameter and has long since run everywhere: the
+        section exists, and adding a line to it is a different job from
+        creating it. Fill-only-if-absent, so a lock bar somebody has
+        already chosen is never replaced.
+        """
+        position = self.env.ref(
+            'aw_fenestration_core.pos_lock_bar', raise_if_not_found=False)
+        if not position:
+            return False
+        added = []
+        for section in self._sections_by_seed_name():
+            if section.line_ids.filtered(
+                    lambda l, p=position: l.position_id == p):
+                continue
+            template = self._find_profile_template('RE-13')
+            if not template:
+                _logger.warning(
+                    "aw_fenestration_core: no RE-13 to seed as the lock "
+                    "bar of '%s'", section.name)
+                continue
+            thickness, warning = self._seed_thickness_for(
+                template,
+                self.env.ref(
+                    'aw_fenestration_core.aw_attr_val_thickness_standard',
+                    raise_if_not_found=False))
+            if warning:
+                _logger.warning("aw_fenestration_core: %s", warning)
+            # The finish the rest of the section already uses, rather
+            # than a fresh guess -- the design overrides it anyway, but
+            # a line whose finish disagrees with its neighbours looks
+            # like a mistake on the form.
+            finish = section.line_ids[:1].finish_id or self.env.ref(
+                'aw_fenestration_core.aw_attr_val_finish_natural',
+                raise_if_not_found=False)
+            self.env['aw.profile.section.line'].create({
+                'section_id': section.id,
+                'position_id': position.id,
+                'product_tmpl_id': template.id,
+                'thickness_id': thickness.id if thickness else False,
+                'finish_id': finish.id if finish else False,
+                'sequence': 150,
+            })
+            added.append(section.name)
+        if added:
+            _logger.info(
+                "aw_fenestration_core: seeded a Lock Bar line into %s",
+                '; '.join(added))
+        return bool(added)
+
+    @api.model
+    def _seed_dg_openable_spec(self):
+        """The RE specification over the RE set, once.
+
+        A spec needs a hardware set, which is required on the model and
+        which nothing seeds -- this module has never shipped one, by
+        design (no hardware list has been given). So this takes the
+        system's own first hardware set and does NOTHING if there is
+        none, rather than creating an empty one just to satisfy a
+        required field: an empty hardware set would quietly put zero
+        hardware into every quote and look configured while doing it.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(SPEC_SEEDED_PARAM):
+            return False
+
+        series = self.env.ref(
+            'aw_fenestration_core.%s' % SECTION_SERIES_XMLID,
+            raise_if_not_found=False)
+        section = self._sections_by_seed_name().filtered(
+            lambda s, r=series: s.window_type_id == r)[:1]
+        glass = self.env.ref(
+            'aw_fenestration_core.%s' % SPEC_GLASS_XMLID,
+            raise_if_not_found=False)
+        if not (series and section and glass):
+            return False
+
+        Spec = self.env['aw.window.template']
+        if Spec.with_context(active_test=False).search_count(
+                [('name', '=', SPEC_NAME),
+                 ('window_type_id', '=', series.id)]):
+            param.set_param(SPEC_SEEDED_PARAM, '1')
+            return False
+
+        hardware = series.hardware_set_ids[:1]
+        if not hardware:
+            _logger.warning(
+                "aw_fenestration_core: '%s' not seeded -- %s has no "
+                "Hardware Set, and a specification requires one. Add a "
+                "Hardware Set and upgrade again.",
+                SPEC_NAME, series.display_name)
+            return False
+
+        Spec.create({
+            'name': SPEC_NAME,
+            'window_type_id': series.id,
+            'profile_section_id': section.id,
+            'hardware_set_id': hardware.id,
+            'glass_spec_id': glass.id,
+            'is_default': not Spec.search_count([
+                ('window_type_id', '=', series.id),
+                ('is_default', '=', True)]),
+            'notes': "Seeded in phase 7c: the RE set plus 24mm DGU.",
+        })
+        param.set_param(SPEC_SEEDED_PARAM, '1')
+        return True
+
+    @api.model
     def _seed_dg_openable_section(self):
         """Create the section once, and report anything not found."""
         param = self.env['ir.config_parameter'].sudo()
@@ -234,8 +359,7 @@ class AwProfileSection(models.Model):
                 'window_type_id': series.id,
                 'line_ids': lines,
                 'notes': "Seeded from the client's Profile 1 breakdown. "
-                         "RE-13 was listed without a position and is "
-                         "deliberately not placed.",
+                         "RE-13 is the lock bar (phase 7d).",
             })
         if missing:
             _logger.warning(

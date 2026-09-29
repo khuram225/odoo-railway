@@ -12,6 +12,7 @@ import { useService } from "@web/core/utils/hooks";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
+import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
 
 const MM_PER_IN = 25.4;
@@ -102,9 +103,10 @@ const STORE_RIGHT_TAB = "aw_cfg_right_tab";
 const RIGHT_SECTIONS = ["panel", "infill", "mesh", "grid"];
 
 /** Right-hand tabs, in the order they appear. */
-const RIGHT_TABS = ["panel", "bom", "pricing", "checks"];
+const RIGHT_TABS = ["panel", "spec", "bom", "pricing", "checks"];
 const RIGHT_TAB_LABELS = {
     panel: "Panel",
+    spec: "Spec",
     bom: "BOM",
     pricing: "Pricing",
     checks: "Checks",
@@ -192,6 +194,10 @@ export class DesignConfigurator extends Component {
             paneRight: loadPaneWidth("right", 260),
             collapsed: loadCollapsed(),
             rightTab: loadRightTab(),
+            // The name being typed for "Save as new spec". Not in
+            // localStorage: it belongs to one unfinished action, not to
+            // the user's preferences.
+            specName: "",
             canvasW: 0,
             canvasH: 0,
             libraryOpen: true,
@@ -493,7 +499,9 @@ export class DesignConfigurator extends Component {
                 label: RIGHT_TAB_LABELS[key],
                 // Only Checks carries a count. A zero badge is noise:
                 // the tab body already says "Nothing to report".
-                badge: key === "checks" && total ? total : 0,
+                badge: (key === "checks" && total)
+                    || (key === "spec" && this.changeCount)
+                    || 0,
                 danger: key === "checks" && errors > 0,
             })
         );
@@ -627,6 +635,176 @@ export class DesignConfigurator extends Component {
 
     get glassSpecOptions() {
         return this.state.data?.glass_specs || [];
+    }
+
+    // -- specification (phase 7c) ------------------------------------
+    get specOptions() {
+        return this.state.data?.spec_options || [];
+    }
+
+    get specName() {
+        return this.state.data?.header?.template_name || "";
+    }
+
+    /** A dropdown only when there is more than one to choose from. */
+    get showSpecPicker() {
+        return this.specOptions.length > 1;
+    }
+
+    get specProfiles() {
+        return this.state.data?.spec_parts?.profiles || [];
+    }
+
+    get specHardware() {
+        return this.state.data?.spec_parts?.hardware || [];
+    }
+
+    get changeCount() {
+        return (
+            this.specProfiles.filter((row) => row.changed).length +
+            this.specHardware.filter((row) => row.changed).length
+        );
+    }
+
+    /**
+     * Switching spec asks about the per-window changes rather than
+     * deciding for the user.
+     *
+     * A change made for one window ("this one takes the heavier
+     * mullion") is usually still wanted after a spec switch; a change
+     * that was really a correction to the OLD spec is not. Only the
+     * person who made it knows which, and silently picking either way
+     * loses work or quotes the wrong thing.
+     */
+    async onSpecChange(ev) {
+        const id = parseInt(ev.target.value, 10);
+        if (Number.isNaN(id) || id === this.state.data.header.template_id) {
+            return;
+        }
+        if (!this.changeCount) {
+            await this.applySpec(id, true);
+            return;
+        }
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Changes for this window"),
+            body: _t(
+                "This window has %s change(s) of its own. Keep them on top " +
+                    "of the new specification, or discard them and take the " +
+                    "new spec as it stands?",
+                this.changeCount
+            ),
+            confirmLabel: _t("Keep the changes"),
+            confirm: () => this.applySpec(id, true),
+            cancelLabel: _t("Discard them"),
+            cancel: () => this.applySpec(id, false),
+        });
+    }
+
+    async applySpec(specId, keepChanges) {
+        this.state.data = await this.orm.call("aw.design", "set_spec", [
+            [this.designId],
+            specId,
+            keepChanges,
+        ]);
+        this.surfaceCheckErrors();
+    }
+
+    /** Whether a part is showing the spec's answer or this window's. */
+    sourceLabel(row) {
+        return row.changed ? _t("changed") : _t("spec");
+    }
+
+    /**
+     * Pick a replacement for one part.
+     *
+     * The picker is a plain act_window on the product model, filtered to
+     * the right category by a domain, rather than a list built into the
+     * payload: there are 491 profiles and the point of the change is
+     * that it could be any of them. `views` is declared because this
+     * action is fetched through orm.call, which does no cleaning -- see
+     * check_act_window_views.py.
+     */
+    changePart(row, kind) {
+        const isProfile = kind === "profile";
+        this.dialog.add(SelectCreateDialog, {
+            resModel: isProfile ? "product.template" : "product.product",
+            title: isProfile
+                ? _t("Choose a profile for %s", row.position_name)
+                : _t("Choose hardware for %s", row.line_name),
+            noCreate: true,
+            multiSelect: false,
+            domain: isProfile
+                ? [["categ_id", "child_of", this.profileCategoryId]]
+                : [["categ_id", "child_of", this.hardwareCategoryId]],
+            onSelected: (ids) => this.saveOverride(row, kind, ids[0]),
+        });
+    }
+
+    get profileCategoryId() {
+        return this.state.data?.categories?.profiles || 0;
+    }
+
+    get hardwareCategoryId() {
+        return this.state.data?.categories?.hardware || 0;
+    }
+
+    async saveOverride(row, kind, productId) {
+        const values =
+            kind === "profile"
+                ? {
+                      kind: "profile",
+                      position_id: row.position_id,
+                      product_tmpl_id: productId,
+                      // No thickness: the server resolves the one the
+                      // chosen profile is actually sold in, the same way
+                      // the seed does, so a change cannot land on a
+                      // thickness that makes no variant.
+                  }
+                : {
+                      kind: "hardware",
+                      line_id: row.line_id,
+                      product_id: productId,
+                      qty: row.qty,
+                  };
+        this.state.data = await this.orm.call("aw.design", "set_override", [
+            [this.designId],
+            values,
+        ]);
+        this.surfaceCheckErrors();
+    }
+
+    async resetPart(row, kind) {
+        this.state.data = await this.orm.call("aw.design", "clear_override", [
+            [this.designId],
+            kind === "profile"
+                ? { kind: "profile", position_id: row.position_id }
+                : { kind: "hardware", line_id: row.line_id },
+        ]);
+        this.surfaceCheckErrors();
+    }
+
+    /** Turn this window's parts, changes included, into a new spec. */
+    get canSaveAsSpec() {
+        return !!(this.state.specName || "").trim();
+    }
+
+    onSpecNameInput(ev) {
+        this.state.specName = ev.target.value;
+    }
+
+    async saveAsSpec() {
+        const name = (this.state.specName || "").trim();
+        if (!name) {
+            return;
+        }
+        this.state.data = await this.orm.call("aw.design", "save_as_spec", [
+            [this.designId],
+            name,
+        ]);
+        this.state.specName = "";
+        this.notification.add(_t("Saved as a new specification."), {
+            type: "success",
+        });
     }
 
     get finishOptions() {
@@ -1093,6 +1271,51 @@ export class DesignConfigurator extends Component {
      */
     get splitCounts() {
         return [2, 3, 4];
+    }
+
+    /**
+     * The lock bar on the selected panel.
+     *
+     * Only meaningful on an opening sash: the lock sits opposite the
+     * hinge, so a fixed light has no side for it and a slider locks
+     * against its meeting stile instead (see _lock_edge on the server).
+     */
+    get showLockToggle() {
+        const type = this.selectedLeafType;
+        return !!type && type.has_hinge_side;
+    }
+
+    get panelHasLock() {
+        // Absent means yes: an opening sash locks unless somebody says
+        // otherwise, which is the same default the server holds.
+        const panel = this.selectedPanel;
+        return !panel || panel.has_lock !== false;
+    }
+
+    /**
+     * Which side the lock bar lands on, in words.
+     *
+     * Kept in step with _lock_edge() on the server by being the same
+     * rule: opposite the hinge. Written out here so the toggle says
+     * what it will do rather than leaving the reader to derive it.
+     */
+    get lockEdgeLabel() {
+        const opposite = {
+            left: "right",
+            right: "left",
+            top: "bottom",
+            bottom: "top",
+        };
+        return opposite[this.selectedPanel?.hinge_side || ""] || "lock";
+    }
+
+    toggleLock() {
+        const panel = this.selectedPanel;
+        if (!panel) {
+            return;
+        }
+        panel.has_lock = !this.panelHasLock;
+        this.state.dirty = true;
     }
 
     get canSplit() {
@@ -1992,6 +2215,44 @@ export class DesignConfigurator extends Component {
     }
 
     /**
+     * The lock mark: a short bar on the sash's lock side.
+     *
+     * Returns null for anything that has no lock bar -- a fixed light,
+     * a slider (which locks against its meeting stile, see _lock_edge
+     * on the server), or a sash whose Lock has been turned off. Same
+     * rule as lockEdgeLabel and as the server, deliberately: three
+     * places drawing three different conclusions from one hinge would
+     * be worse than the duplication.
+     */
+    lockMark(x, y, w, h, leaf) {
+        if (leaf.has_lock === false) {
+            return null;
+        }
+        const edge = {
+            left: "right",
+            right: "left",
+            top: "bottom",
+            bottom: "top",
+        }[leaf.hinge_side || ""];
+        if (!edge) {
+            return null;
+        }
+        // A fifth of the edge, centred on it, inset so it reads as
+        // fitted to the sash rather than drawn over the frame.
+        if (edge === "left" || edge === "right") {
+            const cx = edge === "left" ? x : x + w;
+            return {
+                x1: cx,
+                x2: cx,
+                y1: y + h * 0.4,
+                y2: y + h * 0.6,
+            };
+        }
+        const cy = edge === "top" ? y : y + h;
+        return { x1: x + w * 0.4, x2: x + w * 0.6, y1: cy, y2: cy };
+    }
+
+    /**
      * Where a panel's mesh, infill and grid are drawn (spec 5.5).
      *
      * Geometry only: every stroke width and font size comes from the
@@ -2005,7 +2266,15 @@ export class DesignConfigurator extends Component {
             meshBadge: null,
             infill: null,
             grid: null,
+            lock: null,
         };
+
+        // A small mark on the lock side, so the drawing shows which
+        // edge the lock bar is on rather than leaving the reader to
+        // derive "opposite the hinge". Geometry only -- its stroke and
+        // size come from the adornment layer, per the layering rule
+        // above.
+        out.lock = this.lockMark(x, y, w, h, leaf);
 
         if (leaf.mesh_type_id) {
             out.meshOverlay = { x, y, w, h };
@@ -2378,6 +2647,9 @@ export class DesignConfigurator extends Component {
             louvreStroke: 1.1 * upp,
             fanStroke: 1.2 * upp,
             gridStroke: 2 * upp,
+            // The lock mark reads as a fitting, so it is the heaviest
+            // of the attachment strokes -- still screen-constant.
+            lockStroke: 3 * upp,
             badgeFontSmall: 8 * upp,
             glyphDash: `${4 * upp} ${3 * upp}`,
             glyphFont: 10 * upp,

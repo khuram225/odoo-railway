@@ -1,16 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!-- The model is aw.window.template and stays that way; everything
+         the user reads says "Specification" / "Spec". Renaming a model
+         rewrites every stored reference and every xmlid for a label. -->
+
     <record id="view_aw_window_template_list" model="ir.ui.view">
         <field name="name">aw.window.template.list</field>
         <field name="model">aw.window.template</field>
         <field name="arch" type="xml">
             <list>
-                <field name="window_type_id"/>
+                <field name="sequence" widget="handle"/>
+                <field name="window_type_id" string="Profile System"/>
                 <field name="name"/>
+                <field name="is_default" widget="boolean_toggle"/>
                 <field name="profile_section_id"/>
                 <field name="hardware_set_id"/>
                 <field name="glass_spec_id"/>
+                <field name="finish_id" optional="hide"/>
             </list>
         </field>
     </record>
@@ -23,16 +30,21 @@
                 <sheet>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
+                    <widget name="web_ribbon" title="Default" bg_color="text-bg-success"
+                            invisible="not is_default"/>
                     <group>
                         <group>
-                            <field name="window_type_id"/>
-                            <field name="name"/>
+                            <field name="window_type_id" string="Profile System"/>
+                            <field name="name" placeholder="e.g. Double Glaze - Openable - RE spec"/>
                             <field name="code"/>
+                            <field name="is_default"/>
+                            <field name="sequence"/>
                         </group>
                         <group>
                             <field name="profile_section_id"/>
                             <field name="hardware_set_id"/>
                             <field name="glass_spec_id"/>
+                            <field name="finish_id"/>
                         </group>
                     </group>
                     <group>
@@ -45,14 +57,36 @@
         </field>
     </record>
 
+    <record id="view_aw_window_template_search" model="ir.ui.view">
+        <field name="name">aw.window.template.search</field>
+        <field name="model">aw.window.template</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="window_type_id" string="Profile System"/>
+                <filter name="filter_default" string="Default"
+                        domain="[('is_default', '=', True)]"/>
+                <filter name="filter_archived" string="Archived"
+                        domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_system" string="Profile System"
+                            context="{'group_by': 'window_type_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <record id="action_aw_window_template" model="ir.actions.act_window">
-        <field name="name">Window Templates</field>
+        <field name="name">Specifications</field>
         <field name="res_model">aw.window.template</field>
         <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_aw_window_template_search"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first Window Template</p>
-            <p>A Template assembles one Profile Section + one Hardware Set + one Glass
-               Spec for a Series. This is what a quote position starts from.</p>
+            <p class="o_view_nocontent_smiling_face">Create your first Specification</p>
+            <p>A Spec assembles one Profile Section + one Hardware Set + one Glass
+               Spec for a profile system, and optionally a default finish. A design
+               starts from its system's default spec, and anything changed on one
+               window afterwards is recorded against that window alone.</p>
         </field>
     </record>
 

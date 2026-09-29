@@ -750,6 +750,60 @@ wrong, since RE-1 is a prefix of RE-10 through RE-16 and RE-127. The
 price list's "M.F" spelling is a documented fallback (none of these six
 need it).
 
+### Phase 7c — Specifications and per-window changes
+
+A **Specification** ("Spec") is what a window is normally made of: one
+Profile Section, one Hardware Set, one Glass Spec, and optionally a
+default Finish, for one profile system. One spec per system is the
+default, and that is the one a new design starts from. Menu:
+Fenestration > Master Data > Specifications (managers edit).
+
+Seeded: **Double Glaze – Openable – RE spec** — the RE set section plus
+24mm DGU, marked default. It needs a Hardware Set, which this module has
+never shipped because no hardware list has been given; if the system has
+none the seed **warns and does nothing** rather than creating an empty
+set, which would put zero hardware into every quote while looking
+configured. Add a Hardware Set and upgrade again.
+
+The spec is applied when the profile system is resolved, and **never
+overwrites a part already chosen by hand**. Changing spec re-fills the
+three parts and asks whether to keep or discard the per-window changes,
+because a change made for one window is sometimes still wanted and
+sometimes was really a correction to the old spec, and only the person
+who made it knows which.
+
+**Per-window changes** live on the new Spec tab in the configurator:
+the three parts as dropdowns, then every profile position and hardware
+line with its effective product and whether that is the spec's answer
+or this window's, each with Change and Reset. Changed BOM lines and the
+shop drawing both say "changed for this window". Divider Economy /
+Heavy duty stays per divider as before — it is a choice between
+alternates the section already offers, not a change to the spec.
+"Save as new spec" copies the section and hardware set with the changes
+applied into a new spec for the same system.
+
+Editing a spec affects designs when they are next saved; confirmed or
+sent quotes are never re-exploded automatically.
+
+### Phase 7d — Lock bar
+
+Position **Lock Bar**, on opening panels, on the lock side = **opposite
+the hinge**: hinge left → right side, right → left, top-hung → bottom,
+bottom-hung → top, tilt & turn → opposite its side hinge. New formula
+variable **LS** = the sash profile length on the lock side. Default
+length `0.8 * LS`, angle 90, quantity 1, generated only when the panel's
+**Lock** is on (Panel tab toggle, default on; a small lock mark appears
+on the drawing). **RE-13 Standard** is the RE set's lock bar — it was
+the profile the client listed without a position back in phase 4, and
+this is where it goes. Each spec defines its own lock bar, because each
+spec points at its own Profile Section.
+
+**A sliding sash gets no lock bar** and that is a decision, not an
+omission: a slider has no hinge to be opposite, and what it locks
+against is the meeting stile, which the Interlock and Meeting Stile
+positions already put in the cut list. [revisit] — confirm with the
+client whether a sliding sash needs a separate lock bar.
+
 **Thickness comes from the product, not from a preference.** The first
 version of this seed put `Normal` on every line, and the price list
 sells all six RE- profiles only in `Std` → `Standard`. Thickness is a

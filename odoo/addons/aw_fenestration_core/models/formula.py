@@ -21,6 +21,13 @@ VARIABLES = {
     'CH': 'height of the container the panel sits in',
     'N': 'panels in the row',
     'T': 'tracks (sliding)',
+    # Only meaningful on a panel: the length of the SASH profile piece
+    # already generated for this panel's lock side. The lock bar is
+    # specified as a fraction of the stile it is fitted to, so it has
+    # to be that piece's length and not PH -- the stile is PH less the
+    # section's own deduction, and 0.8 of the wrong one is 8mm out on
+    # a 1m sash. Zero anywhere a panel has no lock side.
+    'LS': 'sash length on the lock side',
 }
 
 FUNCTIONS = {

@@ -76,7 +76,7 @@ class AwDesign(models.Model):
     # ------------------------------------------------------------------
     def _formula_context(self, panel_w=0.0, panel_h=0.0,
                          container_w=0.0, container_h=0.0,
-                         panels_in_row=1, tracks=1):
+                         panels_in_row=1, tracks=1, lock_side_mm=0.0):
         """The variables a formula may use (spec 6.1). One builder, so a
         formula means the same thing wherever it is evaluated."""
         self.ensure_one()
@@ -89,6 +89,10 @@ class AwDesign(models.Model):
             'CH': container_h or (self.height_mm or 0.0),
             'N': panels_in_row,
             'T': tracks,
+            # Zero everywhere except a lock bar's own evaluation: no
+            # other formula has a lock side, and a stale LS from a
+            # previous panel would be worse than nothing.
+            'LS': lock_side_mm,
         }
 
     # ------------------------------------------------------------------
@@ -116,12 +120,42 @@ class AwDesign(models.Model):
             by_scope.setdefault(line.position_id.scope, []).append(line)
         return by_scope
 
+    def _overrides_by_key(self):
+        """This window's changes, keyed by what each one replaces.
+
+        Built once per explosion and passed nowhere: the walk asks for
+        it per line, and a design has a handful of overrides at most.
+        Profiles are keyed by POSITION and hardware by LINE -- see
+        override.py for why those and not the products.
+        """
+        self.ensure_one()
+        by_position, by_hardware = {}, {}
+        for change in self.override_ids:
+            if change.kind == 'profile' and change.position_id:
+                by_position[change.position_id.id] = change
+            elif change.kind == 'hardware' and change.hardware_line_id:
+                by_hardware[change.hardware_line_id.id] = change
+        return by_position, by_hardware
+
     def _profile_variant(self, line):
         """Spec addition B: template and thickness come from the section
-        line, finish from the DESIGN, falling back to the line's own."""
+        line, finish from the DESIGN, falling back to the line's own.
+
+        Phase 7c: a change recorded for this window replaces the
+        line's template and thickness. The finish is deliberately NOT
+        part of an override -- it is a property of the window, so a
+        changed profile follows the window's colour like every other.
+        """
+        change = self._overrides_by_key()[0].get(line.position_id.id)
+        if change:
+            return change._profile_variant_for(self)
         finish = self.finish_id or line.finish_id
         return self.env['aw.profile.section.line']._variant_for(
             line.product_tmpl_id, line.thickness_id, finish)
+
+    def _profile_change(self, line):
+        """The change replacing this profile line, if any."""
+        return self._overrides_by_key()[0].get(line.position_id.id)
 
     def _profile_variant_problem(self, line):
         """Why _profile_variant found nothing, in words the reader can
@@ -160,6 +194,7 @@ class AwDesign(models.Model):
             spec = [(length_w, 1, (0,))]
 
         product = self._profile_variant(line)
+        change = self._profile_change(line)
         # Worked out once per section line rather than per piece: four
         # frame members share one line, and they would all give the
         # same answer.
@@ -183,6 +218,8 @@ class AwDesign(models.Model):
                     'position_id': position.id,
                     'missing_product': not product,
                     'missing_product_reason': reason,
+                    'is_changed': bool(change),
+                    'change_note': change.note if change else '',
                     '_order': (
                         self._piece_rank(position.scope),
                         panel_no,
@@ -295,9 +332,18 @@ class AwDesign(models.Model):
         else:
             scope = 'panel_fixed'
         demand[scope] = demand.get(scope, 0) + 1
+        lock_position = self._lock_bar_position()
         for line in by_scope.get(scope, []):
+            # The lock bar is in this scope but is not one of the panel's
+            # four sides: it sits on ONE edge, decided per panel, and
+            # only when the panel is locked. Handled below so it is not
+            # generated with LS = 0 on every opening panel.
+            if lock_position and line.position_id == lock_position:
+                continue
             out.extend(self._profile_pieces(
                 line, context, label, leaf.panel_no))
+        if scope == 'panel_opening':
+            out.extend(self._lock_bar_pieces(leaf, by_scope, context, label))
 
         # Attached mesh brings its own surround plus its own lines.
         if leaf.mesh_type_id:
@@ -367,6 +413,91 @@ class AwDesign(models.Model):
             out.extend(self._hardware_line(
                 line, context, label, leaf.panel_no))
 
+    # ------------------------------------------------------------------
+    # lock bar (phase 7d)
+    # ------------------------------------------------------------------
+    def _lock_bar_position(self):
+        """The Lock Bar position, or nothing on a database without it."""
+        return self.env.ref(
+            'aw_fenestration_core.pos_lock_bar', raise_if_not_found=False)
+
+    @staticmethod
+    def _lock_edge(leaf):
+        """Which edge of the sash the lock is on: opposite the hinge.
+
+        Hinge left -> the lock is on the right, and so on round. A
+        top-hung sash locks at the bottom, a bottom-hung one at the top,
+        and a tilt & turn locks opposite its side hinge -- all of which
+        is the same rule, so it is written once.
+
+        A SLIDING sash gets no lock bar and that is deliberate, not an
+        omission: a slider has no hinge to be opposite, and what it
+        locks against is the meeting stile, which the Interlock and
+        Meeting Stile positions already put in the cut list. Inventing
+        a side would put a real profile on a real bar. [revisit]
+        """
+        return {
+            'left': 'right', 'right': 'left',
+            'top': 'bottom', 'bottom': 'top',
+        }.get(leaf.hinge_side or '', '')
+
+    def _lock_side_length(self, edge, by_scope, context):
+        """LS: the sash profile length already generated for `edge`.
+
+        The lock bar is specified as a fraction of the stile it is
+        fitted to, so it has to be that piece's length rather than the
+        panel's -- the stile is the panel less the section's own
+        deduction, and 0.8 of the wrong one is several mm out on every
+        sash. Taken from the same section line the panel's own sash
+        piece comes from, so the two can never disagree.
+
+        Falls back to the raw panel dimension when the section has no
+        sash profile for that edge: 0.8 of the panel is a worse answer
+        than 0.8 of the stile and a much better one than zero.
+        """
+        self.ensure_one()
+        vertical = edge in ('left', 'right')
+        wanted = 'sides' if vertical else edge
+        for line in by_scope.get('panel_opening', []):
+            position = line.position_id
+            if position == self._lock_bar_position():
+                continue
+            if position.edge == wanted:
+                return evaluate_formula(
+                    line.length_formula or position.default_length,
+                    context, default=0.0)
+            if position.edge == 'all':
+                # 'all' carries both formulas; the vertical pieces use
+                # the height-edge one when it is set.
+                formula = (
+                    (line.length_formula_h or position.default_length_h
+                     or line.length_formula or position.default_length)
+                    if vertical
+                    else (line.length_formula or position.default_length))
+                return evaluate_formula(formula, context, default=0.0)
+        return context.get('PH' if vertical else 'PW', 0.0)
+
+    def _lock_bar_pieces(self, leaf, by_scope, context, label):
+        """The lock bar for one opening panel, if it has one."""
+        self.ensure_one()
+        position = self._lock_bar_position()
+        if not position or not leaf.has_lock:
+            return []
+        lines = [l for l in by_scope.get('panel_opening', [])
+                 if l.position_id == position]
+        if not lines:
+            return []
+        edge = self._lock_edge(leaf)
+        if not edge:
+            return []
+        lock_context = dict(context)
+        lock_context['LS'] = self._lock_side_length(edge, by_scope, context)
+        pieces = []
+        for line in lines:
+            pieces.extend(self._profile_pieces(
+                line, lock_context, label, leaf.panel_no))
+        return pieces
+
     def _explode_junction(self, leaf, by_scope, context, out, demand,
                           span_mm=0.0, spans=None):
         self.ensure_one()
@@ -423,18 +554,28 @@ class AwDesign(models.Model):
     def _hardware_line(self, line, context, label, panel_no=0):
         if not formula_truthy(line.condition_formula, context):
             return []
-        qty = evaluate_formula(
-            line.qty_formula or str(line.qty or 1), context, default=1)
+        change = self._overrides_by_key()[1].get(line.id)
+        # A change may set the quantity as well as the product, and an
+        # explicit 0 is a real instruction: it is how the Spec tab drops
+        # a hardware line this one window does not need.
+        if change:
+            qty = change.qty
+        else:
+            qty = evaluate_formula(
+                line.qty_formula or str(line.qty or 1), context, default=1)
         qty = int(round(qty))
         if qty <= 0:
             return []
+        product = change.product_id if change else line.product_id
         return [{
             'kind': 'hardware',
-            'product_id': line.product_id.id,
+            'product_id': product.id,
             'qty': qty,
             'panel_no': panel_no,
-            'label': '%s %s' % (label, line.product_id.display_name or ''),
-            'missing_product': not line.product_id,
+            'label': '%s %s' % (label, product.display_name or ''),
+            'missing_product': not product,
+            'is_changed': bool(change),
+            'change_note': change.note if change else '',
         }]
 
     def _attachment_lines(self, lines, context, kind, label, panel_no=0):

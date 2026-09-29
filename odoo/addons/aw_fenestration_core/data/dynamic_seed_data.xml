@@ -110,6 +110,12 @@
         <record id="pos_meeting_stile" model="aw.profile.position">
             <field name="name">Meeting Stile</field><field name="sequence">140</field>
         </record>
+        <!-- Phase 7d, client confirmed. On the LOCK side of an opening
+             panel, i.e. opposite the hinge, so it is one piece and the
+             edge is decided per panel rather than here. -->
+        <record id="pos_lock_bar" model="aw.profile.position">
+            <field name="name">Lock Bar</field><field name="sequence">150</field>
+        </record>
 
     </data>
 </odoo>

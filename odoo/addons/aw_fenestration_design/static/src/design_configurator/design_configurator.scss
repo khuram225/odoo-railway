@@ -267,3 +267,19 @@
     padding: 0 0.15rem 0 0.35rem;
     color: var(--bs-secondary-color, #6c757d);
 }
+
+// The lock mark. A fitting rather than a dimension, so it is drawn in
+// the accent colour and never in the dimension grey.
+.o_aw_lock_mark {
+    stroke: #8a6d3b;
+}
+
+// The Spec tab's two part tables. Tight rows: the column is narrow and
+// each part is two short lines, so the default table padding wastes
+// most of the height.
+.o_aw_spec_table {
+    td {
+        padding: 0.15rem 0.2rem;
+        vertical-align: middle;
+    }
+}

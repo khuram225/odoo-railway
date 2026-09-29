@@ -37,3 +37,5 @@ access_aw_cut_plan_bar_user,aw.cut.plan.bar.user,model_aw_cut_plan_bar,base.grou
 access_aw_cut_plan_bar_sales,aw.cut.plan.bar.sales,model_aw_cut_plan_bar,group_fenestration_sales,1,1,1,1
 access_aw_cut_plan_cut_user,aw.cut.plan.cut.user,model_aw_cut_plan_cut,base.group_user,1,0,0,0
 access_aw_cut_plan_cut_sales,aw.cut.plan.cut.sales,model_aw_cut_plan_cut,group_fenestration_sales,1,1,1,1
+access_aw_design_override_user,aw.design.override.user,model_aw_design_override,base.group_user,1,0,0,0
+access_aw_design_override_sales,aw.design.override.sales,model_aw_design_override,group_fenestration_sales,1,1,1,1

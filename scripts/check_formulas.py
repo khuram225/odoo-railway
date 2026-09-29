@@ -159,16 +159,22 @@ def main():
     # validator that has quietly become permissive is worse than none,
     # because everything still looks checked.
     for bad in ('__import__("os")', 'PW.real', 'lambda: 1', '[1]',
-                'sqrt(PW)', 'XX'):
+                'sqrt(PW)', 'XX', 'LSX'):
         if formula.validate_formula(bad) is None:
             problems.append(f'grammar accepts {bad!r}, which it must not')
 
     # Worked example: 8ft x 5ft with two sliders, matching the spec's own
     # P4 test, so the numbers here can be checked by hand.
     width, height = 8 * MM_FT, 5 * MM_FT
+    # LS is the sash length on the lock side -- here the side stile of
+    # that same panel, PH - 10, which is what the RE set's Palay - Sides
+    # line produces. The lock bar is 0.8 of THAT, not of the panel: the
+    # two differ by 8mm on a 1m sash, which is the whole reason LS
+    # exists rather than the formula simply saying 0.8 * PH.
+    lock_side = height - 10
     context = {
         'W': width, 'H': height, 'PW': width / 2, 'PH': height,
-        'CW': width, 'CH': height, 'N': 2, 'T': 2,
+        'CW': width, 'CH': height, 'N': 2, 'T': 2, 'LS': lock_side,
     }
     expected = [
         ('W', width),
@@ -177,11 +183,16 @@ def main():
         ('PH - 10', height - 10),
         ('PW - 80', width / 2 - 80),
         ('PH - 80', height - 80),
+        ('0.8 * LS', 0.8 * lock_side),
     ]
     for expression, want in expected:
         got = formula.evaluate_formula(expression, context)
         if abs(got - want) > 1e-6:
             problems.append(f'{expression} gave {got}, expected {want}')
+
+    if formula.validate_formula('0.8 * LS') is not None:
+        problems.append('LS is not a formula variable, so the lock bar '
+                        'length would silently evaluate to its default')
 
     problems.extend(check_seed_xmlids(source))
     problems.extend(check_scope_labels(source))

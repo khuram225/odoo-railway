@@ -65,6 +65,19 @@ class AwDesignBomLine(models.Model):
         string='Unit', default=1,
         help="Which of the position's units this piece belongs to.")
     panel_no = fields.Integer(string='Panel')
+
+    # -- phase 7c ------------------------------------------------------
+    # Stored on the LINE rather than derived on read: the BOM is the
+    # record of what was quoted, and an override deleted afterwards must
+    # not silently rewrite a line that was already priced and sent.
+    is_changed = fields.Boolean(
+        string='Changed',
+        help="This line differs from the window's Specification, "
+             "because it was changed for this window.")
+    change_note = fields.Char(
+        string='Change Note',
+        help="Why this window is different. Printed on the shop "
+             "drawing beside the line.")
     glass_spec_id = fields.Many2one('aw.glass.spec', ondelete='restrict')
     glass_w = fields.Float(string='Width (mm)')
     glass_h = fields.Float(string='Height (mm)')

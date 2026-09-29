@@ -234,6 +234,9 @@ OPTIONAL_POSITIONS = (
     'pos_palay_bead_top',
     'pos_palay_bead_bottom',
     'pos_palay_bead_sides',
+    # Confirmed for the RE set only. A system with no lock bar line is
+    # normal and must not warn on every opening panel.
+    'pos_lock_bar',
 )
 
 
@@ -283,4 +286,12 @@ BOM_DEFAULTS = {
     'pos_meeting_stile': {
         'scope': 'junction_meeting',
         'default_length': 'PH - 10', 'default_angle': '90'},
+    # Edge is deliberately EMPTY, which is what makes one piece rather
+    # than a pair: the lock bar sits on ONE side of the sash, and which
+    # side is a per-panel decision (opposite the hinge), not a property
+    # of the position. See aw.design._lock_edge().
+    'pos_lock_bar': {
+        'scope': 'panel_opening',
+        'default_length': '0.8 * LS', 'default_angle': '90',
+        'default_qty': '1'},
 }

@@ -47,6 +47,16 @@
                         <td><strong>Quantity</strong></td>
                         <td><span t-esc="doc.qty"/></td>
                     </tr>
+                    <tr>
+                        <td><strong>Specification</strong></td>
+                        <td><span t-esc="doc.template_id.display_name or '—'"/></td>
+                        <td><strong>Changes</strong></td>
+                        <td>
+                            <span t-if="doc.override_count"
+                                  t-esc="'%s change(s) for this window' % doc.override_count"/>
+                            <span t-else="">As the spec</span>
+                        </td>
+                    </tr>
                 </table>
 
                 <!-- PNG, not the SVG: reports render through wkhtmltopdf,
@@ -101,6 +111,10 @@
                         <tr t-foreach="profiles" t-as="line" t-key="line.id">
                             <td>
                                 <span t-esc="line.product_id.display_name or '(no product)'"/>
+                                <div t-if="line.is_changed" class="small fw-bold">
+                                    changed for this window<t t-if="line.change_note">:
+                                    <span t-esc="line.change_note"/></t>
+                                </div>
                             </td>
                             <td class="text-end">
                                 <span t-esc="'%.1f' % line.length_mm"/>
@@ -152,6 +166,10 @@
                             <td><span t-esc="line.kind"/></td>
                             <td>
                                 <span t-esc="line.product_id.display_name or '(no product)'"/>
+                                <div t-if="line.is_changed" class="small fw-bold">
+                                    changed for this window<t t-if="line.change_note">:
+                                    <span t-esc="line.change_note"/></t>
+                                </div>
                             </td>
                             <td class="text-end"><span t-esc="line.qty"/></td>
                             <td><span t-esc="line.label or ''"/></td>

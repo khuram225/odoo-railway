@@ -31,6 +31,10 @@
         <function model="aw.profile.position" name="_seed_palay_bead_positions"/>
         <function model="aw.profile.position" name="_seed_bom_defaults"/>
         <function model="aw.profile.position" name="_seed_required_flags"/>
+        <!-- After _seed_bom_defaults, which is what gives pos_lock_bar
+             its scope and formula, and after the section exists. -->
+        <function model="aw.profile.section" name="_seed_lock_bar_line"/>
+        <function model="aw.profile.section" name="_seed_dg_openable_spec"/>
         <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>
         <function model="aw.price.structure" name="_seed_default_structure"/>
         <function model="aw.profile.rate" name="_backfill_date_to"/>

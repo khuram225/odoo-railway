@@ -95,6 +95,23 @@
                             </div>
                         </div>
                         <div>
+                            <label class="form-label small text-muted mb-0">Spec</label>
+                            <select t-if="showSpecPicker"
+                                    class="form-select form-select-sm"
+                                    t-on-change="onSpecChange">
+                                <t t-foreach="specOptions" t-as="opt" t-key="opt.id">
+                                    <option t-att-value="opt.id"
+                                            t-att-selected="opt.id === state.data.header.template_id">
+                                        <t t-esc="opt.name"/>
+                                    </option>
+                                </t>
+                            </select>
+                            <div t-else="" class="form-control form-control-sm bg-view border-0 text-truncate"
+                                 t-att-title="specName">
+                                <t t-esc="specName or '\u2014'"/>
+                            </div>
+                        </div>
+                        <div>
                             <label class="form-label small text-muted mb-0">Glass</label>
                             <select class="form-select form-select-sm"
                                     t-on-change="onGlassSpecChange">
@@ -689,6 +706,17 @@
                                             </text>
                                         </t>
 
+                                        <!-- Lock mark: a short bar on the
+                                             lock side of an opening sash. -->
+                                        <line t-if="leaf.attach.lock"
+                                              class="o_aw_lock_mark"
+                                              t-att-x1="leaf.attach.lock.x1"
+                                              t-att-y1="leaf.attach.lock.y1"
+                                              t-att-x2="leaf.attach.lock.x2"
+                                              t-att-y2="leaf.attach.lock.y2"
+                                              t-att-stroke-width="adornments.lockStroke"
+                                              stroke-linecap="round"/>
+
                                         <rect t-if="leaf.selected"
                                               class="o_aw_selection"
                                               t-att-x="leaf.x + 1" t-att-y="leaf.y + 1"
@@ -948,6 +976,24 @@
                                 </div>
                                 <div t-if="!canSplit" class="small text-muted mb-2">
                                     Maximum subdivision depth reached.
+                                </div>
+
+                                <!-- The lock bar goes on the side opposite
+                                     the hinge, so only a hinged sash has
+                                     one. A slider locks against its
+                                     meeting stile instead. -->
+                                <div t-if="showLockToggle" class="form-check mb-3">
+                                    <input type="checkbox" class="form-check-input"
+                                           id="aw_cfg_lock"
+                                           t-att-checked="panelHasLock"
+                                           t-on-change="toggleLock"/>
+                                    <label class="form-check-label small" for="aw_cfg_lock">
+                                        Lock
+                                        <span class="text-muted">
+                                            (lock bar on the
+                                            <t t-esc="lockEdgeLabel"/> side)
+                                        </span>
+                                    </label>
                                 </div>
 
                                 <div class="small text-muted mb-1">Leaf type</div>
@@ -1264,6 +1310,161 @@
                             </t>
                         </div>
 
+                        <!-- Specification (phase 7c): what this window
+                             is made of, and where each answer came from.
+                             The three parts first, then every profile
+                             position and hardware line. -->
+                        <div t-if="activeRightTab === 'spec'"
+                             class="overflow-auto p-3 flex-grow-1"
+                             style="min-height: 0;">
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
+                                Specification
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small text-muted mb-0">Profile Section</label>
+                                <select class="form-select form-select-sm"
+                                        t-on-change="onSectionChange">
+                                    <option value="">Choose...</option>
+                                    <t t-foreach="sectionOptions" t-as="opt" t-key="opt.id">
+                                        <option t-att-value="opt.id"
+                                                t-att-selected="opt.id === state.data.header.profile_section_id">
+                                            <t t-esc="opt.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label small text-muted mb-0">Hardware Set</label>
+                                <select class="form-select form-select-sm"
+                                        t-on-change="onHardwareSetChange">
+                                    <option value="">Choose...</option>
+                                    <t t-foreach="hardwareOptions" t-as="opt" t-key="opt.id">
+                                        <option t-att-value="opt.id"
+                                                t-att-selected="opt.id === state.data.header.hardware_set_id">
+                                            <t t-esc="opt.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small text-muted mb-0">Glass</label>
+                                <select class="form-select form-select-sm"
+                                        t-on-change="onGlassSpecChange">
+                                    <option value="">No glass</option>
+                                    <t t-foreach="glassSpecOptions" t-as="opt" t-key="opt.id">
+                                        <option t-att-value="opt.id"
+                                                t-att-selected="opt.id === state.data.header.glass_spec_id">
+                                            <t t-esc="opt.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
+                                Profiles
+                            </div>
+                            <div t-if="!specProfiles.length" class="small text-muted mb-3">
+                                No Profile Section, so there are no profiles
+                                to show.
+                            </div>
+                            <table t-else="" class="table table-sm o_aw_spec_table mb-3">
+                                <tbody>
+                                    <tr t-foreach="specProfiles" t-as="row"
+                                        t-key="row.position_id">
+                                        <td>
+                                            <div class="small">
+                                                <t t-esc="row.position_name"/>
+                                            </div>
+                                            <div t-attf-class="small {{ row.changed ? 'text-warning fw-bold' : 'text-muted' }}">
+                                                <t t-esc="row.product_name"/>
+                                            </div>
+                                            <div t-if="row.changed" class="small text-muted">
+                                                changed &#183; spec says
+                                                <t t-esc="row.spec_name"/>
+                                            </div>
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <button class="btn btn-sm btn-outline-secondary px-2"
+                                                    title="Choose another profile for this window"
+                                                    t-on-click="() => this.changePart(row, 'profile')">
+                                                Change
+                                            </button>
+                                            <button t-if="row.changed"
+                                                    class="btn btn-sm btn-link px-1"
+                                                    title="Back to what the spec says"
+                                                    t-on-click="() => this.resetPart(row, 'profile')">
+                                                Reset
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
+                                Hardware
+                            </div>
+                            <div t-if="!specHardware.length" class="small text-muted mb-3">
+                                No Hardware Set, so there is no hardware to
+                                show.
+                            </div>
+                            <table t-else="" class="table table-sm o_aw_spec_table mb-3">
+                                <tbody>
+                                    <tr t-foreach="specHardware" t-as="row"
+                                        t-key="row.line_id">
+                                        <td>
+                                            <div t-attf-class="small {{ row.changed ? 'text-warning fw-bold' : '' }}">
+                                                <t t-esc="row.product_name"/>
+                                            </div>
+                                            <div class="small text-muted">
+                                                &#215;<t t-esc="row.qty"/>
+                                                <t t-if="row.changed">
+                                                    &#183; changed &#183; spec says
+                                                    <t t-esc="row.spec_name"/>
+                                                </t>
+                                            </div>
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <button class="btn btn-sm btn-outline-secondary px-2"
+                                                    title="Choose different hardware for this window"
+                                                    t-on-click="() => this.changePart(row, 'hardware')">
+                                                Change
+                                            </button>
+                                            <button t-if="row.changed"
+                                                    class="btn btn-sm btn-link px-1"
+                                                    title="Back to what the spec says"
+                                                    t-on-click="() => this.resetPart(row, 'hardware')">
+                                                Reset
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <!-- Saving copies the section and the hardware
+                                 set with the changes applied. The originals
+                                 are never touched: every other quote is
+                                 built from them. -->
+                            <div class="border-top pt-2">
+                                <label class="form-label small text-muted mb-0">
+                                    Save as new spec
+                                </label>
+                                <input type="text" class="form-control form-control-sm mb-1"
+                                       placeholder="Name for the new specification"
+                                       t-att-value="state.specName"
+                                       t-on-input="onSpecNameInput"/>
+                                <button class="btn btn-sm btn-outline-primary w-100"
+                                        t-att-disabled="!canSaveAsSpec"
+                                        t-on-click="saveAsSpec">
+                                    Save as new spec
+                                </button>
+                                <div class="small text-muted mt-1">
+                                    Copies this window's parts, changes
+                                    included, into a new spec for the same
+                                    profile system.
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Bill of materials (spec 6.5). -->
                         <div t-if="activeRightTab === 'bom'"
                              class="overflow-auto p-3 flex-grow-1"
@@ -1280,6 +1481,11 @@
                                                 <div><t t-esc="bl.product or bl.label"/></div>
                                                 <div class="text-muted" t-if="bl.product">
                                                     <t t-esc="bl.label"/>
+                                                </div>
+                                                <div t-if="bl.is_changed"
+                                                     class="small text-warning">
+                                                    changed for this window<t t-if="bl.change_note">:
+                                                    <t t-esc="bl.change_note"/></t>
                                                 </div>
                                             </td>
                                             <td class="text-end text-nowrap">

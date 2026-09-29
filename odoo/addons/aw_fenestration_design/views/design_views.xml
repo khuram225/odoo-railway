@@ -71,6 +71,10 @@
                                    invisible="not leaf_has_hinge_side"/>
                             <field name="slide_dir"
                                    invisible="not leaf_has_slide_dir"/>
+                            <!-- Per-row, like the direction columns: a
+                                 lock only applies to an opening sash. -->
+                            <field name="has_lock" string="Lock"
+                                   invisible="not leaf_has_hinge_side"/>
                         </list>
                     </field>
                 </sheet>
@@ -208,6 +212,27 @@
                                     <field name="line_cost" string="Cost"/>
                                     <field name="rate_date" optional="hide"/>
                                     <field name="cost_note" string="No cost because"/>
+                                    <field name="is_changed" string="Changed"/>
+                                    <field name="change_note" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Changes for this window" name="changes">
+                            <field name="override_ids">
+                                <list editable="bottom">
+                                    <field name="kind"/>
+                                    <field name="position_id"
+                                           readonly="kind != 'profile'"/>
+                                    <field name="product_tmpl_id"
+                                           readonly="kind != 'profile'"/>
+                                    <field name="thickness_id"
+                                           readonly="kind != 'profile'"/>
+                                    <field name="hardware_line_id"
+                                           readonly="kind != 'hardware'"/>
+                                    <field name="product_id"
+                                           readonly="kind != 'hardware'"/>
+                                    <field name="qty" readonly="kind != 'hardware'"/>
+                                    <field name="note"/>
                                 </list>
                             </field>
                         </page>
