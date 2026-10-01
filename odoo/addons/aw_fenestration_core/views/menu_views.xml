@@ -1,63 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!--
+    Phase 7d reorganisation. Two groups, and the rule dividing them is
+    "would a quote be wrong if this were wrong?":
+
+      Window Systems   what a window is MADE OF. One menu, because a
+                       system's Specifications now live inside it, and
+                       a spec owns its own profile and hardware lines.
+                       Profile Sections, Hardware Sets and a top-level
+                       Specifications menu are GONE from the menu (the
+                       models and their actions survive, so a bookmark
+                       and the migration still work).
+      Configuration    the lists a system is assembled FROM, plus rates
+                       and imports.
+    -->
+
     <menuitem id="menu_aw_fenestration_root"
               name="Fenestration"
               sequence="45"
               web_icon="aw_fenestration_core,static/description/icon.png"/>
 
-    <menuitem id="menu_aw_fenestration_master_data"
-              name="Master Data"
-              parent="menu_aw_fenestration_root"
-              sequence="10"/>
-
-    <menuitem id="menu_aw_leaf_type"
-              name="Leaf Types"
-              parent="menu_aw_fenestration_master_data"
-              action="action_aw_leaf_type"
-              sequence="3"/>
-
-    <menuitem id="menu_aw_profile_position"
-              name="Profile Positions"
-              parent="menu_aw_fenestration_master_data"
-              action="action_aw_profile_position"
-              sequence="4"/>
-
-    <menuitem id="menu_aw_window_family"
-              name="Glazing Families"
-              parent="menu_aw_fenestration_master_data"
-              action="action_aw_window_family"
-              sequence="8"/>
-
     <menuitem id="menu_aw_window_series"
-              name="Profile Systems"
-              parent="menu_aw_fenestration_master_data"
+              name="Window Systems"
+              parent="menu_aw_fenestration_root"
               action="action_aw_window_series"
               sequence="10"/>
 
-    <menuitem id="menu_aw_profile_section"
-              name="Profile Sections"
-              parent="menu_aw_fenestration_master_data"
-              action="action_aw_profile_section"
-              sequence="20"/>
-
-    <menuitem id="menu_aw_hardware_set"
-              name="Hardware Sets"
-              parent="menu_aw_fenestration_master_data"
-              action="action_aw_hardware_set"
-              sequence="30"/>
+    <!-- Kept as a container so the Designs menu has somewhere to sit
+         and so Glass Types stays one click away from the specs that
+         reference it. -->
+    <menuitem id="menu_aw_fenestration_master_data"
+              name="Master Data"
+              parent="menu_aw_fenestration_root"
+              sequence="15"/>
 
     <menuitem id="menu_aw_glass_spec"
-              name="Glass Specs"
+              name="Glass Types"
               parent="menu_aw_fenestration_master_data"
               action="action_aw_glass_spec"
               sequence="40"/>
-
-    <menuitem id="menu_aw_window_template"
-              name="Specifications"
-              parent="menu_aw_fenestration_master_data"
-              action="action_aw_window_template"
-              sequence="50"/>
 
     <menuitem id="menu_aw_fenestration_config"
               name="Configuration"
@@ -65,35 +47,53 @@
               sequence="100"
               groups="group_fenestration_manager"/>
 
-    <menuitem id="menu_aw_profile_rate"
-              name="Profile Rates"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_profile_rate"
-              sequence="20"/>
-
-    <menuitem id="menu_aw_profile_rate_import"
-              name="Import Price List"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_profile_rate_import"
-              sequence="25"/>
-
-    <menuitem id="menu_aw_catalogue_import"
-              name="Import Catalogue"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_catalogue_import"
-              sequence="27"/>
-
-    <menuitem id="menu_aw_price_structure"
-              name="Price Structures"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_price_structure"
-              sequence="30"/>
-
     <menuitem id="menu_aw_fenestration_settings"
               name="Settings"
               parent="menu_aw_fenestration_config"
               action="action_aw_fenestration_config_settings"
               sequence="0"
               groups="group_fenestration_manager"/>
+
+    <menuitem id="menu_aw_window_family"
+              name="Glazing Families"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_window_family"
+              sequence="2"/>
+
+    <menuitem id="menu_aw_profile_position"
+              name="Profile Positions"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_profile_position"
+              sequence="3"/>
+
+    <menuitem id="menu_aw_leaf_type"
+              name="Leaf Types"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_leaf_type"
+              sequence="4"/>
+
+    <menuitem id="menu_aw_profile_rate"
+              name="Profile Rates"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_profile_rate"
+              sequence="50"/>
+
+    <menuitem id="menu_aw_profile_rate_import"
+              name="Import Price List"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_profile_rate_import"
+              sequence="55"/>
+
+    <menuitem id="menu_aw_catalogue_import"
+              name="Import Catalogue"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_catalogue_import"
+              sequence="57"/>
+
+    <menuitem id="menu_aw_price_structure"
+              name="Price Structures"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_price_structure"
+              sequence="60"/>
 
 </odoo>

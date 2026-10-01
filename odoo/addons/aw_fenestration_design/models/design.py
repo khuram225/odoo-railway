@@ -118,15 +118,19 @@ class AwDesign(models.Model):
     # when it changes, which is what you want nine times out of ten, but
     # stay overridable for the tenth. A plain default would not reset on
     # a Series change; a plain related would not be overridable.
+    # Phase 7d: these FOLLOW the spec now and are no longer chosen.
+    # Kept stored and kept on the reports, because the shop drawing and
+    # the cutting sheet name the section the window was built to and
+    # because every existing design already carries the value -- the
+    # compute reproduces exactly what is there, so an upgrade moves
+    # nothing. readonly: the spec is the thing to change.
     profile_section_id = fields.Many2one(
         'aw.profile.section', string='Profile Section',
-        compute='_compute_rule_sets', store=True, readonly=False,
-        domain="[('window_type_id', '=', window_series_id)]",
+        compute='_compute_parts_from_spec', store=True, readonly=True,
         tracking=True, ondelete='restrict')
     hardware_set_id = fields.Many2one(
         'aw.hardware.set', string='Hardware Set',
-        compute='_compute_rule_sets', store=True, readonly=False,
-        domain="[('window_type_id', '=', window_series_id)]",
+        compute='_compute_parts_from_spec', store=True, readonly=True,
         tracking=True, ondelete='restrict')
 
     # -- finish / thickness -----------------------------------------------
@@ -200,18 +204,39 @@ class AwDesign(models.Model):
                 or design.window_series_id.default_glass_spec_id)
 
     @api.depends('window_series_id')
-    def _compute_rule_sets(self):
-        """Follow the Series, keeping a choice that still fits it."""
+    @api.depends('template_id')
+    def _compute_parts_from_spec(self):
+        """The spec's legacy section/hardware-set links, for the reports.
+
+        Nothing reads these to build a BOM any more -- that comes from
+        the spec's own lines. They are here so the shop drawing can go
+        on naming what the window was built to, and so no stored value
+        changes on the upgrade: every design's spec already points at
+        the section the design already had.
+        """
         for design in self:
-            series = design.window_series_id
-            section = design.profile_section_id
-            if not section or section.window_type_id != series:
-                section = series.profile_section_ids[:1]
-            design.profile_section_id = section
-            hardware = design.hardware_set_id
-            if not hardware or hardware.window_type_id != series:
-                hardware = series.hardware_set_ids[:1]
-            design.hardware_set_id = hardware
+            spec = design.template_id
+            design.profile_section_id = spec.profile_section_id
+            design.hardware_set_id = spec.hardware_set_id
+
+    # ------------------------------------------------------------------
+    # where the parts come from (phase 7d)
+    # ------------------------------------------------------------------
+    def _spec_profile_lines(self):
+        """This window's profile lines: the spec's own.
+
+        The single door everything goes through -- the explosion, the
+        checks, the costing, the divider options, the Spec tab and the
+        lock bar all read this. When Profile Sections are finally
+        dropped, this is the one method that changes.
+        """
+        self.ensure_one()
+        return self.template_id.profile_line_ids
+
+    def _spec_hardware_lines(self):
+        """This window's hardware lines: the spec's own."""
+        self.ensure_one()
+        return self.template_id.hardware_line_ids
 
     @api.depends('override_ids')
     def _compute_override_count(self):
@@ -264,10 +289,11 @@ class AwDesign(models.Model):
             # onchange as well, where self is an in-memory NewId record
             # that write() refuses. Assignment does the right thing in
             # both cases.
+            # Only glass: the section and hardware set are computed
+            # from the spec now, so copying them would be writing to a
+            # readonly field to say what it already says.
             for field, value in (
-                    ('profile_section_id', spec.profile_section_id),
-                    ('hardware_set_id', spec.hardware_set_id),
-                    ('glass_spec_id', spec.glass_spec_id)):
+                    ('glass_spec_id', spec.glass_spec_id),):
                 if value and (force or not design[field]):
                     design[field] = value
             if spec.finish_id and not design.finish_id:
@@ -517,7 +543,7 @@ class AwDesign(models.Model):
     CONFIGURATOR_HEADER_FIELDS = (
         'name', 'location', 'qty', 'width_mm', 'height_mm',
         'window_series_id', 'glass_spec_id', 'finish_id', 'thickness_id',
-        'profile_section_id', 'hardware_set_id', 'family_id',
+        'family_id',
         'manual_rate', 'template_id',
     )
 
@@ -534,7 +560,7 @@ class AwDesign(models.Model):
     # is a real instruction to clear, which is what "No glass" in the
     # header does, so the two cannot be collapsed.
     CONFIGURATOR_PROTECTED_HEADER = (
-        'profile_section_id', 'hardware_set_id', 'glass_spec_id',
+        'glass_spec_id',
         'finish_id', 'thickness_id', 'manual_rate', 'template_id',
     )
 
@@ -641,15 +667,16 @@ class AwDesign(models.Model):
 
     @api.model
     def _rule_set_options(self, series):
-        """The Profile Sections and Hardware Sets this Series offers."""
-        return {
-            'section_options': [
-                {'id': s.id, 'name': s.display_name}
-                for s in series.profile_section_ids],
-            'hardware_options': [
-                {'id': h.id, 'name': h.display_name}
-                for h in series.hardware_set_ids],
-        }
+        """Kept as the spread point in get_configurator_data, now empty.
+
+        Phase 7d removed the Profile Section and Hardware Set dropdowns:
+        both follow the Specification, so offering them was offering a
+        choice that could contradict the spec. Returning {} rather than
+        deleting the call keeps the payload shape in one place, and
+        check_configurator_payload.py would catch a key the client still
+        reads.
+        """
+        return {}
 
     @api.model
     def _finish_options(self):
@@ -676,7 +703,7 @@ class AwDesign(models.Model):
         """
         self.ensure_one()
         vertical, horizontal = [], []
-        for line in self.profile_section_id.line_ids.sorted(
+        for line in self._spec_profile_lines().sorted(
                 lambda l: (l.sequence, l.id)):
             scope = line.position_id.scope
             entry = {
@@ -713,11 +740,11 @@ class AwDesign(models.Model):
         """
         self.ensure_one()
         by_position, by_hardware = self._overrides_by_key()
-        section = self.profile_section_id
 
         profiles = []
         seen = set()
-        for line in section.line_ids.sorted(lambda l: (l.sequence, l.id)):
+        for line in self._spec_profile_lines().sorted(
+                lambda l: (l.sequence, l.id)):
             position = line.position_id
             if not position or position.id in seen:
                 continue          # an alternate; the winning line shows
@@ -743,7 +770,7 @@ class AwDesign(models.Model):
             })
 
         hardware = []
-        for line in self.hardware_set_id.line_ids.sorted(
+        for line in self._spec_hardware_lines().sorted(
                 lambda l: (l.sequence, l.id)):
             change = by_hardware.get(line.id)
             product = change.product_id if change else line.product_id
@@ -776,10 +803,10 @@ class AwDesign(models.Model):
         if kind == 'profile':
             position = self.env['aw.profile.position'].browse(
                 int(values.get('position_id') or 0)).exists()
-            if position not in self.profile_section_id.line_ids.position_id:
+            if position not in self._spec_profile_lines().position_id:
                 raise UserError(_(
                     "That profile position is not part of this window's "
-                    "Profile Section."))
+                    "Specification."))
             existing = self.override_ids.filtered(
                 lambda o, p=position: o.position_id == p)
             template = self.env['product.template'].browse(
@@ -793,7 +820,7 @@ class AwDesign(models.Model):
             # made every RE profile line read "No product". The same rule
             # the seed uses decides it here, preferring whatever the
             # spec's own line for this position uses.
-            spec_line = self.profile_section_id.line_ids.filtered(
+            spec_line = self._spec_profile_lines().filtered(
                 lambda l, p=position: l.position_id == p)[:1]
             thickness, problem = self.env['aw.profile.section']._seed_thickness_for(
                 template, spec_line.thickness_id)
@@ -815,10 +842,10 @@ class AwDesign(models.Model):
         else:
             line = self.env['aw.hardware.set.line'].browse(
                 int(values.get('line_id') or 0)).exists()
-            if line not in self.hardware_set_id.line_ids:
+            if line not in self._spec_hardware_lines():
                 raise UserError(_(
                     "That hardware line is not part of this window's "
-                    "Hardware Set."))
+                    "Specification."))
             existing = self.override_ids.filtered(
                 lambda o, l=line: o.hardware_line_id == l)
             payload = {
@@ -868,37 +895,38 @@ class AwDesign(models.Model):
         if not name:
             raise UserError(_("Give the new specification a name."))
         system = self.window_series_id
-        if not (system and self.profile_section_id):
+        if not (system and self.template_id):
             raise UserError(_(
-                "This window needs a profile system and a Profile "
-                "Section before it can become a spec."))
+                "This window needs a profile system and a Specification "
+                "before it can become a new one."))
 
         by_position, by_hardware = self._overrides_by_key()
-        source_lines = self.hardware_set_id.line_ids.sorted(
+        # Matched back by ORDER, because a copied line is not the line an
+        # override points at. copy() preserves order; matching on product
+        # instead would break on exactly the sets that carry two lines
+        # for one product, which is why a hardware override keys on the
+        # line in the first place.
+        source_hardware = self._spec_hardware_lines().sorted(
             lambda l: (l.sequence, l.id))
 
-        section = self.profile_section_id.copy({'name': name})
-        for line in section.line_ids:
+        # One copy now, where it used to be three records kept in step:
+        # the spec owns its lines, so copy() brings them with it.
+        spec = self.template_id.copy({
+            'name': name,
+            'is_default': False,
+            'notes': _("Saved from window %s.", self.name or ''),
+        })
+        for line in spec.profile_line_ids:
             change = by_position.get(line.position_id.id)
             if change:
                 line.write({
                     'product_tmpl_id': change.product_tmpl_id.id,
                     'thickness_id': change.thickness_id.id,
                 })
-
-        # A window with no hardware set copies none: the new spec is
-        # as complete as the window it came from, and no more.
-        hardware = (self.hardware_set_id.copy({'name': name})
-                    if self.hardware_set_id
-                    else self.env['aw.hardware.set'])
-        # A copied line is NOT the line an override points at, so they
-        # are matched back by ORDER -- copy() preserves it. Matching on
-        # product instead would break on exactly the sets that carry two
-        # lines for one product, which is why a hardware override keys
-        # on the line in the first place.
         for original, copied in zip(
-                source_lines,
-                hardware.line_ids.sorted(lambda l: (l.sequence, l.id))):
+                source_hardware,
+                spec.hardware_line_ids.sorted(
+                    lambda l: (l.sequence, l.id))):
             change = by_hardware.get(original.id)
             if change:
                 copied.write({
@@ -907,20 +935,7 @@ class AwDesign(models.Model):
                     'qty_formula': str(change.qty),
                 })
 
-        spec = self.env['aw.window.template'].create({
-            'name': name,
-            'window_type_id': system.id,
-            'profile_section_id': section.id,
-            'hardware_set_id': hardware.id if hardware else False,
-            'glass_spec_id': self.glass_spec_id.id,
-            'finish_id': self.finish_id.id,
-            'notes': _("Saved from window %s.", self.name or ''),
-        })
-        self.write({
-            'template_id': spec.id,
-            'profile_section_id': section.id,
-            'hardware_set_id': hardware.id if hardware else False,
-        })
+        self.template_id = spec
         self.override_ids.unlink()
         self._explode()
         return self.get_configurator_data()
@@ -1272,9 +1287,10 @@ class AwDesign(models.Model):
         series = self.window_series_id
         if not series:
             return
+        # The section and hardware set are computed from the spec now,
+        # so there is nothing to backstop: glass is the one header field
+        # left that a Series has an answer for.
         defaults = {
-            'profile_section_id': series.profile_section_ids[:1],
-            'hardware_set_id': series.hardware_set_ids[:1],
             'glass_spec_id': series.default_glass_spec_id,
         }
         values = {}

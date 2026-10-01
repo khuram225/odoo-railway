@@ -112,7 +112,7 @@ class AwDesign(models.Model):
         rates = self.env['aw.profile.rate']
         section_lines = {
             line.product_id.id: line
-            for line in self.profile_section_id.line_ids if line.product_id}
+            for line in self._spec_profile_lines() if line.product_id}
 
         for line in self.bom_line_ids:
             unit_cost, rate_date, note = 0.0, False, ''

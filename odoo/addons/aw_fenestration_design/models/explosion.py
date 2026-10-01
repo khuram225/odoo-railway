@@ -71,6 +71,19 @@ class AwDesign(models.Model):
             longest, settings['start_trim'], settings['safety_margin'],
             settings['kerf'], '45')
 
+    def _deduction_rules(self):
+        """Where the glass and mesh deductions come from.
+
+        The SPEC, since phase 7d: two specs of one system can use
+        different beads and so different deductions. Falls back to the
+        system for a design that has no spec yet -- the fields have the
+        same names on both, and the migration copied the system's
+        values onto every spec, so the answer is the same either way on
+        an existing database.
+        """
+        self.ensure_one()
+        return self.template_id or self.window_series_id
+
     # ------------------------------------------------------------------
     # context building
     # ------------------------------------------------------------------
@@ -107,8 +120,8 @@ class AwDesign(models.Model):
         """
         self.ensure_one()
         chosen = {}
-        section = self.profile_section_id
-        for line in section.line_ids.sorted(lambda l: (l.sequence, l.id)):
+        for line in self._spec_profile_lines().sorted(
+                lambda l: (l.sequence, l.id)):
             position = line.position_id
             if not position or not position.scope:
                 continue
@@ -354,14 +367,14 @@ class AwDesign(models.Model):
             out.extend(self._attachment_lines(
                 leaf.mesh_type_id.line_ids, context, 'mesh',
                 '%s mesh' % label, leaf.panel_no))
-            series = self.window_series_id
+            rules = self._deduction_rules()
             out.append({
                 'kind': 'mesh',
                 'product_id': False,
                 'panel_no': leaf.panel_no,
                 'label': '%s %s' % (label, leaf.mesh_type_id.name),
-                'glass_w': evaluate_formula(series.mesh_w, context),
-                'glass_h': evaluate_formula(series.mesh_h, context),
+                'glass_w': evaluate_formula(rules.mesh_w, context),
+                'glass_h': evaluate_formula(rules.mesh_h, context),
                 'qty': 1,
             })
 
@@ -373,13 +386,13 @@ class AwDesign(models.Model):
                 '%s %s' % (label, infill.name), leaf.panel_no))
 
         if uses_glass:
-            series = self.window_series_id
+            rules = self._deduction_rules()
             spec = leaf.glass_spec_id or self.glass_spec_id
             width = evaluate_formula(
-                series.glass_sash_w if opening else series.glass_fixed_w,
+                rules.glass_sash_w if opening else rules.glass_fixed_w,
                 context)
             height = evaluate_formula(
-                series.glass_sash_h if opening else series.glass_fixed_h,
+                rules.glass_sash_h if opening else rules.glass_fixed_h,
                 context)
             out.append({
                 'kind': 'glass',
@@ -405,7 +418,7 @@ class AwDesign(models.Model):
                 '%s grid' % label, leaf.panel_no))
 
         # Hardware scoped per panel, filtered by leaf type as before.
-        for line in self.hardware_set_id.line_ids:
+        for line in self._spec_hardware_lines():
             if line.scope != 'panel':
                 continue
             if line.leaf_type_id and line.leaf_type_id != leaf_type:
@@ -520,7 +533,7 @@ class AwDesign(models.Model):
         for line in self._divider_lines(
                 scope, by_scope, leaf.divider_line_id, span_mm, spans):
             out.extend(self._profile_pieces(line, context, label))
-        for line in self.hardware_set_id.line_ids:
+        for line in self._spec_hardware_lines():
             if line.scope == 'junction':
                 out.extend(self._hardware_line(line, context, label))
 
@@ -540,7 +553,7 @@ class AwDesign(models.Model):
         if not chosen:
             self._record_span(default[:1], span_mm, spans)
             return default
-        if (chosen.section_id != self.profile_section_id
+        if (chosen.spec_id != self.template_id
                 or chosen.position_id.scope != scope):
             self._record_span(default[:1], span_mm, spans)
             return default
@@ -641,7 +654,7 @@ class AwDesign(models.Model):
             self.row_ids, by_scope, self.width_mm, self.height_mm, out,
             demand, spans)
 
-        for line in self.hardware_set_id.line_ids:
+        for line in self._spec_hardware_lines():
             if line.scope == 'design':
                 out.extend(self._hardware_line(
                     line, frame_context, _('design')))
@@ -770,7 +783,7 @@ class AwDesign(models.Model):
         for line, span in (spans or {}).values():
             if not line.max_span_mm or span <= line.max_span_mm:
                 continue
-            heavier = self.profile_section_id.line_ids.filtered(
+            heavier = self._spec_profile_lines().filtered(
                 lambda other, l=line: (
                     other.position_id == l.position_id
                     and other.id != l.id
@@ -812,14 +825,9 @@ class AwDesign(models.Model):
         # list exists for this business yet, and a placeholder set
         # would put zero hardware into every quote while looking
         # configured. Saying so is the honest alternative.
-        if not self.hardware_set_id:
+        if not self._spec_hardware_lines():
             problems.append(('warning', _(
                 "No hardware in this spec — hardware cost is missing.")))
-        elif not self.hardware_set_id.line_ids:
-            problems.append(('warning', _(
-                "No hardware in this spec — hardware cost is missing. "
-                "'%s' has no lines.",
-                self.hardware_set_id.display_name)))
 
         # No joints and no couplers: every piece comes out of one bar,
         # so one that cannot is a hard error rather than something the
@@ -854,15 +862,17 @@ class AwDesign(models.Model):
         sash profile with the channel built in) is absent on purpose.
         """
         self.ensure_one()
-        section = self.profile_section_id
-        if not section:
-            # One error beats one warning per position: the section is
-            # the thing to fix, and the rest would all say the same.
+        lines = self._spec_profile_lines()
+        if not lines:
+            # One error beats one warning per position: the spec is the
+            # thing to fix, and the rest would all say the same.
             return [('error', _(
-                "No Profile Section is set, so this design has no "
-                "profiles in its BOM at all."))]
+                "%s has no profiles, so this design has none in its BOM "
+                "at all.",
+                self.template_id.display_name
+                or _("No Specification is set, and so")))]
 
-        configured = set(section.line_ids.mapped('position_id').ids)
+        configured = set(lines.mapped('position_id').ids)
         needed = [scope for scope, count in demand.items() if count]
         positions = self.env['aw.profile.position'].search([
             ('is_required', '=', True),
@@ -877,9 +887,9 @@ class AwDesign(models.Model):
             singular, plural = SCOPE_DEMAND_LABEL.get(
                 position.scope, (position.scope, position.scope))
             problems.append(('warning', _(
-                "'%(section)s' has no '%(position)s' line "
+                "'%(spec)s' has no '%(position)s' line "
                 "(%(count)s %(what)s in this design).",
-                section=section.display_name, position=position.name,
+                spec=self.template_id.display_name, position=position.name,
                 count=count, what=singular if count == 1 else plural)))
         return problems
 

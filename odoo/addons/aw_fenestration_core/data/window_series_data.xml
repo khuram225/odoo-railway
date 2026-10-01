@@ -35,6 +35,10 @@
              its scope and formula, and after the section exists. -->
         <function model="aw.profile.section" name="_seed_lock_bar_line"/>
         <function model="aw.profile.section" name="_seed_dg_openable_spec"/>
+        <!-- Phase 7d, LAST: every section and spec must exist before
+             the lines are re-pointed onto them. -->
+        <function model="aw.window.template" name="_migrate_lines_to_specs"/>
+        <function model="aw.window.template" name="_migrate_deductions_to_specs"/>
         <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>
         <function model="aw.price.structure" name="_seed_default_structure"/>
         <function model="aw.profile.rate" name="_backfill_date_to"/>

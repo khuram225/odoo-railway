@@ -453,6 +453,74 @@ from `.git/hooks` by default, which isn't tracked — enable once per clone):
   container's children refitted when a sibling moves, an opening
   redistributed without being resized.
 
+**Phase 7d unified the structure, and the layering it removed is worth
+understanding.** There used to be four things: a Window System, a
+Profile Section, a Hardware Set and a Specification pointing at both.
+Nothing ever used a section independently — every section belonged to
+exactly one system and was picked by exactly one spec — so the middle
+layer was three names to keep in step for no gain. Now:
+
+- **`aw.window.template` (the Spec) OWNS its lines.**
+  `aw.profile.section.line` and `aw.hardware.set.line` each gained
+  `spec_id`; `section_id` / `set_id` survive un-required so the
+  migration can RE-POINT rather than recreate. A line belongs to
+  exactly one owner, enforced by `@api.constrains` (`_check_one_owner`).
+- The spec also carries the **glass/mesh deductions and panel limits**
+  that used to sit on the system: two specs of one system can use
+  different beads and so different deductions. The system keeps what is
+  true of the system — family, role, which panel types it can host, its
+  product category.
+- **A design's parts come from `template_id` plus its own overrides, and
+  from nothing else.** `profile_section_id` / `hardware_set_id` are now
+  `compute='_compute_parts_from_spec', store=True, readonly=True`: kept
+  because the shop drawing names them and because the computed value
+  reproduces exactly what every existing design already had, so the
+  upgrade moves nothing.
+
+**`_spec_profile_lines()` / `_spec_hardware_lines()` on `aw.design` are
+the ONE door to a window's parts**, and `scripts/check_spec_ownership.py`
+enforces that. Nine places read those lines, and the failure mode for
+any one of them being left behind is the worst kind: after the migration
+the legacy section is **empty**, so
+`self.profile_section_id.line_ids` does not raise — it returns nothing,
+and the design quietly explodes to a BOM with no profiles in it. No
+error, no warning, a quote for a window made of glass and air. The check
+rejects that chain anywhere in the design module, and rejects reading
+`.section_id` / `.set_id` at all; it was verified by reverting the
+costing reader, which it flags by file and line. It also fails if the
+accessors are renamed, so it cannot end up watching nothing.
+
+**The migration is in `models/spec_migration.py` and re-points rather
+than copies, deliberately.** The BOM is costed from the section lines
+themselves, so same ids means same products, same thicknesses, same
+formulas and the same already-resolved `product_id` — which is how a
+quoted design comes out with the same price. A section shared by several
+specs has to be copied for all but the first (one line cannot have two
+owners), and the first still re-points, so at least one design keeps its
+original records. A section used by NO spec **gets a spec created for
+it**: that is not in the brief and is not optional, because after this
+phase a design takes its profiles from its spec, and a system with
+sections but no spec would silently produce an empty BOM for every
+design built on it.
+
+**A seed that writes to a migrated structure has to look in both
+places.** `_seed_lock_bar_line()` asked "does this section already have
+a lock bar line?", which answers NO on every upgrade after the migration
+empties the section — so it would have added a second one, to a section
+nothing reads, for ever. It now asks the spec as well and writes
+wherever the lines actually live.
+
+**Every `_sql_constraints` in this repo is dead.** Odoo 19 removed the
+attribute and only logs *"Model attribute '_sql_constraints' is no
+longer supported, please define models.Constraint on the model"* — which
+is what all those boot-log warnings are. The uniqueness rules they
+declare have never been enforced on this database; the RE set carrying
+two lines on `pos_divider_vertical` against a
+`unique(section_id, position_id)` is the proof. New rules go through
+`@api.constrains` (which works) or `models.Constraint` (the v19 form).
+Converting the existing ones is a separate job and would need checking
+against live data first, since some of them would now fail.
+
 **Specifications (phase 7c). The model is `aw.window.template`; every
 word the user reads says "Specification" / "Spec".** Renaming a model
 rewrites every stored reference and every xmlid for a label, so it was

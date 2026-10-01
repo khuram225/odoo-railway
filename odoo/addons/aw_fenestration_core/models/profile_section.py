@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class AwProfileSection(models.Model):
@@ -44,8 +45,18 @@ class AwProfileSectionLine(models.Model):
     _description = 'Fenestration Profile Section Line'
     _order = 'sequence, id'
 
+    # Phase 7d: a line belongs to a SPECIFICATION now. section_id is
+    # kept and no longer required so the migration can re-point existing
+    # lines without deleting and recreating them -- that is what keeps a
+    # quoted design's BOM identical across the upgrade, since the BOM is
+    # costed from these very records. Exactly one owner is set; see
+    # _check_one_owner.
     section_id = fields.Many2one(
-        'aw.profile.section', required=True, ondelete='cascade')
+        'aw.profile.section', ondelete='cascade',
+        help="Legacy owner, kept until Profile Sections are dropped.")
+    spec_id = fields.Many2one(
+        'aw.window.template', string='Specification',
+        ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
     position_id = fields.Many2one('aw.profile.position', required=True)
 
@@ -117,6 +128,24 @@ class AwProfileSectionLine(models.Model):
         ('section_position_uniq', 'unique(section_id, position_id)',
          'Each position can only appear once per Profile Section.'),
     ]
+
+    @api.constrains('section_id', 'spec_id')
+    def _check_one_owner(self):
+        """A line belongs to a spec, or to a legacy section, not both
+        and not neither.
+
+        An orphan line is invisible everywhere and still costs money if
+        anything ever walks it; one owned twice would appear in two
+        BOMs. Python rather than SQL, because every `_sql_constraints`
+        in this repo is dead -- Odoo 19 ignores the attribute and only
+        logs that it does.
+        """
+        for line in self:
+            if bool(line.section_id) == bool(line.spec_id):
+                raise ValidationError(_(
+                    "A profile line must belong to exactly one "
+                    "Specification (or, until they are dropped, one "
+                    "Profile Section)."))
 
     @api.onchange('product_tmpl_id')
     def _onchange_product_tmpl_id(self):

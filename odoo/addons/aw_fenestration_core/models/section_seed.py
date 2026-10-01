@@ -186,22 +186,32 @@ class AwProfileSection(models.Model):
 
     @api.model
     def _seed_lock_bar_line(self):
-        """Add the Lock Bar line to a section seeded before phase 7d.
+        """Add the Lock Bar line to the seeded RE set, once.
 
-        Separate from _seed_dg_openable_section because that one is
-        guarded by a parameter and has long since run everywhere: the
-        section exists, and adding a line to it is a different job from
-        creating it. Fill-only-if-absent, so a lock bar somebody has
-        already chosen is never replaced.
+        Has to look in TWO places, and that is the whole subtlety.
+        Phase 7d re-points a section's lines onto its Specification and
+        leaves the section empty, so "does this section already have a
+        lock bar line?" answers NO on every upgrade after the
+        migration -- and this would add a second one, to a section
+        nothing reads, for ever. It therefore asks the spec as well,
+        and writes wherever the lines actually live.
+
+        Still fill-only-if-absent rather than parameter-guarded: a lock
+        bar somebody has already chosen must never be replaced, and
+        that is a stronger guarantee than "ran once".
         """
         position = self.env.ref(
             'aw_fenestration_core.pos_lock_bar', raise_if_not_found=False)
         if not position:
             return False
+        Spec = self.env['aw.window.template'].with_context(
+            active_test=False)
         added = []
         for section in self._sections_by_seed_name():
-            if section.line_ids.filtered(
-                    lambda l, p=position: l.position_id == p):
+            specs = Spec.search([('profile_section_id', '=', section.id)])
+            existing = (section.line_ids | specs.profile_line_ids).filtered(
+                lambda l, p=position: l.position_id == p)
+            if existing:
                 continue
             template = self._find_profile_template('RE-13')
             if not template:
@@ -216,25 +226,32 @@ class AwProfileSection(models.Model):
                     raise_if_not_found=False))
             if warning:
                 _logger.warning("aw_fenestration_core: %s", warning)
-            # The finish the rest of the section already uses, rather
-            # than a fresh guess -- the design overrides it anyway, but
-            # a line whose finish disagrees with its neighbours looks
-            # like a mistake on the form.
-            finish = section.line_ids[:1].finish_id or self.env.ref(
+            # The finish the rest of the set already uses, rather than a
+            # fresh guess -- the design overrides it anyway, but a line
+            # whose finish disagrees with its neighbours looks like a
+            # mistake on the form.
+            siblings = specs.profile_line_ids or section.line_ids
+            finish = siblings[:1].finish_id or self.env.ref(
                 'aw_fenestration_core.aw_attr_val_finish_natural',
                 raise_if_not_found=False)
-            self.env['aw.profile.section.line'].create({
-                'section_id': section.id,
+            values = {
                 'position_id': position.id,
                 'product_tmpl_id': template.id,
                 'thickness_id': thickness.id if thickness else False,
                 'finish_id': finish.id if finish else False,
                 'sequence': 150,
-            })
+            }
+            # Where the lines live now: the spec once migrated, the
+            # section before that. Exactly one owner either way.
+            for spec in specs or [None]:
+                self.env['aw.profile.section.line'].create(dict(
+                    values,
+                    spec_id=spec.id if spec else False,
+                    section_id=False if spec else section.id))
             added.append(section.name)
         if added:
             _logger.info(
-                "aw_fenestration_core: seeded a Lock Bar line into %s",
+                "aw_fenestration_core: seeded a Lock Bar line for %s",
                 '; '.join(added))
         return bool(added)
 

@@ -750,6 +750,59 @@ wrong, since RE-1 is a prefix of RE-10 through RE-16 and RE-127. The
 price list's "M.F" spelling is a documented fallback (none of these six
 need it).
 
+### Phase 7d — one structure: System → Specification
+
+Four layers became two. There used to be a Window System, a Profile
+Section, a Hardware Set, and a Specification pointing at both — but no
+section was ever used independently of the spec that picked it, so the
+middle layer was three names to maintain for no gain.
+
+**A Window System** says what it is: glazing family, role, which panel
+types it can host, its product category. **A Specification** says what a
+window built in that system is made of, and owns it directly: its own
+profile lines, its own hardware lines, its glass, optionally a default
+finish, and the glass/mesh deductions and panel limits that used to live
+on the system (two specs of one system can use different beads, so the
+deductions belong with the profiles).
+
+A design's parts come from its spec plus its own per-window changes, and
+from nothing else. `profile_section_id` / `hardware_set_id` on the
+design are computed from the spec and readonly — kept because the shop
+drawing names them, and because the computed value is exactly what every
+existing design already had.
+
+**Migration.** Each spec's section and hardware-set lines are
+**re-pointed** onto it — the same records, not copies — because the BOM
+is costed from those very lines, and same ids means same products, same
+thicknesses and the same resolved variants, so a quoted design keeps its
+price to the last rupee. A section shared by several specs is copied for
+all but the first. A section used by no spec gets a spec created for it,
+so the designs built on it keep their BOM.
+
+**UI.**
+
+- **Fenestration > Window Systems** — kanban grouped by glazing family,
+  or list. The system form is General plus its Specifications. The spec
+  form has tabs: General | Profiles | Hardware | Deductions & limits |
+  Used in, and a **Duplicate spec** button that copies the spec, its
+  lines and its deductions in one go.
+- **Fenestration > Configuration** — Settings, Glazing Families, Profile
+  Positions, Leaf Types, Layout Library (families, presets, mesh, infill,
+  grid), Profile Rates, Import Price List, Import Catalogue, Price
+  Structures.
+- The **Profile Sections**, **Hardware Sets** and top-level
+  **Specifications** menus are gone; specs live inside their system. The
+  models and their actions survive, so bookmarks and the migration still
+  work.
+- The configurator's Spec tab is one Spec dropdown plus the per-window
+  change list. The separate Profile Section and Hardware Set dropdowns
+  are gone from both the tab and the header: they follow the spec, so
+  offering them was offering a choice that could contradict it.
+
+The legacy `profile_section_id` / `hardware_set_id` fields on the spec
+are kept, on the "Used in" tab, and will be dropped once nothing reads
+them.
+
 ### Phase 7c — Specifications and per-window changes
 
 A **Specification** ("Spec") is what a window is normally made of: one

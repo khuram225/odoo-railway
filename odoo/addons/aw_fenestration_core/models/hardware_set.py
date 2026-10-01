@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class AwHardwareSet(models.Model):
@@ -37,8 +38,15 @@ class AwHardwareSetLine(models.Model):
     _description = 'Fenestration Hardware Set Line'
     _order = 'sequence, id'
 
+    # Phase 7d, same as the profile line: the owner is a
+    # Specification now, and set_id is kept un-required so the
+    # migration re-points rather than recreates.
     set_id = fields.Many2one(
-        'aw.hardware.set', required=True, ondelete='cascade')
+        'aw.hardware.set', ondelete='cascade',
+        help="Legacy owner, kept until Hardware Sets are dropped.")
+    spec_id = fields.Many2one(
+        'aw.window.template', string='Specification',
+        ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
     product_id = fields.Many2one(
         'product.product', required=True, ondelete='restrict',
@@ -73,6 +81,16 @@ class AwHardwareSetLine(models.Model):
         help="Hardware lines default to optional — a sales user can drop "
              "or swap any line, per the choose/drop mechanism agreed for "
              "this module. Uncheck for a line that must never be removed.")
+
+    @api.constrains('set_id', 'spec_id')
+    def _check_one_owner(self):
+        """Exactly one owner -- see the profile line's own note."""
+        for line in self:
+            if bool(line.set_id) == bool(line.spec_id):
+                raise ValidationError(_(
+                    "A hardware line must belong to exactly one "
+                    "Specification (or, until they are dropped, one "
+                    "Hardware Set)."))
 
     @api.model
     def _seed_qty_formulas(self):

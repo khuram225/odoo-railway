@@ -146,30 +146,6 @@
                                 </span>
                             </div>
                         </div>
-                        <div t-if="showSectionPicker">
-                            <label class="form-label small text-muted mb-0">Profile Section</label>
-                            <select class="form-select form-select-sm"
-                                    t-on-change="onSectionChange">
-                                <t t-foreach="sectionOptions" t-as="opt" t-key="opt.id">
-                                    <option t-att-value="opt.id"
-                                            t-att-selected="opt.id === state.data.header.profile_section_id">
-                                        <t t-esc="opt.name"/>
-                                    </option>
-                                </t>
-                            </select>
-                        </div>
-                        <div t-if="showHardwarePicker">
-                            <label class="form-label small text-muted mb-0">Hardware Set</label>
-                            <select class="form-select form-select-sm"
-                                    t-on-change="onHardwareSetChange">
-                                <t t-foreach="hardwareOptions" t-as="opt" t-key="opt.id">
-                                    <option t-att-value="opt.id"
-                                            t-att-selected="opt.id === state.data.header.hardware_set_id">
-                                        <t t-esc="opt.name"/>
-                                    </option>
-                                </t>
-                            </select>
-                        </div>
                         <div class="ms-auto d-flex gap-2">
                             <button class="btn btn-sm btn-secondary" t-on-click="saveAsPreset"
                                     title="Save this layout as a reusable preset">
@@ -1320,31 +1296,27 @@
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-2">
                                 Specification
                             </div>
+                            <!-- Phase 7d: one dropdown. The Profile
+                                 Section and Hardware Set both follow the
+                                 spec now, so offering them here was
+                                 offering a choice that could contradict
+                                 it. -->
                             <div class="mb-2">
-                                <label class="form-label small text-muted mb-0">Profile Section</label>
-                                <select class="form-select form-select-sm"
-                                        t-on-change="onSectionChange">
-                                    <option value="">Choose...</option>
-                                    <t t-foreach="sectionOptions" t-as="opt" t-key="opt.id">
+                                <label class="form-label small text-muted mb-0">Spec</label>
+                                <select t-if="showSpecPicker"
+                                        class="form-select form-select-sm"
+                                        t-on-change="onSpecChange">
+                                    <t t-foreach="specOptions" t-as="opt" t-key="opt.id">
                                         <option t-att-value="opt.id"
-                                                t-att-selected="opt.id === state.data.header.profile_section_id">
+                                                t-att-selected="opt.id === state.data.header.template_id">
                                             <t t-esc="opt.name"/>
                                         </option>
                                     </t>
                                 </select>
-                            </div>
-                            <div class="mb-2">
-                                <label class="form-label small text-muted mb-0">Hardware Set</label>
-                                <select class="form-select form-select-sm"
-                                        t-on-change="onHardwareSetChange">
-                                    <option value="">Choose...</option>
-                                    <t t-foreach="hardwareOptions" t-as="opt" t-key="opt.id">
-                                        <option t-att-value="opt.id"
-                                                t-att-selected="opt.id === state.data.header.hardware_set_id">
-                                            <t t-esc="opt.name"/>
-                                        </option>
-                                    </t>
-                                </select>
+                                <div t-else="" class="form-control form-control-sm bg-view border-0 text-truncate"
+                                     t-att-title="specName">
+                                    <t t-esc="specName or '\u2014'"/>
+                                </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label small text-muted mb-0">Glass</label>

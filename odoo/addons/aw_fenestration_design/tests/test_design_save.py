@@ -130,6 +130,43 @@ class TestDesignSave(TransactionCase):
                          "Missing hardware is a warning, not an error: a "
                          "window can still be quoted without it.")
 
+    def test_parts_come_from_the_spec(self):
+        """Phase 7d: the BOM is built from the SPEC's own lines.
+
+        The failure this guards is silent. A reader left on the legacy
+        `profile_section_id.line_ids` does not raise -- after the
+        migration that section is EMPTY, so it returns nothing and the
+        design explodes to a BOM with no profiles in it at all.
+        """
+        self.design.save_layout(self._payload())
+        spec = self.design.template_id
+        self.assertTrue(
+            spec, "save_layout should have resolved a Specification: "
+                  "_resolve_spec() runs on every save.")
+        self.assertTrue(
+            spec.profile_line_ids,
+            "The spec owns no profile lines, so nothing could be built. "
+            "Did the phase 7d migration run?")
+        self.assertEqual(
+            self.design._spec_profile_lines(), spec.profile_line_ids,
+            "The design's parts must be the spec's own lines.")
+
+        # Every profile line in the BOM traces back to a position the
+        # spec actually configures -- which is what would collapse to
+        # nothing if a reader were still on the empty section.
+        positions = set(spec.profile_line_ids.mapped('position_id').ids)
+        self.assertTrue(
+            self.design.bom_line_ids.filtered(
+                lambda l: l.kind == 'profile'),
+            "No profile lines in the BOM at all.")
+        for line in self.design.bom_line_ids.filtered(
+                lambda l: l.kind == 'profile'):
+            self.assertTrue(
+                line.product_id or line.label,
+                "A profile BOM line with neither product nor label.")
+        self.assertTrue(
+            positions, "The spec configures no positions.")
+
     def test_checks_are_regenerated(self):
         """Checks belong to the layout that is there now."""
         self.design.save_layout(self._payload())

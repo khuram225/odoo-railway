@@ -3,7 +3,12 @@
 
     <!-- The model is aw.window.template and stays that way; everything
          the user reads says "Specification" / "Spec". Renaming a model
-         rewrites every stored reference and every xmlid for a label. -->
+         rewrites every stored reference and every xmlid for a label.
+
+         Phase 7d: the spec OWNS its profile and hardware lines, and
+         carries the glass/mesh deductions and panel limits that used to
+         sit on the system. The Profile Section and Hardware Set links
+         survive, hidden on the last tab, until they are dropped. -->
 
     <record id="view_aw_window_template_list" model="ir.ui.view">
         <field name="name">aw.window.template.list</field>
@@ -11,13 +16,14 @@
         <field name="arch" type="xml">
             <list>
                 <field name="sequence" widget="handle"/>
-                <field name="window_type_id" string="Profile System"/>
+                <field name="window_type_id" string="Window System"/>
                 <field name="name"/>
                 <field name="is_default" widget="boolean_toggle"/>
-                <field name="profile_section_id"/>
-                <field name="hardware_set_id"/>
+                <field name="profile_line_count" string="Profiles"/>
+                <field name="hardware_line_count" string="Hardware"/>
                 <field name="glass_spec_id"/>
                 <field name="finish_id" optional="hide"/>
+                <field name="design_count" string="Used in"/>
             </list>
         </field>
     </record>
@@ -27,31 +33,151 @@
         <field name="model">aw.window.template</field>
         <field name="arch" type="xml">
             <form>
+                <header>
+                    <button type="object" name="action_duplicate_spec"
+                            string="Duplicate spec" class="btn-secondary"
+                            invisible="not id"
+                            help="A copy of this spec, its profile and hardware lines and its deductions."/>
+                </header>
                 <sheet>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
                     <widget name="web_ribbon" title="Default" bg_color="text-bg-success"
                             invisible="not is_default"/>
-                    <group>
-                        <group>
-                            <field name="window_type_id" string="Profile System"/>
-                            <field name="name" placeholder="e.g. Double Glaze - Openable - RE spec"/>
-                            <field name="code"/>
-                            <field name="is_default"/>
-                            <field name="sequence"/>
-                        </group>
-                        <group>
-                            <field name="profile_section_id"/>
-                            <field name="hardware_set_id"
-                                   placeholder="None yet"/>
-                            <field name="glass_spec_id"/>
-                            <field name="finish_id"/>
-                        </group>
-                    </group>
-                    <group>
-                        <field name="notes" placeholder="e.g. Standard / Heavy Duty / Economy..."/>
-                    </group>
-                    <field name="active" invisible="1"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Double Glaze - Openable - RE spec"/></h1>
+                    </div>
+                    <notebook>
+                        <page string="General" name="general">
+                            <group>
+                                <group>
+                                    <field name="window_type_id" string="Window System"/>
+                                    <field name="code"/>
+                                    <field name="is_default"/>
+                                    <field name="sequence"/>
+                                </group>
+                                <group>
+                                    <field name="glass_spec_id"/>
+                                    <field name="finish_id"/>
+                                    <field name="active" invisible="1"/>
+                                </group>
+                            </group>
+                            <group string="Notes">
+                                <field name="notes" nolabel="1"
+                                       placeholder="e.g. Standard / Heavy Duty / Economy..."/>
+                            </group>
+                        </page>
+
+                        <page string="Profiles" name="profiles">
+                            <p class="text-muted">
+                                Which profile fills each position. Several
+                                lines on one position are alternatives —
+                                the lowest sequence is the default and the
+                                rest are offered in the configurator.
+                            </p>
+                            <field name="profile_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="position_id"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="thickness_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="finish_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="thickness_id"/>
+                                    <field name="finish_id"/>
+                                    <field name="product_id" string="Variant" readonly="1"/>
+                                    <field name="option_label" optional="show"/>
+                                    <field name="max_span_mm" optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Hardware" name="hardware">
+                            <p class="text-muted">
+                                Leave empty until a hardware list exists. A
+                                design built to a spec with no hardware is
+                                warned that its hardware cost is missing,
+                                which is more honest than a placeholder
+                                that prices hardware at zero.
+                            </p>
+                            <field name="hardware_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="product_id"/>
+                                    <field name="scope"/>
+                                    <field name="leaf_type_id"/>
+                                    <field name="qty"/>
+                                    <field name="qty_formula" optional="show"/>
+                                    <field name="condition_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+
+                        <page string="Deductions &amp; limits" name="deductions">
+                            <p class="text-muted">
+                                How much smaller than its panel each infill
+                                is cut. Variables: PW PH (the panel),
+                                CW CH (its container), W H (the design),
+                                N T, LS (the sash length on a lock side).
+                            </p>
+                            <group>
+                                <group string="Glass, fixed panel">
+                                    <field name="glass_fixed_w"/>
+                                    <field name="glass_fixed_h"/>
+                                </group>
+                                <group string="Glass, opening panel">
+                                    <field name="glass_sash_w"/>
+                                    <field name="glass_sash_h"/>
+                                </group>
+                                <group string="Mesh">
+                                    <field name="mesh_w"/>
+                                    <field name="mesh_h"/>
+                                </group>
+                                <group string="Panel limits">
+                                    <field name="max_panel_w"/>
+                                    <field name="max_panel_h"/>
+                                    <field name="max_panel_kg"/>
+                                </group>
+                            </group>
+                            <p class="text-muted">
+                                Exceeding a limit is reported as a check on
+                                the design, never a hard block. Zero means
+                                the limit is not checked at all.
+                            </p>
+                        </page>
+
+                        <page string="Used in" name="used_in">
+                            <p class="text-muted">
+                                Editing this spec affects these designs the
+                                next time each one is saved. A confirmed or
+                                sent quote is never re-exploded on its own.
+                            </p>
+                            <button type="object" name="action_view_designs"
+                                    string="Open the designs" class="btn-link"
+                                    invisible="not design_count"/>
+                            <group>
+                                <field name="design_count" string="Designs"/>
+                            </group>
+                            <group string="Legacy links" name="legacy">
+                                <field name="profile_section_id"/>
+                                <field name="hardware_set_id"/>
+                            </group>
+                            <p class="text-muted">
+                                The Profile Section and Hardware Set this
+                                spec was assembled from before its lines
+                                moved onto it. Kept so the shop drawing can
+                                go on naming them; they no longer decide
+                                anything, and will be dropped.
+                            </p>
+                        </page>
+                    </notebook>
                 </sheet>
                 <chatter/>
             </form>
@@ -64,13 +190,13 @@
         <field name="arch" type="xml">
             <search>
                 <field name="name"/>
-                <field name="window_type_id" string="Profile System"/>
+                <field name="window_type_id" string="Window System"/>
                 <filter name="filter_default" string="Default"
                         domain="[('is_default', '=', True)]"/>
                 <filter name="filter_archived" string="Archived"
                         domain="[('active', '=', False)]"/>
                 <group>
-                    <filter name="group_system" string="Profile System"
+                    <filter name="group_system" string="Window System"
                             context="{'group_by': 'window_type_id'}"/>
                 </group>
             </search>
@@ -84,14 +210,12 @@
         <field name="search_view_id" ref="view_aw_window_template_search"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Create your first Specification</p>
-            <p>A Spec assembles one Profile Section + one Glass Spec for a profile
-               system, and optionally a Hardware Set and a default finish. A design
-               starts from its system's default spec, and anything changed on one
-               window afterwards is recorded against that window alone.</p>
-            <p>Leave the Hardware Set empty until a hardware list exists: a design
-               built to a spec without one is warned that its hardware cost is
-               missing, which is more honest than a placeholder set that quietly
-               prices hardware at zero.</p>
+            <p>A Spec says what a window in one Window System is made of: its
+               profile lines, its hardware lines, its glass, optionally a default
+               finish, and how much smaller than each panel the glass and mesh are
+               cut. A design starts from its system's default spec, and anything
+               changed on one window afterwards is recorded against that window
+               alone.</p>
         </field>
     </record>
 

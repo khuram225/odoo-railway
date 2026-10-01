@@ -2,6 +2,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
+from .formula import validate_formula
+
 
 class AwWindowTemplate(models.Model):
     """A SPECIFICATION (spec 7c): one Profile Section + one Hardware Set
@@ -71,6 +73,42 @@ class AwWindowTemplate(models.Model):
         help="The spec a new design in this profile system starts from. "
              "One per system.")
 
+    # -- what this spec is made of (phase 7d) --------------------------
+    # The spec OWNS its lines now. Profile Sections and Hardware Sets
+    # were a layer between the system and the spec that nothing used
+    # independently: every section belonged to one system and was
+    # picked by one spec, so naming and maintaining it twice was all
+    # cost. The old links are kept and hidden until they are dropped.
+    profile_line_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Profiles')
+    hardware_line_ids = fields.One2many(
+        'aw.hardware.set.line', 'spec_id', string='Hardware')
+
+    profile_line_count = fields.Integer(compute='_compute_part_counts')
+    hardware_line_count = fields.Integer(compute='_compute_part_counts')
+    design_count = fields.Integer(
+        compute='_compute_design_count', string='Used in')
+
+    # -- 6.4 deductions and limits, moved off the system (phase 7d) ----
+    # These describe how a PROFILE SYSTEM's glass sits in its sash, so
+    # they belong with the profiles rather than with the system: two
+    # specs of one system can legitimately use different beads and
+    # therefore different deductions. Migrated by copying each system's
+    # current values into every one of its specs, so nothing moves on
+    # the upgrade.
+    glass_fixed_w = fields.Char(string='Fixed Glass Width', default='PW - 60')
+    glass_fixed_h = fields.Char(string='Fixed Glass Height', default='PH - 60')
+    glass_sash_w = fields.Char(string='Sash Glass Width', default='PW - 80')
+    glass_sash_h = fields.Char(string='Sash Glass Height', default='PH - 80')
+    mesh_w = fields.Char(string='Mesh Width', default='PW - 10')
+    mesh_h = fields.Char(string='Mesh Height', default='PH - 10')
+    max_panel_w = fields.Float(
+        string='Max Panel Width (mm)', help="0 means not checked.")
+    max_panel_h = fields.Float(
+        string='Max Panel Height (mm)', help="0 means not checked.")
+    max_panel_kg = fields.Float(
+        string='Max Panel Weight (kg)', help="0 means not checked.")
+
     notes = fields.Text()
 
     _sql_constraints = [
@@ -102,6 +140,79 @@ class AwWindowTemplate(models.Model):
                     "that one first.",
                     other=others[0].display_name,
                     system=rec.window_type_id.display_name))
+
+    @api.depends('profile_line_ids', 'hardware_line_ids')
+    def _compute_part_counts(self):
+        for rec in self:
+            rec.profile_line_count = len(rec.profile_line_ids)
+            rec.hardware_line_count = len(rec.hardware_line_ids)
+
+    def _compute_design_count(self):
+        """How many designs are built to this spec.
+
+        Not stored and not depended on: a design count that went stale
+        would be worse than one computed on open, and nothing here
+        needs to trigger on it.
+        """
+        Design = self.env['aw.design'].with_context(active_test=False)
+        for rec in self:
+            rec.design_count = Design.search_count(
+                [('template_id', '=', rec.id)]) if rec.id else 0
+
+    @api.constrains('glass_fixed_w', 'glass_fixed_h', 'glass_sash_w',
+                    'glass_sash_h', 'mesh_w', 'mesh_h')
+    def _check_deduction_formulas(self):
+        """Rejected on save, with the reason, rather than silently
+        falling back to a default in the explosion later."""
+        for rec in self:
+            for value, label in (
+                (rec.glass_fixed_w, _('Fixed Glass Width')),
+                (rec.glass_fixed_h, _('Fixed Glass Height')),
+                (rec.glass_sash_w, _('Sash Glass Width')),
+                (rec.glass_sash_h, _('Sash Glass Height')),
+                (rec.mesh_w, _('Mesh Width')),
+                (rec.mesh_h, _('Mesh Height')),
+            ):
+                problem = validate_formula(value)
+                if problem:
+                    raise ValidationError(_(
+                        "%(label)s on '%(name)s': %(problem)s",
+                        label=label, name=rec.name, problem=problem))
+
+    def action_duplicate_spec(self):
+        """Copy this spec, its lines and its deductions.
+
+        copy() carries the One2many lines because they are owned here
+        now -- which is the point of the phase: a variant of a spec used
+        to mean copying a Profile Section, a Hardware Set and the spec
+        that pointed at both, and keeping three names in step.
+        """
+        self.ensure_one()
+        new = self.copy({
+            'name': _('%s (copy)', self.name),
+            # Never two defaults for one system, and a copy is not the
+            # thing a new design should silently start from.
+            'is_default': False,
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Specification'),
+            'res_model': 'aw.window.template',
+            'res_id': new.id,
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+        }
+
+    def action_view_designs(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Designs built to %s', self.display_name),
+            'res_model': 'aw.design',
+            'view_mode': 'list,form',
+            'views': [(False, 'list'), (False, 'form')],
+            'domain': [('template_id', '=', self.id)],
+        }
 
     @api.model
     def _default_for_system(self, system):

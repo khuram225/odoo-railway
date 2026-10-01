@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!--
+    Phase 7d. The system form is General + its Specifications; the
+    Deductions and Limits pages moved onto the SPECIFICATION, because
+    two specs of one system can use different beads and so different
+    deductions. The system keeps what is true of the system: family,
+    role, which leaf types it can host, and its product category.
+
+    The system's own deduction fields are still on the model and are
+    still what a design with no spec falls back to, but they are off
+    this form: editing them there would look like it changed something
+    and would not, since every spec carries its own copy.
+    -->
+
     <record id="view_aw_window_series_list" model="ir.ui.view">
         <field name="name">aw.window.series.list</field>
         <field name="model">aw.window.series</field>
@@ -12,10 +25,58 @@
                 <field name="family_id"/>
                 <field name="system_role"/>
                 <field name="leaf_type_ids" widget="many2many_tags"/>
-                <field name="profile_section_count" string="Sections"/>
-                <field name="hardware_set_count" string="Hardware Sets"/>
-                <field name="template_count" string="Templates"/>
+                <field name="template_count" string="Specifications"/>
             </list>
+        </field>
+    </record>
+
+    <record id="view_aw_window_series_kanban" model="ir.ui.view">
+        <field name="name">aw.window.series.kanban</field>
+        <field name="model">aw.window.series</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="family_id">
+                <field name="family_id"/>
+                <field name="system_role"/>
+                <field name="template_count"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="oe_kanban_details">
+                            <strong class="o_kanban_record_title">
+                                <field name="name"/>
+                            </strong>
+                            <div class="text-muted">
+                                <field name="system_role"/>
+                            </div>
+                            <div class="mt-1">
+                                <field name="leaf_type_ids" widget="many2many_tags"/>
+                            </div>
+                            <div class="mt-1 small">
+                                <field name="template_count"/> specification(s)
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_aw_window_series_search" model="ir.ui.view">
+        <field name="name">aw.window.series.search</field>
+        <field name="model">aw.window.series</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="family_id"/>
+                <filter name="filter_archived" string="Archived"
+                        domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_family" string="Glazing Family"
+                            context="{'group_by': 'family_id'}"/>
+                    <filter name="group_role" string="Role"
+                            context="{'group_by': 'system_role'}"/>
+                </group>
+            </search>
         </field>
     </record>
 
@@ -25,29 +86,18 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
-                    <div class="oe_button_box" name="button_box">
-                        <button type="object" name="action_view_profile_sections"
-                                class="oe_stat_button" icon="fa-cubes">
-                            <field name="profile_section_count" widget="statinfo" string="Sections"/>
-                        </button>
-                        <button type="object" name="action_view_hardware_sets"
-                                class="oe_stat_button" icon="fa-wrench">
-                            <field name="hardware_set_count" widget="statinfo" string="Hardware Sets"/>
-                        </button>
-                        <button type="object" name="action_view_templates"
-                                class="oe_stat_button" icon="fa-th-large">
-                            <field name="template_count" widget="statinfo" string="Templates"/>
-                        </button>
-                    </div>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Double Glaze - Openable"/></h1>
+                    </div>
                     <group>
-                        <group>
-                            <field name="name"/>
+                        <group string="General">
                             <field name="code"/>
                             <field name="family_id"/>
                             <field name="system_role"/>
-                            <field name="leaf_type_ids" widget="many2many_tags"/>
+                            <field name="leaf_type_ids" widget="many2many_tags"
+                                   string="Panel types it can host"/>
                         </group>
                         <group>
                             <field name="product_category_id"/>
@@ -57,39 +107,24 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Deductions" name="deductions">
+                        <page string="Specifications" name="specs">
                             <p class="text-muted">
-                                How much smaller than its panel each infill
-                                is cut. Variables: PW PH (the panel),
-                                CW CH (its container), W H (the design),
-                                N T.
+                                What a window in this system is made of. A
+                                spec owns its own profile and hardware
+                                lines; one of them is the default a new
+                                design starts from.
                             </p>
-                            <group>
-                                <group string="Glass, fixed panel">
-                                    <field name="glass_fixed_w"/>
-                                    <field name="glass_fixed_h"/>
-                                </group>
-                                <group string="Glass, opening panel">
-                                    <field name="glass_sash_w"/>
-                                    <field name="glass_sash_h"/>
-                                </group>
-                                <group string="Mesh">
-                                    <field name="mesh_w"/>
-                                    <field name="mesh_h"/>
-                                </group>
-                            </group>
-                        </page>
-                        <page string="Limits" name="limits">
-                            <p class="text-muted">
-                                Exceeding a limit is reported as a check on
-                                the design, never a hard block. Zero means
-                                the limit is not checked at all.
-                            </p>
-                            <group>
-                                <field name="max_panel_w"/>
-                                <field name="max_panel_h"/>
-                                <field name="max_panel_kg"/>
-                            </group>
+                            <field name="template_ids" context="{'default_window_type_id': id}">
+                                <list>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="is_default" widget="boolean_toggle"/>
+                                    <field name="profile_line_count" string="Profiles"/>
+                                    <field name="hardware_line_count" string="Hardware"/>
+                                    <field name="glass_spec_id"/>
+                                    <field name="design_count" string="Used in"/>
+                                </list>
+                            </field>
                         </page>
                     </notebook>
                 </sheet>
@@ -99,15 +134,16 @@
     </record>
 
     <record id="action_aw_window_series" model="ir.actions.act_window">
-        <field name="name">Profile Systems</field>
+        <field name="name">Window Systems</field>
         <field name="res_model">aw.window.series</field>
-        <field name="view_mode">list,form</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_aw_window_series_search"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first Profile System</p>
-            <p>A Window Series is a specific product family — Double Glaze Sliding,
-               Single Glaze Fix, Curtain Wall Fix, Tilt &amp; Turn Series, Casement
-               Single Glaze, etc. Leaf Types picks which leaf mechanisms it can
-               host.</p>
+            <p class="o_view_nocontent_smiling_face">Create your first Window System</p>
+            <p>A Window System is a profile system — Double Glaze Sliding, Single
+               Glaze Fix, Curtain Wall Fix, Tilt &amp; Turn, Casement, etc. It says
+               which panel types it can host; its Specifications say what a window
+               built in it is actually made of.</p>
         </field>
     </record>
 

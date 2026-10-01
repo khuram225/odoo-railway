@@ -129,10 +129,15 @@
                             <field name="location"/>
                             <field name="qty"/>
                             <field name="family_id"/>
-                            <field name="window_series_id" string="Profile System"/>
+                            <field name="window_series_id" string="Window System"/>
                             <field name="template_id"/>
-                            <field name="profile_section_id"/>
-                            <field name="hardware_set_id"/>
+                            <!-- Both follow the Specification now and are
+                                 readonly. Kept on the form because the shop
+                                 drawing names them and because it answers
+                                 "which section was this built to?" without
+                                 opening the spec. -->
+                            <field name="profile_section_id" optional="hide"/>
+                            <field name="hardware_set_id" optional="hide"/>
                         </group>
                         <group>
                             <field name="length_uom" invisible="1"/>

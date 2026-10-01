@@ -811,27 +811,11 @@ export class DesignConfigurator extends Component {
         return this.state.data?.finish_options || [];
     }
 
-    get sectionOptions() {
-        return this.state.data?.section_options || [];
-    }
-
-    get hardwareOptions() {
-        return this.state.data?.hardware_options || [];
-    }
-
-    /**
-     * Only worth a dropdown when there is a choice to make. With one
-     * Profile Section the value is already right and a picker with a
-     * single entry is just noise; with none, there is nothing to pick
-     * and the checks say so.
-     */
-    get showSectionPicker() {
-        return this.sectionOptions.length > 1;
-    }
-
-    get showHardwarePicker() {
-        return this.hardwareOptions.length > 1;
-    }
+    // Phase 7d removed the Profile Section and Hardware Set
+    // dropdowns: both follow the Specification. The getters are gone
+    // with them rather than left returning [] -- check_owl_getters.mjs
+    // reads every getter on the class, so a dead one is a dead one it
+    // keeps exercising.
 
     /** Leaf type codes used anywhere in the layout, containers skipped. */
     usedLeafTypeCodes(rows) {
@@ -894,25 +878,26 @@ export class DesignConfigurator extends Component {
         // The catalogue comes back too, so the library's mesh and infill
         // sections stay in step with whatever the new Series allows.
         for (const key of ["mesh_types", "infill_types", "glass_specs",
-                           "grid_patterns", "families", "section_options",
-                           "hardware_options"]) {
+                           "grid_patterns", "families", "spec_options",
+                           "spec_parts"]) {
             if (context[key]) {
                 this.state.data[key] = context[key];
             }
         }
 
-        // The rule sets belong to the Series, so a stale choice would
-        // point at another Series' section. Mirrors _compute_rule_sets:
-        // keep it only if the new Series still offers it.
-        for (const [field, options] of [
-            ["profile_section_id", this.sectionOptions],
-            ["hardware_set_id", this.hardwareOptions],
-        ]) {
-            const current = this.state.data.header[field];
-            if (!options.some((o) => o.id === current)) {
-                this.state.data.header[field] = options.length
-                    ? options[0].id : false;
-            }
+        // The SPEC belongs to the system, so a stale one would point at
+        // another system's. Same rule _resolve_spec() applies on the
+        // server: keep a choice that still fits, otherwise take the new
+        // system's default. The Profile Section and Hardware Set are not
+        // here any more -- they follow the spec and are readonly.
+        const specs = this.specOptions;
+        const spec = this.state.data.header.template_id;
+        if (!specs.some((o) => o.id === spec)) {
+            const fallback = specs.find((o) => o.is_default) || specs[0];
+            this.state.data.header.template_id = fallback
+                ? fallback.id : false;
+            this.state.data.header.template_name = fallback
+                ? fallback.name : "";
         }
         // Default glass FILLS only, matching _compute_glass_spec on the
         // server: switching Series must not replace glass someone chose.
@@ -1014,14 +999,6 @@ export class DesignConfigurator extends Component {
     finishStyle(option) {
         const colour = option.color || "#cccccc";
         return `background-color: ${colour};`;
-    }
-
-    onSectionChange(ev) {
-        this.onHeaderIdChange("profile_section_id", ev);
-    }
-
-    onHardwareSetChange(ev) {
-        this.onHeaderIdChange("hardware_set_id", ev);
     }
 
     onBuilderPanelsChange(ev) {

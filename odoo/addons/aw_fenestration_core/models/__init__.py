@@ -9,6 +9,7 @@ from . import section_seed
 from . import hardware_set
 from . import glass_spec
 from . import window_template
+from . import spec_migration
 from . import profile_rate
 from . import price_structure
 from . import thickness
