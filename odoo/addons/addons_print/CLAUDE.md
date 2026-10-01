@@ -69,6 +69,8 @@ Aluminum-only hooks do not apply.
   every save; Print overview tab, line popup, Calculate button. Settings: pp_print_core.colour_strip_in, pp_print_core.gap_in
   (ir.config_parameter). Auto press = smallest offset press with enough colour units that fits (base-product rules replace
   it later).
+  Print overview is display-only (computed print_line_ids); print settings are edited in the line dialog. Never put two
+  writable One2many fields on the same inverse in one form.
 
 ## Next steps
 4. Print general (prepress, finishing items, cutting), 5. binding and delivery, 6. costing (spec lines, cost points, margin cascade,

@@ -103,32 +103,32 @@
                     <div class="alert alert-danger" role="alert" invisible="not calc_warning">
                         <field name="calc_warning" readonly="1"/>
                     </div>
-                    <field name="print_line_ids">
-                        <list editable="bottom" create="0" delete="0">
+                    <div class="text-muted" invisible="id">Save the estimate first; then open a line with the magnifier to set its press, imposition, colours and scrap.</div>
+                    <field name="print_line_ids" invisible="not id">
+                        <list create="0" delete="0" no_open="1">
                             <field name="sequence" column_invisible="1"/>
-                            <field name="page_type_id" readonly="1"/>
+                            <field name="page_type_id"/>
                             <field name="kind" column_invisible="1"/>
-                            <field name="press_id" options="{'no_create': True}" placeholder="Auto"/>
-                            <field name="press_used_id" optional="show"/>
-                            <field name="imposition_id" options="{'no_create': True}" placeholder="Auto"/>
+                            <field name="press_id" optional="show"/>
+                            <field name="press_used_id"/>
+                            <field name="imposition_id" optional="show"/>
                             <field name="layout_text" optional="show"/>
                             <field name="sheets_per_copy"/>
                             <field name="colours_front"/>
                             <field name="colours_back"/>
-                            <field name="material_id" readonly="1"/>
-                            <field name="pages" readonly="1"/>
+                            <field name="material_id"/>
+                            <field name="pages"/>
                             <field name="no_up"/>
                             <field name="pages_per_sheet"/>
                             <field name="passes"/>
                             <field name="paper_kg" sum="Kg"/>
                             <field name="scrap_method" optional="hide"/>
-                            <field name="scrap_value" optional="hide"/>
                             <field name="print_total" optional="show"/>
                             <field name="paper_sheets" optional="show"/>
                             <field name="plates_total" sum="Plates"/>
                             <field name="paper_cost" sum="Paper cost" optional="show"/>
-                            <field name="calc_ok" column_invisible="1"/>
-                            <button name="action_open_print_line" type="object" icon="fa-search-plus" title="Details and calculation"/>
+                            <field name="calc_error" optional="show" decoration-danger="calc_error"/>
+                            <button name="action_open_print_line" type="object" icon="fa-search-plus" title="Edit print settings and see the calculation"/>
                         </list>
                     </field>
                     <group>
@@ -140,8 +140,8 @@
                             <field name="total_paper_cost"/>
                         </group>
                     </group>
-                    <div class="text-muted">Add or remove page types on Production overview. Open a line (magnifier) for the
-                        bottom panel, scrap method and the step-by-step calculation.</div>
+                    <div class="text-muted">Add or remove page types on Production overview. Open a line with the magnifier to set
+                        press, imposition, colours and scrap, and to see the step-by-step calculation.</div>
                 </page>
             </xpath>
         </field>

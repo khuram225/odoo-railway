@@ -76,6 +76,29 @@ class TestPrintLine(TransactionCase):
         text.extra_plates = 2
         self.assertEqual(text.plates_total, 46)
 
+    def test_form_create_and_edit(self):
+        """Regression: creating and editing through the form must not resend Print overview rows."""
+        from odoo.tests import Form
+        f = Form(self.env["print.estimate"])
+        f.job_name = "Form test"
+        f.base_product_id = self.env.ref("pp_print_core.bp_mag")
+        f.run_qty = 100
+        est = f.save()
+        self.assertEqual(est.page_ids.mapped("page_type_id.code"), ["Cover1", "Text1"])
+        self.assertEqual(est.print_line_ids, est.page_ids)
+        f = Form(est)
+        with f.page_ids.new() as line:
+            line.page_type_id = self.env.ref("pp_print_core.pt_insert1")
+            line.pages = 4
+        with f.page_ids.edit(1) as line:
+            line.pages = 16
+        f.save()
+        self.assertEqual(len(est.page_ids), 3)
+        line_form = Form(est.page_ids[0], view="pp_print_core.view_print_line_form")
+        line_form.colours_front = 2
+        line_form.save()
+        self.assertEqual(est.page_ids[0].colours_front, 2)
+
     def test_settings_parameters(self):
         settings = self.env["res.config.settings"].create({"print_colour_strip_in": 0.5, "print_gap_in": 0.125})
         settings.execute()

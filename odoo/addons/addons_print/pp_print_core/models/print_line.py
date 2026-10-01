@@ -350,11 +350,19 @@ class PrintEstimatePageLog(models.Model):
 class PrintEstimate(models.Model):
     _inherit = "print.estimate"
 
-    print_line_ids = fields.One2many("print.estimate.page", "estimate_id", string="Print overview")
+    # Display-only view of page_ids for the Print overview tab. A second writable One2many on the same
+    # inverse would make the web client send its rows again on save (without read-only fields), so
+    # print lines are edited through the line dialog instead.
+    print_line_ids = fields.One2many("print.estimate.page", compute="_compute_print_line_ids", string="Print overview")
     calc_warning = fields.Char(compute="_compute_calc_warning")
     total_paper_kg = fields.Float("Paper kg", compute="_compute_print_totals", digits=(12, 2))
     total_paper_cost = fields.Float("Paper cost", compute="_compute_print_totals", digits=(14, 2))
     total_plates = fields.Integer("Plates", compute="_compute_print_totals")
+
+    @api.depends("page_ids")
+    def _compute_print_line_ids(self):
+        for rec in self:
+            rec.print_line_ids = rec.page_ids
 
     @api.depends("page_ids.calc_ok", "page_ids.calc_error")
     def _compute_calc_warning(self):
