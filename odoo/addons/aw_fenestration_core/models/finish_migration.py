@@ -11,13 +11,13 @@ stops using, which is what makes a migration like this possible at all.
    already has one keeps it: the spec was always the more specific
    answer.
 
-2. `aw.profile.section.line.finish_id` is gone; `aw.design.finish_id` is
-   required. Every design takes the finish ITS OWN spec lines carried, so
-   the variant each profile resolves to is the same record as before and
-   the rate lookup lands on the same column. Today every seeded line is
-   Natural, so in practice every design becomes Natural -- but reading it
-   off the lines rather than assuming that is the difference between a
-   migration that is correct and one that happens to be.
+2. The design half of this -- giving every design the finish its spec
+   lines carried -- lives in `aw_fenestration_design`, in
+   `models/finish_migration.py` there. It CANNOT live here: `aw.design`
+   is defined in that module, which depends on this one, so an
+   `_inherit = 'aw.design'` in core fails at registry load with "Model
+   'aw.design' does not exist in registry" and takes every request down
+   with it. That is not a style point; it is what broke a deploy.
 
 3. The seeded spec is renamed to its short name, "RE". Only if it still
    carries the name the seed gave it, so a spec renamed by hand is left
@@ -92,60 +92,4 @@ class AwWindowTemplate(models.Model):
         _logger.info(
             "aw_fenestration_core phase 7e: renamed %s specification(s) to "
             "'%s'", len(specs), SHORT_SPEC_NAME)
-        return True
-
-
-class AwDesign(models.Model):
-    _inherit = 'aw.design'
-
-    @api.model
-    def _migrate_finish_to_designs(self):
-        """Give every design the finish its own spec lines carried.
-
-        Read in SQL off the gone column, and the MOST COMMON value wins
-        where a spec's lines disagree -- they never should, since the
-        finish was required on every line and seeded uniformly, but a
-        hand-edited spec could have two. The majority is the one most of
-        the BOM was already costed at, so it is the choice that moves
-        the fewest prices.
-        """
-        param = self.env['ir.config_parameter'].sudo()
-        if param.get_param(FINISH_PARAM):
-            return False
-        param.set_param(FINISH_PARAM, '1')
-
-        line_model = self.env['aw.profile.section.line']
-        if not line_model._column_exists('aw_profile_section_line',
-                                         'finish_id'):
-            return False
-
-        # spec -> the finish most of its lines used.
-        self.env.cr.execute("""
-            SELECT spec_id, finish_id, count(*) AS n
-              FROM aw_profile_section_line
-             WHERE spec_id IS NOT NULL AND finish_id IS NOT NULL
-          GROUP BY spec_id, finish_id
-          ORDER BY spec_id, n DESC
-        """)
-        by_spec = {}
-        for spec_id, finish_id, _count in self.env.cr.fetchall():
-            by_spec.setdefault(spec_id, finish_id)
-
-        natural = self.env.ref(
-            'aw_fenestration_core.aw_attr_val_finish_natural',
-            raise_if_not_found=False)
-        moved = defaulted = 0
-        for design in self.with_context(active_test=False).search([]):
-            if design.finish_id:
-                continue
-            wanted = by_spec.get(design.template_id.id)
-            if wanted:
-                design.finish_id = wanted
-                moved += 1
-            elif natural:
-                design.finish_id = natural
-                defaulted += 1
-        _logger.info(
-            "aw_fenestration_core phase 7e: %s design(s) took their spec's "
-            "finish, %s fell back to Natural", moved, defaulted)
         return True

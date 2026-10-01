@@ -52,4 +52,5 @@ python scripts/check_section_seed.py || exit 1
 python scripts/check_spec_ownership.py || exit 1
 node scripts/check_configurator_geometry.mjs || exit 1
 python scripts/check_tenancy.py || exit 1
+python scripts/check_cross_module_inherit.py || exit 1
 python scripts/check_load_order.py
