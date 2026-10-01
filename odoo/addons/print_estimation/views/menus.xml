@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_print_root" name="Print Production" sequence="40" groups="group_print_user"/>
+    <menuitem id="menu_print_config" name="Configuration" parent="menu_print_root" sequence="90" groups="group_print_manager"/>
+
+    <menuitem id="menu_print_cfg_products" name="Products" parent="menu_print_config" sequence="10"/>
+    <menuitem id="menu_print_product_group" action="action_print_product_group" parent="menu_print_cfg_products" sequence="10"/>
+    <menuitem id="menu_print_base_product" action="action_print_base_product" parent="menu_print_cfg_products" sequence="20"/>
+
+    <menuitem id="menu_print_cfg_materials" name="Materials" parent="menu_print_config" sequence="20"/>
+    <menuitem id="menu_print_material" action="action_print_material" parent="menu_print_cfg_materials" sequence="10"/>
+    <menuitem id="menu_print_format" action="action_print_format" parent="menu_print_cfg_materials" sequence="20"/>
+
+    <menuitem id="menu_print_cfg_production" name="Production" parent="menu_print_config" sequence="30"/>
+    <menuitem id="menu_print_workcenter" action="action_print_workcenter" parent="menu_print_cfg_production" sequence="10"/>
+    <menuitem id="menu_print_labour_role" action="action_print_labour_role" parent="menu_print_cfg_production" sequence="20"/>
+    <menuitem id="menu_print_factor_group" action="action_print_factor_group" parent="menu_print_cfg_production" sequence="30"/>
+    <menuitem id="menu_print_imposition" action="action_print_imposition" parent="menu_print_cfg_production" sequence="40"/>
+
+    <menuitem id="menu_print_cfg_costing" name="Costing" parent="menu_print_config" sequence="40"/>
+    <menuitem id="menu_print_cost_group" action="action_print_cost_group" parent="menu_print_cfg_costing" sequence="10"/>
+</odoo>

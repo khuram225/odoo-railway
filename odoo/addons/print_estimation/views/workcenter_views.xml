@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_print_workcenter_list" model="ir.ui.view">
+        <field name="name">print.workcenter.list</field>
+        <field name="model">print.workcenter</field>
+        <field name="arch" type="xml">
+            <list decoration-danger="status == 'breakdown'" decoration-warning="status == 'maintenance'">
+                <field name="code"/><field name="name"/><field name="workcenter_type"/><field name="status"/>
+                <field name="cost_group_id"/><field name="factor_group_id"/>
+                <field name="current_total_rate_hr"/><field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_print_workcenter_form" model="ir.ui.view">
+        <field name="name">print.workcenter.form</field>
+        <field name="model">print.workcenter</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <field name="status" widget="statusbar" options="{'clickable': '1'}" statusbar_visible="available,running,breakdown,maintenance"/>
+                </header>
+                <sheet>
+                    <div class="oe_title"><h1><field name="name" placeholder="e.g. Heidelberg SM 74 four-colour"/></h1></div>
+                    <group>
+                        <group><field name="code"/><field name="workcenter_type"/><field name="cost_group_id"/><field name="active"/></group>
+                        <group><field name="currency_id"/><field name="current_direct_rate_hr"/><field name="current_indirect_rate_hr"/>
+                               <field name="current_crew_rate_hr"/><field name="current_total_rate_hr"/></group>
+                    </group>
+                    <notebook>
+                        <page string="Capability" name="capability">
+                            <group>
+                                <group string="Sheet size (inches)">
+                                    <field name="max_width_in"/><field name="max_height_in"/>
+                                    <field name="min_width_in"/><field name="min_height_in"/>
+                                    <field name="gripper_in"/>
+                                </group>
+                                <group string="Printing">
+                                    <field name="colour_units"/><field name="perfecting"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Speed and make-ready" name="speed">
+                            <group>
+                                <group><field name="speed_unit"/><field name="factor_group_id"/><field name="capacity_hours_day"/></group>
+                                <group><field name="makeready_min"/><field name="makeready_sheets"/><field name="running_waste_pct"/></group>
+                            </group>
+                        </page>
+                        <page string="Crew" name="crew">
+                            <field name="crew_ids">
+                                <list editable="bottom"><field name="role_id"/><field name="count"/></list>
+                            </field>
+                        </page>
+                        <page string="Rates" name="rates">
+                            <field name="rate_ids">
+                                <list editable="top">
+                                    <field name="date_from"/><field name="direct_rate_hr"/><field name="indirect_rate_hr"/>
+                                    <field name="click_rate_colour"/><field name="click_rate_mono"/><field name="note"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                </list>
+                            </field>
+                            <div class="text-muted">Direct = power and running consumables. Indirect = depreciation, maintenance, spares and space.
+                                The latest 'valid from' on or before the estimate date is used.</div>
+                        </page>
+                        <page string="Notes" name="notes"><field name="note"/></page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+    <record id="view_print_workcenter_search" model="ir.ui.view">
+        <field name="name">print.workcenter.search</field>
+        <field name="model">print.workcenter</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/><field name="code"/>
+                <filter name="down" string="Not available" domain="[('status', 'in', ('breakdown', 'maintenance'))]"/>
+                <group><filter name="by_type" string="Type" context="{'group_by': 'workcenter_type'}"/></group>
+            </search>
+        </field>
+    </record>
+    <record id="action_print_workcenter" model="ir.actions.act_window">
+        <field name="name">Work centres</field>
+        <field name="res_model">print.workcenter</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'search_default_by_type': 1}</field>
+    </record>
+</odoo>

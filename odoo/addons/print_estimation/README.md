@@ -1,0 +1,42 @@
+# Print Estimation — step 1: module skeleton and master data
+
+Odoo 19 Community. Tested on Odoo 19: installs cleanly, all views render, 6 unit tests pass (`--test-tags=print_estimation`).
+
+## Install
+1. Copy the `print_estimation` folder into your custom addons folder in the repo (the one already on the addons path).
+2. Commit and push; Railway redeploys.
+3. In Odoo: Settings → activate developer mode → Apps → Update Apps List → search "Print Estimation" → Activate.
+4. Settings → Users → give yourself **Print Production / Manager** (admin gets it automatically).
+
+To update after changes: Apps → Print Estimation → Upgrade.
+
+## What is in step 1 (all editable, nothing hard-coded)
+Menu **Print Production → Configuration**:
+
+| Menu | Model | Notes |
+|---|---|---|
+| Products → Product groups (L1) | print.product.group | 6 groups seeded from the costing-sheet analysis |
+| Products → Base products (L2) | print.base.product | 23 seeded, each with an estimating template |
+| Materials → Materials | product.template (+ print fields) | gsm, size in inches, thickness, pack; kg per sheet calculated; effective-dated prices per kg / sheet / pack / unit |
+| Materials → Standard formats | print.format | inches |
+| Production → Work centres | print.workcenter | type, status, capability, speed factor group, make-ready, crew, effective-dated machine rates |
+| Production → Labour roles | print.labour.role | effective-dated hourly rates |
+| Production → Factor groups | print.factor.group / print.factor | DynamicsPrint factor groups, config lines, diagram points and chart |
+| Production → Imposition | print.imposition | DynamicsPrint imposition table, 12 seeded |
+| Costing → Cost groups | print.cost.group | base groups with time and material markups |
+
+Seed data is loaded with `noupdate`, so your edits survive upgrades. No rates or prices are seeded.
+
+## Rules followed in every step
+- Every rate, price, speed, markup and allowance is a record, never a constant in code.
+- Rates and prices are effective-dated; an estimate will use the rates valid on its date.
+- Every calculated figure has a "how it is calculated" text next to it.
+- Units: inches, kg; currency = company currency (set it to PKR).
+
+## Formulas in this step
+- Kg per sheet = W (in) x H (in) x 0.00064516 x gsm / 1000 (same basis as the costing sheet's W x H x gsm / 3100 / 500).
+- Cost per sheet: per-kg price x kg per sheet; per-sheet price; or per-pack price / sheets per pack.
+- Factor value: straight-line interpolation between diagram points, flat outside them; a factor group combines its lines by Min / Max / Average / Multiply.
+
+## Version notes
+Written for Odoo 19: `models.Constraint` instead of `_sql_constraints`, security groups under a `res.groups.privilege`, `<list>` views and `<chatter/>`.

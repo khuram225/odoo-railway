@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="fmt_1" model="print.format"><field name="code">A4_V</field><field name="name">A4 portrait</field><field name="width_in">8.27</field><field name="height_in">11.69</field></record>
+    <record id="fmt_2" model="print.format"><field name="code">A4_H</field><field name="name">A4 landscape</field><field name="width_in">11.69</field><field name="height_in">8.27</field></record>
+    <record id="fmt_3" model="print.format"><field name="code">A5_V</field><field name="name">A5 portrait</field><field name="width_in">5.83</field><field name="height_in">8.27</field></record>
+    <record id="fmt_4" model="print.format"><field name="code">8.5x11_V</field><field name="name">Letter portrait</field><field name="width_in">8.5</field><field name="height_in">11</field></record>
+    <record id="fmt_5" model="print.format"><field name="code">8.5x13_V</field><field name="name">Legal portrait</field><field name="width_in">8.5</field><field name="height_in">13</field></record>
+    <record id="fmt_6" model="print.format"><field name="code">7x9.5_V</field><field name="name">Copy size</field><field name="width_in">7</field><field name="height_in">9.5</field></record>
+    <record id="fmt_7" model="print.format"><field name="code">3.5x2_H</field><field name="name">Visiting card</field><field name="width_in">3.5</field><field name="height_in">2</field></record>
+    <record id="fmt_8" model="print.format"><field name="code">9x4_H</field><field name="name">Envelope 9 x 4</field><field name="width_in">9</field><field name="height_in">4</field></record>
+</odoo>

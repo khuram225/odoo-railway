@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_print_labour_role_list" model="ir.ui.view">
+        <field name="name">print.labour.role.list</field>
+        <field name="model">print.labour.role</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="code"/><field name="name"/>
+                <field name="current_rate_hr"/><field name="currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_print_labour_role_form" model="ir.ui.view">
+        <field name="name">print.labour.role.form</field>
+        <field name="model">print.labour.role</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <group><field name="code"/><field name="name"/></group>
+                        <group><field name="current_rate_hr"/><field name="currency_id"/><field name="active"/></group>
+                    </group>
+                    <separator string="Hourly rates (effective-dated)"/>
+                    <field name="rate_ids">
+                        <list editable="top">
+                            <field name="date_from"/><field name="rate_hr"/><field name="note"/>
+                            <field name="currency_id" column_invisible="1"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="action_print_labour_role" model="ir.actions.act_window">
+        <field name="name">Labour roles</field>
+        <field name="res_model">print.labour.role</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

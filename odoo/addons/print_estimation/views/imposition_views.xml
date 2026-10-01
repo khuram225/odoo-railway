@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_print_imposition_list" model="ir.ui.view">
+        <field name="name">print.imposition.list</field>
+        <field name="model">print.imposition</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="code"/><field name="name"/><field name="category"/>
+                <field name="columns"/><field name="column_group"/><field name="rows"/><field name="row_group"/>
+                <field name="gripper_allowance"/><field name="plate_orientation"/><field name="color_strip"/>
+                <field name="pages_per_side"/><field name="pages_per_sheet"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_print_imposition" model="ir.actions.act_window">
+        <field name="name">Imposition</field>
+        <field name="res_model">print.imposition</field>
+        <field name="view_mode">list</field>
+    </record>
+</odoo>

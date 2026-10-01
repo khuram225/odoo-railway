@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="product_template_form_print" model="ir.ui.view">
+        <field name="name">product.template.form.print</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Print material" name="print_material">
+                    <group>
+                        <group string="Material">
+                            <field name="print_material_type"/>
+                            <field name="print_is_sheet" invisible="1"/>
+                            <field name="print_gsm" invisible="not print_is_sheet"/>
+                            <field name="print_width_in" invisible="not print_is_sheet"/>
+                            <field name="print_height_in" invisible="not print_is_sheet"/>
+                            <field name="print_caliper_micron" invisible="not print_is_sheet"/>
+                            <field name="print_grain" invisible="not print_is_sheet"/>
+                            <field name="print_finish" invisible="not print_is_sheet"/>
+                            <field name="print_colour"/>
+                            <field name="print_mill"/>
+                        </group>
+                        <group string="Pack and weight">
+                            <field name="print_pack_name"/>
+                            <field name="print_units_per_pack"/>
+                            <field name="print_sheet_area_sqin" invisible="not print_is_sheet"/>
+                            <field name="print_kg_per_sheet" invisible="not print_is_sheet"/>
+                            <field name="print_kg_per_pack" invisible="not print_is_sheet"/>
+                            <field name="print_weight_note" invisible="not print_is_sheet"/>
+                        </group>
+                    </group>
+                    <group string="Cost now">
+                        <group>
+                            <field name="print_currency_id" invisible="1"/>
+                            <field name="print_current_basis"/>
+                            <field name="print_current_price"/>
+                        </group>
+                        <group>
+                            <field name="print_cost_per_sheet"/>
+                            <field name="print_cost_per_kg" invisible="not print_is_sheet"/>
+                            <field name="print_cost_note"/>
+                        </group>
+                    </group>
+                    <separator string="Prices (effective-dated: the latest 'valid from' on or before the estimate date is used)"/>
+                    <field name="print_price_ids">
+                        <list editable="top">
+                            <field name="date_from"/>
+                            <field name="basis"/>
+                            <field name="price"/>
+                            <field name="currency_id" column_invisible="1"/>
+                            <field name="partner_id"/>
+                            <field name="note"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_print_material_list" model="ir.ui.view">
+        <field name="name">product.template.print.material.list</field>
+        <field name="model">product.template</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="default_code"/>
+                <field name="name"/>
+                <field name="print_material_type"/>
+                <field name="print_gsm"/>
+                <field name="print_width_in"/>
+                <field name="print_height_in"/>
+                <field name="print_current_basis"/>
+                <field name="print_current_price"/>
+                <field name="print_cost_per_sheet"/>
+                <field name="print_currency_id" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+    <record id="view_print_material_search" model="ir.ui.view">
+        <field name="name">product.template.print.material.search</field>
+        <field name="model">product.template</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="default_code"/>
+                <field name="print_gsm"/>
+                <filter name="sheets" string="Paper, card and board" domain="[('print_is_sheet', '=', True)]"/>
+                <filter name="consumables" string="Other materials" domain="[('print_is_sheet', '=', False)]"/>
+                <group>
+                    <filter name="by_type" string="Material type" context="{'group_by': 'print_material_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+    <record id="action_print_material" model="ir.actions.act_window">
+        <field name="name">Materials</field>
+        <field name="res_model">product.template</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('print_material_type', '!=', False)]</field>
+        <field name="context">{'default_print_material_type': 'paper', 'search_default_by_type': 1}</field>
+        <field name="view_ids" eval="[(5, 0, 0), (0, 0, {'view_mode': 'list', 'view_id': ref('view_print_material_list')}), (0, 0, {'view_mode': 'form', 'view_id': ref('product.product_template_form_view')})]"/>
+        <field name="search_view_id" ref="view_print_material_search"/>
+    </record>
+</odoo>
