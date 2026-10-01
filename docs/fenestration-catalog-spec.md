@@ -725,8 +725,10 @@ before they have drawn anything.
   system **if it has a Profile Section**, else Openable, because a
   system with no section cannot produce a BOM. A deliberate choice
   between two valid systems is kept.
-- Divider options: `option_label` and `max_span_mm` on
-  `aw.profile.section.line`; the chosen line is stored on
+- Divider options (phase 7d): ONE line per position, with
+  `alternate_product_ids` on it. `option_label` is gone and
+  `max_span_mm` moved to the profile as `aw_max_span_mm`
+  (0 = no limit). A design stores the chosen PRODUCT.
   `aw.design.leaf` (its right boundary) and `aw.design.row` (its bottom
   boundary), empty meaning the lowest-sequence line — so an untouched
   design behaves exactly as before. A span over the rating is a

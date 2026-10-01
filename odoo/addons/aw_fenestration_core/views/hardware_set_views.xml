@@ -1,12 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!--
+    Same story as the Profile Section beside it: phase 7d moved the lines
+    onto the Specification, so `line_ids` is empty on every migrated
+    hardware set and a form offering it for editing would show an empty
+    table where the hardware used to be. Read-only, kept for the reports
+    and for the spec's legacy link; the menu is already gone.
+    -->
+
     <record id="view_aw_hardware_set_list" model="ir.ui.view">
         <field name="name">aw.hardware.set.list</field>
         <field name="model">aw.hardware.set</field>
         <field name="arch" type="xml">
-            <list>
-                <field name="window_type_id"/>
+            <list create="false" delete="false">
+                <field name="window_type_id" string="Window System"/>
                 <field name="name"/>
             </list>
         </field>
@@ -16,31 +24,21 @@
         <field name="name">aw.hardware.set.form</field>
         <field name="model">aw.hardware.set</field>
         <field name="arch" type="xml">
-            <form>
+            <form create="false" edit="false">
                 <sheet>
+                    <div class="alert alert-info" role="status">
+                        The hardware that was here now belongs to the
+                        <b>Specification</b> built from this set, under
+                        Window Systems.
+                    </div>
                     <group>
                         <group>
-                            <field name="window_type_id"/>
+                            <field name="window_type_id" string="Window System"/>
                             <field name="name"/>
                         </group>
                     </group>
-                    <field name="line_ids">
-                        <list editable="bottom">
-                            <field name="sequence" widget="handle"/>
-                            <field name="product_id"/>
-                            <field name="qty"/>
-                            <!-- qty_formula is what the engine reads; qty
-                                 stays as the plain number it migrated
-                                 from. -->
-                            <field name="qty_formula"/>
-                            <field name="condition_formula" optional="hide"/>
-                            <field name="scope"/>
-                            <field name="leaf_type_id"/>
-                            <field name="is_optional"/>
-                        </list>
-                    </field>
                     <group>
-                        <field name="notes" placeholder="Internal notes..."/>
+                        <field name="notes"/>
                     </group>
                 </sheet>
                 <chatter/>
@@ -53,10 +51,10 @@
         <field name="res_model">aw.hardware.set</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first Hardware Set</p>
-            <p>A named hardware bundle for a Window Series — roller, lock, handle, hinge,
-               gasket. Every line can be marked optional so a sales user can drop or
-               swap it per quote.</p>
+            <p class="o_view_nocontent_smiling_face">No Hardware Sets</p>
+            <p>Hardware Sets were replaced by Specifications, which own their own
+               hardware lines. These records are kept only for the reports and for
+               the legacy link on a Specification.</p>
         </field>
     </record>
 

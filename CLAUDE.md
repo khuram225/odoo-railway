@@ -1058,6 +1058,44 @@ about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
   it has to be composed before it can be searched. Verified by deleting
   the button_box again, which it flags by file and line.
 
+- `scripts/check_view_fields.py` resolves every `<field name="x">` in a
+  standalone view arch against the model's real fields. Phase 7d removed
+  `option_label` and `max_span_mm` from `aw.profile.section.line` and
+  `profile_section_views.xml` still listed both, so **the Core upgrade
+  died mid-run** with *"Field `option_label` does not exist"*. Every
+  other check looks at one side: `check_view_schemas.py` validates the
+  arch's SHAPE and knows nothing about models, `check_view_buttons.py`
+  resolves button METHODS. This is the field equivalent. A `<field>` that
+  CONTAINS a sub-view switches the model to its comodel, so an embedded
+  list is checked against the right one; inherited views are skipped,
+  since their model is wherever the parent's xpath lands. It follows
+  `_inherit`, which it has to: `scan_python` keys fields by every name a
+  class declares, so a mixin's own fields land under the mixin and not
+  under the models inheriting it — twelve false alarms before that was
+  added.
+
+  **It REPORTS a file it cannot parse rather than skipping it**, and that
+  rule was learned the hard way three times in one session. Its first
+  version did `continue` on a ParseError because
+  `check_xml_comments.py` owns malformed XML — then a `--` in a comment
+  made the very file under repair unparseable, so that file got **zero**
+  field checking and the run still printed "all exist". Coverage went
+  from 756 references in 66 arches to 761 in 68 once it started
+  complaining: it had been silently skipping two whole files, including
+  the one with the bug. **A check that passes for a file it could not
+  open is the failure it was written to prevent** — the same shape as the
+  hardcoded module lists that reported green on 28 unread files.
+
+**A `div[@name='button_box']`, a `line_ids` list, and anything else a
+removed layer used to own, has to be looked for in EVERY view, not just
+the one being edited.** Phase 7d moved profile and hardware lines onto
+the Specification; the spec's own form was updated and the Profile
+Section and Hardware Set forms were not, so they went on offering
+`line_ids` for editing — an empty table on migrated data, where anything
+typed went nowhere the explosion reads. Both are read-only identity
+views now. The records survive because two reports name the section a
+window was built to and the spec keeps a legacy link to it.
+
 - `scripts/check_view_schemas.py` validates every standalone view arch
   against **Odoo's own RelaxNG schemas** (`../odoo-src/odoo/addons/base/
   rng/*.rng`), which is the same validation the Upgrade runs. It exists

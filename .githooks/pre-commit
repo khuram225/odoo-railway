@@ -42,6 +42,7 @@ python scripts/check_formulas.py || exit 1
 python scripts/check_view_schemas.py || exit 1
 python scripts/check_inherited_xpaths.py || exit 1
 python scripts/check_view_buttons.py || exit 1
+python scripts/check_view_fields.py || exit 1
 python scripts/check_self_methods.py || exit 1
 python scripts/check_kanban_fields.py || exit 1
 python scripts/check_rate_chain.py || exit 1

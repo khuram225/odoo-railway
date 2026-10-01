@@ -1,12 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!--
+    A Profile Section is a NAME now, nothing more.
+
+    Phase 7d moved its lines onto the Specification that used to point at
+    it, so `line_ids` is empty on every migrated section. The form used
+    to offer that list for editing, which was worse than not having the
+    form at all: it showed an empty table where the profiles used to be,
+    and anything typed into it would have gone nowhere the explosion
+    reads. It also still named option_label and max_span_mm, both of
+    which the same phase removed, so the Core upgrade died on it with
+    "field option_label does not exist": the ParseError that prompted
+    this file being rewritten.
+
+    The record survives because two reports name the section a window was
+    built to, and because the spec keeps a legacy link to it on its "Used
+    in" tab. So: read-only, and it says where the profiles went. The
+    menu is already gone; the action stays for that link and for any
+    bookmark.
+    -->
+
     <record id="view_aw_profile_section_list" model="ir.ui.view">
         <field name="name">aw.profile.section.list</field>
         <field name="model">aw.profile.section</field>
         <field name="arch" type="xml">
-            <list>
-                <field name="window_type_id"/>
+            <list create="false" delete="false">
+                <field name="window_type_id" string="Window System"/>
                 <field name="name"/>
             </list>
         </field>
@@ -16,39 +36,22 @@
         <field name="name">aw.profile.section.form</field>
         <field name="model">aw.profile.section</field>
         <field name="arch" type="xml">
-            <form>
+            <form create="false" edit="false">
                 <sheet>
+                    <div class="alert alert-info" role="status">
+                        The profiles that were here now belong to the
+                        <b>Specification</b> built from this section, under
+                        Window Systems. This record is kept because the shop
+                        drawing and the cutting sheet name it.
+                    </div>
                     <group>
                         <group>
-                            <field name="window_type_id"/>
+                            <field name="window_type_id" string="Window System"/>
                             <field name="name"/>
                         </group>
                     </group>
-                    <field name="line_ids">
-                        <list editable="bottom">
-                            <field name="sequence" widget="handle"/>
-                            <field name="position_id"/>
-                            <field name="product_tmpl_id"/>
-                            <field name="thickness_attribute_value_ids" column_invisible="1"/>
-                            <field name="finish_attribute_value_ids" column_invisible="1"/>
-                            <field name="thickness_id"/>
-                            <field name="finish_id"/>
-                            <field name="product_id" readonly="1"/>
-                            <!-- Overrides: empty means the position's own
-                                 rule, which is the usual case, so these are
-                                 optional columns rather than required
-                                 ones. -->
-                            <field name="option_label"/>
-                            <field name="max_span_mm" optional="hide"/>
-                            <field name="length_formula" optional="hide"/>
-                            <field name="length_formula_h" optional="hide"/>
-                            <field name="cut_angle" optional="hide"/>
-                            <field name="qty_formula" optional="hide"/>
-                            <field name="is_optional"/>
-                        </list>
-                    </field>
                     <group>
-                        <field name="notes" placeholder="Internal notes..."/>
+                        <field name="notes"/>
                     </group>
                 </sheet>
                 <chatter/>
@@ -61,10 +64,11 @@
         <field name="res_model">aw.profile.section</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first Profile Section</p>
-            <p>A Profile Section maps every needed position (Outer Frame, Palay,
-               Mesh, Dividers, Fixed Bead — see Profile Positions) to a real
-               profile product, for one Window Series.</p>
+            <p class="o_view_nocontent_smiling_face">No Profile Sections</p>
+            <p>Profile Sections were replaced by Specifications, which own their
+               own profile lines. These records are kept only because the shop
+               drawing and the cutting sheet name the section a window was built
+               to.</p>
         </field>
     </record>
 
