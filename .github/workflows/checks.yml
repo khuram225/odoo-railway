@@ -1,0 +1,77 @@
+name: checks
+
+# Every push to main, and every pull request into it. The push run is the
+# one Railway's "Wait for CI" waits on, so the commit status it reports is
+# what gates a deploy: a red run means nothing is built.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A second push to main supersedes the first: the older run's answer is
+# about a commit nobody is deploying any more.
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: all checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install what the checks need
+        # pulp is PINNED to match odoo/Dockerfile exactly. 4.x is a
+        # rewrite with no bundled solver, so an unpinned install would
+        # silently drop the cutting optimiser to its greedy fallback and
+        # CI would be testing a different algorithm from production.
+        run: python -m pip install --upgrade pip pyflakes lxml pulp==2.9.0
+
+      # The checks read ../odoo-src to know what core Odoo defines: which
+      # fields a product has, which methods BaseModel provides, Odoo's own
+      # RelaxNG schemas. Without it ten of them skip, and --strict turns a
+      # skip into a failure, so this clone is not optional: it is what
+      # makes the run mean anything.
+      #
+      # Cloned fresh every run, NOT cached. actions/cache resolves a
+      # relative path against the workspace and this one sits outside it,
+      # and a cache that restores EMPTY is precisely the "looks green,
+      # read nothing" failure this whole suite exists to stop. A depth-1
+      # single-branch clone is under a minute, which is a fair price for a
+      # gate whose answer has to be trustworthy. If it ever needs speeding
+      # up: cache a path INSIDE the workspace and symlink it, and keep the
+      # verify step below either way.
+      - name: Clone Odoo 19.0 source
+        run: |
+          git clone --depth 1 --single-branch --branch 19.0 \
+            https://github.com/odoo/odoo.git ../odoo-src
+
+      - name: Confirm the source clone is really there
+        # A cache that restored empty, or a clone that half-failed, would
+        # otherwise show up as ten skips -- and --strict would report
+        # them as check failures, which is a confusing way to be told the
+        # clone is missing. Say so plainly instead.
+        run: |
+          test -d ../odoo-src/odoo/addons/base/rng \
+            || { echo "::error::../odoo-src is missing or incomplete"; exit 1; }
+
+      - name: Run every check
+        # --strict: a check that cannot read its input FAILS. The only
+        # exemption is the Chawla vendor zip, which is gitignored and so
+        # can never exist on a runner; check_all.sh names it explicitly.
+        run: sh scripts/check_all.sh --strict

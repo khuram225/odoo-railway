@@ -1,0 +1,37 @@
+#!/bin/sh
+# Blocks a push whose checks do not pass.
+#
+# Runs scripts/check_all.sh --strict. STRICT on purpose: a push is the
+# last thing that happens before Railway builds and before somebody
+# clicks Upgrade, so "I could not read ../odoo-src" has to fail here
+# rather than quietly narrowing the suite. See check_all.sh for what the
+# three outcomes mean.
+#
+# This is slower than the pre-commit hook -- it runs every check, including
+# the 14s cutting-plan solve -- which is the right trade for a gate that
+# fires once per push instead of once per commit.
+#
+# Not active by default: git only runs hooks from .git/hooks, which isn't
+# tracked. One-time setup per clone:
+#   git config core.hooksPath .githooks
+#
+# Escape hatch, deliberately loud and deliberately named so it shows up in
+# a shell history review:
+#   AW_SKIP_PUSH_CHECKS=1 git push ...
+# Use it to push a branch you know is broken, never to push to main. CI
+# runs the same script on main, so skipping here only moves the failure.
+
+if [ "${AW_SKIP_PUSH_CHECKS:-}" = "1" ]; then
+    echo "pre-push: AW_SKIP_PUSH_CHECKS=1 -- every check SKIPPED." >&2
+    echo "          Nothing has been verified. CI will still run them on main." >&2
+    exit 0
+fi
+
+echo "pre-push: running every check (scripts/check_all.sh --strict)"
+if ! sh "$(dirname "$0")/../scripts/check_all.sh" --strict; then
+    echo >&2
+    echo "pre-push: REFUSING TO PUSH -- see the failures above." >&2
+    echo "          Fix them, or AW_SKIP_PUSH_CHECKS=1 to push anyway." >&2
+    exit 1
+fi
+exit 0

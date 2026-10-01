@@ -1144,6 +1144,38 @@ window was built to and the spec keeps a legacy link to it.
   JavaScript that quietly yields an empty list; the mismatch only exists
   ACROSS the two files.
 
+**`scripts/check_all.sh` runs every check and is the one place that
+cannot forget one.** It DISCOVERS `scripts/check_*.py` and
+`scripts/check_*.mjs` rather than listing them, because a list here would
+be a fourth place to forget a new check — the first three cost a silent
+green run each. A discovered check needing arguments that is not in its
+`args_for` table fails loudly instead of being skipped.
+
+**It reports three outcomes, not two, and that is the point.** PASS,
+FAIL, and **SKIP** — exit 0 but it could not read what it needed (no
+`../odoo-src`, no lxml, no pyflakes, no vendor zip,
+`AW_SKIP_SLOW_CHECKS`). A skip is exit 0 today, which is right for a
+laptop and wrong for a gate. **`--strict` makes a skip a FAILURE**, with
+one narrow exemption named in the script: `check_catalogue_import`, whose
+vendor zip is gitignored and so can never exist on a runner.
+
+Two gates use it:
+
+- **`.githooks/pre-push`** runs it `--strict`, because a push is the last
+  thing before Railway builds and before somebody clicks Upgrade.
+  Escape hatch `AW_SKIP_PUSH_CHECKS=1`, loud and named to show up in a
+  shell history review.
+- **`.github/workflows/checks.yml`** runs it `--strict` on every push to
+  main and every PR, so Railway's *Wait for CI* has a commit status to
+  gate on. It clones `../odoo-src` **fresh every run rather than caching
+  it**: `actions/cache` resolves a relative path against the workspace
+  and that clone sits outside it, and a cache restoring EMPTY is exactly
+  the failure this suite exists to stop. A verify step fails with a plain
+  message if the clone is missing, so a broken clone does not arrive
+  disguised as ten check failures. `pulp` is pinned to `2.9.0` to match
+  `odoo/Dockerfile`, or CI would be exercising the greedy fallback while
+  production runs the exact solver.
+
 Enable the hook once per clone:
 
 ```
