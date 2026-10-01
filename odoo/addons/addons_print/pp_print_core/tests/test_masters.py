@@ -3,7 +3,7 @@ from datetime import date
 from odoo.tests.common import TransactionCase, tagged
 
 
-@tagged("post_install", "-at_install", "print_estimation")
+@tagged("post_install", "-at_install", "pp_print_core")
 class TestPrintMasters(TransactionCase):
 
     @classmethod

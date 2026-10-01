@@ -10,6 +10,11 @@ A read-only reference clone of official Odoo 19.0 (`git clone --depth 1
 `../odoo-src`, for checking core model/view definitions before extending them.
 It is not part of this repo.
 
+## Deploy
+
+Each domain folder (addons_print, later addons_aluminum) must be listed in
+odoo.conf addons_path, because Odoo scans only one level deep.
+
 ## Custom modules
 
 - `odoo/addons/hello_check/` — pipeline smoke-test module (depends on `base`

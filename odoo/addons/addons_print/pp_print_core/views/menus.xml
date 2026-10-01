@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <menuitem id="menu_print_root" name="Print Production" sequence="40" groups="group_print_user"/>
+    <menuitem id="menu_print_estimates" name="Estimates" parent="menu_print_root" sequence="10"/>
+    <menuitem id="menu_print_estimate" action="action_print_estimate" parent="menu_print_estimates" sequence="10"/>
+    <menuitem id="menu_print_estimate_standard" action="action_print_estimate_standard" parent="menu_print_estimates" sequence="20"/>
     <menuitem id="menu_print_config" name="Configuration" parent="menu_print_root" sequence="90" groups="group_print_manager"/>
 
     <menuitem id="menu_print_cfg_products" name="Products" parent="menu_print_config" sequence="10"/>
     <menuitem id="menu_print_product_group" action="action_print_product_group" parent="menu_print_cfg_products" sequence="10"/>
     <menuitem id="menu_print_base_product" action="action_print_base_product" parent="menu_print_cfg_products" sequence="20"/>
+    <menuitem id="menu_print_page_type" action="action_print_page_type" parent="menu_print_cfg_products" sequence="30"/>
 
     <menuitem id="menu_print_cfg_materials" name="Materials" parent="menu_print_config" sequence="20"/>
     <menuitem id="menu_print_material" action="action_print_material" parent="menu_print_cfg_materials" sequence="10"/>

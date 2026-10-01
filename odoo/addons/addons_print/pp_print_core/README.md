@@ -1,9 +1,11 @@
-# Print Estimation — step 1: module skeleton and master data
+# Print Estimation
 
-Odoo 19 Community. Tested on Odoo 19: installs cleanly, all views render, 6 unit tests pass (`--test-tags=print_estimation`).
+Step 1: module skeleton and master data. Step 2: the estimate (Calculation + Production overview).
+
+Odoo 19 Community. Tested on Odoo 19: installs cleanly, all views render, 13 unit tests pass (`--test-tags=pp_print_core`).
 
 ## Install
-1. Copy the `print_estimation` folder into your custom addons folder in the repo (the one already on the addons path).
+1. Copy the `pp_print_core` folder into your custom addons folder in the repo (the one already on the addons path).
 2. Commit and push; Railway redeploys.
 3. In Odoo: Settings → activate developer mode → Apps → Update Apps List → search "Print Estimation" → Activate.
 4. Settings → Users → give yourself **Print Production / Manager** (admin gets it automatically).
@@ -26,6 +28,17 @@ Menu **Print Production → Configuration**:
 | Costing → Cost groups | print.cost.group | base groups with time and material markups |
 
 Seed data is loaded with `noupdate`, so your edits survive upgrades. No rates or prices are seeded.
+
+## Step 2: the estimate
+Menu **Print Production → Estimates**:
+- **Estimates**: opens on *My estimates, In process* (DynamicsPrint's default); remove the filters for all. Standards are green.
+- **Standards**: templates. "Save as standard" on any estimate, "Use standard" to start a new one.
+- Numbering from Settings → Technical → Sequences: `E01-` for estimates, `S01-` for standards (editable).
+- Form tabs: **Production overview** (run qty., qty run on, format and W x H, ecolabel, template, Pagetypes, Versions - Bind legs, remarks), **General**, **Customer** (contact, phone, e-mail, external references, dates). History and activities are in the chatter.
+- Buttons: Mark as quoted, New version (same number, version + 1), Copy estimate, Save as standard / Use standard, Lost, Cancel, Reset.
+- Choosing a product fills its default page types (Configuration → Products → Base products → Default page types).
+- Checks: text sections need even pages; versions must add up to run qty. (warning); run qty. > 0.
+- Configuration → Products → Page types: Cover1, Text1, Part1 ... with their kind (text, cover, sheet).
 
 ## Rules followed in every step
 - Every rate, price, speed, markup and allowance is a record, never a constant in code.

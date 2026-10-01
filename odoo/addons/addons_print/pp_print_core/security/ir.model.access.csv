@@ -27,3 +27,13 @@ access_print_imposition_user,print.imposition user,model_print_imposition,group_
 access_print_imposition_manager,print.imposition manager,model_print_imposition,group_print_manager,1,1,1,1
 access_print_format_user,print.format user,model_print_format,group_print_user,1,0,0,0
 access_print_format_manager,print.format manager,model_print_format,group_print_manager,1,1,1,1
+access_print_page_type_user,print.page.type user,model_print_page_type,group_print_user,1,0,0,0
+access_print_page_type_manager,print.page.type manager,model_print_page_type,group_print_manager,1,1,1,1
+access_print_base_product_page_user,print.base.product.page user,model_print_base_product_page,group_print_user,1,0,0,0
+access_print_base_product_page_manager,print.base.product.page manager,model_print_base_product_page,group_print_manager,1,1,1,1
+access_print_estimate_user,print.estimate user,model_print_estimate,group_print_user,1,1,1,1
+access_print_estimate_manager,print.estimate manager,model_print_estimate,group_print_manager,1,1,1,1
+access_print_estimate_page_user,print.estimate.page user,model_print_estimate_page,group_print_user,1,1,1,1
+access_print_estimate_page_manager,print.estimate.page manager,model_print_estimate_page,group_print_manager,1,1,1,1
+access_print_estimate_version_user,print.estimate.version user,model_print_estimate_version,group_print_user,1,1,1,1
+access_print_estimate_version_manager,print.estimate.version manager,model_print_estimate_version,group_print_manager,1,1,1,1

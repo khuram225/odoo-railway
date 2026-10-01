@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Calculation: estimate list (DynamicsPrint grid) -->
+    <record id="view_print_estimate_list" model="ir.ui.view">
+        <field name="name">print.estimate.list</field>
+        <field name="model">print.estimate</field>
+        <field name="arch" type="xml">
+            <list decoration-success="is_standard" decoration-muted="state in ('lost', 'cancelled')">
+                <field name="is_standard" column_invisible="1"/>
+                <field name="name"/>
+                <field name="version"/>
+                <field name="job_name"/>
+                <field name="partner_id"/>
+                <field name="base_product_id"/>
+                <field name="run_qty"/>
+                <field name="format_id"/>
+                <field name="pages_label"/>
+                <field name="state"/>
+                <field name="sales_rep_id" optional="show"/>
+                <field name="estimator_id" optional="hide"/>
+                <field name="follow_up_date" optional="show"/>
+                <field name="expiry_date" optional="show"/>
+                <field name="delivery_date" optional="show"/>
+                <field name="width_in" optional="show"/>
+                <field name="height_in" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_print_estimate_search" model="ir.ui.view">
+        <field name="name">print.estimate.search</field>
+        <field name="model">print.estimate</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="job_name"/>
+                <field name="partner_id"/>
+                <field name="contact_id"/>
+                <field name="estimator_id"/>
+                <field name="base_product_id"/>
+                <filter name="my" string="My estimates" domain="[('estimator_id', '=', uid)]"/>
+                <separator/>
+                <filter name="in_process" string="In process" domain="[('state', '=', 'in_process')]"/>
+                <filter name="quoted" string="Quoted" domain="[('state', '=', 'quoted')]"/>
+                <filter name="sales_order" string="Sales order" domain="[('state', '=', 'sales_order')]"/>
+                <separator/>
+                <filter name="standards" string="Standards" domain="[('is_standard', '=', True)]"/>
+                <filter name="estimates" string="Estimates" domain="[('is_standard', '=', False)]"/>
+                <separator/>
+                <filter name="expired" string="Expired" domain="[('expiry_date', '&lt;', context_today().strftime('%Y-%m-%d')), ('state', 'in', ('in_process', 'quoted'))]"/>
+                <group>
+                    <filter name="by_state" string="Status" context="{'group_by': 'state'}"/>
+                    <filter name="by_group" string="Product group" context="{'group_by': 'product_group_id'}"/>
+                    <filter name="by_product" string="Product" context="{'group_by': 'base_product_id'}"/>
+                    <filter name="by_customer" string="Customer" context="{'group_by': 'partner_id'}"/>
+                    <filter name="by_estimator" string="Estimator" context="{'group_by': 'estimator_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_print_estimate_form" model="ir.ui.view">
+        <field name="name">print.estimate.form</field>
+        <field name="model">print.estimate</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_set_quoted" type="object" string="Mark as quoted" class="btn-primary"
+                            invisible="state != 'in_process' or is_standard"/>
+                    <button name="action_new_version" type="object" string="New version"/>
+                    <button name="action_copy_estimate" type="object" string="Copy estimate"/>
+                    <button name="action_use_standard" type="object" string="Use standard" class="btn-primary" invisible="not is_standard"/>
+                    <button name="action_save_as_standard" type="object" string="Save as standard" invisible="is_standard"/>
+                    <button name="action_set_lost" type="object" string="Lost" invisible="state not in ('in_process', 'quoted') or is_standard"/>
+                    <button name="action_cancel" type="object" string="Cancel" invisible="state in ('cancelled', 'sales_order')"/>
+                    <button name="action_reset" type="object" string="Reset to in process" invisible="state == 'in_process'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="in_process,quoted,sales_order"/>
+                </header>
+                <sheet>
+                    <widget name="web_ribbon" title="Standard" bg_color="text-bg-success" invisible="not is_standard"/>
+                    <div class="oe_title">
+                        <h1><field name="name" class="oe_inline"/> / <field name="version" class="oe_inline"/></h1>
+                        <h3><field name="job_name" placeholder="Job name, e.g. Magazine 14K Model Town"/></h3>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="base_product_id" options="{'no_create': True}"/>
+                            <field name="product_group_id"/>
+                            <field name="partner_id" widget="res_partner_many2one" context="{'show_address': 1}" options="{'always_reload': True}"/>
+                            <field name="run_qty"/>
+                        </group>
+                        <group>
+                            <field name="date"/>
+                            <field name="expiry_date"/>
+                            <field name="estimator_id"/>
+                            <field name="sales_rep_id"/>
+                            <field name="is_standard" invisible="1"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Production overview" name="production">
+                            <group>
+                                <group string="Run qty.">
+                                    <field name="run_qty"/>
+                                    <field name="run_qty_flag"/>
+                                    <field name="run_on_qty"/>
+                                </group>
+                                <group string="Format">
+                                    <field name="format_id"/>
+                                    <label for="width_in" string="W x H (in)"/>
+                                    <div class="o_row">
+                                        <field name="width_in" class="oe_inline"/> x <field name="height_in" class="oe_inline"/>
+                                    </div>
+                                </group>
+                                <group string="Environment / JDF">
+                                    <field name="ecolabel"/>
+                                    <field name="template_id" options="{'no_create': True}"/>
+                                </group>
+                            </group>
+                            <separator string="Pagetypes"/>
+                            <field name="page_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="page_type_id" options="{'no_create': True}"/>
+                                    <field name="kind" optional="show"/>
+                                    <field name="pages"/>
+                                    <field name="material_type"/>
+                                    <field name="gsm_filter"/>
+                                    <field name="material_id" options="{'no_create': True}"/>
+                                    <field name="manual_pricelist"/>
+                                </list>
+                            </field>
+                            <separator string="Versions - Bind legs"/>
+                            <div class="alert alert-warning" role="alert" invisible="not versions_warning">
+                                <field name="versions_warning" readonly="1"/>
+                            </div>
+                            <field name="version_line_ids">
+                                <list editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="shift"/>
+                                    <field name="description"/>
+                                    <field name="run_qty" sum="Total"/>
+                                    <field name="isbn"/>
+                                </list>
+                            </field>
+                            <field name="remarks" placeholder="Remarks"/>
+                        </page>
+                        <page string="General" name="general">
+                            <group>
+                                <group>
+                                    <field name="name" readonly="1"/>
+                                    <field name="version" readonly="1"/>
+                                    <field name="job_name"/>
+                                    <field name="base_product_id"/>
+                                    <field name="template_type"/>
+                                </group>
+                                <group>
+                                    <field name="ecolabel"/>
+                                    <field name="template_id"/>
+                                    <field name="pages_label"/>
+                                </group>
+                            </group>
+                            <field name="description" placeholder="Description of the job"/>
+                        </page>
+                        <page string="Customer" name="customer">
+                            <group>
+                                <group string="Customer">
+                                    <field name="partner_id"/>
+                                    <field name="contact_id" options="{'no_quick_create': True}"
+                                           context="{'default_parent_id': partner_id, 'default_type': 'contact'}"/>
+                                    <field name="phone" widget="phone"/>
+                                    <field name="email" widget="email"/>
+                                    <field name="website" widget="url"/>
+                                </group>
+                                <group string="External reference">
+                                    <field name="requisition"/>
+                                    <field name="customer_reference"/>
+                                    <field name="author"/>
+                                    <field name="isbn"/>
+                                </group>
+                                <group string="Dates">
+                                    <field name="date"/>
+                                    <field name="follow_up_date"/>
+                                    <field name="expiry_date"/>
+                                    <field name="order_date"/>
+                                    <field name="delivery_date"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_print_estimate" model="ir.actions.act_window">
+        <field name="name">Estimates</field>
+        <field name="res_model">print.estimate</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('is_standard', '=', False)]</field>
+        <field name="context">{'search_default_my': 1, 'search_default_in_process': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first estimate</p>
+            <p>Choose a product (L2); its default page types are added automatically. Remove the filters to see all estimates.</p>
+        </field>
+    </record>
+    <record id="action_print_estimate_standard" model="ir.actions.act_window">
+        <field name="name">Standards</field>
+        <field name="res_model">print.estimate</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('is_standard', '=', True)]</field>
+        <field name="context">{'default_is_standard': True}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No standards yet</p>
+            <p>Open any estimate and choose "Save as standard", or create one here. Use a standard with "Use standard".</p>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_print_page_type_list" model="ir.ui.view">
+        <field name="name">print.page.type.list</field>
+        <field name="model">print.page.type</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="code"/><field name="name"/><field name="kind"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_print_page_type" model="ir.actions.act_window">
+        <field name="name">Page types</field>
+        <field name="res_model">print.page.type</field>
+        <field name="view_mode">list</field>
+    </record>
+
+    <record id="view_print_base_product_form_pages" model="ir.ui.view">
+        <field name="name">print.base.product.form.pages</field>
+        <field name="model">print.base.product</field>
+        <field name="inherit_id" ref="view_print_base_product_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='description']" position="before">
+                <separator string="Default page types (copied onto a new estimate)"/>
+                <field name="default_page_ids">
+                    <list editable="bottom">
+                        <field name="sequence" widget="handle"/>
+                        <field name="page_type_id"/>
+                        <field name="pages"/>
+                        <field name="material_type"/>
+                        <field name="material_id"/>
+                    </list>
+                </field>
+            </xpath>
+        </field>
+    </record>
+</odoo>
