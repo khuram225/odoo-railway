@@ -13,10 +13,12 @@ else in the module.
 Usage:
     python scripts/check_load_order.py [module_dir ...]
 
-With no arguments, checks every module directory directly under
-odoo/addons/ that has a __manifest__.py. Exits non-zero if any module
-has a forward reference.
+With no arguments, checks every module directory at any depth under
+odoo/addons/ that has a __manifest__.py -- domain folders such as
+addons_print/ hold their modules one level further down. Exits non-zero
+if any module has a forward reference.
 """
+import ast
 import re
 import sys
 from pathlib import Path
@@ -39,11 +41,10 @@ PCT_RE = re.compile(r'%\(([a-zA-Z_][a-zA-Z0-9_]*)\)[ds]')
 
 def check_module(module_dir: Path) -> list[str]:
     manifest_path = module_dir / '__manifest__.py'
-    manifest = manifest_path.read_text(encoding='utf-8')
-    match = re.search(r"'data':\s*\[(.*?)\]", manifest, re.DOTALL)
-    if not match:
-        return []
-    files = re.findall(r"'([^']+)'", match.group(1))
+    # literal_eval, not a regex: a regex keyed on 'data' silently found
+    # nothing in a manifest written with "data", and passed it unchecked.
+    manifest = ast.literal_eval(manifest_path.read_text(encoding='utf-8'))
+    files = manifest.get('data', [])
 
     defined_so_far = set()
     problems = []
@@ -88,7 +89,7 @@ def main(argv: list[str]) -> int:
         module_dirs = [Path(a) for a in argv]
     else:
         module_dirs = sorted(
-            p.parent for p in ADDONS_DIR.glob('*/__manifest__.py')
+            p.parent for p in ADDONS_DIR.rglob('__manifest__.py')
         )
 
     all_problems = []

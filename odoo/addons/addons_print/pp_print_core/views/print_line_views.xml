@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_print_line_form" model="ir.ui.view">
+        <field name="name">print.estimate.page.print.form</field>
+        <field name="model">print.estimate.page</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="alert alert-danger" role="alert" invisible="not calc_error">
+                        <field name="calc_error" readonly="1"/>
+                    </div>
+                    <group>
+                        <group string="Line">
+                            <field name="page_type_id" readonly="1"/>
+                            <field name="kind" readonly="1"/>
+                            <field name="pages" readonly="1"/>
+                            <field name="material_id" readonly="1"/>
+                        </group>
+                        <group string="Printing">
+                            <field name="press_id" options="{'no_create': True}"/>
+                            <field name="press_used_id"/>
+                            <field name="imposition_id" options="{'no_create': True}"/>
+                            <field name="layout_text"/>
+                            <field name="colours_front"/>
+                            <field name="colours_back"/>
+                            <field name="workstyle"/>
+                            <field name="designs" invisible="kind != 'sheet'"/>
+                            <field name="paper_parts"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Format (in)">
+                            <label for="paper_width_in" string="Paper format"/>
+                            <div class="o_row"><field name="paper_width_in"/> x <field name="paper_height_in"/></div>
+                            <label for="print_width_in" string="Print format"/>
+                            <div class="o_row"><field name="print_width_in"/> x <field name="print_height_in"/></div>
+                            <label for="end_width_in" string="End format"/>
+                            <div class="o_row"><field name="end_width_in"/> x <field name="end_height_in"/></div>
+                            <field name="spine_in" invisible="kind != 'cover'"/>
+                        </group>
+                        <group string="Print">
+                            <field name="print_net"/>
+                            <field name="scrap_method"/>
+                            <field name="scrap_value" invisible="scrap_method == 'wc'"/>
+                            <field name="scrap_qty"/>
+                            <field name="scrap_pct"/>
+                            <field name="print_total"/>
+                        </group>
+                        <group string="Plates">
+                            <field name="plates_calc"/>
+                            <field name="extra_plates"/>
+                            <field name="version_plates"/>
+                            <field name="plates_total"/>
+                        </group>
+                        <group string="Paper usage">
+                            <field name="parts_used"/>
+                            <field name="paper_sheets"/>
+                            <field name="paper_kg"/>
+                            <field name="paper_cost_per_sheet"/>
+                            <field name="paper_cost"/>
+                        </group>
+                        <group string="Comments on color">
+                            <field name="pms_no"/>
+                            <field name="primary_band"/>
+                            <field name="secondary_band"/>
+                        </group>
+                        <group string="Color">
+                            <field name="wash_ups"/>
+                            <field name="ink_use_pct"/>
+                            <field name="passes"/>
+                            <field name="runs"/>
+                            <field name="impressions_per_run"/>
+                        </group>
+                    </group>
+                    <field name="print_remarks" placeholder="Remarks"/>
+                    <separator string="Calculation"/>
+                    <field name="calc_log_ids">
+                        <list>
+                            <field name="sequence" column_invisible="1"/>
+                            <field name="step"/>
+                            <field name="how"/>
+                            <field name="result"/>
+                        </list>
+                    </field>
+                    <div class="text-muted">Calculated on <field name="calc_date" readonly="1" class="oe_inline"/>.
+                        Results update when the estimate or this line is saved.</div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_print_estimate_form_print" model="ir.ui.view">
+        <field name="name">print.estimate.form.print</field>
+        <field name="model">print.estimate</field>
+        <field name="inherit_id" ref="view_print_estimate_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_new_version']" position="before">
+                <button name="action_calculate" type="object" string="Calculate"/>
+            </xpath>
+            <xpath expr="//notebook/page[@name='production']" position="after">
+                <page string="Print overview" name="print_overview">
+                    <div class="alert alert-danger" role="alert" invisible="not calc_warning">
+                        <field name="calc_warning" readonly="1"/>
+                    </div>
+                    <field name="print_line_ids">
+                        <list editable="bottom" create="0" delete="0">
+                            <field name="sequence" column_invisible="1"/>
+                            <field name="page_type_id" readonly="1"/>
+                            <field name="kind" column_invisible="1"/>
+                            <field name="press_id" options="{'no_create': True}" placeholder="Auto"/>
+                            <field name="press_used_id" optional="show"/>
+                            <field name="imposition_id" options="{'no_create': True}" placeholder="Auto"/>
+                            <field name="layout_text" optional="show"/>
+                            <field name="sheets_per_copy"/>
+                            <field name="colours_front"/>
+                            <field name="colours_back"/>
+                            <field name="material_id" readonly="1"/>
+                            <field name="pages" readonly="1"/>
+                            <field name="no_up"/>
+                            <field name="pages_per_sheet"/>
+                            <field name="passes"/>
+                            <field name="paper_kg" sum="Kg"/>
+                            <field name="scrap_method" optional="hide"/>
+                            <field name="scrap_value" optional="hide"/>
+                            <field name="print_total" optional="show"/>
+                            <field name="paper_sheets" optional="show"/>
+                            <field name="plates_total" sum="Plates"/>
+                            <field name="paper_cost" sum="Paper cost" optional="show"/>
+                            <field name="calc_ok" column_invisible="1"/>
+                            <button name="action_open_print_line" type="object" icon="fa-search-plus" title="Details and calculation"/>
+                        </list>
+                    </field>
+                    <group>
+                        <group>
+                            <field name="total_paper_kg"/>
+                            <field name="total_plates"/>
+                        </group>
+                        <group>
+                            <field name="total_paper_cost"/>
+                        </group>
+                    </group>
+                    <div class="text-muted">Add or remove page types on Production overview. Open a line (magnifier) for the
+                        bottom panel, scrap method and the step-by-step calculation.</div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

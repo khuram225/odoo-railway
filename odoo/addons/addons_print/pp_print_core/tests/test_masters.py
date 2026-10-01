@@ -31,7 +31,7 @@ class TestPrintMasters(TransactionCase):
         new = self.paper.print_costs_on(date(2026, 9, 30))
         self.assertEqual(old["price"], 560)
         self.assertEqual(new["price"], 590)
-        self.assertAlmostEqual(new["cost_per_sheet"], 590 * self.paper.print_kg_per_sheet, places=6)
+        self.assertAlmostEqual(new["cost_per_sheet"], 590 * self.paper.print_kg_per_sheet_exact(), places=6)
         self.assertEqual(self.paper.print_costs_on(date(2025, 12, 31))["price"], 0.0)
 
     def test_pack_price(self):

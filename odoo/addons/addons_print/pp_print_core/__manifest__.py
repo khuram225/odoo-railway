@@ -1,7 +1,7 @@
 {
     "name": "Print Production Core",
     "summary": "Estimating, costing and production masters for offset/digital print, books and packaging",
-    "version": "19.0.1.0.0",
+    "version": "19.0.1.1.0",
     "category": "Manufacturing/Print",
     "author": "Khurram",
     "license": "LGPL-3",
@@ -24,6 +24,8 @@
         "views/format_views.xml",
         "views/page_type_views.xml",
         "views/estimate_views.xml",
+        "views/print_line_views.xml",
+        "views/res_config_settings_views.xml",
         "views/menus.xml",
     ],
     "application": True,

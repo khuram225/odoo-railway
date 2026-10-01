@@ -80,6 +80,11 @@ class ProductTemplate(models.Model):
                 f"/ 1000 = {kg:.6f} kg per sheet" if area and rec.print_gsm else ""
             )
 
+    def print_kg_per_sheet_exact(self):
+        """Unrounded kg per sheet (the stored field is rounded for display)."""
+        self.ensure_one()
+        return (self.print_width_in or 0.0) * (self.print_height_in or 0.0) * SQIN_TO_M2 * (self.print_gsm or 0.0) / 1000.0
+
     def print_price_on(self, date=None):
         """Price record effective on a date (latest 'valid from' on or before it)."""
         self.ensure_one()
@@ -90,7 +95,7 @@ class ProductTemplate(models.Model):
         """Return dict(cost_per_sheet, cost_per_kg, basis, price, note) for a date."""
         self.ensure_one()
         price = self.print_price_on(date)
-        kg = self.print_kg_per_sheet
+        kg = self.print_kg_per_sheet_exact()
         per_pack = self.print_units_per_pack
         res = {"basis": price.basis if price else False, "price": price.price if price else 0.0,
                "cost_per_sheet": 0.0, "cost_per_kg": 0.0, "note": "No price valid on this date"}

@@ -37,3 +37,4 @@ access_print_estimate_page_user,print.estimate.page user,model_print_estimate_pa
 access_print_estimate_page_manager,print.estimate.page manager,model_print_estimate_page,group_print_manager,1,1,1,1
 access_print_estimate_version_user,print.estimate.version user,model_print_estimate_version,group_print_user,1,1,1,1
 access_print_estimate_version_manager,print.estimate.version manager,model_print_estimate_version,group_print_manager,1,1,1,1
+access_print_estimate_page_log_user,print.estimate.page.log user,model_print_estimate_page_log,group_print_user,1,1,1,1

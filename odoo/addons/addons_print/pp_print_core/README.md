@@ -1,8 +1,8 @@
 # Print Estimation
 
-Step 1: module skeleton and master data. Step 2: the estimate (Calculation + Production overview).
+Step 1: module skeleton and master data. Step 2: the estimate (Calculation + Production overview). Step 3: print-line engine (Print overview).
 
-Odoo 19 Community. Tested on Odoo 19: installs cleanly, all views render, 13 unit tests pass (`--test-tags=pp_print_core`).
+Odoo 19 Community. Tested on Odoo 19: installs cleanly, all views render, 16 unit tests pass (`--test-tags=pp_print_core`).
 
 ## Install
 1. Copy the `pp_print_core` folder into your custom addons folder in the repo (the one already on the addons path).
@@ -39,6 +39,16 @@ Menu **Print Production → Estimates**:
 - Choosing a product fills its default page types (Configuration → Products → Base products → Default page types).
 - Checks: text sections need even pages; versions must add up to run qty. (warning); run qty. > 0.
 - Configuration → Products → Page types: Cover1, Text1, Part1 ... with their kind (text, cover, sheet).
+
+## Step 3: print-line engine
+- Estimate form, tab **Print overview**: one line per page type with Base (press), Imposition, colours F/B, results
+  (press used, layout, sheets per copy, No. up, Pp./sht., passes, kg, print total, paper sheets, plates, paper cost).
+  Empty Base / Imposition = Auto.
+- Magnifier on a line: bottom panel (formats, print net/total, scrap method and value, plates, paper usage, colour comments,
+  ink, wash-ups) and the step-by-step **Calculation** log.
+- Results recalculate on every save; **Calculate** button forces it. Errors show in red with the reason.
+- Print Production → Configuration → **Settings**: colour strip depth and gap between groups (stored as system parameters, no new columns on core tables).
+- Upgrade note: text lines created before step 3 get 4/4 colours; open each old estimate and save or press Calculate.
 
 ## Rules followed in every step
 - Every rate, price, speed, markup and allowance is a record, never a constant in code.

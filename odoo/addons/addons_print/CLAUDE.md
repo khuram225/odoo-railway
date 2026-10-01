@@ -30,6 +30,10 @@ development and fails in implementation. `scripts/check_tenancy.py` enforces it.
 4. Units: inches (dimensions), kg (weight), company currency PKR.
 5. Each step ships with unit tests (`--test-tags=pp_print_core`); tests must pass on Odoo 19 before delivery.
 6. Odoo 19 syntax: models.Constraint (not _sql_constraints), res.groups.privilege, <list>, <chatter/>, inline invisible.
+8. Never add stored fields to shared core models (res.company, res.partner, res.users, product.template ...) in a
+   normal step: deploy-before-upgrade breaks every page. Settings go to ir.config_parameter via
+   res.config.settings(config_parameter=); per-record data goes on our own print.* models. (Step 1's product.template
+   print_* fields are already deployed; any future change there is a planned, announced step.)
 
 ## Formulas in use
 - Kg per sheet = W x H (in) x 0.00064516 x gsm / 1000 (same basis as the client's W x H x gsm / 3100 / 500).
@@ -44,9 +48,13 @@ development and fails in implementation. `scripts/check_tenancy.py` enforces it.
 - Step 2 estimate: print.estimate (E01-/S01- sequences, versions, standards, statuses, customer, dates, run qty, run-on,
   format and W x H), print.estimate.page (page types with material), print.estimate.version (versions / bind legs),
   page type master, default page types per base product.
+- Step 3 print-line engine on print.estimate.page (press, imposition, colours, designs, paperparts, workstyle, scrap method,
+  extra/version plates, ink, colour comments); results and step log (print.estimate.page.log) written by _calculate() on
+  every save; Print overview tab, line popup, Calculate button. Settings: pp_print_core.colour_strip_in, pp_print_core.gap_in
+  (ir.config_parameter). Auto press = smallest offset press with enough colour units that fits (base-product rules replace
+  it later).
 
 ## Next steps
-3. Print-line engine (Print overview): base press, colours, imposition, scrap, plates, paper sheets and kg, stored calculation log.
 4. Print general (prepress, finishing items, cutting), 5. binding and delivery, 6. costing (spec lines, cost points, margin cascade,
 run-on), 7. client costing-sheet check, 8. price lists, 9. estimate to quotation / sale order; then job ticket, maintenance, labour time.
 

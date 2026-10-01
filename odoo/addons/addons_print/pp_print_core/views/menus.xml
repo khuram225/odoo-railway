@@ -6,6 +6,7 @@
     <menuitem id="menu_print_estimate_standard" action="action_print_estimate_standard" parent="menu_print_estimates" sequence="20"/>
     <menuitem id="menu_print_config" name="Configuration" parent="menu_print_root" sequence="90" groups="group_print_manager"/>
 
+    <menuitem id="menu_print_settings" name="Settings" action="action_print_settings" parent="menu_print_config" sequence="0" groups="base.group_system"/>
     <menuitem id="menu_print_cfg_products" name="Products" parent="menu_print_config" sequence="10"/>
     <menuitem id="menu_print_product_group" action="action_print_product_group" parent="menu_print_cfg_products" sequence="10"/>
     <menuitem id="menu_print_base_product" action="action_print_base_product" parent="menu_print_cfg_products" sequence="20"/>
