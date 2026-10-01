@@ -130,13 +130,57 @@ if [ "$code" != "$expect" ]; then
     fail "/aw/health returned $code, expected $expect"
 fi
 
-# The log is worth showing on a PASS too when the pass is a 500: it is
-# the only place the reason for that 500 is recorded, and the reason is
-# the thing being verified.
-if [ "$expect" = "500" ]; then
-    echo "--- the failure this 500 reports ---"
-    grep -E 'aw health check FAILED|does not exist in registry|Traceback' "$log" \
-        | head -20 || echo "(nothing matched in the log)"
+# ---------------------------------------------------------------------
+# The status code is not enough. BOTH directions can be right by
+# accident, and one of them already was: the route read config['db_name']
+# -- a LIST in Odoo 19 -- and handed it to Registry(), so it answered 500
+# on a perfectly healthy instance. A step asserting only "500" would have
+# called that a pass and reported the gate verified.
+#
+# So each direction has to be right FOR THE STATED REASON.
+# ---------------------------------------------------------------------
+body=$(cat /tmp/health_body.txt 2>/dev/null || true)
+
+case "$expect" in
+200)
+    # Our route's own words. Anything else answering 200 on this path --
+    # a proxy, a stray server, core's 404 page under a redirect -- is not
+    # this gate passing.
+    case "$body" in
+        pass:*) echo "confirmed: the 200 came from /aw/health itself" ;;
+        *) fail "200 did not come from this route; body was: $body" ;;
+    esac
+    ;;
+500)
+    # The 500 must be the REGISTRY refusing to build, which is the fault
+    # being reintroduced. A 500 from any other cause means the gate was
+    # not exercised, however red it looks.
+    if grep -q 'does not exist in registry' "$log"; then
+        echo "confirmed: the 500 is the registry refusing to build"
+        grep -E 'aw health check FAILED|does not exist in registry' "$log" \
+            | head -5
+    else
+        fail "got a 500, but the log never says the registry failed -- so this
+500 has some other cause and the gate was not actually exercised"
+    fi
+    ;;
+esac
+
+# Written to the step summary as well as stdout: the summary comes back
+# through the check-runs API, so the evidence for a pass can be read
+# without a token, and a green tick is not the only thing on offer.
+if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    {
+        echo "### /aw/health on \`$db\`: expected $expect, got **$code**"
+        echo
+        echo "- body: \`$(printf '%s' "$body" | head -c 200)\`"
+        if [ "$expect" = "500" ]; then
+            echo "- reason:"
+            echo '```'
+            grep -E 'does not exist in registry' "$log" | head -3
+            echo '```'
+        fi
+    } >> "$GITHUB_STEP_SUMMARY"
 fi
 
 kill "$server" 2>/dev/null || true
