@@ -10,10 +10,51 @@ A read-only reference clone of official Odoo 19.0 (`git clone --depth 1
 `../odoo-src`, for checking core model/view definitions before extending them.
 It is not part of this repo.
 
-## Deploy
+## Deploy and tenancy
 
-Each domain folder (addons_print, later addons_aluminum) must be listed in
-odoo.conf addons_path, because Odoo scans only one level deep.
+Odoo scans an addons path only ONE LEVEL DEEP, so each domain folder
+(`addons_print`, later `addons_aluminum`) has to be listed in
+`addons_path` in its own right -- a parent directory does not reach it.
+
+**Print and aluminum serve different markets and never interact.**
+
+- **Development** is one Railway service and one database holding both.
+  That is what the committed `odoo.conf` defaults to, and why the
+  defaults exist rather than the variables being required.
+- **Implementation** is one service and one database each. The same
+  image serves both; what differs is two environment variables, read by
+  `entrypoint.sh` and SUBSTITUTED into the rendered config:
+
+  | | `ODOO_ADDONS_PATH` | `ODOO_DB_NAME` |
+  |---|---|---|
+  | aluminum | `/mnt/extra-addons` | `odoo` |
+  | print | `/mnt/extra-addons/addons_print` | `print` |
+
+  `dbfilter` moves with `ODOO_DB_NAME` automatically, or the service
+  would route requests to a database it is not configured to create.
+
+Substituted, **not appended**: Python's configparser rejects a duplicate
+key in a section, so a second `addons_path =` line aborts the boot
+rather than overriding. The entrypoint also **fails loudly on an
+addons path that does not exist**, because the alternative is the
+quiet one -- Odoo starts perfectly happily, simply cannot see the
+modules, and the service comes up with an empty Apps list and nothing
+explaining why.
+
+**Nothing under `addons_print` may depend on `aw_*`, `aluminum_*` or a
+shared `core_*` module, and nothing outside it may depend on `pp_*` /
+`print_*`.** `scripts/check_tenancy.py` enforces both directions. This
+is invisible in development, where one addons path holds everything and
+every dependency resolves: a stray `aw_fenestration_core` in
+`pp_print_core`'s `depends` works here and makes the print service
+refuse to install, against a path where that module is not present. The
+same check RUNS the entrypoint's real `substitute()` against a copy of
+the real `odoo.conf` rather than reading it, because `dbfilter`'s value
+is `^print$` and reasoning about which of those characters survive two
+layers of shell quoting is how this sort of code goes wrong quietly.
+
+Print's own domain context is in
+`odoo/addons/addons_print/CLAUDE.md`.
 
 ## Custom modules
 

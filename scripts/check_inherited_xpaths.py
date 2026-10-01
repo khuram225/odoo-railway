@@ -54,13 +54,19 @@ def our_modules():
     arrived with 28 files and five checks reported green without
     reading one of them. A manifest is what makes a directory a
     module, so that is the test.
+
+    Searched at ANY DEPTH, and that is not incidental: the tenancy
+    split put the print modules at `addons_print/pp_print_core`, two
+    levels down, and a one-level scan quietly stopped seeing them the
+    moment they moved. Returned relative to the addons directory, so
+    `ADDONS / name` still resolves.
     """
     addons = Path(__file__).resolve().parent.parent / 'odoo' / 'addons'
     if not addons.is_dir():
         return ()
     return tuple(sorted(
-        path.name for path in addons.iterdir()
-        if (path / '__manifest__.py').is_file()))
+        manifest.parent.relative_to(addons).as_posix()
+        for manifest in addons.rglob('__manifest__.py')))
 
 
 OUR_MODULES = our_modules()
@@ -96,12 +102,18 @@ def read_views(path, module):
             rid = '%s.%s' % (module, rid)
         arch = record.find("field[@name='arch']")
         inherit = record.find("field[@name='inherit_id']")
+        parent = (inherit.get('ref') or '') if inherit is not None else ''
+        # An unqualified ref means THIS module, exactly as convert.py
+        # resolves it. Without this, every same-module inherit came out
+        # as "parent not found" and was quietly reported as not checked
+        # -- which is how a check ends up watching nothing.
+        if parent and '.' not in parent:
+            parent = '%s.%s' % (module, parent)
         out.append({
             'xmlid': rid,
             'path': path,
             'nodes': top_nodes(arch),
-            'inherit': (inherit.get('ref') or '')
-                       if inherit is not None else '',
+            'inherit': parent,
         })
     return out
 

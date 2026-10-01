@@ -86,6 +86,68 @@ mkdir -p /var/lib/odoo /mnt/extra-addons
 cp /etc/odoo/odoo.conf.base /etc/odoo/odoo.conf
 printf 'admin_passwd = %s\n' "$ODOO_ADMIN_PASSWD" >> /etc/odoo/odoo.conf
 
+# --- Tenancy ------------------------------------------------------------------
+#
+# ONE image, TWO tenants. Print and aluminum serve different markets and never
+# interact, so in implementation each gets its own Railway service and its own
+# database:
+#
+#   aluminum   ODOO_ADDONS_PATH=/mnt/extra-addons
+#              ODOO_DB_NAME=odoo
+#   print      ODOO_ADDONS_PATH=/mnt/extra-addons/addons_print
+#              ODOO_DB_NAME=print
+#
+# Neither variable is set in development, where the committed defaults put both
+# trees on one database -- which is the point of defaulting rather than
+# requiring them.
+#
+# These are SUBSTITUTED into the rendered config, not appended: Python's
+# configparser rejects a duplicate key in a section, so a second `addons_path =`
+# line would abort the boot rather than override.
+substitute() {
+    key=$1
+    value=$2
+    # The value is a path list or a database name, so the only character that
+    # needs care in a sed replacement is the delimiter; `|` is not legal in
+    # either, which is why it is the delimiter.
+    sed -i "s|^${key} *=.*|${key} = ${value}|" /etc/odoo/odoo.conf
+    # -F, fixed string. dbfilter's value is `^print$`, and the point of
+    # this grep is to confirm the line now reads EXACTLY what was asked
+    # for. Without -F the value is read as a pattern, and a pattern
+    # matches a class of lines rather than the one line intended -- so
+    # the verification stops verifying. (It happens to pass today: `$`
+    # is literal mid-pattern in a BRE. Working by accident is not the
+    # same as working.)
+    grep -qF "${key} = ${value}" /etc/odoo/odoo.conf || {
+        echo "FATAL: could not set ${key} in the rendered config" >&2
+        exit 1
+    }
+}
+
+if [ -n "${ODOO_ADDONS_PATH:-}" ]; then
+    # A path that does not exist is the silent failure to avoid: Odoo starts
+    # happily and simply cannot see the modules, so the service comes up with
+    # an empty Apps list and nothing explains why.
+    echo "$ODOO_ADDONS_PATH" | tr ',' '\n' | while IFS= read -r dir; do
+        [ -n "$dir" ] || continue
+        if [ ! -d "$dir" ]; then
+            echo "FATAL: ODOO_ADDONS_PATH names '$dir', which is not a directory." >&2
+            echo "       Odoo would start and find no modules there." >&2
+            exit 1
+        fi
+    done || exit 1
+    substitute addons_path "$ODOO_ADDONS_PATH"
+    echo "tenancy: addons_path = $ODOO_ADDONS_PATH"
+fi
+
+if [ -n "${ODOO_DB_NAME:-}" ]; then
+    substitute db_name "$ODOO_DB_NAME"
+    # dbfilter has to move with it or the service routes requests to a database
+    # it is not configured to create.
+    substitute dbfilter "^${ODOO_DB_NAME}\$"
+    echo "tenancy: db_name = $ODOO_DB_NAME"
+fi
+
 chown -R odoo:odoo /var/lib/odoo /mnt/extra-addons /etc/odoo/odoo.conf
 chmod 640 /etc/odoo/odoo.conf
 

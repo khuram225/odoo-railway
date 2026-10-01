@@ -27,8 +27,11 @@ ROOT = Path(__file__).resolve().parent.parent
 # silently skips a new one and still prints "pass". `print_estimation`
 # arrived with 28 files and was read by none of the scoped checks.
 ADDONS = ROOT / 'odoo' / 'addons'
-TARGETS = ([path for path in sorted(ADDONS.iterdir())
-            if (path / '__manifest__.py').is_file()]
+# At ANY depth: the tenancy split put the print modules two levels down,
+# at addons_print/pp_print_core, and a one-level scan stopped seeing them
+# the moment they moved.
+TARGETS = ([manifest.parent for manifest in sorted(
+                ADDONS.rglob('__manifest__.py'))]
            + [ROOT / 'scripts']) if ADDONS.is_dir() else [ROOT / 'scripts']
 
 # Reported by pyflakes but not worth failing a commit over here.

@@ -4,13 +4,24 @@ Client: full-cycle print house, Heidelberg presses, in-house prepress (plate-mak
 Order mix roughly 50/50: bound goods (notebooks, books) and boxes (cardboard, food boxes e.g. burger boxes).
 
 ## Tenancy
-For now one database holds both aluminum and print modules (decided: no second domain yet).
-Later: own database `print` on print.mycrewvault.com (dbfilter = ^%d$). Shared codebase, isolated data.
+Print and aluminum serve different markets and never interact.
+
+- Development: one Railway instance and database holding both.
+- Implementation: print runs on its OWN Railway service and database, loading only
+  `addons_print`. One image serves both; `addons_path` and `db_name` come from
+  per-service environment variables (`ODOO_ADDONS_PATH`, `ODOO_DB_NAME`) -- see the
+  repo CLAUDE.md's Deploy section for the table.
+
+Shared codebase, isolated data AND isolated runtime. `pp_print_core` must never
+depend on `aw_*`, `aluminum_*` or a shared `core_*` module: on the print service
+those are not on the addons path at all, so such a dependency installs fine in
+development and fails in implementation. `scripts/check_tenancy.py` enforces it.
 
 ## Architecture
 - Odoo 19 Community. Native Sale / Purchase / Accounting (added when needed).
 - Custom production engine. Do NOT extend Odoo MRP; work centres, routing and job tickets are our own models.
-- Module `pp_print_core` depends only on base, mail, product (later sale, purchase, account, stock). Never on aw_*.
+- Module `pp_print_core` depends only on base, mail, product (later sale, purchase, account,
+  stock). Never on aw_*, aluminum_* or core_* -- enforced by scripts/check_tenancy.py.
 
 ## Rules (non-negotiable)
 1. Nothing hard-coded: every rate, price, speed, markup, allowance and rule is a record editable in Odoo.
