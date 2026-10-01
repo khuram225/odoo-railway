@@ -30,10 +30,26 @@ development and fails in implementation. `scripts/check_tenancy.py` enforces it.
 4. Units: inches (dimensions), kg (weight), company currency PKR.
 5. Each step ships with unit tests (`--test-tags=pp_print_core`); tests must pass on Odoo 19 before delivery.
 6. Odoo 19 syntax: models.Constraint (not _sql_constraints), res.groups.privilege, <list>, <chatter/>, inline invisible.
+7. Every ir.actions.act_window dict returned from Python or JS declares "views",
+   e.g. [(False, "form")], not just view_mode.
 8. Never add stored fields to shared core models (res.company, res.partner, res.users, product.template ...) in a
    normal step: deploy-before-upgrade breaks every page. Settings go to ir.config_parameter via
    res.config.settings(config_parameter=); per-record data goes on our own print.* models. (Step 1's product.template
    print_* fields are already deployed; any future change there is a planned, announced step.)
+
+## Pre-commit hooks (all scan the whole repo; print code must pass every general one)
+- check_python_names: no undefined names, no duplicate dict keys
+- check_xml_comments: no "--" inside XML comments
+- check_owl_names / check_owl_getters: OWL templates (if any) avoid reserved-word variables and JS globals; getters and methods must resolve
+- check_act_window_views: every ir.actions.act_window dict returned from Python or JS declares "views"
+- check_view_schemas: views validate against Odoo 19 RelaxNG (no expand=/string= on <group> in search views)
+- check_inherited_xpaths: every xpath resolves against its parent arch
+- check_view_buttons: every type="object" button names a real method on the model
+- check_self_methods: every self._method() exists; every self.x = ... is a real field
+- check_kanban_fields: no t-if/t-else/t-foreach/t-call directly on <field> in kanban; wrap in <t>
+- check_load_order: no ref/parent/action/%(xmlid)d pointing at an xmlid defined later in the manifest order
+  (finds manifests at any depth, so it covers addons_print/pp_print_core; reads "data" or 'data')
+Aluminum-only hooks do not apply.
 
 ## Formulas in use
 - Kg per sheet = W x H (in) x 0.00064516 x gsm / 1000 (same basis as the client's W x H x gsm / 3100 / 500).
