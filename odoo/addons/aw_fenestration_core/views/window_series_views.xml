@@ -86,6 +86,21 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
+                    <!-- Stat buttons are the standard place for counts,
+                         and this div is also an EXTENSION POINT: the
+                         design module xpaths its own buttons in here,
+                         because it owns aw.layout.preset and aw.design
+                         and core cannot reference either. Phase 7d
+                         rebuilt this form and dropped the box, which
+                         broke that module's upgrade, so it stays even
+                         if core's own count ever goes. -->
+                    <div class="oe_button_box" name="button_box">
+                        <button type="object" name="action_view_templates"
+                                class="oe_stat_button" icon="fa-th-large">
+                            <field name="template_count" widget="statinfo"
+                                   string="Specifications"/>
+                        </button>
+                    </div>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
                     <div class="oe_title">

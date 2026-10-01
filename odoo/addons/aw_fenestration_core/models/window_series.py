@@ -199,7 +199,8 @@ class AwWindowSeries(models.Model):
         return self._view_related('aw.hardware.set', 'Hardware Sets')
 
     def action_view_templates(self):
-        return self._view_related('aw.window.template', 'Templates')
+        return self._view_related(
+            'aw.window.template', 'Specifications')
 
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Window Series code must be unique.'),

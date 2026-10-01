@@ -3,17 +3,45 @@ from odoo import _, api, fields, models
 
 
 class AwWindowSeries(models.Model):
-    """Layout-preset count on the Series.
+    """Layout-preset and design counts on the Window System.
 
-    This lives in aw_fenestration_design, not in core with the rest of
-    the Series stat buttons, because aw.layout.preset is defined HERE:
-    core doesn't depend on design, so it cannot reference the model.
-    The form view is extended the same way, from this module.
+    These live in aw_fenestration_design, not in core with the rest of
+    the stat buttons, because aw.layout.preset and aw.design are defined
+    HERE: core doesn't depend on design, so it cannot reference either
+    model. The form view is extended the same way, from this module --
+    which is why core's form has to keep a button_box for this to xpath
+    into. Phase 7d rebuilt that form without one and broke this
+    module's upgrade.
     """
     _inherit = 'aw.window.series'
 
     layout_preset_count = fields.Integer(
         compute='_compute_layout_preset_count', string='Layout Presets')
+    design_count = fields.Integer(
+        compute='_compute_design_count', string='Designs')
+
+    def _compute_design_count(self):
+        """How many designs are built in this system.
+
+        Not stored and nothing depends on it: a count that went stale
+        would be worse than one computed on open, and archived designs
+        are included because they are still what was quoted.
+        """
+        Design = self.env['aw.design'].with_context(active_test=False)
+        for series in self:
+            series.design_count = Design.search_count(
+                [('window_series_id', '=', series.id)]) if series.id else 0
+
+    def action_view_designs(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Designs"),
+            'res_model': 'aw.design',
+            'view_mode': 'list,form',
+            'views': [(False, 'list'), (False, 'form')],
+            'domain': [('window_series_id', '=', self.id)],
+        }
 
     @api.depends('leaf_type_ids')
     def _compute_layout_preset_count(self):

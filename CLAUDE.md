@@ -914,6 +914,34 @@ about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
   this). `t-att`/`t-attf` are deliberately allowed — they set an
   attribute value rather than controlling whether the element renders.
 
+- `scripts/check_inherited_xpaths.py` composes each inherited view's
+  PARENT arch and evaluates every locator against it with lxml. Phase 7d
+  rebuilt `view_aw_window_series_form` in core and dropped its
+  `<div name="button_box">`; the design module xpaths its Layout Presets
+  stat button into that div -- it has to, since it owns
+  `aw.layout.preset` and core cannot reference it -- so the **design
+  module's Upgrade died** with *"Element '<xpath
+  expr="//div[@name='button_box']">' cannot be located in parent
+  view"*. Nothing else could see it: both files are well-formed, both
+  pass RelaxNG, load order is fine, and **the view that broke was never
+  edited** -- the mismatch exists only between a parent and a child, in
+  two different modules. A `div[@name='button_box']` in one of our forms
+  is therefore an EXTENSION POINT, not decoration, and the comment on it
+  says so.
+  It composes the parent the way the server does: up the `inherit_id`
+  chain to the root primary, applying each view on the way, then our own
+  extenders in manifest load order. Two deliberate limits, and both
+  report rather than fail, because a check that cries wolf gets switched
+  off: `position="attributes"` is ignored and `replace`/`move` are only
+  applied far enough to keep the tree honest for a later xpath; and for a
+  CORE parent only that view's own chain is applied, so a locator aimed
+  at something a third core module adds comes out as "not checked".
+  Writing it found two bugs in itself first -- an arch with several
+  top-level nodes was truncated to the first, and a `mode="primary"`
+  parent's own arch is a set of xpath edits rather than a whole form, so
+  it has to be composed before it can be searched. Verified by deleting
+  the button_box again, which it flags by file and line.
+
 - `scripts/check_view_schemas.py` validates every standalone view arch
   against **Odoo's own RelaxNG schemas** (`../odoo-src/odoo/addons/base/
   rng/*.rng`), which is the same validation the Upgrade runs. It exists

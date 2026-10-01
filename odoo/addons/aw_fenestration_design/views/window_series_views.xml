@@ -2,10 +2,17 @@
 <odoo>
 
     <!--
-    The Layout Presets stat button is added here rather than in core's
-    own Series form, because aw.layout.preset is defined in this module
-    and core doesn't depend on this one. Extending the view from the side
-    that owns the model is the only direction that works.
+    The Layout Presets and Designs stat buttons are added here rather
+    than in core's own system form, because aw.layout.preset and
+    aw.design are defined in this module and core doesn't depend on this
+    one. Extending the view from the side that owns the model is the
+    only direction that works.
+
+    This is why core's form has to keep a div[@name='button_box']: phase
+    7d rebuilt it without one and this xpath had nowhere to land, so the
+    whole module failed to upgrade with "Element ... cannot be located
+    in parent view". scripts/check_inherited_xpaths.py now evaluates
+    every one of these against the parent arch we actually ship.
     -->
     <record id="view_aw_window_series_form_presets" model="ir.ui.view">
         <field name="name">aw.window.series.form.inherit.presets</field>
@@ -13,6 +20,11 @@
         <field name="inherit_id" ref="aw_fenestration_core.view_aw_window_series_form"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']" position="inside">
+                <button type="object" name="action_view_designs"
+                        class="oe_stat_button" icon="fa-window-maximize">
+                    <field name="design_count" widget="statinfo"
+                           string="Designs"/>
+                </button>
                 <button type="object" name="action_view_layout_presets"
                         class="oe_stat_button" icon="fa-th">
                     <field name="layout_preset_count" widget="statinfo"
