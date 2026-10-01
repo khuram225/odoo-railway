@@ -1,8 +1,8 @@
 name: checks
 
-# Every push to main, and every pull request into it. The push run is the
-# one Railway's "Wait for CI" waits on, so the commit status it reports is
-# what gates a deploy: a red run means nothing is built.
+# Every push to main, and every pull request into it. Railway's "Wait for
+# CI" waits on the `all checks` status at the bottom, which only passes
+# when BOTH the static suite and the boot test have passed.
 on:
   push:
     branches: [main]
@@ -16,8 +16,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
-    name: all checks
+  # =====================================================================
+  # Everything that can be decided by reading the code.
+  # =====================================================================
+  static:
+    name: static checks
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -51,27 +54,160 @@ jobs:
       # Cloned fresh every run, NOT cached. actions/cache resolves a
       # relative path against the workspace and this one sits outside it,
       # and a cache that restores EMPTY is precisely the "looks green,
-      # read nothing" failure this whole suite exists to stop. A depth-1
-      # single-branch clone is under a minute, which is a fair price for a
-      # gate whose answer has to be trustworthy. If it ever needs speeding
-      # up: cache a path INSIDE the workspace and symlink it, and keep the
-      # verify step below either way.
+      # read nothing" failure this whole suite exists to stop.
       - name: Clone Odoo 19.0 source
         run: |
           git clone --depth 1 --single-branch --branch 19.0 \
             https://github.com/odoo/odoo.git ../odoo-src
 
       - name: Confirm the source clone is really there
-        # A cache that restored empty, or a clone that half-failed, would
-        # otherwise show up as ten skips -- and --strict would report
-        # them as check failures, which is a confusing way to be told the
-        # clone is missing. Say so plainly instead.
         run: |
           test -d ../odoo-src/odoo/addons/base/rng \
             || { echo "::error::../odoo-src is missing or incomplete"; exit 1; }
 
       - name: Run every check
-        # --strict: a check that cannot read its input FAILS. The only
-        # exemption is the Chawla vendor zip, which is gitignored and so
-        # can never exist on a runner; check_all.sh names it explicitly.
         run: sh scripts/check_all.sh --strict
+
+  # =====================================================================
+  # The gate no static check can be: does the application actually exist?
+  #
+  # A static check reads code. It cannot tell you that the module graph
+  # builds, that every data file loads, or that the views install against
+  # the models they name -- and that gap is not theoretical. An
+  # `_inherit = 'aw.design'` in a module that cannot see aw.design passed
+  # the whole static suite, deployed, and left every request returning 500
+  # while the container stayed up and /web/health went on answering 200.
+  #
+  # So: a real Odoo, a real Postgres, two fresh databases, one install
+  # each. If the registry will not build, this fails.
+  # =====================================================================
+  boot:
+    name: boot test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    # The EXACT image odoo/Dockerfile deploys. Testing the install against
+    # a different Odoo than production runs would be testing something
+    # else.
+    container:
+      image: odoo:19.0-20260723
+      options: --user root
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: postgres
+      PGUSER: odoo
+      PGPASSWORD: odoo
+
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Which modules are there
+        id: modules
+        # Discovered, not listed, and split on the TENANCY boundary --
+        # the same one the two Railway services use. A module added
+        # tomorrow is installed by this job without anyone editing it,
+        # which is the whole lesson of the hardcoded-list failures.
+        run: |
+          set -eu
+          aluminum=$(find odoo/addons -name __manifest__.py \
+            -not -path 'odoo/addons/addons_print/*' \
+            -printf '%h\n' | xargs -n1 basename | sort | paste -sd, -)
+          print=$(find odoo/addons/addons_print -name __manifest__.py \
+            -printf '%h\n' 2>/dev/null | xargs -n1 basename | sort | paste -sd, -)
+          echo "aluminum=$aluminum" >> "$GITHUB_OUTPUT"
+          echo "print=$print" >> "$GITHUB_OUTPUT"
+          echo "aluminum: $aluminum"
+          echo "print:    $print"
+
+      # --------------------------------------------------------------
+      # Fresh database 1: the aluminum tenant.
+      # --------------------------------------------------------------
+      - name: Install the aluminum modules into a fresh database
+        run: |
+          set -eu
+          odoo -d aw_boot \
+            --addons-path=/usr/lib/python3/dist-packages/odoo/addons,odoo/addons \
+            -i "${{ steps.modules.outputs.aluminum }}" \
+            --without-demo=all --stop-after-init --no-http \
+            --log-level=info 2>&1 | tee /tmp/aw_boot.log
+
+      - name: Fail on any error in the aluminum install
+        # --stop-after-init exits 0 for some failures that are only
+        # LOGGED, so the exit code alone is not the gate. Both are.
+        run: sh scripts/ci_assert_clean_log.sh /tmp/aw_boot.log
+
+      # --------------------------------------------------------------
+      # Fresh database 2: the print tenant, on ITS OWN addons path.
+      # Only addons_print, exactly as the print service loads it -- so a
+      # pp_* module that reached for an aw_* one fails HERE, where the
+      # development instance would never notice.
+      # --------------------------------------------------------------
+      - name: Install the print modules into a second fresh database
+        if: steps.modules.outputs.print != ''
+        run: |
+          set -eu
+          odoo -d pp_boot \
+            --addons-path=/usr/lib/python3/dist-packages/odoo/addons,odoo/addons/addons_print \
+            -i "${{ steps.modules.outputs.print }}" \
+            --without-demo=all --stop-after-init --no-http \
+            --log-level=info 2>&1 | tee /tmp/pp_boot.log
+
+      - name: Fail on any error in the print install
+        if: steps.modules.outputs.print != ''
+        run: sh scripts/ci_assert_clean_log.sh /tmp/pp_boot.log
+
+      # --------------------------------------------------------------
+      # And the healthcheck itself, against the database just built.
+      # Verifying the route here is the difference between believing it
+      # reports a broken registry and knowing it does.
+      # --------------------------------------------------------------
+      - name: The /aw/health route answers 200 on a good build
+        run: |
+          set -eu
+          odoo -d aw_boot \
+            --addons-path=/usr/lib/python3/dist-packages/odoo/addons,odoo/addons \
+            --http-port=8069 --log-level=warn &
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /tmp/health.txt -w '%{http_code}' \
+              http://localhost:8069/aw/health || echo 000)
+            [ "$code" = "000" ] || break
+            sleep 2
+          done
+          echo "status=$code"; cat /tmp/health.txt || true
+          test "$code" = "200" || {
+            echo "::error::/aw/health returned $code on a healthy build"
+            exit 1
+          }
+
+  # =====================================================================
+  # The single status Railway waits on. It has no steps: its only job is
+  # to be red unless both of the above are green, so one status name
+  # covers both and adding a third job later needs one line here.
+  # =====================================================================
+  all-checks:
+    name: all checks
+    runs-on: ubuntu-latest
+    needs: [static, boot]
+    if: always()
+    steps:
+      - name: Require both gates
+        run: |
+          echo "static: ${{ needs.static.result }}"
+          echo "boot:   ${{ needs.boot.result }}"
+          test "${{ needs.static.result }}" = "success" \
+            && test "${{ needs.boot.result }}" = "success" \
+            || { echo "::error::a gate did not pass"; exit 1; }
