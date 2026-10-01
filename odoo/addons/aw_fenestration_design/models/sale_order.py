@@ -15,6 +15,18 @@ class SaleOrder(models.Model):
         ondelete='restrict',
         help="What every new position on this quote starts as. The "
              "profile system follows from the panels drawn.")
+    # Phase 7e: one colour per quote, usually. Set it here and every
+    # position added afterwards starts there; a design's own finish stays
+    # freely editable, exactly like the family.
+    aw_default_finish_id = fields.Many2one(
+        'product.attribute.value', string='Default Finish',
+        domain=lambda self: [(
+            'attribute_id', '=',
+            self.env.ref('aw_fenestration_core.aw_attribute_finish').id,
+        )],
+        help="The finish new positions on this quote start in. Each "
+             "design's own finish can still be changed.")
+
     aw_default_series_id = fields.Many2one(
         'aw.window.series', string='Default Window Series',
         ondelete='restrict',
@@ -127,6 +139,13 @@ class SaleOrder(models.Model):
             # Falls back to the system's own family so a caller that
             # predates families still produces a consistent design.
             'family_id': (family or series.family_id).id or False,
+            # Phase 7e: the quote's own default colour, passed EXPLICITLY
+            # rather than through the context. aw.design.finish_id is
+            # required with a default of Natural, and a default cannot
+            # see the order it is being created against -- so the one
+            # place that does hold the order says so here.
+            'finish_id': (self.aw_default_finish_id.id
+                          or self.env['aw.design']._default_finish()),
             'sale_order_line_id': line.id,
         })
         # A design with no rows at all gives the configurator nothing to

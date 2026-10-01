@@ -55,18 +55,13 @@ class AwWindowTemplate(models.Model):
              "to this spec will warn that its hardware cost is missing.")
     glass_spec_id = fields.Many2one(
         'aw.glass.spec', required=True, ondelete='restrict', tracking=True)
-    # Optional, unlike the three above: most systems are quoted in
-    # whatever finish the job calls for, and a spec that insisted on one
-    # would be re-picked on every design. Empty means "no opinion".
-    finish_id = fields.Many2one(
-        'product.attribute.value', string='Default Finish',
-        ondelete='restrict', tracking=True,
-        domain=lambda self: [(
-            'attribute_id', '=',
-            self.env.ref('aw_fenestration_core.aw_attribute_finish').id,
-        )],
-        help="Filled into a design that has no finish yet. Leave empty "
-             "unless this system is genuinely always one colour.")
+    # Phase 7e: the spec's own Default Finish was REMOVED. Colour is
+    # decided in ONE place now -- the design -- defaulting from the sale
+    # order's own default and failing that to Natural. A spec that also
+    # proposed a finish was a second answer to the same question, and
+    # the reason it existed (a system that is always one colour) is
+    # better served by the ORDER's default, since a job is usually one
+    # colour across several systems rather than the other way round.
 
     is_default = fields.Boolean(
         string='Default', tracking=True,
@@ -109,6 +104,20 @@ class AwWindowTemplate(models.Model):
     max_panel_kg = fields.Float(
         string='Max Panel Weight (kg)', help="0 means not checked.")
 
+    # Phase 7e. `name` is the spec's OWN short name -- "RE" -- because
+    # a spec is almost always read somewhere its family and role are
+    # already on screen: inside a Window System, in a dropdown filtered
+    # to one system, on the configurator header next to Glazing and
+    # Frame. Repeating "Double Glaze - Openable" in front of it three
+    # times on one screen is noise.
+    #
+    # full_name is the whole path, for the places with no parent
+    # visible: the quote PDF, the shop drawing, the sale order line.
+    full_name = fields.Char(
+        compute='_compute_full_name', string='Full name',
+        help="Family - Role - Spec, for documents and anywhere the "
+             "system is not already on screen.")
+
     notes = fields.Text()
 
     _sql_constraints = [
@@ -140,6 +149,29 @@ class AwWindowTemplate(models.Model):
                     "that one first.",
                     other=others[0].display_name,
                     system=rec.window_type_id.display_name))
+
+    @api.depends('name', 'window_type_id.family_id.name',
+                 'window_type_id.system_role')
+    def _compute_full_name(self):
+        """Family - Role - Spec.
+
+        Built from the ROLE rather than the system's own name, for the
+        same reason the configurator header shows the role: a system
+        name already contains its family ("Double Glaze - Openable"), so
+        using it would read "Double Glaze - Double Glaze - Openable -
+        RE". Any part that is missing is simply left out rather than
+        leaving a dangling dash.
+        """
+        roles = dict(
+            self.env['aw.window.series']._fields['system_role'].selection)
+        for spec in self:
+            system = spec.window_type_id
+            parts = [
+                system.family_id.name or '',
+                roles.get(system.system_role, ''),
+                spec.name or '',
+            ]
+            spec.full_name = ' \u2013 '.join(part for part in parts if part)
 
     @api.depends('profile_line_ids', 'hardware_line_ids')
     def _compute_part_counts(self):

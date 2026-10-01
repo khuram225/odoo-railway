@@ -11,6 +11,7 @@ from . import glass_spec
 from . import window_template
 from . import spec_migration
 from . import alternates_migration
+from . import finish_migration
 from . import profile_rate
 from . import price_structure
 from . import thickness

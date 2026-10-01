@@ -145,12 +145,25 @@ class AwDesign(models.Model):
     # for categ_id in aw_fenestration_core's profile_section.py/
     # hardware_set.py/glass_spec.py -- a renamed attribute wouldn't
     # silently break this the way name-matching would.
+    # Phase 7e: REQUIRED, and the only place a finish is decided. It
+    # used to be optional here and required on every spec profile line,
+    # which made each spec implicitly one colour. The BOM resolves each
+    # profile's variant from the spec's profile + thickness and THIS
+    # field, so the colour is a property of the window being quoted.
+    #
+    # Required is safe where window_series_id was not: there is a
+    # default (the order's, else Natural), so a design can always be
+    # created -- unlike the ft/in inverse fields, nothing writes this
+    # one through a non-stored compute.
     finish_id = fields.Many2one(
-        'product.attribute.value', tracking=True,
+        'product.attribute.value', required=True, tracking=True,
+        default=lambda self: self._default_finish(),
         domain=lambda self: [(
             'attribute_id', '=',
             self.env.ref('aw_fenestration_core.aw_attribute_finish').id,
-        )])
+        )],
+        help="The colour this window is quoted in. Every profile's "
+             "variant, and so every rate, is resolved from it.")
     thickness_id = fields.Many2one(
         'product.attribute.value', tracking=True,
         domain=lambda self: [(
@@ -190,6 +203,27 @@ class AwDesign(models.Model):
     area_sqm = fields.Float(compute='_compute_area', store=True, string='Area (m²)')
     area_sqft = fields.Float(compute='_compute_area', store=True, string='Area (sqft)')
 
+    @api.model
+    def _default_finish(self):
+        """Natural, as the finish a new design starts in.
+
+        Natural rather than nothing, because the field is required and a
+        quote has to be startable: it is the finish every imported
+        profile is sold in, so it is the one value guaranteed to resolve
+        to a real variant on any profile.
+
+        It does NOT read the sale order, because a default cannot see
+        the order a design is about to be attached to --
+        `_create_fenestration_position` holds that and passes the
+        order's own default explicitly. Reaching for a context key
+        nothing sets would have looked like it worked and silently
+        always returned Natural.
+        """
+        natural = self.env.ref(
+            'aw_fenestration_core.aw_attr_val_finish_natural',
+            raise_if_not_found=False)
+        return natural.id if natural else False
+
     @api.depends('window_series_id')
     def _compute_glass_spec(self):
         """Fill from the Series' default, never replace.
@@ -201,7 +235,7 @@ class AwDesign(models.Model):
         for design in self:
             design.glass_spec_id = (
                 design.glass_spec_id
-                or design.window_series_id.default_glass_spec_id)
+                or design.template_id.glass_spec_id)
 
     @api.depends('window_series_id')
     @api.depends('template_id')
@@ -289,15 +323,15 @@ class AwDesign(models.Model):
             # onchange as well, where self is an in-memory NewId record
             # that write() refuses. Assignment does the right thing in
             # both cases.
-            # Only glass: the section and hardware set are computed
-            # from the spec now, so copying them would be writing to a
-            # readonly field to say what it already says.
+            # Only glass. The section and hardware set are computed from
+            # the spec, so copying them would be writing to a readonly
+            # field to say what it already says -- and the FINISH is the
+            # design's own since phase 7e, defaulted from the order, so a
+            # spec has no say in it.
             for field, value in (
                     ('glass_spec_id', spec.glass_spec_id),):
                 if value and (force or not design[field]):
                     design[field] = value
-            if spec.finish_id and not design.finish_id:
-                design.finish_id = spec.finish_id
 
     def _resolve_spec(self):
         """Give a design without a spec its system's default one.
@@ -474,7 +508,12 @@ class AwDesign(models.Model):
     def _prepare_sale_line_description(self):
         self.ensure_one()
         parts = [self.name or '', self.location or '', self.size_display or '']
-        if self.window_series_id:
+        # The FULL path, because a sale order line has no family or
+        # system on screen beside it: "Double Glaze - Openable - RE"
+        # rather than a bare "RE", which would mean nothing on a quote.
+        if self.template_id:
+            parts.append(self.template_id.full_name)
+        elif self.window_series_id:
             parts.append(self.window_series_id.display_name)
         return ' — '.join(p for p in parts if p)
 
@@ -661,7 +700,6 @@ class AwDesign(models.Model):
             # and the Series' default glass follow a Series change
             # without a reload.
             **self._rule_set_options(series),
-            'default_glass_spec_id': series.default_glass_spec_id.id,
             **self._attachment_catalogue(),
         }
 
@@ -1131,7 +1169,6 @@ class AwDesign(models.Model):
                     'aw_fenestration_core.product_category_hardware').id,
             },
             'finish_options': self._finish_options(),
-            'default_glass_spec_id': series.default_glass_spec_id.id,
             **self._rule_set_options(series),
             'size_display': self.size_display,
             'series_options': [{
@@ -1321,7 +1358,7 @@ class AwDesign(models.Model):
         # so there is nothing to backstop: glass is the one header field
         # left that a Series has an answer for.
         defaults = {
-            'glass_spec_id': series.default_glass_spec_id,
+            'glass_spec_id': self.template_id.glass_spec_id,
         }
         values = {}
         for key in fields_to_fill:

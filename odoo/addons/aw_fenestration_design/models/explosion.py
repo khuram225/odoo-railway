@@ -171,20 +171,23 @@ class AwDesign(models.Model):
         change = self._overrides_by_key()[0].get(line.position_id.id)
         if change:
             return change._profile_variant_for(self)
-        finish = self.finish_id or line.finish_id
+        # Phase 7e: the DESIGN's finish, full stop. The line has none to
+        # fall back to any more, which is the point -- one window, one
+        # colour, decided where the window is.
         return self.env['aw.profile.section.line']._variant_for(
-            product_tmpl or line.product_tmpl_id, line.thickness_id, finish)
+            product_tmpl or line.product_tmpl_id, line.thickness_id,
+            self.finish_id)
 
     def _profile_change(self, line):
         """The change replacing this profile line, if any."""
         return self._overrides_by_key()[0].get(line.position_id.id)
 
-    def _profile_variant_problem(self, line):
+    def _profile_variant_problem(self, line, product_tmpl=None):
         """Why _profile_variant found nothing, in words the reader can
         act on. Asked only when it found nothing."""
-        finish = self.finish_id or line.finish_id
         return self.env['aw.profile.section.line']._variant_problem(
-            line.product_tmpl_id, line.thickness_id, finish)
+            product_tmpl or line.product_tmpl_id, line.thickness_id,
+            self.finish_id)
 
     def _profile_pieces(self, line, context, label, panel_no=0,
                         product_tmpl=None):
@@ -226,7 +229,9 @@ class AwDesign(models.Model):
         # Worked out once per section line rather than per piece: four
         # frame members share one line, and they would all give the
         # same answer.
-        reason = '' if product else self._profile_variant_problem(line)
+        reason = ('' if product
+                  else self._profile_variant_problem(
+                      line, product_tmpl=product_tmpl))
         pieces = []
         # ONE DICT PER PHYSICAL PIECE, not one per formula. Four frame
         # members cannot share a BOM line and still carry four distinct
@@ -770,8 +775,14 @@ class AwDesign(models.Model):
             else:
                 problems.append(('warning', _(
                     "No product for '%s'.", values.get('label') or '')))
+        # ERROR, not a warning, since phase 7e. The commonest cause is now
+        # a finish the profile is not sold in, and that is not a thing to
+        # look at later: the window cannot be made as quoted, and the
+        # piece would go on the cut list with no product and no price.
+        # The reason already names the profile, the value and what IS
+        # available.
         for reason in sorted(reasons):
-            problems.append(('warning', reason))
+            problems.append(('error', reason))
 
         # Glass is chosen once, so it is reported once -- naming the two
         # places it can be set, since "no product for P1 glass" told the

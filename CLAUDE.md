@@ -499,6 +499,48 @@ from `.git/hooks` by default, which isn't tracked — enable once per clone):
   container's children refitted when a sibling moves, an opening
   redistributed without being resized.
 
+**Phase 7e: a finish belongs to the WINDOW, not to the spec.** A spec
+profile line is a profile and a thickness, full stop. Finish on the line
+made every spec implicitly one colour, so quoting the same window in
+brown needed either a second spec or a per-window change on every line.
+The VARIANT went with it — profile + thickness + finish is what names a
+variant and the line holds two of the three — so `_profile_variant()`
+resolves it per design from `aw.design.finish_id`, which is now
+**required**, defaulting to the order's `aw_default_finish_id` and
+failing that to **Natural** (the one finish every imported profile is
+sold in, so the one value guaranteed to resolve). A profile that cannot
+be made in the design's finish is an **error**, not a warning: the piece
+would otherwise reach the cut list with no product and no price.
+
+Required is safe here where it was NOT for `window_series_id`: there is
+always a default, and nothing writes this field through a non-stored
+inverse. **The order's default is passed explicitly** in
+`_create_fenestration_position` — a `default=` cannot see the order a
+design is about to be attached to, and the first version read a context
+key nothing sets, which would have looked like it worked while always
+returning Natural.
+
+Costing keys by **template**, not by the line's variant (which is gone).
+That also fixed a divider built from one of a line's ALTERNATES, whose
+variant was never in that map, so its thickness fell back to False and
+the rate was looked up loosely.
+
+**Names are shown in context.** A kanban card inside a family column
+shows the ROLE — the card is already under "Double Glaze", so the full
+name would read "Double Glaze / Double Glaze - Openable". A spec's `name`
+is its own short form ("RE"), because a spec is nearly always read with
+its family and role already on screen. `full_name` is the computed whole
+path for the places with no parent visible: quote PDF, shop drawing, sale
+order line. It is built from the **role**, not the system's name, since a
+system name already contains its family — otherwise "Double Glaze -
+Double Glaze - Openable - RE".
+
+**Default Glass is gone from the system**; the spec's glass is the only
+default. So is the spec's own Default Finish — it was a second answer to
+the same question, and "this system is always one colour" is better
+served by the ORDER's default, since a job is usually one colour across
+several systems rather than the reverse.
+
 **Phase 7d unified the structure, and the layering it removed is worth
 understanding.** There used to be four things: a Window System, a
 Profile Section, a Hardware Set and a Specification pointing at both.

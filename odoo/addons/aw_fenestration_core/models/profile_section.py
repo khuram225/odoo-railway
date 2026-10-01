@@ -70,24 +70,23 @@ class AwProfileSectionLine(models.Model):
              "Finish below to resolve (or create) the exact variant.")
     thickness_attribute_value_ids = fields.Many2many(
         'product.attribute.value', compute='_compute_available_attribute_values')
-    finish_attribute_value_ids = fields.Many2many(
-        'product.attribute.value', compute='_compute_available_attribute_values')
     thickness_id = fields.Many2one(
         'product.attribute.value', required=True,
         domain="[('id', 'in', thickness_attribute_value_ids)]")
-    finish_id = fields.Many2one(
-        'product.attribute.value', required=True,
-        domain="[('id', 'in', finish_attribute_value_ids)]")
 
-    product_id = fields.Many2one(
-        'product.product', compute='_compute_product_id', store=True,
-        readonly=True,
-        help="Resolved automatically from Profile + Thickness + Finish "
-             "above: found if that exact variant already exists, created "
-             "if not. Thickness/Finish are Dynamic-creation attributes on "
-             "these products, so no variant exists until a combination is "
-             "actually requested -- this is the general version of what "
-             "the old post_init_hook did by hand for 5 hardcoded cases.")
+    # Phase 7e: FINISH AND THE VARIANT ARE GONE FROM HERE. A spec says
+    # what a window is MADE OF -- which profile, in which wall thickness
+    # -- and the colour is a property of the window being quoted, not of
+    # the specification it is built to. A finish here made every spec
+    # implicitly one colour, so quoting the same window in brown needed
+    # either a second spec or a per-window change on every profile line.
+    #
+    # The variant went with it: profile + thickness + finish is what
+    # names a variant and the line now holds two of the three. The BOM
+    # resolves it per design, in _profile_variant(), from the design's
+    # own finish -- which is also what makes the Checks able to say
+    # "this profile is not sold in this colour" about a real window
+    # rather than about a spec.
 
     # -- overrides of the position's defaults (spec 6.2) -------------------
     # Empty means "use the position's rule", which is the common case; a
@@ -202,14 +201,13 @@ class AwProfileSectionLine(models.Model):
 
     @api.onchange('product_tmpl_id')
     def _onchange_product_tmpl_id(self):
-        # thickness_id/finish_id's domain only restricts NEW picks -- it
-        # doesn't retroactively clear an already-set value that no longer
-        # belongs to the newly chosen template's own attribute lines.
-        # Left stale, _compute_product_id would silently resolve to no
-        # product instead of erroring, since the combination would be
-        # incomplete.
+        # thickness_id's domain only restricts NEW picks -- it doesn't
+        # retroactively clear an already-set value that no longer belongs
+        # to the newly chosen template's own attribute lines. Left stale,
+        # the BOM would resolve to no variant instead of erroring, since
+        # the combination would name a thickness this profile is not sold
+        # in.
         self.thickness_id = False
-        self.finish_id = False
 
     @api.model
     def _template_values(self, product_tmpl, attribute):
@@ -231,12 +229,9 @@ class AwProfileSectionLine(models.Model):
     @api.depends('product_tmpl_id')
     def _compute_available_attribute_values(self):
         thickness_attr = self.env.ref('aw_fenestration_core.aw_attribute_thickness')
-        finish_attr = self.env.ref('aw_fenestration_core.aw_attribute_finish')
         for line in self:
             line.thickness_attribute_value_ids = self._template_values(
                 line.product_tmpl_id, thickness_attr)
-            line.finish_attribute_value_ids = self._template_values(
-                line.product_tmpl_id, finish_attr)
 
     @api.model
     def _variant_problem(self, product_tmpl, thickness, finish):
@@ -302,8 +297,3 @@ class AwProfileSectionLine(models.Model):
             variant._aw_sync_cost_from_rate()
         return variant
 
-    @api.depends('product_tmpl_id', 'thickness_id', 'finish_id')
-    def _compute_product_id(self):
-        for line in self:
-            line.product_id = self._variant_for(
-                line.product_tmpl_id, line.thickness_id, line.finish_id)

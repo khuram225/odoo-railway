@@ -32,5 +32,8 @@
              the design module creates, and core upgrades first. -->
         <function model="aw.profile.section.line"
                   name="_migrate_position_alternates"/>
+        <!-- Phase 7e: from THIS module, because aw.design.finish_id
+             becomes required here and core upgrades first. -->
+        <function model="aw.design" name="_migrate_finish_to_designs"/>
     </data>
 </odoo>

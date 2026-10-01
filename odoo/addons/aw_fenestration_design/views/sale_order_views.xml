@@ -21,6 +21,12 @@
                     <group>
                         <field name="aw_default_family_id"
                                readonly="state not in ('draft', 'sent')"/>
+                        <!-- Phase 7e: a job is usually one colour, so set
+                             it once here and every position added after
+                             starts there. Each design's own finish stays
+                             editable. -->
+                        <field name="aw_default_finish_id"
+                               readonly="state not in ('draft', 'sent')"/>
                         <field name="aw_default_series_id" invisible="1"/>
                     </group>
                     <button name="action_add_position" type="object"

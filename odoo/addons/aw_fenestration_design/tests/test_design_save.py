@@ -167,6 +167,54 @@ class TestDesignSave(TransactionCase):
         self.assertTrue(
             positions, "The spec configures no positions.")
 
+    def test_finish_decides_the_variant(self):
+        """Phase 7e: the DESIGN's finish resolves every profile variant.
+
+        The spec's profile lines carry a profile and a thickness only, so
+        the colour is the design's. Changing it must move every profile
+        BOM line to the matching variant and nothing else -- same
+        profiles, same lengths, different colour.
+        """
+        self.design.save_layout(self._payload())
+        before = {
+            line.id: (line.product_id.product_tmpl_id.id, line.length_mm)
+            for line in self.design.bom_line_ids
+            if line.kind == 'profile'
+        }
+        self.assertTrue(before, "No profile lines to check.")
+        self.assertTrue(
+            self.design.finish_id,
+            "finish_id is required, so a saved design must have one.")
+
+        # Another finish the SAME profiles are sold in, if the data has
+        # one; otherwise there is nothing to prove here.
+        first = self.design._spec_profile_lines()[:1]
+        offered = self.env['aw.profile.section.line']._template_values(
+            first.product_tmpl_id,
+            self.env.ref('aw_fenestration_core.aw_attribute_finish'))
+        other = (offered - self.design.finish_id)[:1]
+        if not other:
+            self.skipTest("Only one finish available on the seeded profiles")
+
+        self.design.finish_id = other
+        self.design.save_layout(self._payload())
+
+        after = {
+            (line.product_id.product_tmpl_id.id, line.length_mm)
+            for line in self.design.bom_line_ids
+            if line.kind == 'profile'
+        }
+        self.assertEqual(
+            set(before.values()), after,
+            "Changing the finish changed which PROFILES or what LENGTHS "
+            "are cut; it must only change the variant.")
+        for line in self.design.bom_line_ids.filtered(
+                lambda l: l.kind == 'profile' and l.product_id):
+            self.assertIn(
+                other, line.product_id.product_template_attribute_value_ids
+                .product_attribute_value_id,
+                "A profile line is still on the old finish's variant.")
+
     def test_checks_are_regenerated(self):
         """Checks belong to the layout that is there now."""
         self.design.save_layout(self._payload())

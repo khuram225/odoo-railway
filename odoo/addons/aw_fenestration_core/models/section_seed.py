@@ -223,19 +223,12 @@ class AwProfileSection(models.Model):
                     raise_if_not_found=False))
             if warning:
                 _logger.warning("aw_fenestration_core: %s", warning)
-            # The finish the rest of the set already uses, rather than a
-            # fresh guess -- the design overrides it anyway, but a line
-            # whose finish disagrees with its neighbours looks like a
-            # mistake on the form.
-            siblings = specs.profile_line_ids or section.line_ids
-            finish = siblings[:1].finish_id or self.env.ref(
-                'aw_fenestration_core.aw_attr_val_finish_natural',
-                raise_if_not_found=False)
+            # No finish: phase 7e took it off the line entirely, so a
+            # profile line is a profile and a thickness and nothing else.
             values = {
                 'position_id': position.id,
                 'product_tmpl_id': template.id,
                 'thickness_id': thickness.id if thickness else False,
-                'finish_id': finish.id if finish else False,
                 'sequence': 150,
             }
             # Where the lines live now: the spec once migrated, the
@@ -331,9 +324,6 @@ class AwProfileSection(models.Model):
         thickness = self.env.ref(
             'aw_fenestration_core.aw_attr_val_thickness_normal',
             raise_if_not_found=False)
-        finish = self.env.ref(
-            'aw_fenestration_core.aw_attr_val_finish_natural',
-            raise_if_not_found=False)
 
         lines, missing, thickness_warnings = [], [], []
         sequence = 0
@@ -373,7 +363,6 @@ class AwProfileSection(models.Model):
                 'alternate_product_ids': [(6, 0, alternate_ids)],
                 'thickness_id': (
                     line_thickness.id if line_thickness else False),
-                'finish_id': finish.id if finish else False,
                 'sequence': sequence,
             }))
 

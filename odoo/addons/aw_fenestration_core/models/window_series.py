@@ -137,12 +137,12 @@ class AwWindowSeries(models.Model):
     # Placeholders, marked [revisit] in the spec: plausible round numbers,
     # not shop-measured ones. A limit of 0 means "not checked", so a
     # Series nobody has tuned never raises a false alarm.
-    default_glass_spec_id = fields.Many2one(
-        'aw.glass.spec', string='Default Glass', tracking=True,
-        ondelete='restrict',
-        help="A new design in this Series starts with this glass. Only "
-             "fills a design that has none, so it never overrides a "
-             "choice someone has made.")
+    # Phase 7e: Default Glass was REMOVED from the system. The
+    # Specification's own glass is the only default now -- two places
+    # answering "what glass does a new design get" is one place too
+    # many, and the spec is where the rest of the window is decided.
+    # _migrate_system_glass_to_specs() copied every system's value onto
+    # its specs that had none.
 
     glass_fixed_w = fields.Char(string='Fixed Glass Width', default='PW - 60')
     glass_fixed_h = fields.Char(string='Fixed Glass Height', default='PH - 60')
@@ -167,7 +167,8 @@ class AwWindowSeries(models.Model):
     hardware_set_ids = fields.One2many(
         'aw.hardware.set', 'window_type_id', string='Hardware Sets')
     template_ids = fields.One2many(
-        'aw.window.template', 'window_type_id', string='Templates')
+        'aw.window.template', 'window_type_id',
+        string='Specifications')
 
     profile_section_count = fields.Integer(compute='_compute_counts')
     hardware_set_count = fields.Integer(compute='_compute_counts')

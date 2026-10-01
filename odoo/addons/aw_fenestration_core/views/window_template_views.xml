@@ -22,7 +22,6 @@
                 <field name="profile_line_count" string="Profiles"/>
                 <field name="hardware_line_count" string="Hardware"/>
                 <field name="glass_spec_id"/>
-                <field name="finish_id" optional="hide"/>
                 <field name="design_count" string="Used in"/>
             </list>
         </field>
@@ -45,7 +44,10 @@
                     <widget name="web_ribbon" title="Default" bg_color="text-bg-success"
                             invisible="not is_default"/>
                     <div class="oe_title">
-                        <h1><field name="name" placeholder="e.g. Double Glaze - Openable - RE spec"/></h1>
+                        <h1><field name="name" placeholder="e.g. RE"/></h1>
+                        <div class="text-muted">
+                            <field name="full_name"/>
+                        </div>
                     </div>
                     <notebook>
                         <page string="General" name="general">
@@ -58,7 +60,6 @@
                                 </group>
                                 <group>
                                     <field name="glass_spec_id"/>
-                                    <field name="finish_id"/>
                                     <field name="active" invisible="1"/>
                                 </group>
                             </group>
@@ -75,6 +76,11 @@
                                 design may switch a divider to. A profile's
                                 span rating lives on the profile itself,
                                 under Inventory.
+                                <br/>
+                                No finish here: the colour belongs to the
+                                window being quoted, so each design picks
+                                its own and the BOM resolves every
+                                profile's variant from it.
                             </p>
                             <field name="profile_line_ids">
                                 <list editable="bottom">
@@ -83,11 +89,7 @@
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="thickness_attribute_value_ids"
                                            column_invisible="1"/>
-                                    <field name="finish_attribute_value_ids"
-                                           column_invisible="1"/>
                                     <field name="thickness_id"/>
-                                    <field name="finish_id"/>
-                                    <field name="product_id" string="Variant" readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="show"/>

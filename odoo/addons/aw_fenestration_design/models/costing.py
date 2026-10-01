@@ -110,21 +110,29 @@ class AwDesign(models.Model):
         self.ensure_one()
         on_date = self._costing_date()
         rates = self.env['aw.profile.rate']
-        section_lines = {
-            line.product_id.id: line
-            for line in self._spec_profile_lines() if line.product_id}
+        # Keyed by TEMPLATE, not by the line's variant: phase 7e took
+        # the variant off the line, and keying by template also finally
+        # covers a divider built from one of the line's ALTERNATES --
+        # whose variant was never in this map, so its thickness fell
+        # back to False and the rate was looked up loosely.
+        section_lines = {}
+        for source in self._spec_profile_lines():
+            for template in source._profile_choices():
+                section_lines.setdefault(template.id, source)
 
         for line in self.bom_line_ids:
             unit_cost, rate_date, note = 0.0, False, ''
 
             if line.kind == 'profile':
-                source = section_lines.get(line.product_id.id)
-                template = (source.product_tmpl_id if source
-                            else line.product_id.product_tmpl_id)
+                # The BOM line's own template is authoritative -- it is
+                # the profile that will be cut, default or alternate. The
+                # spec line only supplies the thickness.
+                template = line.product_id.product_tmpl_id
+                source = section_lines.get(template.id)
                 rate = rates._rate_for(
                     template,
                     source.thickness_id if source else False,
-                    self.finish_id or (source.finish_id if source else False),
+                    self.finish_id,
                     on_date)
                 if rate:
                     unit_cost = rate.price
