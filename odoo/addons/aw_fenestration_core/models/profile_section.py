@@ -105,18 +105,22 @@ class AwProfileSectionLine(models.Model):
         string='Quantity Override',
         help="Empty means the position's own Quantity Formula.")
 
-    # Several lines can sit on one position as alternatives -- the
-    # lowest sequence wins unless a design picks another. These name
-    # the choice and say when it stops being adequate.
-    option_label = fields.Char(
-        help="What to call this alternative in the configurator, e.g. "
-             "'Economy' or 'Heavy duty'. Empty falls back to the "
-             "product name.")
-    max_span_mm = fields.Float(
-        string='Max span (mm)',
-        help="Longest span this option is rated for. 0 means no limit. "
-             "A divider longer than this is a warning, never a block: "
-             "the shop may know better than the table.")
+    # ONE line per position, with the alternatives on it (phase 7d).
+    # They used to be separate lines distinguished by sequence and named
+    # by an option_label, which meant a position's choices were spread
+    # across rows that only a sort order tied together -- and the label
+    # was a third name for a profile that already has a code and a name.
+    # The alternatives are products now, so a divider's choice is "which
+    # profile", which is what it always meant.
+    alternate_product_ids = fields.Many2many(
+        'product.template', string='Alternates',
+        domain=lambda self: [(
+            'categ_id', 'child_of',
+            self.env.ref('aw_fenestration_core.product_category_profiles').id,
+        )],
+        help="Other profiles a design may use in this position, e.g. a "
+             "heavier mullion for a wide opening. The default above is "
+             "always offered and is never listed here.")
 
     is_optional = fields.Boolean(
         default=False,
@@ -128,6 +132,55 @@ class AwProfileSectionLine(models.Model):
         ('section_position_uniq', 'unique(section_id, position_id)',
          'Each position can only appear once per Profile Section.'),
     ]
+
+    @api.constrains('spec_id', 'position_id')
+    def _check_one_line_per_position(self):
+        """One line per position, per spec.
+
+        The alternatives live ON the line now, so a second line for the
+        same position is not a second option -- it is two rows claiming
+        the same slot, and which one the explosion picked would come
+        down to a sort order. Python rather than SQL because every
+        `_sql_constraints` in this repo is dead (Odoo 19 ignores the
+        attribute), and because the rule has to skip the legacy
+        section-owned rows, which are allowed to be duplicated until
+        they are dropped.
+        """
+        for line in self:
+            if not (line.spec_id and line.position_id):
+                continue
+            clash = self.search([
+                ('id', '!=', line.id),
+                ('spec_id', '=', line.spec_id.id),
+                ('position_id', '=', line.position_id.id),
+            ], limit=1)
+            if clash:
+                raise ValidationError(_(
+                    "'%(spec)s' already has a line for %(position)s. Add "
+                    "the other profile to its Alternates instead of a "
+                    "second line.",
+                    spec=line.spec_id.display_name,
+                    position=line.position_id.display_name))
+
+    @api.constrains('product_tmpl_id', 'alternate_product_ids')
+    def _check_default_not_an_alternate(self):
+        """The default is always offered, so listing it again would
+        show the same profile twice in the divider toolbar."""
+        for line in self:
+            if line.product_tmpl_id in line.alternate_product_ids:
+                raise ValidationError(_(
+                    "%s is the default for this position, so it does not "
+                    "also belong in Alternates.",
+                    line.product_tmpl_id.display_name))
+
+    def _profile_choices(self):
+        """Every profile this line offers: the default, then alternates.
+
+        Default FIRST and always present -- the order is what the
+        divider toolbar shows, and "no choice made" means the default.
+        """
+        self.ensure_one()
+        return self.product_tmpl_id | self.alternate_product_ids
 
     @api.constrains('section_id', 'spec_id')
     def _check_one_owner(self):

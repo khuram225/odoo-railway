@@ -49,10 +49,16 @@ class AwDesignRow(models.Model):
 
     # The transom on this row's BOTTOM boundary. Same rule as the
     # vertical divider on a leaf.
-    divider_line_id = fields.Many2one(
-        'aw.profile.section.line', string='Transom Option',
-        ondelete='set null',
-        help="Leave empty for the section's default option.")
+    # Phase 7d: the CHOSEN PROFILE, not a chosen line. One line now
+    # holds a position's default and its alternates, so what a divider
+    # records is which of those profiles it is built from. Empty means
+    # the line's default, which is what empty has always meant.
+    divider_product_id = fields.Many2one(
+        'product.template', string='Divider Profile',
+        ondelete='restrict',
+        help="Which of the position's profiles this divider is built "
+             "from: its default, or one of the alternates on the spec's "
+             "line. Empty means the default.")
 
     is_auto = fields.Boolean(
         string='Automatic',

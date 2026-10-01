@@ -15,6 +15,9 @@
                      product in the database. -->
                 <page string="Fenestration" name="aw_fenestration"
                       invisible="not aw_catalogue_code and not aw_catalogue_page">
+                    <group string="As a divider or transom">
+                        <field name="aw_max_span_mm"/>
+                    </group>
                     <group string="Catalogue">
                         <group>
                             <field name="aw_catalogue_code"/>

@@ -129,7 +129,13 @@
                             <field name="location"/>
                             <field name="qty"/>
                             <field name="family_id"/>
-                            <field name="window_series_id" string="Window System"/>
+                            <!-- Phase 7d: NOT an entry field. It follows
+                                 from the glazing family and the panels
+                                 drawn, via _resolve_system(), and from the
+                                 spec. Shown because the BOM, the rates and
+                                 both reports are built against it. -->
+                            <field name="window_series_id" string="Window System"
+                                   readonly="1"/>
                             <field name="template_id"/>
                             <!-- Both follow the Specification now and are
                                  readonly. Kept on the form because the shop
@@ -298,7 +304,9 @@
                 <field name="name"/>
                 <field name="location"/>
                 <field name="qty"/>
-                <field name="window_series_id"/>
+                <field name="family_id" string="Glazing"/>
+                <field name="window_series_id" string="Frame"
+                       optional="hide"/>
                 <!-- One preformatted column rather than a unit-switching pair:
                      this list has no parent record for column_invisible to
                      read, and it's read-only anyway. size_display is a

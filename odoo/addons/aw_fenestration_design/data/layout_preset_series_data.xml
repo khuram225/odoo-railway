@@ -27,5 +27,10 @@
         <function model="aw.layout.preset" name="_retire_mechanism_presets"/>
         <function model="aw.layout.preset" name="_retire_layout_families"/>
         <function model="aw.layout.preset" name="_seed_layout_library"/>
+        <!-- Phase 7d entry clean-up. Called from THIS module, not core:
+             it writes aw.design.leaf.divider_product_id, whose column
+             the design module creates, and core upgrades first. -->
+        <function model="aw.profile.section.line"
+                  name="_migrate_position_alternates"/>
     </data>
 </odoo>

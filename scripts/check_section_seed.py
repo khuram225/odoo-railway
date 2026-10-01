@@ -86,12 +86,27 @@ def template_thicknesses(names):
 
 
 def seeded_products():
-    """(preferred thickness name, {code, ...}) from section_seed.py."""
+    """(preferred thickness name, {code, ...}) from section_seed.py.
+
+    Every profile the seed names, DEFAULTS AND ALTERNATES ALIKE. An
+    alternate matters as much as a default here: the divider resolves it
+    with the LINE's thickness, so an alternate the product is not sold
+    in makes no variant and the divider silently cuts nothing -- exactly
+    the failure this check exists for, one layer along.
+    """
     source = (CORE / 'models' / 'section_seed.py').read_text(encoding='utf-8')
     match = PREFERRED_XMLID_RE.search(source)
     preferred = thickness_value_names().get(match.group(1), '') if match else ''
     block = re.search(r'SECTION_LINES = \{(.*?)\n\}', source, re.S)
-    codes = set(re.findall(r"\('([^']+)',\s*\d+", block.group(1))) if block else set()
+    if not block:
+        return preferred, set()
+    # ('RE-1', ['RE-3']): the default is the first quoted string of the
+    # tuple, the alternates are the quoted strings in the list.
+    codes = set()
+    pattern = r"\(\s*'([^']+)'\s*,\s*\[([^\]]*)\]\s*\)"
+    for default, alternates in re.findall(pattern, block.group(1)):
+        codes.add(default)
+        codes.update(re.findall(r"'([^']+)'", alternates))
     return preferred, codes
 
 

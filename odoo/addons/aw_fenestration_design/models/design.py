@@ -603,7 +603,7 @@ class AwDesign(models.Model):
         return [{
             'height_mm': row.height_mm,
             'is_auto': row.is_auto,
-            'divider_line_id': row.divider_line_id.id,
+            'divider_product_id': row.divider_product_id.id,
             'leaves': [{
                 'width_mm': leaf.width_mm,
                 'is_auto': leaf.is_auto,
@@ -616,7 +616,7 @@ class AwDesign(models.Model):
                 'slide_dir': leaf.slide_dir or '',
                 'junction_after': leaf.junction_after or '',
                 'has_lock': leaf.has_lock,
-                'divider_line_id': leaf.divider_line_id.id,
+                'divider_product_id': leaf.divider_product_id.id,
                 'track_no': leaf.track_no or 0,
                 'mesh_type_id': leaf.mesh_type_id.id,
                 'mesh_type_code': leaf.mesh_type_id.code or '',
@@ -696,32 +696,38 @@ class AwDesign(models.Model):
 
     @api.model
     def _divider_options(self):
-        """The Profile Section's alternatives for each divider kind.
+        """The profiles each divider kind can be built from.
 
-        Only offered when there is a real choice: one line for a
-        position is not an option, it is just what the section says.
+        The DEFAULT first, then the line's alternates, each identified
+        by its product code -- which is what the shop calls a profile,
+        and what the old `option_label` was a third name for. Only
+        offered when the line actually has alternates: one profile is
+        not a choice, it is just what the spec says.
         """
         self.ensure_one()
         vertical, horizontal = [], []
         for line in self._spec_profile_lines().sorted(
                 lambda l: (l.sequence, l.id)):
             scope = line.position_id.scope
-            entry = {
-                'id': line.id,
-                'name': (line.option_label
-                         or line.product_id.display_name
-                         or line.product_tmpl_id.display_name or '?'),
-                'max_span_mm': line.max_span_mm or 0.0,
-            }
-            if scope in ('junction_mullion', 'junction_meeting',
-                         'junction_interlock'):
-                vertical.append(entry)
-            elif scope == 'transom':
-                horizontal.append(entry)
-        return {
-            'vertical': vertical if len(vertical) > 1 else [],
-            'horizontal': horizontal if len(horizontal) > 1 else [],
-        }
+            if scope not in ('junction_mullion', 'junction_meeting',
+                             'junction_interlock', 'transom'):
+                continue
+            choices = line._profile_choices()
+            if len(choices) < 2:
+                continue
+            entries = [{
+                'id': product.id,
+                # The code is the name on the drawing and the bar; the
+                # display name is the fallback for a profile with none.
+                'name': product.default_code or product.name or '?',
+                'is_default': product == line.product_tmpl_id,
+                'max_span_mm': product.aw_max_span_mm or 0.0,
+            } for product in choices]
+            if scope == 'transom':
+                horizontal = entries
+            else:
+                vertical = entries
+        return {'vertical': vertical, 'horizontal': horizontal}
 
     # ------------------------------------------------------------------
     # the Spec tab (phase 7c)
@@ -747,7 +753,9 @@ class AwDesign(models.Model):
                 lambda l: (l.sequence, l.id)):
             position = line.position_id
             if not position or position.id in seen:
-                continue          # an alternate; the winning line shows
+                # One line per position since phase 7d; this stays as a
+                # belt for the legacy section-owned rows.
+                continue
             seen.add(position.id)
             change = by_position.get(position.id)
             template = (change.product_tmpl_id if change
@@ -1096,6 +1104,14 @@ class AwDesign(models.Model):
                  'glazing': family.glazing}
                 for family in self.env['aw.window.family'].search([])],
             'system_label': self.window_series_id.display_name or '',
+            # The SHORT form for the header, where the glazing family is
+            # already shown beside it: "Double Glaze - Openable" repeats
+            # half of what the reader has just read, and Openable /
+            # Sliding / Fixed / Tilt & Turn is the part that is news.
+            # The role's own label, so adding a role needs no code here.
+            'system_short': dict(
+                self.env['aw.window.series']._fields['system_role']
+                .selection).get(self.window_series_id.system_role, ''),
             'system_options': [
                 {'id': system.id, 'name': system.display_name}
                 for system in self._candidate_systems()],
@@ -1194,7 +1210,7 @@ class AwDesign(models.Model):
                 'parent_leaf_id': parent_leaf.id if parent_leaf else False,
                 'height_mm': row.get('height_mm') or 0.0,
                 'is_auto': row.get('is_auto', False),
-                'divider_line_id': row.get('divider_line_id') or False,
+                'divider_product_id': row.get('divider_product_id') or False,
                 'leaf_ids': [(0, 0, {
                     'width_mm': leaf.get('width_mm') or 0.0,
                     'is_auto': leaf.get('is_auto', False),
@@ -1211,7 +1227,7 @@ class AwDesign(models.Model):
                     # sash locks unless somebody says otherwise -- so the
                     # default is True, not False.
                     'has_lock': leaf.get('has_lock', True),
-                    'divider_line_id': leaf.get('divider_line_id') or False,
+                    'divider_product_id': leaf.get('divider_product_id') or False,
                     'track_no': leaf.get('track_no') or 0,
                     'mesh_type_id': leaf.get('mesh_type_id') or False,
                     'mesh_hinge_side': leaf.get('mesh_hinge_side') or False,

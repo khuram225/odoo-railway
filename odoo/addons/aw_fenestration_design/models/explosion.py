@@ -112,11 +112,13 @@ class AwDesign(models.Model):
     # profile pieces
     # ------------------------------------------------------------------
     def _section_lines_by_scope(self):
-        """Active section lines grouped by their position's scope.
+        """The spec's profile lines, grouped by their position's scope.
 
-        Several lines may sit on one position; the lowest sequence is the
-        active one and the rest are alternates, which is the rule that
-        already governed Profile Sections before the engine existed.
+        One line per position since phase 7d -- the alternates live ON
+        the line -- so this no longer has to pick a winner among
+        duplicates. The constraint enforces that; the first-wins guard
+        stays as a belt for the legacy section-owned rows, which may
+        still be duplicated until they are dropped.
         """
         self.ensure_one()
         chosen = {}
@@ -150,7 +152,7 @@ class AwDesign(models.Model):
                 by_hardware[change.hardware_line_id.id] = change
         return by_position, by_hardware
 
-    def _profile_variant(self, line):
+    def _profile_variant(self, line, product_tmpl=None):
         """Spec addition B: template and thickness come from the section
         line, finish from the DESIGN, falling back to the line's own.
 
@@ -158,13 +160,20 @@ class AwDesign(models.Model):
         line's template and thickness. The finish is deliberately NOT
         part of an override -- it is a property of the window, so a
         changed profile follows the window's colour like every other.
+
+        Phase 7d: `product_tmpl` overrides the line's default, which is
+        how a divider built from one of the line's ALTERNATES is
+        resolved. The thickness and finish still come from the line and
+        the design, so an alternate is costed by exactly the same path
+        as the default -- an alternate resolved differently from a
+        default is how two numbers for one profile appear.
         """
         change = self._overrides_by_key()[0].get(line.position_id.id)
         if change:
             return change._profile_variant_for(self)
         finish = self.finish_id or line.finish_id
         return self.env['aw.profile.section.line']._variant_for(
-            line.product_tmpl_id, line.thickness_id, finish)
+            product_tmpl or line.product_tmpl_id, line.thickness_id, finish)
 
     def _profile_change(self, line):
         """The change replacing this profile line, if any."""
@@ -177,11 +186,17 @@ class AwDesign(models.Model):
         return self.env['aw.profile.section.line']._variant_problem(
             line.product_tmpl_id, line.thickness_id, finish)
 
-    def _profile_pieces(self, line, context, label, panel_no=0):
+    def _profile_pieces(self, line, context, label, panel_no=0,
+                        product_tmpl=None):
         """Turn one section line into cut pieces.
 
         Edge decides how many and of which formula: 'sides' is two of the
         height formula, 'all' is two of each, anything else is one.
+
+        `product_tmpl` builds the pieces from one of the line's
+        alternates instead of its default -- the lengths, angles and
+        quantities are the position's, which is the point: choosing a
+        heavier mullion changes the profile, not the geometry.
         """
         position = line.position_id
         length_w = line.length_formula or position.default_length
@@ -206,7 +221,7 @@ class AwDesign(models.Model):
         else:
             spec = [(length_w, 1, (0,))]
 
-        product = self._profile_variant(line)
+        product = self._profile_variant(line, product_tmpl=product_tmpl)
         change = self._profile_change(line)
         # Worked out once per section line rather than per piece: four
         # frame members share one line, and they would all give the
@@ -324,11 +339,12 @@ class AwDesign(models.Model):
                     container_w=box_w, container_h=box_h,
                     panels_in_row=panels_in_row)
                 demand['transom'] = demand.get('transom', 0) + 1
-                for line in self._divider_lines(
-                        'transom', by_scope, row.divider_line_id, box_w,
+                for line, product in self._divider_lines(
+                        'transom', by_scope, row.divider_product_id, box_w,
                         spans):
                     out.extend(self._profile_pieces(
-                        line, context, _('transom')))
+                        line, context, _('transom'),
+                        product_tmpl=product))
 
     def _explode_panel(self, leaf, by_scope, context, out, demand):
         """One panel: its frame profiles, glass or infill, mesh, grid."""
@@ -530,39 +546,49 @@ class AwDesign(models.Model):
         scope = 'junction_%s' % junction
         label = _('junction after P%s') % (leaf.panel_no or 0)
         demand[scope] = demand.get(scope, 0) + 1
-        for line in self._divider_lines(
-                scope, by_scope, leaf.divider_line_id, span_mm, spans):
-            out.extend(self._profile_pieces(line, context, label))
+        for line, product in self._divider_lines(
+                scope, by_scope, leaf.divider_product_id, span_mm, spans):
+            out.extend(self._profile_pieces(
+                line, context, label, product_tmpl=product))
         for line in self._spec_hardware_lines():
             if line.scope == 'junction':
                 out.extend(self._hardware_line(line, context, label))
 
     def _divider_lines(self, scope, by_scope, chosen, span_mm, spans):
-        """The section line to build this divider from.
+        """(line, profile) pairs to build this divider from.
 
-        `by_scope` holds only the winning line per position (lowest
-        sequence), which is right for everything else but not for a
-        divider the estimator has deliberately switched. An explicit
-        choice is honoured whenever it still belongs to this design's
-        Profile Section and this scope; otherwise the default stands,
-        because a line left over from another section would silently
-        put the wrong profile in the cut list.
+        Phase 7d: `chosen` is a product TEMPLATE now, not a line. One
+        line holds the position's default and its alternates, so the
+        question a divider answers is "which of these profiles", which
+        is what the estimator was choosing all along -- the old version
+        stored a whole line and had to check it still belonged to this
+        spec and this scope.
+
+        A choice is honoured only when the line actually OFFERS it. An
+        alternate removed from the spec afterwards falls back to the
+        default rather than quietly cutting a profile the spec no longer
+        lists, and empty has always meant the default.
         """
         self.ensure_one()
-        default = by_scope.get(scope, [])
-        if not chosen:
-            self._record_span(default[:1], span_mm, spans)
-            return default
-        if (chosen.spec_id != self.template_id
-                or chosen.position_id.scope != scope):
-            self._record_span(default[:1], span_mm, spans)
-            return default
-        self._record_span([chosen], span_mm, spans)
-        return [chosen]
+        lines = by_scope.get(scope, [])
+        if not lines:
+            return []
+        line = lines[0]
+        product = line.product_tmpl_id
+        if chosen and chosen in line._profile_choices():
+            product = chosen
+        self._record_span(line, product, span_mm, spans)
+        return [(line, product)]
 
     @staticmethod
-    def _record_span(lines, span_mm, spans):
-        """Remember the longest span each option was asked to carry.
+    def _record_span(line, product, span_mm, spans):
+        """Remember the longest span each PROFILE was asked to carry.
+
+        Keyed on the product since phase 7d, because the rating moved
+        onto the profile: one line can produce two different profiles in
+        one design (a default on a narrow bay, an alternate on a wide
+        one), and keying on the line would have reported whichever came
+        last against both spans.
 
         `spans` is a plain dict threaded through the walk. It used to
         be set on the record, which looked convenient and is not
@@ -570,11 +596,10 @@ class AwDesign(models.Model):
         raised AttributeError on the first save of any design. A record
         can hold fields and nothing else.
         """
-        if spans is None or not lines or not span_mm:
+        if spans is None or not (line and product) or not span_mm:
             return
-        line = lines[0]
-        seen = spans.setdefault(line.id, [line, 0.0])
-        seen[1] = max(seen[1], span_mm)
+        seen = spans.setdefault((line.id, product.id), [line, product, 0.0])
+        seen[2] = max(seen[2], span_mm)
 
     def _hardware_line(self, line, context, label, panel_no=0):
         if not formula_truthy(line.condition_formula, context):
@@ -780,25 +805,29 @@ class AwDesign(models.Model):
         # A divider carrying more than its option is rated for. Never a
         # block: the shop may know better than the table, and the table
         # is seeded with 0 (no limit) anyway.
-        for line, span in (spans or {}).values():
-            if not line.max_span_mm or span <= line.max_span_mm:
+        for line, product, span in (spans or {}).values():
+            limit = product.aw_max_span_mm
+            if not limit or span <= limit:
                 continue
-            heavier = self._spec_profile_lines().filtered(
-                lambda other, l=line: (
-                    other.position_id == l.position_id
-                    and other.id != l.id
-                    and (not other.max_span_mm
-                         or other.max_span_mm >= span)))
+            # Any profile the LINE offers with a higher rating, including
+            # the default: the estimator may have switched to an
+            # alternate that is lighter than what the spec starts with.
+            # An unrated profile (0 = no limit) counts as adequate, which
+            # is the same reading the warning itself uses.
+            heavier = line._profile_choices().filtered(
+                lambda other, p=product, s=span: (
+                    other != p
+                    and (not other.aw_max_span_mm
+                         or other.aw_max_span_mm >= s)))
             problems.append(('warning', _(
-                "A %(pos)s spans %(span)s, more than '%(option)s' is "
+                "A %(pos)s spans %(span)s, more than %(profile)s is "
                 "rated for (%(max)s).%(advice)s",
                 pos=line.position_id.name,
                 span=self._format_length(span),
-                option=line.option_label or line.product_id.display_name,
-                max=self._format_length(line.max_span_mm),
-                advice=(_(" Use '%s' instead.")
-                        % (heavier[0].option_label
-                           or heavier[0].product_id.display_name))
+                profile=product.display_name,
+                max=self._format_length(limit),
+                advice=(_(" %s is rated for it.")
+                        % ', '.join(heavier.mapped('display_name')))
                 if heavier else '')))
 
         # Spec 9: sliding and opening panels need different outer

@@ -90,7 +90,7 @@
                                 </t>
                             </select>
                             <div t-else="" class="form-control form-control-sm bg-view border-0 text-truncate"
-                                 t-att-title="systemLabel">
+                                 t-att-title="systemLabelFull">
                                 <t t-esc="systemLabel or '—'"/>
                             </div>
                         </div>
@@ -882,7 +882,7 @@
                                     <div class="d-flex flex-wrap gap-1 mb-2">
                                         <t t-foreach="dividerOptions" t-as="opt" t-key="opt.id">
                                             <button class="btn btn-sm"
-                                                    t-att-class="opt.id === selectedDividerLineId ? 'btn-primary' : 'btn-outline-secondary'"
+                                                    t-att-class="isDividerOptionActive(opt) ? 'btn-primary' : 'btn-outline-secondary'"
                                                     t-att-title="opt.max_span_mm ? 'Rated to ' + opt.max_span_mm + ' mm' : ''"
                                                     t-on-click="() => this.setDividerOption(opt.id)">
                                                 <t t-esc="opt.name"/>

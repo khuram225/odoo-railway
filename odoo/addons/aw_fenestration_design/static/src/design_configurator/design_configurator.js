@@ -587,7 +587,21 @@ export class DesignConfigurator extends Component {
         return this.state.data?.family_options || [];
     }
 
+    /**
+     * The frame, in the short form.
+     *
+     * The glazing family is shown right beside it, so "Double Glaze -
+     * Openable" repeats half of what the reader has already read.
+     * Openable / Sliding / Fixed / Tilt & Turn is the part that is
+     * actually news. The server sends both; the long one is the
+     * tooltip.
+     */
     get systemLabel() {
+        return (this.state.data?.system_short
+                || this.state.data?.system_label || "");
+    }
+
+    get systemLabelFull() {
         return this.state.data?.system_label || "";
     }
 
@@ -619,16 +633,16 @@ export class DesignConfigurator extends Component {
             || [];
     }
 
-    get selectedDividerLineId() {
+    get selectedDividerProductId() {
         const entry = this.selectedDividerEntry;
         if (!entry) {
             return false;
         }
         const rows = this.rowsAt(entry.path);
         if (entry.kind === "h") {
-            return rows[entry.ri]?.divider_line_id || false;
+            return rows[entry.ri]?.divider_product_id || false;
         }
-        return rows[entry.ri]?.leaves[entry.li]?.divider_line_id || false;
+        return rows[entry.ri]?.leaves[entry.li]?.divider_product_id || false;
     }
 
     /**
@@ -637,18 +651,38 @@ export class DesignConfigurator extends Component {
      * above it. The same places the junction type is already kept, so
      * the two cannot drift apart.
      */
-    setDividerOption(lineId) {
+    /**
+     * Is this the profile the divider is actually built from?
+     *
+     * Nothing stored means the DEFAULT, so the default has to light up
+     * on an untouched divider -- otherwise the toolbar shows a position
+     * with no profile selected, which is never the case.
+     */
+    isDividerOptionActive(option) {
+        const chosen = this.selectedDividerProductId;
+        return chosen ? option.id === chosen : !!option.is_default;
+    }
+
+    setDividerOption(productId) {
         const entry = this.selectedDividerEntry;
         if (!entry) {
             return;
         }
         const rows = this.rowsAt(entry.path);
-        const current = this.selectedDividerLineId;
-        const value = current === lineId ? false : lineId;
+        // Clicking the chosen one again goes back to the DEFAULT, which
+        // is what empty means -- and clicking the default itself stores
+        // nothing rather than storing the default explicitly, so a spec
+        // that later changes its default carries the design with it.
+        const current = this.selectedDividerProductId;
+        const option = this.dividerOptions.find((o) => o.id === productId);
+        const value =
+            current === productId || (option && option.is_default)
+                ? false
+                : productId;
         if (entry.kind === "h") {
-            rows[entry.ri].divider_line_id = value;
+            rows[entry.ri].divider_product_id = value;
         } else {
-            rows[entry.ri].leaves[entry.li].divider_line_id = value;
+            rows[entry.ri].leaves[entry.li].divider_product_id = value;
         }
         this.state.dirty = true;
     }

@@ -33,7 +33,9 @@
                         <list>
                             <field name="name"/>
                             <field name="location"/>
-                            <field name="window_series_id"/>
+                            <field name="family_id" string="Glazing"/>
+                            <field name="window_series_id" string="Frame"
+                                   optional="hide"/>
                             <field name="size_display"/>
                             <field name="qty"/>
                             <field name="area_sqft"/>

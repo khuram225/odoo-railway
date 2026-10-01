@@ -44,31 +44,28 @@ SECTION_SERIES_XMLID = 'window_series_casement_dg'
 SEEDED_PARAM = 'aw_fenestration.section_dg_openable_seeded'
 THICKNESS_FIX_PARAM = 'aw_fenestration.section_dg_openable_thickness_fixed'
 
-# position xmlid -> [(product name, sequence, option label, max span mm)]
+# position xmlid -> (default profile, [alternate profiles])
+#
+# ONE line per position since the phase 7d entry clean-up. The dividers
+# used to be two lines distinguished by sequence and named 'Economy' /
+# 'Heavy duty'; RE-3 is an ALTERNATE of RE-1 now, which is the same
+# choice expressed as what it is -- a different profile in the same
+# slot. No span rating is seeded on either: none has been given, and an
+# invented one would raise warnings nobody asked for. [revisit]
 SECTION_LINES = {
-    'pos_frame_top': [('RE-8', 10, '', 0.0)],
-    'pos_frame_bottom': [('RE-8', 10, '', 0.0)],
-    'pos_frame_sides': [('RE-8', 10, '', 0.0)],
-    # Two alternatives on each divider. Lowest sequence is the default,
-    # which is the rule Profile Sections already used for alternates.
-    # max_span_mm is left at 0 -- no span rating has been given, and an
-    # invented one would raise warnings nobody asked for. [revisit]
-    'pos_divider_vertical': [
-        ('RE-1', 10, 'Economy', 0.0),
-        ('RE-3', 20, 'Heavy duty', 0.0),
-    ],
-    'pos_divider_horizontal': [
-        ('RE-1', 10, 'Economy', 0.0),
-        ('RE-3', 20, 'Heavy duty', 0.0),
-    ],
-    'pos_palay_top': [('RE-15', 10, '', 0.0)],
-    'pos_palay_bottom': [('RE-15', 10, '', 0.0)],
-    'pos_palay_sides': [('RE-15', 10, '', 0.0)],
-    'pos_palay_bead_top': [('RE-10', 10, '', 0.0)],
-    'pos_palay_bead_bottom': [('RE-10', 10, '', 0.0)],
-    'pos_palay_bead_sides': [('RE-10', 10, '', 0.0)],
+    'pos_frame_top': ('RE-8', []),
+    'pos_frame_bottom': ('RE-8', []),
+    'pos_frame_sides': ('RE-8', []),
+    'pos_divider_vertical': ('RE-1', ['RE-3']),
+    'pos_divider_horizontal': ('RE-1', ['RE-3']),
+    'pos_palay_top': ('RE-15', []),
+    'pos_palay_bottom': ('RE-15', []),
+    'pos_palay_sides': ('RE-15', []),
+    'pos_palay_bead_top': ('RE-10', []),
+    'pos_palay_bead_bottom': ('RE-10', []),
+    'pos_palay_bead_sides': ('RE-10', []),
     # Phase 7d. One piece, on the lock side of an opening panel.
-    'pos_lock_bar': [('RE-13', 10, '', 0.0)],
+    'pos_lock_bar': ('RE-13', []),
 }
 
 # The specification seeded over that section (phase 7c). "Spec" is the
@@ -339,34 +336,46 @@ class AwProfileSection(models.Model):
             raise_if_not_found=False)
 
         lines, missing, thickness_warnings = [], [], []
-        for position_xmlid, options in SECTION_LINES.items():
+        sequence = 0
+        for position_xmlid, (code, alternates) in SECTION_LINES.items():
+            sequence += 10
             position = self.env.ref(
                 'aw_fenestration_core.%s' % position_xmlid,
                 raise_if_not_found=False)
             if not position:
                 missing.append('position %s' % position_xmlid)
                 continue
-            for code, sequence, label, max_span in options:
-                template = self._find_profile_template(code)
-                if not template:
-                    missing.append('%s (for %s)' % (code, position.name))
-                    continue
-                # The preferred thickness is a preference, not a fact
-                # about this product -- see _seed_thickness_for.
-                line_thickness, warning = self._seed_thickness_for(
-                    template, thickness)
-                if warning:
-                    thickness_warnings.append(warning)
-                lines.append((0, 0, {
-                    'position_id': position.id,
-                    'product_tmpl_id': template.id,
-                    'thickness_id': (
-                        line_thickness.id if line_thickness else False),
-                    'finish_id': finish.id if finish else False,
-                    'sequence': sequence,
-                    'option_label': label,
-                    'max_span_mm': max_span,
-                }))
+            template = self._find_profile_template(code)
+            if not template:
+                missing.append('%s (for %s)' % (code, position.name))
+                continue
+            # An alternate that is not in the price list is dropped and
+            # reported, rather than making the whole line fail: the
+            # default is what the window is built from, and a missing
+            # alternate costs a choice, not a cut list.
+            alternate_ids = []
+            for other in alternates:
+                found = self._find_profile_template(other)
+                if found:
+                    alternate_ids.append(found.id)
+                else:
+                    missing.append(
+                        '%s (alternate for %s)' % (other, position.name))
+            # The preferred thickness is a preference, not a fact
+            # about this product -- see _seed_thickness_for.
+            line_thickness, warning = self._seed_thickness_for(
+                template, thickness)
+            if warning:
+                thickness_warnings.append(warning)
+            lines.append((0, 0, {
+                'position_id': position.id,
+                'product_tmpl_id': template.id,
+                'alternate_product_ids': [(6, 0, alternate_ids)],
+                'thickness_id': (
+                    line_thickness.id if line_thickness else False),
+                'finish_id': finish.id if finish else False,
+                'sequence': sequence,
+            }))
 
         if lines:
             self.create({

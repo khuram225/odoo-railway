@@ -15,6 +15,22 @@ from .thickness import implausible_thickness, norm_thickness
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
+    # Phase 7d: the longest span a profile is rated to carry. It moved
+    # here off aw.profile.section.line, where every line mentioning the
+    # same profile had to repeat it and could disagree. A span rating is
+    # a property of the extrusion -- its depth and wall thickness -- not
+    # of a position that happens to use it.
+    #
+    # 0 means NO LIMIT rather than "cannot span anything": nothing in the
+    # price list carries a rating yet, so the default has to be the one
+    # that raises no warnings.
+    aw_max_span_mm = fields.Float(
+        string='Max span (mm)',
+        help="Longest span this profile is rated for, as a divider or "
+             "transom. 0 means no limit. Exceeding it is a warning on "
+             "the design, never a block: the shop may know better than "
+             "the table.")
+
     aw_catalogue_code = fields.Char(
         string='Catalogue Code', index=True,
         help="The code as printed in the catalogue, e.g. 'DC-30 (BA)'. "

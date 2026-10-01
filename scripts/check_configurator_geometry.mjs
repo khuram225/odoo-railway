@@ -1211,5 +1211,65 @@ console.log("\nSNAPPING:");
     ok(d.state.snapGuide === null, "the guide is cleared when the drag ends");
 }
 
+// ---------------------------------------------------------------------
+console.log("\nDIVIDER ALTERNATES (phase 7d): a profile, not a line");
+{
+    const c = make([{ height_mm: 3000, is_auto: false, leaves: [
+        panel(1200, "FIXED"), panel(1200, "FIXED"),
+    ] }], 2400, 3000);
+    // RE-1 is the position's default, RE-3 its heavier alternate.
+    c.state.data.divider_options = {
+        vertical: [
+            { id: 101, name: "RE-1", is_default: true, max_span_mm: 1500 },
+            { id: 103, name: "RE-3", is_default: false, max_span_mm: 0 },
+        ],
+        horizontal: [],
+    };
+    const div = c.scene.dividers[0];
+    c.onDividerPointerDown(div, { preventDefault() {}, stopPropagation() {},
+                                 clientX: 0, clientY: 0 });
+    c.endDrag();
+
+    ok(c.dividerOptions.length === 2, "both profiles offered");
+    ok(c.selectedDividerProductId === false, "nothing stored to begin with");
+    ok(c.isDividerOptionActive(c.dividerOptions[0]),
+       "the DEFAULT lights up on an untouched divider");
+    ok(!c.isDividerOptionActive(c.dividerOptions[1]),
+       "and the alternate does not");
+
+    c.setDividerOption(103);
+    ok(c.state.data.rows[0].leaves[0].divider_product_id === 103,
+       "choosing the alternate stores the PRODUCT");
+    ok(c.isDividerOptionActive(c.dividerOptions[1]), "and it lights up");
+
+    // Back to the default stores NOTHING, so a spec that later changes
+    // its default carries the design with it.
+    c.setDividerOption(101);
+    ok(c.state.data.rows[0].leaves[0].divider_product_id === false,
+       "choosing the default stores nothing, not the default's id");
+
+    c.setDividerOption(103);
+    c.setDividerOption(103);
+    ok(c.state.data.rows[0].leaves[0].divider_product_id === false,
+       "clicking the chosen one again goes back to the default");
+}
+
+console.log("\n  the Frame label is the SHORT name:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false,
+                      leaves: [panel(2400, "FIXED")] }], 2400, 3000);
+    c.state.data.system_label = "Double Glaze - Openable";
+    c.state.data.system_short = "Openable";
+    ok(c.systemLabel === "Openable",
+       "the header shows the short form, since Glazing is beside it");
+    ok(c.systemLabelFull === "Double Glaze - Openable",
+       "and the full name is the tooltip");
+
+    // A system with no role still has to read as something.
+    c.state.data.system_short = "";
+    ok(c.systemLabel === "Double Glaze - Openable",
+       "no short form falls back to the full name rather than going blank");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

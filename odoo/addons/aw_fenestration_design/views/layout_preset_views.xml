@@ -10,8 +10,6 @@
                 <field name="name"/>
                 <field name="code"/>
                 <field name="kind"/>
-                <field name="series_ids" widget="many2many_tags"
-                       string="Window Series (empty = any)"/>
             </list>
         </field>
     </record>
@@ -38,9 +36,6 @@
                         </group>
                     </group>
                     <group>
-                        <field name="series_ids" widget="many2many_tags"
-                               options="{'no_create': True}"
-                               placeholder="Any Series"/>
                     </group>
                     <div class="text-muted mb-2">
                         Leave <b>Window Series</b> empty to offer this preset

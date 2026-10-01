@@ -70,10 +70,11 @@
 
                         <page string="Profiles" name="profiles">
                             <p class="text-muted">
-                                Which profile fills each position. Several
-                                lines on one position are alternatives —
-                                the lowest sequence is the default and the
-                                rest are offered in the configurator.
+                                ONE line per position: the profile it
+                                normally uses, plus any Alternates a
+                                design may switch a divider to. A profile's
+                                span rating lives on the profile itself,
+                                under Inventory.
                             </p>
                             <field name="profile_line_ids">
                                 <list editable="bottom">
@@ -87,8 +88,9 @@
                                     <field name="thickness_id"/>
                                     <field name="finish_id"/>
                                     <field name="product_id" string="Variant" readonly="1"/>
-                                    <field name="option_label" optional="show"/>
-                                    <field name="max_span_mm" optional="hide"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="show"/>
                                     <field name="length_formula" optional="hide"/>
                                     <field name="length_formula_h" optional="hide"/>
                                     <field name="cut_angle" optional="hide"/>
