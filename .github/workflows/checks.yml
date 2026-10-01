@@ -5,7 +5,10 @@ name: checks
 # when BOTH the static suite and the boot test have passed.
 on:
   push:
-    branches: [main]
+    # verify/** is a standing allowance, not a leftover: a change to a
+    # gate has to be provable on a branch before it reaches main, since
+    # main is what Railway deploys from.
+    branches: [main, 'verify/**']
   pull_request:
     branches: [main]
 
@@ -84,7 +87,10 @@ jobs:
   boot:
     name: boot test
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Two installs plus two server starts, one of them on a cold registry
+    # over ~500 imported products. 25 was tight enough that a slow start
+    # would read as a failure.
+    timeout-minutes: 40
 
     # The EXACT image odoo/Dockerfile deploys. Testing the install against
     # a different Odoo than production runs would be testing something
@@ -176,22 +182,39 @@ jobs:
       # reports a broken registry and knowing it does.
       # --------------------------------------------------------------
       - name: The /aw/health route answers 200 on a good build
+        run: sh scripts/ci_check_health_route.sh aw_boot 200
+
+      # --------------------------------------------------------------
+      # A healthcheck that only ever returns 200 has not been tested.
+      # This BREAKS the registry on purpose -- the exact 7549098 fault,
+      # an `_inherit` of a model the declaring module cannot see -- and
+      # requires the route to say 500. No upgrade is run, because that is
+      # the real case: a deploy ships new code onto a database that is
+      # already installed.
+      #
+      # It runs on every push, not on a one-off verification branch,
+      # because a gate is only trustworthy while something keeps proving
+      # it still fails. It is the LAST step, so the sabotaged working
+      # tree cannot affect anything else.
+      # --------------------------------------------------------------
+      - name: And 500 when the registry is deliberately broken
         run: |
           set -eu
-          odoo -d aw_boot \
-            --addons-path=/usr/lib/python3/dist-packages/odoo/addons,odoo/addons \
-            --http-port=8069 --log-level=warn &
-          for i in $(seq 1 60); do
-            code=$(curl -s -o /tmp/health.txt -w '%{http_code}' \
-              http://localhost:8069/aw/health || echo 000)
-            [ "$code" = "000" ] || break
-            sleep 2
-          done
-          echo "status=$code"; cat /tmp/health.txt || true
-          test "$code" = "200" || {
-            echo "::error::/aw/health returned $code on a healthy build"
+          sh scripts/ci_break_registry.sh
+          sh scripts/ci_check_health_route.sh aw_boot 500
+
+      # The static suite must also catch this by reading the code, which
+      # is the cheap gate that should have stopped 7549098 in the first
+      # place. Asserted on the sabotaged tree, where it has to FAIL.
+      - name: The static check for this fault catches it too
+        run: |
+          set -eu
+          if python3 scripts/check_cross_module_inherit.py; then
+            echo "::error::check_cross_module_inherit.py PASSED on a tree with" \
+                 "the 7549098 break in it -- the static gate is not working"
             exit 1
-          }
+          fi
+          echo "ok: the static check rejected the broken tree"
 
   # =====================================================================
   # The single status Railway waits on. It has no steps: its only job is
