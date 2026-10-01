@@ -35,8 +35,24 @@ ROOT = Path(__file__).resolve().parent.parent
 ADDONS = ROOT / 'odoo' / 'addons'
 ODOO_SRC = ROOT.parent / 'odoo-src'
 
-OUR_MODULES = ('aw_fenestration_core', 'aw_fenestration_design',
-               'aluminum_inventory', 'hello_check')
+def our_modules():
+    """Every module in this repo, found rather than listed.
+
+    A hardcoded list silently SKIPS a new module and still prints
+    "pass", which is worse than no check at all -- `print_estimation`
+    arrived with 28 files and five checks reported green without
+    reading one of them. A manifest is what makes a directory a
+    module, so that is the test.
+    """
+    addons = Path(__file__).resolve().parent.parent / 'odoo' / 'addons'
+    if not addons.is_dir():
+        return ()
+    return tuple(sorted(
+        path.name for path in addons.iterdir()
+        if (path / '__manifest__.py').is_file()))
+
+
+OUR_MODULES = our_modules()
 
 
 # ----------------------------------------------------------------------

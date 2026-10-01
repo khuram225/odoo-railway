@@ -28,8 +28,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 ODOO_SRC = ROOT.parent / 'odoo-src'
 RNG_DIR = ODOO_SRC / 'odoo' / 'addons' / 'base' / 'rng'
-MODULES = ('aw_fenestration_core', 'aw_fenestration_design',
-           'aluminum_inventory', 'hello_check')
+def our_modules():
+    """Every module in this repo, found rather than listed.
+
+    A hardcoded list silently SKIPS a new module and still prints
+    "pass", which is worse than no check at all -- `print_estimation`
+    arrived with 28 files and five checks reported green without
+    reading one of them. A manifest is what makes a directory a
+    module, so that is the test.
+    """
+    addons = Path(__file__).resolve().parent.parent / 'odoo' / 'addons'
+    if not addons.is_dir():
+        return ()
+    return tuple(sorted(
+        path.name for path in addons.iterdir()
+        if (path / '__manifest__.py').is_file()))
+
+
+MODULES = our_modules()
 
 # Root tag -> schema file. Only the view types Odoo ships an RNG for:
 # form and kanban are validated by Python in core, not by a schema, so

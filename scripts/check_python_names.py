@@ -23,12 +23,13 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-TARGETS = [
-    ROOT / 'odoo' / 'addons' / 'aw_fenestration_core',
-    ROOT / 'odoo' / 'addons' / 'aw_fenestration_design',
-    ROOT / 'odoo' / 'addons' / 'aluminum_inventory',
-    ROOT / 'scripts',
-]
+# Every module in the repo, found rather than listed: a hardcoded list
+# silently skips a new one and still prints "pass". `print_estimation`
+# arrived with 28 files and was read by none of the scoped checks.
+ADDONS = ROOT / 'odoo' / 'addons'
+TARGETS = ([path for path in sorted(ADDONS.iterdir())
+            if (path / '__manifest__.py').is_file()]
+           + [ROOT / 'scripts']) if ADDONS.is_dir() else [ROOT / 'scripts']
 
 # Reported by pyflakes but not worth failing a commit over here.
 IGNORED = (
