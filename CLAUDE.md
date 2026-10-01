@@ -1230,6 +1230,33 @@ node scripts/check_owl_getters.mjs && python
 scripts/check_preset_layouts.py && python
 scripts/check_act_window_views.py && python scripts/check_load_order.py`.
 
+## Runtime gates
+
+Static checks read code; they cannot tell you the registry builds. Two
+gates cover that, both in `.github/workflows/checks.yml`.
+
+**`boot test`** runs the real `odoo:19.0-20260723` image against a
+`postgres:16` service and installs each tenant into its own fresh
+database on its own `--addons-path` — `aw_boot` for the aluminium
+modules, `pp_boot` for `addons_print` — so a `pp_*` module reaching for
+an `aw_*` one fails there, where the shared development instance would
+never notice. Modules are **discovered**, never listed, and the step
+fails if discovery finds none. `--stop-after-init` exits 0 for failures
+Odoo only LOGS, so `scripts/ci_assert_clean_log.sh` reads the log too.
+It then starts a server and requires `/aw/health` to answer 200, breaks
+the registry on purpose with `scripts/ci_break_registry.sh`, and
+requires 500 — see the "asserting a reason" lesson below for why both
+directions check *why*, not just the code.
+
+**`all checks`** is the single status Railway's "Wait for CI" waits on.
+It has no steps; it is red unless both `static checks` and `boot test`
+are green, so adding a third gate later is one line.
+
+**The healthcheck path is `/aw/health`** (`aw_fenestration_design/
+controllers/health.py`). Set it as Railway's healthcheck: core's
+`/web/health` never loads the registry — at most it pings the Postgres
+*server* — which is why a completely broken deploy once reported healthy.
+
 ## Hard-won lessons
 
 - The boot warning "Missing not-null constraint on X.y" does NOT prove
@@ -1280,3 +1307,57 @@ scripts/check_act_window_views.py && python scripts/check_load_order.py`.
   those overrides are worth keeping where only one of the pair is
 
   ever visible at a time.
+
+- **`config['db_name']` is a LIST in Odoo 19, not a string.** `-d` is
+  declared `type='comma'` in `odoo/tools/config.py`, and core reads it
+  accordingly (`config['db_name'][0]`,
+  `set(config['db_name']).intersection(dbs)`). `/aw/health` did
+  `config.get('db_name')` and passed the result to `Registry()`, where
+  `cls.registries[db_name]` raises *"unhashable type: 'list'"* — so the
+  healthcheck answered **500 on a perfectly healthy instance**, which is
+  its own outage. Prefer `request.db`: it is the database this request
+  would actually use, dbfilter included.
+
+- **A route cannot report a broken registry, because it is never
+  reached.** Verified in `odoo-src`: with a database on the request,
+  `Application.__call__` goes to `Request._serve_db`, which calls
+  `Registry(self.db)` *before matching any controller* — it has to, since
+  the routing map is built from `registry['ir.http']`. A bad module graph
+  raises `TypeError` there, past an `except` catching only
+  `AttributeError` and two psycopg2 errors, and the outer handler returns
+  500 (`request.dispatcher` is pre-set at `http.py:1802` so an early
+  failure still has a responder). **Every** route 500s in that state. So
+  `/aw/health`'s value is not the registry load — it is the second probe,
+  reading named `aw.design` columns, which catches the class a registry
+  load cannot: registry fine, column missing, the `res.company` and
+  `aw.window.template` outages. And a request with NO database is served
+  by `_serve_nodb`, whose routing map holds only `server_wide_modules`
+  endpoints declaring `nodb_only` — so `/aw/health` answers **404** there,
+  not 500.
+
+- **Asserting a status code is not asserting a reason, and a green run
+  you cannot read is not evidence.** Both bit at once. The boot job was
+  failing on `main` *and* on a deliberately broken branch, and comparing
+  those two reds looked like proof the break had been caught; it proved
+  nothing. Its one piece of diagnostic output had been thrown away by
+  `--log-level=warn` plus a `|| echo 000` that printed an HTTP status
+  which does not exist. And the 500 assertion would have passed on the
+  `db_name` bug above — a 500 for entirely the wrong reason. The rules
+  now: a gate asserts the REASON (the 200 must carry this route's own
+  `pass:` body; the 500 must come with *"does not exist in registry"* in
+  the log; a static check must NAME the fault, since any non-zero exit
+  would otherwise read as "caught"), it must be seen to **fail** on a
+  tree that is deliberately broken on every push
+  (`scripts/ci_break_registry.sh`), and its verdict goes to
+  `$GITHUB_STEP_SUMMARY`, which the check-runs API returns without a
+  token so a pass can be inspected rather than trusted.
+
+- **A script that starts and kills a server must refuse to run outside
+  CI.** `ci_check_health_route.sh` was pointed at this workstation by
+  accident and found the developer's own Odoo on port 8069, reporting its
+  404 as though it were a verdict about the branch. It now requires `CI`
+  (or an explicit opt-in), and decides "is the port free" from curl's
+  **exit code 7**, not from whether a reply arrived in time — the first
+  version used `-m 2`, so a live-but-slow server read as an empty port,
+  which would have let the 500 assertion answer from the server started
+  *before* the break was injected.

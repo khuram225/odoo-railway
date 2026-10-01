@@ -138,9 +138,10 @@ jobs:
           echo "print=$print" >> "$GITHUB_OUTPUT"
           echo "aluminum: $aluminum"
           echo "print:    $print"
-          # Into the summary, so what this job installed can be read back
-          # through the API. A discovery that quietly found nothing is
+          # As an annotation, which is what the check-runs API hands back
+          # without a token. A discovery that quietly found nothing is
           # how a hardcoded list used to pass while skipping new code.
+          echo "::notice::installing aluminum=[$aluminum] print=[$print]"
           {
             echo "### modules discovered"
             echo
@@ -233,6 +234,8 @@ jobs:
           grep -q "extends 'aw.design'" /tmp/inherit.txt || {
             echo "::error::the check failed, but not because of the injected" \
                  "break -- so it is not what caught it"; exit 1; }
+          echo "::notice::static check correctly rejected the sabotaged tree: $(
+            grep -o "extends 'aw.design'[^.]*" /tmp/inherit.txt | head -1)"
           {
             echo "### static check on the sabotaged tree: correctly rejected"
             echo

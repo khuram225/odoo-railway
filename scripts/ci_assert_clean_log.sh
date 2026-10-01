@@ -42,11 +42,14 @@ fi
 modules=$(grep -cE 'loading [0-9]+ modules|module [a-z0-9_]+: creating or updating' "$log" || true)
 echo "ok: install log is clean ($(wc -l < "$log") lines)"
 
-# Into the step summary too, which the check-runs API returns without a
-# token -- so "this install was clean" can be inspected rather than taken
-# on trust. The module count is there because an install that loaded
+# Published as an annotation, which IS readable through the check-runs
+# API without a token (the step summary is not -- it renders in the run's
+# UI only). The module count is there because an install that loaded
 # almost nothing and exited cleanly is the failure this repo keeps
 # hitting: a green tick over code nothing read.
+echo "::notice::$log clean: $(wc -l < "$log") lines, $modules module line(s), $(
+    grep -oE 'Registry loaded in [0-9.]+s' "$log" | head -1)"
+
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     {
         echo "### install log \`$log\`: clean"

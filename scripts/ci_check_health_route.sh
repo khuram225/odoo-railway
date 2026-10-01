@@ -159,6 +159,9 @@ case "$expect" in
         echo "confirmed: the 500 is the registry refusing to build"
         grep -E 'aw health check FAILED|does not exist in registry' "$log" \
             | head -5
+        echo "::notice::the 500 is a registry failure: $(
+            grep -o "Model '[^']*' does not exist in registry" "$log" \
+            | head -1)"
     else
         fail "got a 500, but the log never says the registry failed -- so this
 500 has some other cause and the gate was not actually exercised"
@@ -166,9 +169,20 @@ case "$expect" in
     ;;
 esac
 
-# Written to the step summary as well as stdout: the summary comes back
-# through the check-runs API, so the evidence for a pass can be read
-# without a token, and a green tick is not the only thing on offer.
+# ---------------------------------------------------------------------
+# Publish the evidence, so a green tick is not the only thing on offer.
+#
+# As a `::notice::` ANNOTATION, which is the part that can be read back
+# without a token (`/check-runs/<id>/annotations`). $GITHUB_STEP_SUMMARY
+# was the first choice and was wrong: it renders in the run's UI but does
+# NOT come back as the check run's output.summary, so the evidence was
+# unreadable from outside exactly as before. Kept as well, because it is
+# the nicer thing for a person to look at.
+#
+# Single line: a newline ends an annotation.
+echo "::notice::/aw/health on $db: expected $expect, got $code -- $(
+    printf '%s' "$body" | tr '\n' ' ' | head -c 160)"
+
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     {
         echo "### /aw/health on \`$db\`: expected $expect, got **$code**"
