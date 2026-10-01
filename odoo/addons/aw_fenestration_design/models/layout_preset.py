@@ -74,6 +74,19 @@ class AwLayoutPreset(models.Model):
         help="Groups the preset chips in the configurator, e.g. 'Basic', "
              "'Sliding', 'Stacked'. Free text -- add a category by typing "
              "one, no schema change.")
+    # Part 2 (revised): two kinds, and the split is what replaced the
+    # mechanism-based families. A SHAPE is geometry and nothing else --
+    # every panel Fixed -- so it answers "how is this opening divided?".
+    # A DESIGN is a named thing the shop builds, with panel types on it.
+    # The old library grouped by mechanism (Openable / Sliding / Tilt &
+    # Turn / Twin Sash / Curtain Wall), which is a fact about the panels
+    # rather than a way anybody shops for a starting point.
+    kind = fields.Selection([
+        ('shape', 'Shape'),
+        ('design', 'Design'),
+    ], required=True, default='design',
+        help="Shape: geometry only, every panel Fixed. Design: a named "
+             "layout with its panel types set.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
     family_ids = fields.Many2many(
@@ -91,6 +104,27 @@ class AwLayoutPreset(models.Model):
     layout_json = fields.Text(
         required=True,
         default='{"rows": [{"h": 1, "leaves": [{"w": 1, "type": "FIXED"}]}]}')
+
+    @api.constrains('kind', 'layout_json')
+    def _check_shape_is_fixed(self):
+        """A Shape has to be all Fixed, or it is not a shape.
+
+        Applying a shape keeps the panel types already in the design
+        where the positions match and makes anything new Fixed -- see
+        applyShape in the configurator. A shape smuggling a CASEMENT
+        into it would silently retype a panel the user had set, and the
+        whole point of the Shape/Design split is that one is geometry
+        and the other is a decision.
+        """
+        for preset in self:
+            if preset.kind != 'shape':
+                continue
+            codes = preset._leaf_type_codes() - {'FIXED'}
+            if codes:
+                raise ValidationError(_(
+                    "'%(name)s' is a Shape, so every panel must be "
+                    "Fixed. It uses %(codes)s.",
+                    name=preset.name, codes=', '.join(sorted(codes))))
 
     @api.constrains('layout_json')
     def _check_layout_json(self):

@@ -65,7 +65,7 @@
     </record>
 
     <record id="action_aw_mesh_type" model="ir.actions.act_window">
-        <field name="name">Mesh Types</field>
+        <field name="name">Fly Screens</field>
         <field name="res_model">aw.mesh.type</field>
         <field name="view_mode">list,form</field>
     </record>

@@ -154,9 +154,12 @@ console.log("\nTHE BRIEF'S TEST: Casement, 2 panels, split the RIGHT one horizon
                                 clientX: 0, clientY: 0 });
     ok(!!c.dragging, "drag started");
     ok(c.dragging.path.length === 1, "drag is scoped to the container, not the top level");
-    // move by +200mm worth of user units
+    // move by +200mm worth of user units. altKey, because this is
+    // testing the drag ARITHMETIC: without it Part 2's snapping rounds
+    // to a quarter inch and 200mm is not one. The snapping itself is
+    // asserted in its own block, including that Alt bypasses it.
     const delta = 200 * d.unitsPerMM;
-    c.onPointerMove({ clientX: 0, clientY: delta });
+    c.onPointerMove({ clientX: 0, clientY: delta, altKey: true });
     const rows = c.state.data.rows[0].leaves[1].rows;
     near(rows[0].height_mm, 1600.2 + 200, "top sub-row grew by exactly 200mm");
     near(rows[1].height_mm, 1600.2 - 200, "bottom sub-row shrank by exactly 200mm");
@@ -1021,6 +1024,191 @@ console.log("\nSPEC TAB (phase 7c):");
     ok(c.canSaveAsSpec, "a name enables it");
     c.state.specName = "   ";
     ok(!c.canSaveAsSpec, "whitespace is not a name");
+}
+
+// ---------------------------------------------------------------------
+console.log("\nLIBRARY GROUPS (Part 2 revised): Shapes | Our designs | ...");
+{
+    const c = make([{ height_mm: 3000, is_auto: false,
+                      leaves: [panel(2400, "FIXED")] }], 2400, 3000);
+    c.state.data.presets = [
+        { id: 1, name: "3 across", kind: "shape",
+          layout: { rows: [{ h: 1, leaves: [
+              { w: 1, type: "FIXED" }, { w: 1, type: "FIXED" },
+              { w: 1, type: "FIXED" }] }] } },
+        { id: 2, name: "Openable + Fixed + Openable", kind: "design",
+          layout: { rows: [{ h: 1, leaves: [
+              { w: 1, type: "CASEMENT", hinge: "left" },
+              { w: 2, type: "FIXED" },
+              { w: 1, type: "CASEMENT", hinge: "right" }] }] } },
+        // No kind at all: a preset from before the split must still
+        // appear, not vanish.
+        { id: 3, name: "Legacy", layout: { rows: [{ h: 1, leaves: [
+            { w: 1, type: "FIXED" }] }] } },
+    ];
+    const keys = c.libraryGroups.map((g) => g.key);
+    ok(keys.includes("shapes") && keys.includes("designs"),
+       "Shapes and Our designs are both offered");
+    ok(keys.includes("screens"), "Fly screens group present");
+    ok(keys.includes("addons"), "Add-ons group present");
+    ok(!keys.includes("families"), "no mechanism families any more");
+
+    const shapes = c.libraryGroups.find((g) => g.key === "shapes");
+    const designs = c.libraryGroups.find((g) => g.key === "designs");
+    ok(shapes.items.length === 1, "one shape");
+    ok(designs.items.length === 2,
+       "a preset with no kind falls in with the designs, not nowhere");
+
+    // Georgian bars are NOT in the library: a pattern needs rows x cols
+    // to mean anything, so it is set on the Panel tab.
+    const addons = c.libraryGroups.find((g) => g.key === "addons");
+    ok(addons.items.every((i) => i.attachKind === "infill"),
+       "Add-ons holds infills only, each tagged for applyAttachment");
+
+    // An empty group is dropped rather than drawn as a heading over
+    // nothing.
+    c.state.data.mesh_types = [];
+    ok(!c.libraryGroups.some((g) => g.key === "screens"),
+       "a group with nothing in it is not shown");
+}
+
+console.log("\nAPPLYING A SHAPE keeps the panel types that still fit:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false, leaves: [
+        panel(1200, "CASEMENT", { hinge_side: "left", swing: "out" }),
+        panel(1200, "FIXED"),
+    ] }], 2400, 3000);
+    c.notification = { add: () => {} };
+    c.applyShape({
+        id: 1, name: "3 across", kind: "shape",
+        layout: { rows: [{ h: 1, leaves: [
+            { w: 1, type: "FIXED" }, { w: 1, type: "FIXED" },
+            { w: 1, type: "FIXED" }] }] },
+    });
+    const leaves = c.state.data.rows[0].leaves;
+    ok(leaves.length === 3, "3 panels after the shape");
+    ok(leaves[0].leaf_type_code === "CASEMENT" && leaves[0].hinge_side === "left",
+       "panel 1 kept its casement AND its hinge");
+    ok(leaves[1].leaf_type_code === "FIXED", "panel 2 kept Fixed");
+    ok(leaves[2].leaf_type_code === "FIXED",
+       "the NEW panel is Fixed, not a copy of anything");
+    near(leaves.reduce((a, l) => a + l.width_mm, 0), 2400,
+         "the opening is unchanged");
+}
+
+console.log("\nGRID QUICK START:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false,
+                      leaves: [panel(2400, "CASEMENT")] }], 2400, 3000);
+    c.applyGridStart(2, 2);
+    const rows = c.state.data.rows;
+    ok(rows.length === 2, "2 rows");
+    ok(rows.every((r) => r.leaves.length === 2), "2 columns each");
+    ok(rows.every((r) => r.leaves.every((l) => l.leaf_type_code === "FIXED")),
+       "every panel Fixed");
+    near(rows.reduce((a, r) => a + r.height_mm, 0), 3000, "heights sum");
+    near(rows[0].leaves.reduce((a, l) => a + l.width_mm, 0), 2400,
+         "widths sum");
+    // Clamped: the control offers 1 to 6 and the method is reachable
+    // from a template expression.
+    c.applyGridStart(99, 0);
+    ok(c.state.data.rows.length === 1
+       && c.state.data.rows[0].leaves.length === 6,
+       "out-of-range counts clamp to 1..6");
+}
+
+console.log("\nFRAME-LEVEL add row / column:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false, leaves: [
+        panel(800, "FIXED"), panel(800, "FIXED"), panel(800, "FIXED"),
+    ] }], 2400, 3000);
+    c.addFrameRow("above");
+    const rows = c.state.data.rows;
+    ok(rows.length === 2, "a row was added");
+    ok(rows[0].leaves.length === 1,
+       "the new row spans the whole width as ONE panel");
+    ok(rows[1].leaves.length === 3, "the original three are untouched");
+    near(rows.reduce((a, r) => a + r.height_mm, 0), 3000,
+         "the opening's height did NOT grow");
+
+    // A column across several rows cannot be a leaf of one of them, so
+    // the existing layout has to be wrapped.
+    const d = make([
+        { height_mm: 1500, is_auto: false, leaves: [panel(2400, "FIXED")] },
+        { height_mm: 1500, is_auto: false, leaves: [panel(2400, "FIXED")] },
+    ], 2400, 3000);
+    d.addFrameColumn("left");
+    ok(d.state.data.rows.length === 1,
+       "the two rows were wrapped into one");
+    const top = d.state.data.rows[0].leaves;
+    ok(top.length === 2, "column plus wrapper");
+    ok(!top[0].rows.length && top[1].rows.length === 2,
+       "the column is a panel; the wrapper holds the old rows");
+    near(top[0].width_mm + top[1].width_mm, 2400,
+         "the opening's width did NOT grow");
+
+    // With one row it is simply another leaf, no wrapper.
+    const e = make([{ height_mm: 3000, is_auto: false,
+                      leaves: [panel(2400, "FIXED")] }], 2400, 3000);
+    e.addFrameColumn("right");
+    ok(e.state.data.rows.length === 1, "still one row");
+    ok(e.state.data.rows[0].leaves.length === 2,
+       "one row: the column is just another leaf");
+    ok(e.state.data.rows[0].leaves.every((l) => !l.rows.length),
+       "and nothing was wrapped");
+}
+
+console.log("\nSNAPPING:");
+{
+    const c = make([{ height_mm: 3000, is_auto: false, leaves: [
+        panel(1000, "FIXED"), panel(1400, "FIXED"),
+    ] }], 2400, 3000);
+    c.state.data.length_uom = "mm";
+    near(c.snapStepMm, 5, "mm snaps to 5mm");
+    c.state.data.length_uom = "ftin";
+    near(c.snapStepMm, 6.35, "ft+in snaps to a quarter inch");
+    c.state.data.length_uom = "in";
+    near(c.snapStepMm, 6.35, "inches snap to a quarter inch too");
+
+    // The step is the floor; an equal split beats it.
+    const drag = { kind: "v", path: [], ri: 0, li: 0 };
+    const targets = c.snapTargets(drag);
+    ok(targets.some((t) => Math.abs(t - 1200) < 0.001),
+       "the halfway point is a snap target");
+    ok(targets.some((t) => Math.abs(t - 800) < 0.001),
+       "so is the one-third point");
+
+    c.state.data.length_uom = "mm";
+    near(c.snapOffset(1003, [], 0), 1005, "with no targets it rounds to 5mm");
+    near(c.snapOffset(1197, targets, 10), 1200,
+         "a nearby equal split wins over the step");
+    near(c.snapOffset(1150, targets, 10), 1150,
+         "a target out of tolerance does NOT pull");
+
+    // End to end through a real drag: snapped by default, exact with Alt.
+    const d = make([{ height_mm: 3000, is_auto: false, leaves: [
+        panel(1000, "FIXED"), panel(1400, "FIXED"),
+    ] }], 2400, 3000);
+    d.state.data.length_uom = "mm";
+    d.clientToUser = (ev) => ({ x: ev.clientX, y: ev.clientY });
+    const div = d.scene.dividers[0];
+    const move = 37 * div.unitsPerMM;   // 37mm: not a multiple of 5
+
+    d.onDividerPointerDown(div, { preventDefault() {}, stopPropagation() {},
+                                  clientX: 0, clientY: 0 });
+    d.onPointerMove({ clientX: move, clientY: 0 });
+    near(d.state.data.rows[0].leaves[0].width_mm, 1035,
+         "a 37mm drag lands on 1035, the nearest 5mm");
+    near(d.state.data.rows[0].leaves[0].width_mm
+         + d.state.data.rows[0].leaves[1].width_mm, 2400,
+         "and the two sides still sum to the row");
+
+    d.onPointerMove({ clientX: move, clientY: 0, altKey: true });
+    near(d.state.data.rows[0].leaves[0].width_mm, 1037,
+         "Alt-drag goes exactly where it is put");
+    ok(d.state.snapGuide === null, "and draws no guide");
+    d.endDrag();
+    ok(d.state.snapGuide === null, "the guide is cleared when the drag ends");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

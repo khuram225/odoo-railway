@@ -45,7 +45,7 @@ class AwMeshType(models.Model):
     is the mesh fitted onto an openable or fixed panel.
     """
     _name = 'aw.mesh.type'
-    _description = 'Fenestration Mesh Type'
+    _description = 'Fenestration Fly Screen'
     _order = 'sequence, name'
 
     name = fields.Char(required=True)
@@ -68,20 +68,29 @@ class AwMeshType(models.Model):
         ('vertical', 'Vertical'),
     ], help="Which way a pleated or roller mesh draws. Empty for fixed "
             "and hinged meshes.")
+    # Part 2 (revised). Empty means every system, which is the common
+    # case and the safe default: a new option is offered everywhere
+    # until somebody narrows it. A pleated fly screen belongs on an
+    # openable system and not on a slider, and that is a fact about the
+    # option rather than about any one design.
+    available_series_ids = fields.Many2many(
+        'aw.window.series', string='Available on',
+        help="Offer this option only on these window systems. Leave "
+             "empty to offer it on all of them.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
     line_ids = fields.One2many(
         'aw.mesh.type.line', 'mesh_type_id', string='Lines')
 
     _sql_constraints = [
-        ('code_uniq', 'unique(code)', 'Mesh Type code must be unique.'),
+        ('code_uniq', 'unique(code)', 'Fly screen code must be unique.'),
     ]
 
 
 class AwMeshTypeLine(models.Model):
     _name = 'aw.mesh.type.line'
     _inherit = ['aw.type.line.mixin']
-    _description = 'Fenestration Mesh Type Line'
+    _description = 'Fenestration Fly Screen Line'
 
     mesh_type_id = fields.Many2one(
         'aw.mesh.type', required=True, ondelete='cascade', index=True)
@@ -118,6 +127,15 @@ class AwInfillType(models.Model):
              "glass override.")
     adjustable = fields.Boolean(
         help="Louvre blades that can be angled, as opposed to fixed.")
+    # Part 2 (revised). Empty means every system, which is the common
+    # case and the safe default: a new option is offered everywhere
+    # until somebody narrows it. A pleated fly screen belongs on an
+    # openable system and not on a slider, and that is a fact about the
+    # option rather than about any one design.
+    available_series_ids = fields.Many2many(
+        'aw.window.series', string='Available on',
+        help="Offer this option only on these window systems. Leave "
+             "empty to offer it on all of them.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
     line_ids = fields.One2many(
@@ -174,6 +192,15 @@ class AwGridPattern(models.Model):
         ('rect', 'Rectangular (rows x columns)'),
         ('perimeter', 'Perimeter'),
     ], required=True, default='rect')
+    # Part 2 (revised). Empty means every system, which is the common
+    # case and the safe default: a new option is offered everywhere
+    # until somebody narrows it. A pleated fly screen belongs on an
+    # openable system and not on a slider, and that is a fact about the
+    # option rather than about any one design.
+    available_series_ids = fields.Many2many(
+        'aw.window.series', string='Available on',
+        help="Offer this option only on these window systems. Leave "
+             "empty to offer it on all of them.")
     sequence = fields.Integer(default=10)
     active = fields.Boolean(default=True)
     line_ids = fields.One2many(

@@ -141,6 +141,19 @@ def self_test(rules):
     return failures
 
 
+def library_entries():
+    """(kind, entries) for the Python-seeded Shapes and Designs."""
+    models_dir = str(DESIGN / 'models')
+    if models_dir not in sys.path:
+        sys.path.insert(0, models_dir)
+    try:
+        import library_data
+    except ImportError:
+        return ()
+    return (('shape', library_data.SHAPES),
+            ('design', library_data.DESIGNS))
+
+
 def main():
     rules = load_rules()
 
@@ -162,6 +175,42 @@ def main():
 
     problems = []
     checked = 0
+
+    # The Python-seeded library (Part 2, revised). Its data lives in
+    # models/library_data.py, kept free of Odoo imports for exactly this
+    # reason: the XML-seeded presets were already validated here and
+    # these would otherwise have shipped unchecked.
+    for kind, entries in library_entries():
+        for name, code, _sequence, rows in entries:
+            checked += 1
+            data = {'rows': rows}
+            for error in rules.validate_layout(
+                    data, known,
+                    known_mesh=mesh_codes,
+                    known_infill=infill_codes,
+                    known_grid=grid_codes):
+                problems.append(
+                    f'library_data.py: {code} ({name}): {error}')
+            codes = rules.leaf_type_codes(data)
+            if not codes:
+                problems.append(
+                    f'library_data.py: {code} ({name}): no leaf types at '
+                    f'all, so no Series can ever host it')
+            # A Shape is geometry: all Fixed. The server refuses
+            # anything else (_check_shape_is_fixed), so a seed that
+            # broke the rule would fail the install rather than the
+            # review.
+            if kind == 'shape' and codes - {'FIXED'}:
+                problems.append(
+                    f'library_data.py: {code} ({name}): a Shape must be '
+                    f'all FIXED, but uses {", ".join(sorted(codes))}')
+            if kind == 'design' and codes == {'FIXED'} \
+                    and not code.startswith(('DSN-FIX', 'DSN-3S',
+                                             'DSN-CW3S')):
+                problems.append(
+                    f'library_data.py: {code} ({name}): a Design with no '
+                    f'panel types is a Shape; either type it or move it')
+
     for filename, xmlid, name, raw in seeded_presets():
         checked += 1
         try:

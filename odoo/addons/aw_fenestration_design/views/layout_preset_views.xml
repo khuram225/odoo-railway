@@ -9,7 +9,7 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="code"/>
-                <field name="family_id"/>
+                <field name="kind"/>
                 <field name="series_ids" widget="many2many_tags"
                        string="Window Series (empty = any)"/>
             </list>
@@ -28,7 +28,7 @@
                         <group>
                             <field name="name"/>
                             <field name="code" placeholder="e.g. OPN-CFC"/>
-                            <field name="family_id"/>
+                            <field name="kind"/>
                             <field name="category" groups="base.group_no_one"
                                    string="Category (migrated from)"/>
                         </group>
@@ -82,7 +82,7 @@
                                 <field name="code"/>
                             </div>
                             <div class="text-muted small">
-                                <field name="family_id"/>
+                                <field name="kind"/>
                             </div>
                         </div>
                     </t>
@@ -91,14 +91,41 @@
         </field>
     </record>
 
+    <record id="view_aw_layout_preset_search" model="ir.ui.view">
+        <field name="name">aw.layout.preset.search</field>
+        <field name="model">aw.layout.preset</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <filter name="filter_shape" string="Shapes"
+                        domain="[('kind', '=', 'shape')]"/>
+                <filter name="filter_design" string="Designs"
+                        domain="[('kind', '=', 'design')]"/>
+                <separator/>
+                <filter name="filter_archived" string="Archived"
+                        domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_kind" string="Kind"
+                            context="{'group_by': 'kind'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <record id="action_aw_layout_preset" model="ir.actions.act_window">
-        <field name="name">Layout Presets</field>
+        <field name="name">Layout Library</field>
         <field name="res_model">aw.layout.preset</field>
         <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_aw_layout_preset_search"/>
+        <field name="context">{'search_default_group_kind': 1}</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create a layout preset</p>
-            <p>A preset is a reusable row/leaf grid shape — no absolute
-               sizes — that the design configurator can apply in one click.</p>
+            <p class="o_view_nocontent_smiling_face">Create a layout</p>
+            <p>A <b>Shape</b> is geometry only — how the opening is divided,
+               every panel Fixed. A <b>Design</b> is a named layout the shop
+               builds, with its panel types set. Neither carries absolute
+               sizes: the design's own width and height divide up according
+               to the relative weights stored here.</p>
         </field>
     </record>
 

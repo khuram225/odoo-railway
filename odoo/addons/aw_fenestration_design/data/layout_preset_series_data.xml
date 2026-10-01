@@ -19,5 +19,13 @@
         <function model="aw.infill.type" name="_seed_default_family"/>
         <function model="aw.layout.preset" name="_apply_preset_corrections"/>
         <function model="aw.layout.preset" name="_seed_default_series"/>
+        <!-- Part 2 (revised), in this order: classify what is already
+             there, archive the mechanism-based set and its families,
+             then seed Shapes and Designs. Classifying first means the
+             new entries are not re-examined by it. -->
+        <function model="aw.layout.preset" name="_classify_existing_presets"/>
+        <function model="aw.layout.preset" name="_retire_mechanism_presets"/>
+        <function model="aw.layout.preset" name="_retire_layout_families"/>
+        <function model="aw.layout.preset" name="_seed_layout_library"/>
     </data>
 </odoo>

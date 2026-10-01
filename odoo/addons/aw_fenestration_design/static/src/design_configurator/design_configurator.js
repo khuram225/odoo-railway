@@ -86,6 +86,16 @@ const ZOOM_STEP = 1.25;
  * because the accessor itself throws in a private window or with site
  * data blocked, and the configurator has to open regardless.
  */
+// Snapping (Part 2, revised). The STEP is in the unit the user is
+// working in, because a 1/4 in step is only a round number in inches:
+// 6.35mm snapping while the box reads millimetres would look broken.
+// MM is 5, which is the smallest division a shop tape actually marks.
+const SNAP_STEP_MM = { ftin: 25.4 / 4, in: 25.4 / 4, mm: 5 };
+// How close counts as "aligned with the divider above" -- in SCREEN
+// pixels, not mm, so the pull is the same at every zoom. A tolerance in
+// mm would be unusable zoomed out and twitchy zoomed in.
+const SNAP_ALIGN_PX = 6;
+
 const PANE_MIN_PX = 180;
 const PANE_MAX_FRACTION = 0.45;
 const PANE_DEFAULTS = { left: 220, right: 260 };
@@ -200,6 +210,16 @@ export class DesignConfigurator extends Component {
             specName: "",
             canvasW: 0,
             canvasH: 0,
+            // Set while a drag is sitting on an alignment target, so the
+            // drawing can show WHY it stopped there. Cleared on every
+            // move, which is what makes it flicker off as soon as the
+            // pointer leaves the target.
+            snapGuide: null,
+            // The Grid quick start's pending choice. 2 x 2 rather than
+            // 1 x 1, because a 1 x 1 "grid" is what the design already
+            // is and the button would appear to do nothing.
+            gridCols: 2,
+            gridRows: 2,
             libraryOpen: true,
             familyFilter: null, // family id, or null for "All"
             builderOpen: false,
@@ -1683,6 +1703,57 @@ export class DesignConfigurator extends Component {
 
     // -- presets -----------------------------------------------------------
     /** The library, grouped by family and ordered by family sequence. */
+    /**
+     * The library's four groups, fixed rather than data-driven.
+     *
+     * Part 2 (revised) retired the mechanism-based families (Openable /
+     * Sliding / Tilt & Turn / Twin Sash / Curtain Wall): grouping by
+     * mechanism is a fact about the panels, not a way anybody shops for
+     * a starting point. An estimator with a 3-across opening and a top
+     * light wants "top light over 3 across" and does not care that its
+     * panels happen to be casements.
+     *
+     * Shapes are geometry, Our designs are named layouts, and the two
+     * option groups are what can go IN a panel.
+     */
+    get libraryGroups() {
+        const presets = this.state.data?.presets || [];
+        return [
+            {
+                key: "shapes",
+                label: _t("Shapes"),
+                kind: "preset",
+                items: presets.filter((p) => p.kind === "shape"),
+            },
+            {
+                key: "designs",
+                label: _t("Our designs"),
+                kind: "preset",
+                // Anything not marked a shape, so a preset from before
+                // the split still appears rather than vanishing.
+                items: presets.filter((p) => p.kind !== "shape"),
+            },
+            {
+                key: "screens",
+                label: _t("Fly screens"),
+                kind: "mesh",
+                items: (this.state.data?.mesh_types || []).map(
+                    (m) => ({ ...m, attachKind: "mesh" })),
+            },
+            {
+                // Georgian bars are deliberately NOT here: a bar
+                // pattern needs a rows x cols to mean anything, so it
+                // is set on the Panel tab rather than applied by one
+                // click. The library offers what one click can finish.
+                key: "addons",
+                label: _t("Add-ons"),
+                kind: "infill",
+                items: (this.state.data?.infill_types || []).map(
+                    (i) => ({ ...i, attachKind: "infill" })),
+            },
+        ].filter((group) => group.items.length);
+    }
+
     get presetsByFamily() {
         const groups = new Map();
         for (const preset of this.state.data?.presets || []) {
@@ -1749,6 +1820,236 @@ export class DesignConfigurator extends Component {
 
     toggleLibrary() {
         this.state.libraryOpen = !this.state.libraryOpen;
+    }
+
+    /**
+     * The library's click handler.
+     *
+     * Dispatches on the group rather than sniffing the item's fields,
+     * and hands anything that is not a preset to the EXISTING
+     * applyAttachment -- which already knows about attachKind, the
+     * "clicking it again takes it off" behaviour and the selected-panel
+     * warning. A second dispatch would have had to reimplement all
+     * three.
+     */
+    applyLibraryItem(group, item) {
+        if (group.kind !== "preset") {
+            this.applyAttachment(item);
+            return;
+        }
+        if (item.kind === "shape") {
+            this.applyShape(item);
+        } else {
+            this.applyPreset(item);
+        }
+    }
+
+    /**
+     * Apply a SHAPE: the geometry, keeping the panel types already there.
+     *
+     * A shape is about how the opening is divided, so retyping panels
+     * would be doing something the user did not ask for. Types are
+     * carried across BY POSITION -- row index, then leaf index -- and
+     * anything with no counterpart in the old layout comes out Fixed.
+     * That makes "3 across, now make it 4 across" keep the three panels
+     * already set up and add one plain light, which is what the words
+     * mean.
+     */
+    applyShape(preset) {
+        const before = this.state.data.rows.map((row) =>
+            row.leaves.map((leaf) => ({
+                leaf_type_id: leaf.leaf_type_id,
+                leaf_type_code: leaf.leaf_type_code,
+                hinge_side: leaf.hinge_side || "",
+                swing: leaf.swing || "",
+                slide_dir: leaf.slide_dir || "",
+                track_no: leaf.track_no || 0,
+                has_lock: leaf.has_lock,
+            }))
+        );
+        this.applyPreset(preset);
+        this.state.data.rows.forEach((row, ri) => {
+            row.leaves.forEach((leaf, li) => {
+                const kept = before[ri]?.[li];
+                // Never onto a container: it carries no type of its own,
+                // and writing one would make it a panel with children.
+                if (!kept || !kept.leaf_type_id || leaf.rows?.length) {
+                    return;
+                }
+                Object.assign(leaf, kept);
+            });
+        });
+        this.recomputeJunctions(this.state.data.rows);
+        this.state.dirty = true;
+    }
+
+    // -- grid quick start --------------------------------------------
+    setGridCols(value) {
+        this.state.gridCols = Math.max(1, Math.min(6, parseInt(value, 10) || 1));
+    }
+
+    setGridRows(value) {
+        this.state.gridRows = Math.max(1, Math.min(6, parseInt(value, 10) || 1));
+    }
+
+    applyGridFromState() {
+        this.applyGridStart(this.state.gridCols, this.state.gridRows);
+    }
+
+    get gridChoices() {
+        return [1, 2, 3, 4, 5, 6];
+    }
+
+    /**
+     * columns x rows of equal Fixed panels.
+     *
+     * Goes through the same equalShares/fitToTotal path everything else
+     * does, so the panels add up to the opening exactly rather than to
+     * within a rounding error per cell.
+     */
+    applyGridStart(cols, rows) {
+        const header = this.state.data.header;
+        const columns = Math.max(1, Math.min(6, Math.round(cols) || 1));
+        const lines = Math.max(1, Math.min(6, Math.round(rows) || 1));
+        const fixed = (this.state.data.leaf_types || []).find(
+            (t) => t.code === "FIXED");
+        const widths = this.equalShares(header.width_mm || 0, columns);
+        const heights = this.equalShares(header.height_mm || 0, lines);
+        this.state.data.rows = heights.map((h) => ({
+            height_mm: h,
+            is_auto: false,
+            leaves: widths.map((w) => ({
+                width_mm: w,
+                height_mm: h,
+                is_auto: false,
+                leaf_type_id: fixed ? fixed.id : false,
+                leaf_type_code: fixed ? "FIXED" : "",
+                hinge_side: "",
+                swing: "",
+                slide_dir: "",
+                junction_after: "",
+                track_no: 0,
+                rows: [],
+            })),
+        }));
+        this.state.selected = null;
+        this.state.selectedDivider = null;
+        this.recomputeJunctions(this.state.data.rows);
+        this.state.dirty = true;
+    }
+
+    // -- frame-level add row / column --------------------------------
+    /** One full-width Fixed panel, sized to `height`. */
+    frameRow(height) {
+        const fixed = (this.state.data.leaf_types || []).find(
+            (t) => t.code === "FIXED");
+        return {
+            height_mm: height,
+            is_auto: false,
+            leaves: [{
+                width_mm: this.state.data.header.width_mm || 0,
+                height_mm: height,
+                is_auto: false,
+                leaf_type_id: fixed ? fixed.id : false,
+                leaf_type_code: fixed ? "FIXED" : "",
+                hinge_side: "",
+                swing: "",
+                slide_dir: "",
+                junction_after: "",
+                track_no: 0,
+                rows: [],
+            }],
+        };
+    }
+
+    /**
+     * A full-width row above or below everything.
+     *
+     * It takes a share of the HEIGHT from what is there rather than
+     * growing the opening: the opening is a hole in a wall and its size
+     * is not ours to change. A new row gets an equal share, and the
+     * existing rows are refitted into what is left.
+     */
+    addFrameRow(where) {
+        const total = this.state.data.header.height_mm || 0;
+        const rows = this.state.data.rows;
+        const share = total / (rows.length + 1) || 0;
+        this.rescaleHeightsIn(rows, Math.max(0, total - share));
+        const fresh = this.frameRow(share);
+        this.state.data.rows = where === "above"
+            ? [fresh, ...rows]
+            : [...rows, fresh];
+        this.state.selected = null;
+        this.recomputeJunctions(this.state.data.rows);
+        this.state.dirty = true;
+    }
+
+    /**
+     * A full-height column left or right of everything.
+     *
+     * With ONE row this is just another leaf in it. With several, the
+     * existing layout has to be wrapped into a container first --
+     * a column spanning three rows is not a leaf of any one of them --
+     * which is why this is more than the mirror image of addFrameRow.
+     */
+    addFrameColumn(where) {
+        const header = this.state.data.header;
+        const total = header.width_mm || 0;
+        const rows = this.state.data.rows;
+        const fixed = (this.state.data.leaf_types || []).find(
+            (t) => t.code === "FIXED");
+        const share = total / 2;
+        const rest = Math.max(0, total - share);
+
+        const column = {
+            width_mm: share,
+            height_mm: header.height_mm || 0,
+            is_auto: false,
+            leaf_type_id: fixed ? fixed.id : false,
+            leaf_type_code: fixed ? "FIXED" : "",
+            hinge_side: "",
+            swing: "",
+            slide_dir: "",
+            junction_after: "",
+            track_no: 0,
+            rows: [],
+        };
+
+        if (rows.length === 1) {
+            const row = rows[0];
+            this.rescaleWidthsIn([row], rest);
+            row.leaves = where === "left"
+                ? [column, ...row.leaves]
+                : [...row.leaves, column];
+        } else {
+            // Wrap what is there into a container leaf, then put the new
+            // column beside it.
+            this.rescaleWidthsIn(rows, rest);
+            const wrapper = {
+                width_mm: rest,
+                height_mm: header.height_mm || 0,
+                is_auto: false,
+                leaf_type_id: false,
+                leaf_type_code: "",
+                hinge_side: "",
+                swing: "",
+                slide_dir: "",
+                junction_after: "",
+                track_no: 0,
+                rows: rows.map((row) => ({ ...row })),
+            };
+            this.state.data.rows = [{
+                height_mm: header.height_mm || 0,
+                is_auto: false,
+                leaves: where === "left"
+                    ? [column, wrapper]
+                    : [wrapper, column],
+            }];
+        }
+        this.state.selected = null;
+        this.state.selectedDivider = null;
+        this.recomputeJunctions(this.state.data.rows);
+        this.state.dirty = true;
     }
 
     /**
@@ -2709,6 +3010,9 @@ export class DesignConfigurator extends Component {
 
     endDrag() {
         this.dragging = null;
+        // The guide belongs to a drag in progress; leaving it behind
+        // would draw a line nothing is explaining any more.
+        this.state.snapGuide = null;
         window.removeEventListener("pointermove", this._onWindowMove);
         window.removeEventListener("pointerup", this._onWindowUp);
         window.removeEventListener("pointercancel", this._onWindowUp);
@@ -2735,6 +3039,87 @@ export class DesignConfigurator extends Component {
         el.style.cursor = "grabbing";
     }
 
+    /**
+     * The step a dragged divider rounds to, in mm.
+     *
+     * Reads the design's own unit, so ft+in and inches both snap to a
+     * quarter inch and millimetres snap to 5.
+     */
+    get snapStepMm() {
+        return SNAP_STEP_MM[this.state.data?.length_uom] || SNAP_STEP_MM.mm;
+    }
+
+    /**
+     * Offsets (from the start of the row or stack) a divider should
+     * snap to, besides the step: the equal-split positions, and any
+     * divider at the same depth in the row above or below.
+     *
+     * Equal splits are in here because "make these even" is the single
+     * most common thing a drag is trying to do, and hitting it by eye
+     * at 1/4 in is luck. Alignment with a neighbouring row is the other
+     * one -- a transom lining up across a mullion is what makes an
+     * elevation look drawn rather than dragged.
+     */
+    snapTargets(drag) {
+        const rows = this.rowsAt(drag.path);
+        const targets = [];
+        if (drag.kind === "v") {
+            const leaves = rows[drag.ri].leaves;
+            const total = leaves.reduce((a, l) => a + (l.width_mm || 0), 0);
+            // Equal splits of this row.
+            for (let i = 1; i < leaves.length + 1; i++) {
+                targets.push((total * i) / (leaves.length + 1));
+            }
+            for (let n = 2; n <= 4; n++) {
+                for (let i = 1; i < n; i++) {
+                    targets.push((total * i) / n);
+                }
+            }
+            // Vertical dividers in the sibling rows, measured the same
+            // way: cumulative width from the row's left edge.
+            rows.forEach((row, ri) => {
+                if (ri === drag.ri) {
+                    return;
+                }
+                let at = 0;
+                for (const leaf of row.leaves.slice(0, -1)) {
+                    at += leaf.width_mm || 0;
+                    targets.push(at);
+                }
+            });
+        } else {
+            const total = rows.reduce((a, r) => a + (r.height_mm || 0), 0);
+            for (let n = 2; n <= 4; n++) {
+                for (let i = 1; i < n; i++) {
+                    targets.push((total * i) / n);
+                }
+            }
+        }
+        return targets;
+    }
+
+    /**
+     * Round `offset` to the step, then let a nearby target win.
+     *
+     * Order matters: the step is the floor, and an equal-split or an
+     * alignment is a stronger intention than a round number, so it
+     * overrides. `tolerance` is converted from screen pixels by the
+     * caller, which is what keeps the pull constant across zoom.
+     */
+    snapOffset(offset, targets, tolerance) {
+        const step = this.snapStepMm;
+        let best = step > 0 ? Math.round(offset / step) * step : offset;
+        let bestGap = tolerance;
+        for (const target of targets) {
+            const gap = Math.abs(target - offset);
+            if (gap <= bestGap) {
+                best = target;
+                bestGap = gap;
+            }
+        }
+        return best;
+    }
+
     onPointerMove(ev) {
         if (this.panning) {
             const el = this.canvasRef.el;
@@ -2754,11 +3139,37 @@ export class DesignConfigurator extends Component {
         const raw =
             ((drag.kind === "v" ? point.x : point.y) - drag.start) /
             drag.unitsPerMM;
+        // Snapping, unless Alt is held: a step, plus the equal-split and
+        // alignment targets. Alt-drag is the escape hatch -- a shop
+        // sometimes needs 731mm and no amount of snapping should make
+        // that hard to type by dragging.
+        let wanted = raw;
+        this.state.snapGuide = null;
+        if (!ev.altKey) {
+            const targets = drag.snapTargets || this.snapTargets(drag);
+            // Pixels to mm at the CURRENT zoom, so the pull feels the
+            // same whatever the scale.
+            const tolerance = SNAP_ALIGN_PX * this.unitsPerPixel
+                / (drag.unitsPerMM || 1);
+            const snapped = this.snapOffset(
+                drag.a + raw, targets, tolerance);
+            wanted = snapped - drag.a;
+            // A guide is drawn only for a real alignment, not for the
+            // step: a line flashing on every quarter inch is noise.
+            if (targets.some((t) => Math.abs(t - snapped) < 0.001)) {
+                this.state.snapGuide = {
+                    kind: drag.kind,
+                    path: drag.path,
+                    ri: drag.ri,
+                    offset: snapped,
+                };
+            }
+        }
         // Clamp so neither side of the divider goes below the minimum leaf
         // size -- straight from the prototype's pointermove handler.
         const delta = Math.max(
             MIN_LEAF_MM - drag.a,
-            Math.min(drag.b - MIN_LEAF_MM, raw)
+            Math.min(drag.b - MIN_LEAF_MM, wanted)
         );
         // NOT rounded to whole mm, though the prototype rounds here. The
         // two sides must go on summing to exactly what they summed to

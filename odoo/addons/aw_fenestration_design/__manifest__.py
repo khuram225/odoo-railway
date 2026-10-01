@@ -47,6 +47,7 @@ row/leaf grid shape:
         'views/design_views.xml',
         'views/window_series_views.xml',
         'views/attachment_types_views.xml',
+        'views/panel_option_views.xml',
         'views/layout_family_views.xml',
         'views/layout_preset_views.xml',
         'views/design_position_wizard_views.xml',

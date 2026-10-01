@@ -4,8 +4,10 @@ from . import design_leaf
 from . import design_bom_line
 from . import window_series
 from . import attachment_types
+from . import panel_option
 from . import layout_family
 from . import layout_preset
+from . import library_seed
 from . import design_position_wizard
 from . import design_preset_wizard
 from . import family

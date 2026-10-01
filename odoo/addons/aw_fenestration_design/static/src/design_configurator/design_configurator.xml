@@ -188,42 +188,67 @@
                         </div>
                         <div t-if="state.libraryOpen" class="overflow-auto p-2" style="min-height: 0;">
 
-                            <!-- Family strip. Only families with at least one
-                                 preset allowed for this Series reach here, so a
-                                 tile never leads somewhere empty. -->
-                            <div t-if="families.length" class="o_aw_family_strip d-flex flex-wrap gap-1 mb-2">
-                                <button class="o_aw_family_tile btn btn-sm p-1"
-                                        t-att-class="state.familyFilter === null ? 'btn-primary' : 'btn-light border'"
-                                        title="Show every family"
-                                        t-on-click="() => this.selectFamily(null)">
-                                    <span class="o_aw_family_all">All</span>
-                                    <div class="o_aw_family_tile_name">All</div>
+                            <!-- Part 2 (revised): the family strip is gone
+                                 with the families. What sat there was a
+                                 filter over groupings nobody shops by;
+                                 what sits here now is the two things
+                                 that start a layout from nothing. -->
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
+                                Grid
+                            </div>
+                            <div class="d-flex align-items-center gap-1 mb-2 flex-wrap">
+                                <select class="form-select form-select-sm"
+                                        style="width: 4rem;"
+                                        t-on-change="(ev) => this.setGridCols(ev.target.value)">
+                                    <t t-foreach="gridChoices" t-as="n" t-key="n">
+                                        <option t-att-value="n"
+                                                t-att-selected="n === state.gridCols">
+                                            <t t-esc="n"/>
+                                        </option>
+                                    </t>
+                                </select>
+                                <span class="small text-muted">&#215;</span>
+                                <select class="form-select form-select-sm"
+                                        style="width: 4rem;"
+                                        t-on-change="(ev) => this.setGridRows(ev.target.value)">
+                                    <t t-foreach="gridChoices" t-as="n" t-key="n">
+                                        <option t-att-value="n"
+                                                t-att-selected="n === state.gridRows">
+                                            <t t-esc="n"/>
+                                        </option>
+                                    </t>
+                                </select>
+                                <button class="btn btn-sm btn-outline-primary"
+                                        title="Replace the layout with an equal grid of Fixed panels"
+                                        t-on-click="applyGridFromState">
+                                    Apply
                                 </button>
-                                <t t-foreach="families" t-as="fam" t-key="fam.id">
-                                    <button class="o_aw_family_tile btn btn-sm p-1"
-                                            t-att-class="state.familyFilter === fam.id ? 'btn-primary' : 'btn-light border'"
-                                            t-att-title="fam.name + ' (' + fam.count + ')'"
-                                            t-on-click="() => this.selectFamily(fam.id)">
-                                        <img t-if="fam.has_image" t-att-src="familyImageUrl(fam)"
-                                             t-att-alt="fam.name"/>
-                                        <t t-else="">
-                                            <t t-set="ft" t-value="familyThumb(fam)"/>
-                                            <svg t-att-viewBox="ft.viewBox" preserveAspectRatio="xMidYMid meet">
-                                                <rect x="0" y="0"
-                                                      t-att-width="ft.frame.W" t-att-height="ft.frame.H"
-                                                      fill="#8a9095" stroke="#6a7075" stroke-width="0.8"/>
-                                                <t t-foreach="ft.rects" t-as="fr" t-key="fr.key">
-                                                    <rect t-att-x="fr.x" t-att-y="fr.y"
-                                                          t-att-width="fr.w" t-att-height="fr.h"
-                                                          fill="#c3dce3" stroke="#9dbfc9" stroke-width="0.5"/>
-                                                </t>
-                                            </svg>
-                                        </t>
-                                        <div class="o_aw_family_tile_name">
-                                            <t t-esc="fam.name"/>
-                                        </div>
-                                    </button>
-                                </t>
+                            </div>
+
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
+                                Add to the frame
+                            </div>
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                <button class="btn btn-sm btn-outline-secondary px-2"
+                                        title="A full-width row above everything"
+                                        t-on-click="() => this.addFrameRow('above')">
+                                    Row above
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary px-2"
+                                        title="A full-width row below everything"
+                                        t-on-click="() => this.addFrameRow('below')">
+                                    Row below
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary px-2"
+                                        title="A full-height column on the left"
+                                        t-on-click="() => this.addFrameColumn('left')">
+                                    Column left
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary px-2"
+                                        title="A full-height column on the right"
+                                        t-on-click="() => this.addFrameColumn('right')">
+                                    Column right
+                                </button>
                             </div>
 
                             <!-- Sliding builder (spec 4.2). Only offered when
@@ -314,19 +339,23 @@
                                 </div>
                             </t>
 
-                            <t t-foreach="presetsByFamily" t-as="group" t-key="group.family">
+                            <t t-foreach="libraryGroups" t-as="group" t-key="group.key">
                                 <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-2 mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
-                                     t-att-data-aw-family="group.familyId"
-                                     t-on-click="() => this.toggleSection('fam:' + group.family)">
-                                    <i t-att-class="sectionIcon('fam:' + group.family)"/>
-                                    <span t-esc="group.family"/>
+                                     t-on-click="() => this.toggleSection('lib:' + group.key)">
+                                    <i t-att-class="sectionIcon('lib:' + group.key)"/>
+                                    <span t-esc="group.label"/>
+                                </div>
+                                <div t-if="group.kind !== 'preset' and !selectedPanel and !isCollapsed('lib:' + group.key)"
+                                     class="small text-muted mb-1">
+                                    Select a panel to apply these to it.
                                 </div>
                                 <div class="d-flex flex-wrap gap-2"
-                                     t-if="!isCollapsed('fam:' + group.family)">
-                                    <t t-foreach="group.presets" t-as="preset" t-key="preset.id">
-                                        <button class="o_aw_cfg_preset btn btn-sm btn-light border p-1 text-center"
+                                     t-if="!isCollapsed('lib:' + group.key)">
+                                    <t t-foreach="group.items" t-as="preset" t-key="group.key + preset.id">
+                                        <button t-if="group.kind === 'preset'"
+                                                class="o_aw_cfg_preset btn btn-sm btn-light border p-1 text-center"
                                                 t-att-title="preset.name"
-                                                t-on-click="() => this.applyPreset(preset)">
+                                                t-on-click="() => this.applyLibraryItem(group, preset)">
                                             <t t-set="thumb" t-value="presetThumb(preset.layout)"/>
                                             <svg t-att-viewBox="thumb.viewBox"
                                                  preserveAspectRatio="xMidYMid meet">
@@ -350,31 +379,11 @@
                                                 <t t-esc="preset.name"/>
                                             </div>
                                         </button>
-                                    </t>
-                                </div>
-                            </t>
-
-                            <!-- Mesh and infill APPLY TO THE SELECTED PANEL
-                                 rather than replacing the layout: that is
-                                 what a mesh/infill family means (spec 4.1).
-                                 They were missing entirely because the
-                                 family strip only counted PRESETS, and
-                                 these families hold types. -->
-                            <t t-foreach="visibleAttachments" t-as="agroup" t-key="agroup.family">
-                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-1"
-                                     t-att-data-aw-family="agroup.familyId">
-                                    <t t-esc="agroup.family"/>
-                                </div>
-                                <div t-if="!selectedPanel" class="small text-muted mb-1">
-                                    Select a panel to apply these to it.
-                                </div>
-                                <div class="d-flex flex-wrap gap-2">
-                                    <t t-foreach="agroup.items" t-as="att" t-key="att.attachKind + att.id">
-                                        <button class="o_aw_cfg_preset btn btn-sm border p-1 text-center"
-                                                t-att-class="isAttachmentActive(att) ? 'btn-primary' : 'btn-light'"
-                                                t-att-title="att.code"
-                                                t-on-click="() => this.applyAttachment(att)">
-                                            <t t-set="sym" t-value="attachmentSymbol(att)"/>
+                                        <button t-else="" class="o_aw_cfg_preset btn btn-sm border p-1 text-center"
+                                                t-att-class="isAttachmentActive(preset) ? 'btn-primary' : 'btn-light'"
+                                                t-att-title="preset.code"
+                                                t-on-click="() => this.applyLibraryItem(group, preset)">
+                                            <t t-set="sym" t-value="attachmentSymbol(preset)"/>
                                             <svg t-att-viewBox="sym.viewBox"
                                                  preserveAspectRatio="xMidYMid meet">
                                                 <rect x="0" y="0" t-att-width="sym.W" t-att-height="sym.H"
@@ -402,12 +411,14 @@
                                                 </defs>
                                             </svg>
                                             <div class="o_aw_cfg_preset_name text-muted mt-1">
-                                                <t t-esc="att.name"/>
+                                                <t t-esc="preset.name"/>
                                             </div>
                                         </button>
                                     </t>
                                 </div>
                             </t>
+
+
 
                             <!-- Empty states are stated rather than rendered as an
                                  empty strip: an invisible cause looks like a broken

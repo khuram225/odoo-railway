@@ -604,6 +604,76 @@ sash profiles, `_explode_panel` **skips it in the normal loop** and
 handles it separately — otherwise it would be generated on every
 opening panel with `LS = 0`, i.e. a zero-length piece.
 
+**The Layout Library is Shapes and Designs, not mechanisms (Part 2,
+revised).** It used to group presets by mechanism — Openable / Sliding /
+Tilt & Turn / Twin Sash / Curtain Wall — which is a fact about the
+panels rather than a way anybody shops for a starting point: an
+estimator with a 3-across opening and a top light wants "top light over
+3 across" and does not care that its panels happen to be casements. So
+`aw.layout.preset.kind` is now **`shape`** (geometry, every panel Fixed,
+enforced by `_check_shape_is_fixed`) or **`design`** (a named layout with
+its panel types). The configurator's four groups — Shapes | Our designs
+| Fly screens | Add-ons — are **fixed in `libraryGroups()`**, not
+data-driven, and an empty one is dropped rather than drawn as a heading
+over nothing. A preset with no `kind` falls in with the designs, so one
+from before the split appears rather than vanishing.
+
+**Applying a SHAPE keeps the panel types, by POSITION.** Row index then
+leaf index; anything with no counterpart comes out Fixed. That makes "3
+across, now make it 4 across" keep the three panels already set up and
+add one plain light. Retiring the old set ARCHIVES it (`active=False`)
+rather than deleting: a design quoted from a preset still names it.
+`aw.layout.family` records are archived too, but the MODEL stays,
+because `family_id` on every existing preset is the only record of the
+old grouping.
+
+**The seeded library lives in `models/library_data.py`, Odoo-free** —
+same reason as `layout_rules.py`, `formula.py`, `resolve_chain` and
+`choose_thickness`: `check_preset_layouts.py` runs all 19 entries
+through the REAL validator, including the all-Fixed rule for shapes. The
+XML-seeded presets were already checked that way and these would
+otherwise have shipped unchecked.
+
+**Panel Options is one screen over three models**, via `aw.panel.option`
+— an unmanaged model (`_auto = False`) whose `_table_query` unions
+`aw.mesh.type`, `aw.infill.type` and `aw.grid.pattern`. Each kind is
+offset into its own id band (1/2/3 million) because the three tables all
+have a row 1 and the list would otherwise show one of them twice. Two
+consequences worth knowing: **a Many2many cannot live on a SQL view**, so
+`available_series_ids` stays on the three real models; and `name` is
+selected as a plain column, NOT `name->>'en_US'`, because these are
+`fields.Char` **without** `translate=True` and the column is varchar —
+add `translate=True` to any of them and this has to change with it.
+
+**"Available on" is enforced where the list is BUILT**, in
+`_attachment_catalogue()`, against the design's resolved system — not in
+the client, which would have to be trusted, and not only in the checks,
+which fire after somebody has already chosen. Mesh Types are **Fly
+screens** in all UI text; the leaf type Mesh stays "Mesh panel", because
+a sliding mesh on its own track is a PANEL while a fly screen fitted to
+one is an option.
+
+**Snapping (`SNAP_STEP_MM`, `SNAP_ALIGN_PX`).** The step is in the
+unit the user is working in — a quarter inch for ft+in and inches, 5mm
+for mm — because 6.35mm snapping while the box reads millimetres looks
+broken. The alignment tolerance is in **screen pixels**, converted
+through `unitsPerPixel` at drag time, so the pull feels identical at
+every zoom; a tolerance in mm is unusable zoomed out and twitchy zoomed
+in. Equal splits and alignment with a neighbouring row OVERRIDE the
+step, because they are a stronger intention than a round number, and a
+guide is drawn only for those — a line flashing on every quarter inch is
+noise. **Alt-drag bypasses all of it**: a shop sometimes needs 731mm.
+Adding this broke two existing drag assertions that test the raw
+arithmetic; they now pass `altKey: true`, which is the honest fix, and
+the snapping has its own block including the Alt bypass.
+
+**Add row / add column are not mirror images.** A row is another row. A
+column spanning several rows cannot be a leaf of any one of them, so
+`addFrameColumn` **wraps the existing layout into a container** first
+when there is more than one row. Both take their share out of the
+existing layout rather than growing the opening: the opening is a hole
+in a wall and its size is not ours to change.
+
 **The right-hand column is tabs (Panel | BOM | Pricing | Checks), not
 four stacked collapsibles.** It is ~260px wide and each section had a
 hard `max-height`, so four things competed for one column and none of

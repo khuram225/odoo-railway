@@ -27,20 +27,6 @@
               action="action_aw_window_series"
               sequence="10"/>
 
-    <!-- Kept as a container so the Designs menu has somewhere to sit
-         and so Glass Types stays one click away from the specs that
-         reference it. -->
-    <menuitem id="menu_aw_fenestration_master_data"
-              name="Master Data"
-              parent="menu_aw_fenestration_root"
-              sequence="15"/>
-
-    <menuitem id="menu_aw_glass_spec"
-              name="Glass Types"
-              parent="menu_aw_fenestration_master_data"
-              action="action_aw_glass_spec"
-              sequence="40"/>
-
     <menuitem id="menu_aw_fenestration_config"
               name="Configuration"
               parent="menu_aw_fenestration_root"
@@ -66,11 +52,21 @@
               action="action_aw_profile_position"
               sequence="3"/>
 
+    <!-- "Panel Types" is what the configurator and every drawing call
+         them; aw.leaf.type keeps its model name. The leaf type Mesh
+         stays "Mesh panel": a sliding mesh on its own track, which is
+         a PANEL. A fly screen fitted to a panel is a Panel Option. -->
     <menuitem id="menu_aw_leaf_type"
-              name="Leaf Types"
+              name="Panel Types"
               parent="menu_aw_fenestration_config"
               action="action_aw_leaf_type"
               sequence="4"/>
+
+    <menuitem id="menu_aw_glass_spec"
+              name="Glass Types"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_glass_spec"
+              sequence="5"/>
 
     <menuitem id="menu_aw_profile_rate"
               name="Profile Rates"

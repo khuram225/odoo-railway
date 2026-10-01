@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+    One screen over the three panel-option tables. The list is a SQL
+    view (see models/panel_option.py), so it is read-only: a row opens
+    its REAL record, and the per-model forms stay where they are. That
+    is also why "Available on" is not a column here: a Many2many
+    cannot live on a SQL view.
+    -->
+
+    <record id="view_aw_panel_option_list" model="ir.ui.view">
+        <field name="name">aw.panel.option.list</field>
+        <field name="model">aw.panel.option</field>
+        <field name="arch" type="xml">
+            <list create="false" delete="false" default_group_by="kind">
+                <field name="kind"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="detail"/>
+                <field name="sequence" optional="hide"/>
+                <button type="object" name="action_open"
+                        string="Open" icon="fa-external-link"
+                        title="Open this option to edit it"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_panel_option_search" model="ir.ui.view">
+        <field name="model">aw.panel.option</field>
+        <field name="name">aw.panel.option.search</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="code"/>
+                <filter name="filter_mesh" string="Fly screens"
+                        domain="[('kind', '=', 'mesh')]"/>
+                <filter name="filter_infill" string="Infills"
+                        domain="[('kind', '=', 'infill')]"/>
+                <filter name="filter_grid" string="Georgian bars"
+                        domain="[('kind', '=', 'grid')]"/>
+                <separator/>
+                <filter name="filter_archived" string="Archived"
+                        domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_kind" string="Type"
+                            context="{'group_by': 'kind'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_aw_panel_option" model="ir.actions.act_window">
+        <field name="name">Panel Options</field>
+        <field name="res_model">aw.panel.option</field>
+        <field name="view_mode">list</field>
+        <field name="search_view_id" ref="view_aw_panel_option_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No panel options yet</p>
+            <p>What can go in a panel: fly screens, infills and add-ons
+               (louvre, fan, solid panel, AC cutout) and Georgian bars.
+               Open one to edit it, including which window systems it is
+               available on.</p>
+        </field>
+    </record>
+
+</odoo>

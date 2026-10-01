@@ -947,8 +947,18 @@ class AwDesign(models.Model):
         return self.with_context(aw_glass_domain=domain)
 
     def _attachment_catalogue(self):
-        """Mesh, infill, glass and grid choices for the right panel and
-        the library's mesh/infill families."""
+        """Fly screens, infills, glass and bars for this design.
+
+        Filtered by `available_series_ids` against the design's RESOLVED
+        system (Part 2, revised): a pleated fly screen restricted to
+        openable systems must not be offered on a sliding design, and
+        the honest place to enforce that is here, where the list is
+        built -- not in the client, which would have to be trusted, and
+        not only in the checks, which fire after somebody has already
+        chosen it.
+        """
+        available = self.env['aw.panel.option']._available_for_series(
+            self.window_series_id)
         return {
             'mesh_types': [{
                 'id': m.id, 'name': m.display_name, 'code': m.code or '',
@@ -957,7 +967,7 @@ class AwDesign(models.Model):
                 'family_name': m.family_id.name or '',
                 'family_sequence': (
                     m.family_id.sequence if m.family_id else 999),
-            } for m in self.env['aw.mesh.type'].search([])],
+            } for m in available['mesh']],
             'infill_types': [{
                 'id': i.id, 'name': i.display_name, 'code': i.code or '',
                 'kind': i.kind, 'uses_glass': i.uses_glass,
@@ -965,7 +975,7 @@ class AwDesign(models.Model):
                 'family_name': i.family_id.name or '',
                 'family_sequence': (
                     i.family_id.sequence if i.family_id else 999),
-            } for i in self.env['aw.infill.type'].search([])],
+            } for i in available['infill']],
             # Only the glass this family can use. Curtain wall's family
             # is 'none', whose domain is empty, so it still sees all.
             'glass_specs': [{
@@ -975,7 +985,7 @@ class AwDesign(models.Model):
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
                 'kind': g.kind,
-            } for g in self.env['aw.grid.pattern'].search([])],
+            } for g in available['grid']],
         }
 
     @api.model
@@ -1033,6 +1043,10 @@ class AwDesign(models.Model):
             'family_name': family.name or preset.category or _("Other"),
             'family_code': family.code or '',
             'family_sequence': family.sequence if family else 999,
+            # Part 2 (revised): what the library groups by now. The
+            # family fields above are kept only so a database that has
+            # not run the retirement yet still groups sensibly.
+            'kind': preset.kind,
             'layout': preset._layout(),
         }
 
