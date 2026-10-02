@@ -106,7 +106,8 @@ class SaleOrder(models.Model):
         }
 
     def _create_fenestration_position(self, series, name=None,
-                                      location=None, family=None):
+                                      location=None, family=None,
+                                      spec=None, lock_system=False):
         """Create the quote line and its design together. The line comes
         first because aw.design.sale_order_line_id is what ties the two
         together. Shared by both entry points -- the direct button when
@@ -146,6 +147,12 @@ class SaleOrder(models.Model):
             # place that does hold the order says so here.
             'finish_id': (self.aw_default_finish_id.id
                           or self.env['aw.design']._default_finish()),
+            # Both only ever set by the Add Position wizard when a frame
+            # type was chosen explicitly. Absent, the design behaves
+            # exactly as before: no spec until _resolve_spec fills one,
+            # and a system the panels are free to correct.
+            'template_id': spec.id if spec else False,
+            'system_locked': lock_system,
             'sale_order_line_id': line.id,
         })
         # A design with no rows at all gives the configurator nothing to

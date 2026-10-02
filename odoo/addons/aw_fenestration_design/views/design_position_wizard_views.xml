@@ -17,6 +17,10 @@
                 <group>
                     <field name="order_id" invisible="1"/>
                     <field name="family_id"/>
+                    <field name="frame_role"/>
+                    <field name="window_system_id" invisible="1"/>
+                    <field name="template_id" invisible="not frame_role"
+                           options="{'no_create': True}"/>
                     <field name="name" placeholder="Auto-numbered if blank"/>
                     <field name="location" placeholder="e.g. Drawing room"/>
                     <field name="set_as_default"/>

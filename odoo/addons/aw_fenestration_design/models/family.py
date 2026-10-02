@@ -103,6 +103,13 @@ class AwDesign(models.Model):
         estimator who picked one of two valid systems keeps it.
         """
         for design in self:
+            if design.system_locked:
+                # The frame type was chosen in Add Position. An explicit
+                # choice is not a guess to be corrected, so the panels
+                # do not move it -- the Checks still report a panel the
+                # system cannot host, which is the honest way to tell
+                # someone the two disagree.
+                continue
             if not design.family_id:
                 continue
             candidates = design._candidate_systems()

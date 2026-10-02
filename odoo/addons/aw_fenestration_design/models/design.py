@@ -122,6 +122,15 @@ class AwDesign(models.Model):
     # Kept stored and kept on the reports, because the shop drawing and
     # the cutting sheet name the section the window was built to and
     # because every existing design already carries the value -- the
+    # Set only when Add Position was given an explicit Frame Type, so
+    # _resolve_system leaves that system alone however the panels are
+    # drawn. Defaults False, which is why every existing design and
+    # every other entry point behaves exactly as before.
+    system_locked = fields.Boolean(
+        string='Frame type chosen explicitly', default=False, copy=False,
+        help="Set when the position was added with a Frame Type. The "
+             "window system is then not re-derived from the panels.")
+
     # compute reproduces exactly what is there, so an upgrade moves
     # nothing. readonly: the spec is the thing to change.
     profile_section_id = fields.Many2one(
