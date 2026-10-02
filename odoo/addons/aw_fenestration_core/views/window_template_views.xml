@@ -169,11 +169,13 @@
                             <group>
                                 <field name="design_count" string="Designs"/>
                             </group>
-                            <group string="Legacy links" name="legacy">
-                                <field name="profile_section_id"/>
-                                <field name="hardware_set_id"/>
+                            <group string="Legacy links" name="legacy"
+                                   invisible="not profile_section_id and not hardware_set_id">
+                                <field name="profile_section_id" readonly="1"/>
+                                <field name="hardware_set_id" readonly="1"/>
                             </group>
-                            <p class="text-muted">
+                            <p class="text-muted"
+                               invisible="not profile_section_id and not hardware_set_id">
                                 The Profile Section and Hardware Set this
                                 spec was assembled from before its lines
                                 moved onto it. Kept so the shop drawing can

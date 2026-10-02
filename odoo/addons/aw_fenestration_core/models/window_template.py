@@ -39,8 +39,10 @@ class AwWindowTemplate(models.Model):
         'aw.window.series', string='Series', required=True,
         ondelete='restrict', index=True, tracking=True)
 
+    # Legacy. Not required and copy=False: a new or duplicated spec must
+    # not carry a link to the Profile Section another spec was built from.
     profile_section_id = fields.Many2one(
-        'aw.profile.section', required=True, ondelete='restrict',
+        'aw.profile.section', ondelete='restrict', copy=False,
         domain="[('window_type_id', '=', window_type_id)]", tracking=True)
     # NOT required. No hardware list exists for this business yet, and
     # a required field would have forced either a placeholder set --
@@ -49,7 +51,7 @@ class AwWindowTemplate(models.Model):
     # the design checks say so once per design rather than letting the
     # absence pass unmentioned.
     hardware_set_id = fields.Many2one(
-        'aw.hardware.set', ondelete='restrict',
+        'aw.hardware.set', ondelete='restrict', copy=False,
         domain="[('window_type_id', '=', window_type_id)]", tracking=True,
         help="Leave empty until a hardware list exists. A design built "
              "to this spec will warn that its hardware cost is missing.")
@@ -267,7 +269,12 @@ class AwWindowTemplate(models.Model):
         This is the real guard against pairing a sliding Profile Section
         with a hinged Hardware Set, etc."""
         for rec in self:
-            if rec.profile_section_id.window_type_id != rec.window_type_id:
+            # `and` guards the empty case, as below: the section is no
+            # longer required, and an unset one has no window_type_id,
+            # which would read as a mismatch and make it required again.
+            if (rec.profile_section_id
+                    and rec.profile_section_id.window_type_id
+                    != rec.window_type_id):
                 raise ValidationError(
                     "Profile Section '%s' belongs to Series '%s', not "
                     "'%s'." % (rec.profile_section_id.name,
