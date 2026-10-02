@@ -158,21 +158,77 @@ class AwHealth(http.Controller):
         try:
             with registry.cursor() as cr:
                 env = api.Environment(cr, SUPERUSER_ID, {})
-                design = env['aw.design'].with_context(
-                    active_test=False).search([], limit=1)
+                model = env['aw.design'].with_context(active_test=False)
+
+                # Every probe column named in SQL, WITH OR WITHOUT ROWS.
+                # This is the whole check on a fresh database and it was
+                # missing: the first version only read columns when a
+                # design existed, so on an empty table it proved nothing
+                # and answered 200 with a column genuinely dropped. CI
+                # caught it precisely because its database is fresh,
+                # while production has designs and looked fine.
+                self._probe_columns(model)
+
+                design = model.search([], limit=1)
                 if design:
+                    # Stronger still where it is possible: real values
+                    # loaded, not just columns that parse.
                     design.read(PROBE_FIELDS)
-                    detail = 'read design %s' % design.id
+                    detail = 'read design %s, %d columns' % (
+                        design.id, len(PROBE_FIELDS))
                 else:
                     # An empty table is not a failure -- a fresh database
-                    # has no designs. The model resolving and the SELECT
-                    # running is what was being proved.
-                    env['aw.design'].search_count([])
-                    detail = 'no designs yet'
+                    # has no designs -- but it is no longer a free pass.
+                    detail = 'no designs yet, %d columns exist' % len(
+                        PROBE_FIELDS)
         except Exception as exc:
             return self._fail('aw.design is not readable: %s' % exc)
 
         return self._respond(200, 'pass: %s' % detail)
+
+    def _probe_columns(self, model):
+        """Assert every PROBE_FIELD's column exists, rows or no rows.
+
+        A `read()` only touches columns when there is something to read,
+        so on an empty table it validates nothing -- which is how this
+        route answered 200 on a database whose `finish_id` column had
+        been dropped.
+
+        **A domain was the first attempt and is the wrong tool.**
+        `('finish_id', '!=', False)` looks like it names the column, but
+        `_optimize_in_required` (`odoo/orm/domains.py`) strips `False`
+        from the value set of a required field that is in
+        `registry.not_null_fields`, the set empties, `_optimize_in_set`
+        turns the empty `not in` into TRUE, and the column never reaches
+        the SQL. `finish_id` and `window_series_id` are both required, so
+        the probe would have quietly tested nothing -- and worse, only
+        once the NOT NULL constraint existed, so it would have worked in
+        CI and degraded in production.
+
+        This is a question about the SCHEMA, and the ORM exists to hide
+        the schema. So: one `WHERE false` SELECT naming the columns.
+        Postgres resolves column names at parse time, so a missing one
+        raises `UndefinedColumn` while no row is ever scanned.
+
+        Every name is looked up in `_fields` first, which keeps the
+        interpolation safe (these are real field identifiers, never
+        input) and catches PROBE_FIELDS drifting out of date after a
+        rename -- a probe naming a field that no longer exists would
+        otherwise fail for the wrong reason for ever.
+        """
+        columns = []
+        for name in PROBE_FIELDS:
+            field = model._fields.get(name)
+            if field is None:
+                raise KeyError(
+                    "PROBE_FIELDS names %r, which aw.design no longer has "
+                    "-- update the probe" % name)
+            if field.store:
+                columns.append('"%s"' % field.name)
+        if not columns:
+            raise ValueError('PROBE_FIELDS names no stored column')
+        model.env.cr.execute('SELECT %s FROM "%s" WHERE false' % (
+            ', '.join(columns), model._table))
 
     _NO_DB = ('no single database to check (db_name names none, or more '
               'than one, and the request carries no database)')

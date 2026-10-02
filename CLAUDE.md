@@ -1394,6 +1394,29 @@ whose `addons_path` is `addons_print` only has no such route, so it would
   finding above, confirmed from the outside rather than only read in
   `odoo-src`.
 
+- **A probe that only reads columns when a row exists proves nothing on
+  an empty table.** `/aw/health`'s column check ran inside
+  `if design:`, so on a fresh database it answered **200 with
+  `aw_design.finish_id` genuinely dropped**. It looked right in
+  production only because production has designs. The boot job caught it
+  because its database is fresh — the same shape as every other "green
+  over something it never read" failure here.
+
+- **`('field', '!=', False)` does NOT reliably put a column into the
+  SQL.** It was the first fix for the above and would have been a silent
+  non-check: `_optimize_in_required` in `odoo/orm/domains.py` strips
+  `False` from the value set of a **required** field that is in
+  `registry.not_null_fields`, the set empties, `_optimize_in_set` turns
+  an empty `not in` into TRUE, and the column never appears in the
+  query. Worse than useless, it is *conditionally* useless — it depends
+  on the NOT NULL constraint existing, so it would work on a freshly
+  installed CI database and degrade exactly where it mattered. To assert
+  a SCHEMA fact, query the schema: one `SELECT "a","b" FROM "t" WHERE
+  false`, which Postgres resolves at parse time without scanning a row.
+  Look each name up in `_fields` first — it keeps the interpolation to
+  real identifiers and catches the probe's own field list going stale
+  after a rename.
+
 - **A script that starts and kills a server must refuse to run outside
   CI.** `ci_check_health_route.sh` was pointed at this workstation by
   accident and found the developer's own Odoo on port 8069, reporting its
