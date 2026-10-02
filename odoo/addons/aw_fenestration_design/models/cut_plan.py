@@ -14,6 +14,7 @@ longer exists.
 import hashlib
 import json
 import time
+from urllib.parse import urlencode
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -382,6 +383,65 @@ class AwCutPlan(models.Model):
             'aw_fenestration_design.action_report_aw_cut_labels_thermal'
         ).report_action(self)
 
+    # Error correction M, as specified: ~15% of the symbol can be lost
+    # and still read, which is the realistic ask for a sticker on an
+    # aluminium section in a workshop. Odoo's default is L (~7%).
+    QR_ERROR_LEVEL = 'M'
+
+    @api.model
+    def _qr_src(self, payload):
+        """The barcode controller URL for a QR of `payload`.
+
+        Built here rather than in the template because QWeb cannot
+        url-encode, and both are needed: the payload carries "/" and
+        "|", and `barLevel` only reaches the controller as a query
+        parameter -- the `/report/barcode/QR/<value>` path form accepts
+        no options at all, so it would silently stay at level L.
+        """
+        # urlencode from the stdlib, not werkzeug.urls.url_encode:
+        # werkzeug removed that helper and Odoo only still imports it
+        # through a compatibility shim, which is not something a module
+        # should depend on.
+        return '/report/barcode/?' + urlencode({
+            'barcode_type': 'QR',
+            'value': payload,
+            'barLevel': self.QR_ERROR_LEVEL,
+        })
+
+    def _sticker_qr(self, cut, product, thickness, finish, design,
+                    bar_no, bar_total, cut_no, site):
+        """The sticker's QR payload: compact, LABELLED text.
+
+        It replaces "<quote>|<piece ref>", which was only usable by
+        someone already holding this system: two bare values with
+        nothing saying what they were. Labelled fields can be read by a
+        fitter on site with any scanner app and no lookup.
+
+        Compact on purpose -- short keys, no JSON, no repeated units --
+        because every character costs QR modules, and the modules have
+        to survive a 50 x 30 mm thermal sticker. Empty parts are
+        dropped rather than printed as "WIN  |", so a piece with no
+        location does not spend capacity saying nothing.
+        """
+        profile = ' '.join(part for part in (
+            product.product_tmpl_id.name or '', thickness, finish) if part)
+        length = ' '.join(part for part in (
+            cut.length_label or '', cut.cut_angle or '') if part)
+        window = ' '.join(part for part in (
+            design.name or '', design.location or '') if part)
+        parts = [
+            ('REF', cut.piece_ref or ''),
+            ('PIECE', cut.label or ''),
+            ('PROFILE', profile),
+            ('LEN', length),
+            ('WIN', window),
+            ('ORDER', self.sale_order_id.name or ''),
+            ('BAR', '%s/%s CUT %s' % (bar_no, bar_total, cut_no)),
+            ('SITE', site),
+        ]
+        return ' | '.join('%s %s' % (key, value)
+                          for key, value in parts if value)
+
     def _sticker_rows(self):
         """Every cut, in cutting order: group, bar, then cut.
 
@@ -391,6 +451,10 @@ class AwCutPlan(models.Model):
         """
         self.ensure_one()
         rows = []
+        # Read once: it is the same for every piece on the plan, and
+        # _display_address is not free per row.
+        site = (self.sale_order_id._aw_site_address()
+                if self.sale_order_id else '')
         for group in self.group_ids:
             product = group.product_id
             thickness = finish = ''
@@ -402,6 +466,9 @@ class AwCutPlan(models.Model):
             for bar_index, bar in enumerate(group.bar_ids, start=1):
                 for cut_index, cut in enumerate(bar.cut_ids, start=1):
                     design = cut.bom_line_id.design_id
+                    payload = self._sticker_qr(
+                        cut, product, thickness, finish, design,
+                        bar_index, len(group.bar_ids), cut_index, site)
                     rows.append({
                         'ref': cut.piece_ref or '—',
                         'role': cut.label or '',
@@ -418,11 +485,8 @@ class AwCutPlan(models.Model):
                         'bar_total': len(group.bar_ids),
                         'cut_no': cut_index,
                         'stock': bar.stock_label,
-                        # Enough to find the piece again from a phone:
-                        # the quote and the reference identify it
-                        # uniquely, and the reference is stable.
-                        'qr': '%s|%s' % (self.sale_order_id.name or '',
-                                         cut.piece_ref or ''),
+                        'qr': payload,
+                        'qr_src': self._qr_src(payload),
                     })
         return rows
 

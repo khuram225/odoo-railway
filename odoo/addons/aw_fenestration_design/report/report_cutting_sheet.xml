@@ -182,7 +182,11 @@
                 <div t-attf-style="font-weight:bold; line-height:1.1; font-size:#{ref_size};">
                     <span t-esc="row['ref']"/>
                 </div>
-                <img t-att-src="'/report/barcode/QR/%s' % row['qr']"
+                <!-- src is built in Python (_qr_src): the barcode
+                     controller only accepts barLevel as a query
+                     parameter, and the payload carries slashes and
+                     pipes that the path form would mangle. -->
+                <img t-att-src="row['qr_src']"
                      t-attf-style="width:#{qr_size}; height:#{qr_size};"/>
             </div>
             <div t-attf-style="font-size:#{small}; line-height:1.25;">

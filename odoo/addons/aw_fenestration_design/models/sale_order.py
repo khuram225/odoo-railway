@@ -10,6 +10,26 @@ class SaleOrder(models.Model):
     # so it's a real column and can carry this One2many.
     aw_design_ids = fields.One2many(
         'aw.design', 'sale_order_id', string='Fenestration Designs')
+
+    def _aw_site_address(self):
+        """Where the window is going, on one line.
+
+        The DELIVERY address, falling back to the customer's own: a
+        fabricator's site is routinely not the billing address, and the
+        shop floor needs the one the van goes to.
+
+        Formatted by Odoo (`_display_address`) rather than assembled
+        here, so a country's own address layout is respected, then
+        flattened to one line because every consumer of this is a label
+        or a QR payload. Blank lines are dropped -- a partner with no
+        street would otherwise print ", , Lahore".
+        """
+        self.ensure_one()
+        partner = self.partner_shipping_id or self.partner_id
+        if not partner:
+            return ''
+        lines = partner._display_address(without_company=True).split('\n')
+        return ', '.join(part.strip() for part in lines if part.strip())
     aw_default_family_id = fields.Many2one(
         'aw.window.family', string='Default Glazing Family',
         ondelete='restrict',
