@@ -210,6 +210,12 @@ jobs:
       # schema. /aw/health/registry must still say 200 (it is what lets
       # the deploy go healthy so the Upgrade can be run at all) and
       # /aw/health must say 500 (there really is a missing column).
+      #
+      # The reason asserted is THIS ROUTE'S OWN message, not Postgres'
+      # alone -- it proves the 500 came out of the column probe rather
+      # than from anything else that might be unhappy. Note the column is
+      # named unquoted-by-table in the probe's SELECT, so Postgres says
+      # `column "finish_id" does not exist`, not `aw_design.finish_id`.
       # --------------------------------------------------------------
       - name: A missing column fails the deep probe and NOT the healthcheck
         run: |
@@ -231,7 +237,7 @@ jobs:
           PY
           sh scripts/ci_check_health_route.sh aw_boot \
             /aw/health/registry=200 \
-            '/aw/health=500@column aw_design.finish_id does not exist'
+            '/aw/health=500@aw.design is not readable: column "finish_id" does not exist'
 
       # --------------------------------------------------------------
       # A healthcheck that only ever returns 200 has not been tested.
