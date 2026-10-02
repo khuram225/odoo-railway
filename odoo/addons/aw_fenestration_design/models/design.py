@@ -127,7 +127,7 @@ class AwDesign(models.Model):
     # drawn. Defaults False, which is why every existing design and
     # every other entry point behaves exactly as before.
     system_locked = fields.Boolean(
-        string='Frame type chosen explicitly', default=False, copy=False,
+        string='Frame type chosen explicitly', default=False, copy=True,
         help="Set when the position was added with a Frame Type. The "
              "window system is then not re-derived from the panels.")
 
@@ -1464,8 +1464,14 @@ class AwDesign(models.Model):
                 "duplicate it onto."))
 
         rows = self._rows_payload(self.row_ids)
+        # lock_system is passed explicitly, not left to copy=True on the
+        # field: this method does NOT use Odoo's copy() (see the
+        # docstring), so the field's copy flag never reaches it. Without
+        # this, duplicating a position whose frame type was chosen
+        # deliberately would hand back one the panels are free to move.
         copy = order._create_fenestration_position(
-            self.window_series_id, location=self.location)
+            self.window_series_id, location=self.location,
+            lock_system=self.system_locked)
         copy.write({
             'qty': self.qty,
             'width_mm': self.width_mm,
