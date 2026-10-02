@@ -1264,19 +1264,25 @@ the registry on purpose with `scripts/ci_break_registry.sh`, and
 requires 500 — see the "asserting a reason" lesson below for why both
 directions check *why*, not just the code.
 
-It then **opens every view our modules own** with `get_view()`, which is
-not what installing does: installing validates each arch as it loads,
-whereas `get_view()` composes the inheritance, resolves every field
-against the model and runs access-rights post-processing. The
-`option_label` upgrade death and the missing `button_box` were both of
-that kind, and our extensions of CORE views were never composed in CI at
-all, since an extension is only built when something asks for its primary
-ancestor — which is what this now asks for (`scripts/ci_open_views.py`,
-piped into `odoo shell`, module list passed in from the job's own
-discovery so there is no second list to go stale). **It does not catch
-anything that only happens in a browser**: `get_view` returns an arch and
-never compiles an OWL template, so the kanban `record.<field>` class
-belongs to `check_view_fields.py`. Complements, not substitutes.
+It then **opens every view our modules own** with `get_view()` — the RPC a
+request actually makes, composing the inheritance, resolving fields and
+running access-rights post-processing (`scripts/ci_open_views.py`, piped
+into `odoo shell`, module list passed in from the job's own discovery so
+there is no second list to go stale; it fails rather than passes if
+discovery yields nothing or zero views open). 52 views for the aluminium
+tenant, 25 for print.
+
+**Two honest limits, both established by testing rather than assumed.**
+It catches nothing that only happens in a browser: `get_view` returns an
+arch and never compiles an OWL template, so the kanban `record.<field>`
+class belongs to `check_view_fields.py`. And it overlaps the install step
+almost entirely — a bogus field planted in an INHERITED view (which the
+static suite provably cannot see: all 24 checks passed on it) was caught
+by the boot job **at the install step**, before the opener ran, because
+installing validates a view's COMPOSED arch. That is why removing
+`option_label` died during an Upgrade. No case was found that the opener
+catches and the install misses, so treat it as a cheap second exercise,
+not as the thing standing between you and a broken view.
 
 **`all checks`** is the single status Railway's "Wait for CI" waits on.
 It has no steps; it is red unless both `static checks` and `boot test`

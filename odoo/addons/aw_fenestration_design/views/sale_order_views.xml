@@ -21,7 +21,6 @@
                     <group>
                         <field name="aw_default_family_id"
                                readonly="state not in ('draft', 'sent')"/>
-                        <field name="aw_no_such_field_ci_probe"/>
                         <!-- Phase 7e: a job is usually one colour, so set
                              it once here and every position added after
                              starts there. Each design's own finish stays

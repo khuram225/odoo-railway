@@ -6,15 +6,26 @@ Piped into `odoo shell`, which `exec`s a non-tty stdin with `env` in scope
     AW_CI_MODULES=mod1,mod2 odoo shell -d aw_boot --addons-path=... \
         < scripts/ci_open_views.py
 
-**What this catches that installing does not.** An install validates each
-arch as it loads it. It does not compose and post-process a view the way
-a request does, and that is a different operation with its own failures:
-`get_view()` resolves every field against the model, applies every
-inheriting view's xpaths, and runs access-rights post-processing. The
-`option_label` upgrade death and the missing `button_box` were both of
-that kind. Install-time validation is also per-module, so our extension
-of a CORE view is only ever composed when something asks for the core
-view -- which nothing in CI did until now.
+**What this is worth, measured rather than asserted.** `get_view()` is
+the actual RPC a request makes: it composes the inheritance, resolves
+every field against the model and runs access-rights post-processing.
+
+But be clear about the OVERLAP, because I tested it and it is large. A
+bogus field was put into an INHERITED view -- a case the static suite
+provably cannot see, since `check_view_fields.py` skips inherited views
+and `check_inherited_xpaths.py` checks locators rather than field names,
+and all 24 checks passed on it. The boot job caught it **at the install
+step**, before this script ran at all: installing validates a view's
+COMPOSED arch, which is exactly why the `option_label` removal died
+during an Upgrade rather than silently.
+
+So this does not demonstrably catch more than the install does, and no
+case was found that it catches and the install misses. It is kept as a
+second, request-shaped exercise -- `get_view` per view, including the
+access-rights pass the install does not perform the same way, over a view
+set that is discovered rather than listed -- at a cost of a few seconds.
+Claiming more than that would be the kind of unverified assurance the
+rest of this suite exists to prevent.
 
 **What it does NOT catch, stated plainly so this is not mistaken for
 cover it does not give:** anything that only happens in a browser.
