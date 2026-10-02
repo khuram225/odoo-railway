@@ -76,10 +76,14 @@ class AwWindowTemplate(models.Model):
     # independently: every section belonged to one system and was
     # picked by one spec, so naming and maintaining it twice was all
     # cost. The old links are kept and hidden until they are dropped.
+    # copy=True is REQUIRED, not decoration: One2many defaults to
+    # copy=False in Odoo ("o2m are not copied by default",
+    # odoo/orm/fields_relational.py), so without it Duplicate spec gives
+    # a spec with no profiles and no hardware.
     profile_line_ids = fields.One2many(
-        'aw.profile.section.line', 'spec_id', string='Profiles')
+        'aw.profile.section.line', 'spec_id', string='Profiles', copy=True)
     hardware_line_ids = fields.One2many(
-        'aw.hardware.set.line', 'spec_id', string='Hardware')
+        'aw.hardware.set.line', 'spec_id', string='Hardware', copy=True)
 
     profile_line_count = fields.Integer(compute='_compute_part_counts')
     hardware_line_count = fields.Integer(compute='_compute_part_counts')
@@ -216,10 +220,15 @@ class AwWindowTemplate(models.Model):
     def action_duplicate_spec(self):
         """Copy this spec, its lines and its deductions.
 
-        copy() carries the One2many lines because they are owned here
-        now -- which is the point of the phase: a variant of a spec used
-        to mean copying a Profile Section, a Hardware Set and the spec
-        that pointed at both, and keeping three names in step.
+        copy() carries the lines because `profile_line_ids` and
+        `hardware_line_ids` declare `copy=True` -- NOT because the spec
+        owns them. This docstring previously claimed ownership was
+        enough, which was never true: One2many defaults to copy=False,
+        so from 51b5b30 until now Duplicate spec produced a spec with
+        empty Profiles and Hardware tabs.
+
+        The glass spec and the deductions need no such flag; every other
+        field type copies by default.
         """
         self.ensure_one()
         new = self.copy({
