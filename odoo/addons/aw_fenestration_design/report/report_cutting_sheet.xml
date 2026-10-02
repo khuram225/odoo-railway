@@ -176,20 +176,21 @@
     the operator peels them in the order the saw works, not in the order
     the BOM happened to be built.
     -->
+    <!--
+    The QR sits BESIDE the text, at the sticker's full printable
+    height, rather than above it. A QR is square, so its size is
+    capped by the shorter dimension: on a 30 mm label the height is
+    all there is to give it, and the text has to take the width that
+    is left. Sizes are in mm, not px, because the whole question is
+    how many printer dots fall on one QR module.
+    -->
     <template id="report_cut_sticker">
-        <div t-attf-style="box-sizing:border-box; overflow:hidden; #{style}">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                <div t-attf-style="font-weight:bold; line-height:1.1; font-size:#{ref_size};">
+        <div t-attf-style="box-sizing:border-box; overflow:hidden; display:flex; align-items:flex-start; #{style}">
+            <div style="flex:1 1 auto; min-width:0; overflow:hidden;">
+                <div t-attf-style="font-weight:bold; line-height:1.05; font-size:#{ref_size};">
                     <span t-esc="row['ref']"/>
                 </div>
-                <!-- src is built in Python (_qr_src): the barcode
-                     controller only accepts barLevel as a query
-                     parameter, and the payload carries slashes and
-                     pipes that the path form would mangle. -->
-                <img t-att-src="row['qr_src']"
-                     t-attf-style="width:#{qr_size}; height:#{qr_size};"/>
-            </div>
-            <div t-attf-style="font-size:#{small}; line-height:1.25;">
+                <div t-attf-style="font-size:#{small}; line-height:1.25;">
                 <div><span t-esc="row['role']"/></div>
                 <div>
                     <span t-esc="row['profile']"/>
@@ -212,7 +213,14 @@
                     <span t-esc="row['bar_no']"/>/<span t-esc="row['bar_total']"/>
                     &#183; cut <span t-esc="row['cut_no']"/>
                 </div>
+                </div>
             </div>
+            <!-- src is built in Python (_qr_src): the barcode
+                 controller only accepts barLevel as a query parameter,
+                 and the payload carries slashes and pipes that the
+                 path form would mangle. -->
+            <img t-att-src="row['qr_src']"
+                 t-attf-style="width:#{qr_size}; height:#{qr_size}; flex:0 0 auto; margin-left:1.5mm;"/>
         </div>
     </template>
 
@@ -222,12 +230,12 @@
                 <div style="display:flex; flex-wrap:wrap;">
                     <t t-foreach="doc._sticker_rows()" t-as="row"
                        t-key="row_index">
-                        <div style="width:33.33%; height:95px; padding:4px;">
+                        <div style="width:33.33%; height:26mm; padding:4px;">
                             <t t-call="aw_fenestration_design.report_cut_sticker">
                                 <t t-set="style" t-value="'border:1px dashed #999; padding:5px; height:100%;'"/>
                                 <t t-set="ref_size" t-value="'15px'"/>
                                 <t t-set="small" t-value="'8px'"/>
-                                <t t-set="qr_size" t-value="'34px'"/>
+                                <t t-set="qr_size" t-value="'22mm'"/>
                             </t>
                         </div>
                     </t>
@@ -255,11 +263,15 @@
         <field name="binding_type">report</field>
     </record>
 
-    <!-- 50 x 30 mm thermal stock: one sticker per page, no margins. -->
+    <!-- 70 x 30 mm thermal stock: one sticker per page, 1 mm margins.
+         30 mm TALL deliberately (it goes on narrow profile faces), and
+         70 mm long because a full-height 28 mm QR leaves only ~18 mm
+         for text on a 50 mm label. The extra length buys text room; it
+         does NOT make the QR bigger, which is capped by the height. -->
     <record id="paperformat_aw_thermal_label" model="report.paperformat">
-        <field name="name">Fenestration Thermal Label 50x30</field>
+        <field name="name">Fenestration Thermal Label 70x30</field>
         <field name="format">custom</field>
-        <field name="page_width">50</field>
+        <field name="page_width">70</field>
         <field name="page_height">30</field>
         <field name="orientation">Portrait</field>
         <field name="margin_top">1</field>
@@ -277,9 +289,9 @@
                 <div class="page" style="page-break-after: always;">
                     <t t-call="aw_fenestration_design.report_cut_sticker">
                         <t t-set="style" t-value="'width:100%; height:100%;'"/>
-                        <t t-set="ref_size" t-value="'13px'"/>
+                        <t t-set="ref_size" t-value="'12px'"/>
                         <t t-set="small" t-value="'7px'"/>
-                        <t t-set="qr_size" t-value="'26px'"/>
+                        <t t-set="qr_size" t-value="'28mm'"/>
                     </t>
                 </div>
             </t>
@@ -295,12 +307,12 @@
     </template>
 
     <record id="action_report_aw_cut_labels_thermal" model="ir.actions.report">
-        <field name="name">Piece Labels (50x30 thermal)</field>
+        <field name="name">Piece Labels (70x30 thermal)</field>
         <field name="model">aw.cut.plan</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">aw_fenestration_design.report_cut_labels_thermal</field>
         <field name="report_file">aw_fenestration_design.report_cut_labels_thermal</field>
-        <field name="print_report_name">'Piece Labels 50x30 - %s' % (object.sale_order_id.name or '')</field>
+        <field name="print_report_name">'Piece Labels 70x30 - %s' % (object.sale_order_id.name or '')</field>
         <field name="paperformat_id" ref="paperformat_aw_thermal_label"/>
         <field name="binding_model_id" ref="model_aw_cut_plan"/>
         <field name="binding_type">report</field>

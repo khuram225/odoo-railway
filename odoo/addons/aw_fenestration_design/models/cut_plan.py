@@ -409,19 +409,21 @@ class AwCutPlan(models.Model):
         })
 
     def _sticker_qr(self, cut, product, thickness, finish, design,
-                    bar_no, bar_total, cut_no, site):
-        """The sticker's QR payload: compact, LABELLED text.
+                    bar_no, bar_total, cut_no):
+        """The sticker's QR payload: bare values, pipe separated.
 
-        It replaces "<quote>|<piece ref>", which was only usable by
-        someone already holding this system: two bare values with
-        nothing saying what they were. Labelled fields can be read by a
-        fitter on site with any scanner app and no lookup.
+        It replaces "<quote>|<piece ref>", two values with nothing
+        saying what they were. The fields are in a fixed order --
+        piece ref, where it goes, profile, length and angles, window,
+        order, then bar and cut -- and only the last carries keys,
+        because "1/13 CUT 1" is the one part that is meaningless
+        without them.
 
-        Compact on purpose -- short keys, no JSON, no repeated units --
-        because every character costs QR modules, and the modules have
-        to survive a 50 x 30 mm thermal sticker. Empty parts are
-        dropped rather than printed as "WIN  |", so a piece with no
-        location does not spend capacity saying nothing.
+        Every character costs QR modules and the modules have to
+        survive a thermal sticker, so the keys came off and the site
+        address went to the window label, where there is room for it.
+        Empty parts are dropped rather than printed as " |  | ", so a
+        piece with no location spends nothing saying nothing.
         """
         profile = ' '.join(part for part in (
             product.product_tmpl_id.name or '', thickness, finish) if part)
@@ -430,17 +432,15 @@ class AwCutPlan(models.Model):
         window = ' '.join(part for part in (
             design.name or '', design.location or '') if part)
         parts = [
-            ('REF', cut.piece_ref or ''),
-            ('PIECE', cut.label or ''),
-            ('PROFILE', profile),
-            ('LEN', length),
-            ('WIN', window),
-            ('ORDER', self.sale_order_id.name or ''),
-            ('BAR', '%s/%s CUT %s' % (bar_no, bar_total, cut_no)),
-            ('SITE', site),
+            cut.piece_ref or '',
+            cut.label or '',
+            profile,
+            length,
+            window,
+            self.sale_order_id.name or '',
+            'BAR %s/%s CUT %s' % (bar_no, bar_total, cut_no),
         ]
-        return ' | '.join('%s %s' % (key, value)
-                          for key, value in parts if value)
+        return ' | '.join(part for part in parts if part)
 
     def _sticker_rows(self):
         """Every cut, in cutting order: group, bar, then cut.
@@ -451,10 +451,6 @@ class AwCutPlan(models.Model):
         """
         self.ensure_one()
         rows = []
-        # Read once: it is the same for every piece on the plan, and
-        # _display_address is not free per row.
-        site = (self.sale_order_id._aw_site_address()
-                if self.sale_order_id else '')
         for group in self.group_ids:
             product = group.product_id
             thickness = finish = ''
@@ -468,7 +464,7 @@ class AwCutPlan(models.Model):
                     design = cut.bom_line_id.design_id
                     payload = self._sticker_qr(
                         cut, product, thickness, finish, design,
-                        bar_index, len(group.bar_ids), cut_index, site)
+                        bar_index, len(group.bar_ids), cut_index)
                     rows.append({
                         'ref': cut.piece_ref or '—',
                         'role': cut.label or '',
