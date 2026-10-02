@@ -23,8 +23,24 @@
 # made-up HTTP code.
 set -eu
 
-db=${1:?usage: ci_check_health_route.sh <database> <expected status>}
-expect=${2:?usage: ci_check_health_route.sh <database> <expected status>}
+usage() {
+    echo "usage: ci_check_health_route.sh <database> <path>=<status>[@<reason>] ..." >&2
+    echo "  e.g. ci_check_health_route.sh aw_boot /aw/health/registry=200 \\" >&2
+    echo "         '/aw/health=500@column .* does not exist'" >&2
+    echo "  <reason> is a regex that must appear in the server log for a" >&2
+    echo "  non-200; it defaults to 'does not exist in registry'." >&2
+}
+
+db=${1:-}
+[ -n "$db" ] || { usage; exit 2; }
+shift
+[ "$#" -gt 0 ] || { usage; exit 2; }
+
+# Several paths against ONE server start. The two routes have to be
+# checked together -- the whole point of the split is that they disagree
+# in the deploy-before-upgrade state, and that is only a meaningful
+# assertion if both are asked of the same running build.
+specs=$*
 
 log=/tmp/odoo_http_${db}.log
 addons=/usr/lib/python3/dist-packages/odoo/addons,odoo/addons
@@ -80,123 +96,139 @@ if port_is_open; then
     exit 1
 fi
 
-echo "--- starting odoo on $db (expecting /aw/health -> $expect) ---"
+echo "--- starting odoo on $db, checking: $specs ---"
 # `-d` IS the db_name setting (config.py declares it dest='db_name',
 # type='comma'), and setting it is what lets an anonymous request resolve
 # a database: _get_session_and_dbname falls back to the single database
 # db_filter leaves, and db_filter filters by config['db_name']. Without
 # it the request has no database, is served by the nodb routing map, and
 # never reaches a module's controller at all -- a 404, not a verdict.
+started_at=$(date +%s)
 odoo -d "$db" \
     --addons-path="$addons" \
     --http-port="$port" --log-level=info >"$log" 2>&1 &
 server=$!
 echo "$server" > "$pidfile"
 
-code=''
+cleanup() {
+    kill "$server" 2>/dev/null || true
+    rm -f "$pidfile"
+}
+
+fail() {
+    echo "::error::$1"
+    echo "--- last response body ---"
+    cat /tmp/health_body.txt 2>/dev/null || echo "(no body)"
+    echo "--- last 80 lines of the odoo log ---"
+    tail -80 "$log" 2>/dev/null || echo "(no log at $log)"
+    cleanup
+    exit 1
+}
+
+# Readiness, measured on the first path given. `curl` with no -m, because
+# the socket is bound before the registry is loaded (ThreadedServer.run
+# does http_spawn() then preload_registries, both under Registry._lock),
+# so the FIRST request legitimately waits out the registry load.
+first_path=${1%%=*}
+ready=''
 for _ in $(seq 1 90); do
-    # -o writes the body, -w prints ONLY the status. No `|| echo`: a
-    # failed connection must look like a failed connection.
-    if curl -s -o /tmp/health_body.txt -w '%{http_code}' \
-            "http://localhost:$port/aw/health" >/tmp/health_code.txt 2>/dev/null
+    if curl -s -o /dev/null -w '%{http_code}' \
+            "http://localhost:$port$first_path" >/tmp/health_code.txt 2>/dev/null
     then
-        code=$(cat /tmp/health_code.txt)
-        [ "$code" = "000" ] || break
-        code=''
+        [ "$(cat /tmp/health_code.txt)" = "000" ] || { ready=1; break; }
     fi
     # A server that has exited is never going to answer; waiting out the
     # full timeout would just hide the reason.
     kill -0 "$server" 2>/dev/null || { echo "odoo exited before serving"; break; }
     sleep 2
 done
-
-fail() {
-    echo "::error::$1"
-    echo "--- /aw/health body ---"
-    cat /tmp/health_body.txt 2>/dev/null || echo "(no body)"
-    echo "--- last 80 lines of the odoo log ---"
-    tail -80 "$log" 2>/dev/null || echo "(no log at $log)"
-    kill "$server" 2>/dev/null || true
-    rm -f "$pidfile"
-    exit 1
-}
-
-[ -n "$code" ] || fail "odoo never answered on port $port (no HTTP response at all)"
-
-echo "status=$code"
-echo "body: $(cat /tmp/health_body.txt 2>/dev/null)"
-
-if [ "$code" != "$expect" ]; then
-    fail "/aw/health returned $code, expected $expect"
-fi
+[ -n "$ready" ] || fail "odoo never answered on port $port (no HTTP response at all)"
 
 # ---------------------------------------------------------------------
-# The status code is not enough. BOTH directions can be right by
-# accident, and one of them already was: the route read config['db_name']
-# -- a LIST in Odoo 19 -- and handed it to Registry(), so it answered 500
-# on a perfectly healthy instance. A step asserting only "500" would have
-# called that a pass and reported the gate verified.
+# COLD START TO FIRST ANSWER. This, not per-request latency, is what
+# Railway's healthcheckTimeout (300s in odoo/railway.json) is measured
+# against: it polls a fresh container until one answer comes back.
 #
-# So each direction has to be right FOR THE STATED REASON.
+# Reported because the question "is this well inside the timeout?"
+# deserves a measurement rather than an opinion. Note what it is NOT:
+# the ~63s "Registry loaded in" line in an INSTALL log is the whole
+# `-i` run -- every module and every data file -- not a registry load on
+# an installed database. Those are different numbers by two orders of
+# magnitude, and confusing them is how a healthcheck timeout gets set by
+# superstition.
 # ---------------------------------------------------------------------
-body=$(cat /tmp/health_body.txt 2>/dev/null || true)
+ready_after=$(( $(date +%s) - started_at ))
+echo "--- first answer ${ready_after}s after start; server reports: $(
+    grep -oE 'Registry loaded in [0-9.]+s' "$log" | head -1)"
+echo "::notice::$db cold start to first HTTP answer: ${ready_after}s ($(
+    grep -oE 'Registry loaded in [0-9.]+s' "$log" | head -1))"
 
-case "$expect" in
-200)
-    # Our route's own words. Anything else answering 200 on this path --
-    # a proxy, a stray server, core's 404 page under a redirect -- is not
-    # this gate passing.
-    case "$body" in
-        pass:*) echo "confirmed: the 200 came from /aw/health itself" ;;
-        *) fail "200 did not come from this route; body was: $body" ;;
+for spec in "$@"; do
+    path=${spec%%=*}
+    rest=${spec#*=}
+    expect=${rest%%@*}
+    case "$rest" in
+        *@*) reason=${rest#*@} ;;
+        *)   reason='does not exist in registry' ;;
     esac
-    ;;
-500)
-    # The 500 must be the REGISTRY refusing to build, which is the fault
-    # being reintroduced. A 500 from any other cause means the gate was
-    # not exercised, however red it looks.
-    if grep -q 'does not exist in registry' "$log"; then
-        echo "confirmed: the 500 is the registry refusing to build"
-        grep -E 'aw health check FAILED|does not exist in registry' "$log" \
-            | head -5
-        echo "::notice::the 500 is a registry failure: $(
-            grep -o "Model '[^']*' does not exist in registry" "$log" \
-            | head -1)"
+
+    # Each request is timed, because "well inside Railway's healthcheck
+    # timeout" is a claim about seconds and has to be measured rather
+    # than assumed.
+    # Assigned, then OVERWRITTEN on failure -- never
+    # `$(curl ... || echo ...)`, which concatenates curl's own output with
+    # the fallback's. That is literally how an earlier version of this
+    # reported a status of "000000".
+    out=$(curl -s -o /tmp/health_body.txt -w '%{http_code} %{time_total}' \
+          "http://localhost:$port$path" 2>/dev/null) || out='000 0'
+    seconds=${out#* }
+    code=${out%% *}
+    body=$(tr '\n' ' ' < /tmp/health_body.txt 2>/dev/null | head -c 200 || true)
+
+    echo "--- $path -> $code in ${seconds}s"
+    [ "$code" = "$expect" ] \
+        || fail "$path returned $code, expected $expect"
+
+    # ---------------------------------------------------------------
+    # The status code is not enough. BOTH directions can be right by
+    # accident, and one of them already was: the route read
+    # config['db_name'] -- a LIST in Odoo 19 -- and handed it to
+    # Registry(), so it answered 500 on a perfectly healthy instance. A
+    # step asserting only "500" would have called that a pass and
+    # reported the gate verified. So each outcome must be right FOR THE
+    # STATED REASON.
+    # ---------------------------------------------------------------
+    if [ "$expect" = "200" ]; then
+        # Our route's own words. Anything else answering 200 -- a proxy,
+        # a stray server, core's page under a redirect -- is not this
+        # gate passing.
+        case "$body" in
+            pass:*) : ;;
+            *) fail "$path: 200 did not come from this route; body: $body" ;;
+        esac
     else
-        fail "got a 500, but the log never says the registry failed -- so this
-500 has some other cause and the gate was not actually exercised"
+        grep -qE "$reason" "$log" \
+            || fail "$path: got $code, but the log never matches '$reason',
+so this failure has some other cause and the gate was not exercised"
     fi
-    ;;
-esac
 
-# ---------------------------------------------------------------------
-# Publish the evidence, so a green tick is not the only thing on offer.
-#
-# As a `::notice::` ANNOTATION, which is the part that can be read back
-# without a token (`/check-runs/<id>/annotations`). $GITHUB_STEP_SUMMARY
-# was the first choice and was wrong: it renders in the run's UI but does
-# NOT come back as the check run's output.summary, so the evidence was
-# unreadable from outside exactly as before. Kept as well, because it is
-# the nicer thing for a person to look at.
-#
-# Single line: a newline ends an annotation.
-echo "::notice::/aw/health on $db: expected $expect, got $code -- $(
-    printf '%s' "$body" | tr '\n' ' ' | head -c 160)"
+    # Published as a ::notice:: ANNOTATION, which is the part readable
+    # back without a token (/check-runs/<id>/annotations).
+    # $GITHUB_STEP_SUMMARY was the first choice and was wrong: it renders
+    # in the run's UI but never appears as the check run's
+    # output.summary, so the evidence stayed as unreadable as before.
+    # Single line -- a newline ends an annotation.
+    echo "::notice::$path on $db: expected $expect, got $code in ${seconds}s -- $body"
 
-if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-    {
-        echo "### /aw/health on \`$db\`: expected $expect, got **$code**"
-        echo
-        echo "- body: \`$(printf '%s' "$body" | head -c 200)\`"
-        if [ "$expect" = "500" ]; then
-            echo "- reason:"
-            echo '```'
-            grep -E 'does not exist in registry' "$log" | head -3
-            echo '```'
-        fi
-    } >> "$GITHUB_STEP_SUMMARY"
-fi
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+        {
+            echo "- \`$path\` on \`$db\`: expected $expect, got **$code**" \
+                 "in ${seconds}s — \`$body\`"
+            [ "$expect" = "200" ] || {
+                echo "  - matched: \`$(grep -oE "$reason" "$log" | head -1)\`"; }
+        } >> "$GITHUB_STEP_SUMMARY"
+    fi
+done
 
-kill "$server" 2>/dev/null || true
-rm -f "$pidfile"
-echo "ok: /aw/health returned $expect as required"
+cleanup
+echo "ok: every path answered as required"

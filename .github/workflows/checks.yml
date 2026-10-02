@@ -194,8 +194,44 @@ jobs:
       # Verifying the route here is the difference between believing it
       # reports a broken registry and knowing it does.
       # --------------------------------------------------------------
-      - name: The /aw/health route answers 200 on a good build
-        run: sh scripts/ci_check_health_route.sh aw_boot 200
+      - name: Both health routes answer 200 on a good, upgraded build
+        run: |
+          sh scripts/ci_check_health_route.sh aw_boot \
+            /aw/health/registry=200 /aw/health=200
+
+      # --------------------------------------------------------------
+      # THE REASON THE TWO ROUTES ARE SEPARATE, asserted rather than
+      # explained. Railway holds the old container until the new one is
+      # healthy, and the Upgrade is run FROM the new one -- so a
+      # healthcheck that demands upgraded columns deadlocks every
+      # schema-changing release.
+      #
+      # Dropping a column reproduces exactly that state: new code, old
+      # schema. /aw/health/registry must still say 200 (it is what lets
+      # the deploy go healthy so the Upgrade can be run at all) and
+      # /aw/health must say 500 (there really is a missing column).
+      # --------------------------------------------------------------
+      - name: A missing column fails the deep probe and NOT the healthcheck
+        run: |
+          set -eu
+          # psycopg2, not psql: the odoo image is not documented to carry
+          # postgresql-client and this repo's Dockerfile does not add it,
+          # whereas psycopg2 is a hard requirement of Odoo itself. A gate
+          # that goes red because a client binary is missing is noise.
+          python3 - <<'PY'
+          import os
+          import psycopg2
+          cn = psycopg2.connect(dbname='aw_boot', host=os.environ['PGHOST'],
+                                user=os.environ['PGUSER'],
+                                password=os.environ['PGPASSWORD'])
+          cn.autocommit = True
+          with cn.cursor() as cr:
+              cr.execute('ALTER TABLE aw_design DROP COLUMN finish_id')
+          print('dropped column aw_design.finish_id')
+          PY
+          sh scripts/ci_check_health_route.sh aw_boot \
+            /aw/health/registry=200 \
+            '/aw/health=500@column aw_design.finish_id does not exist'
 
       # --------------------------------------------------------------
       # A healthcheck that only ever returns 200 has not been tested.
@@ -210,11 +246,15 @@ jobs:
       # it still fails. It is the LAST step, so the sabotaged working
       # tree cannot affect anything else.
       # --------------------------------------------------------------
-      - name: And 500 when the registry is deliberately broken
+      - name: And BOTH return 500 when the registry is deliberately broken
         run: |
           set -eu
           sh scripts/ci_break_registry.sh
-          sh scripts/ci_check_health_route.sh aw_boot 500
+          # Both, including the healthcheck: a registry that will not build
+          # is the one failure Railway must never call healthy, and it is
+          # the failure that shipped green once already.
+          sh scripts/ci_check_health_route.sh aw_boot \
+            /aw/health/registry=500 /aw/health=500
 
       # The static suite must also catch this by reading the code, which
       # is the cheap gate that should have stopped 7549098 in the first

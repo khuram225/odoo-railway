@@ -1252,10 +1252,42 @@ directions check *why*, not just the code.
 It has no steps; it is red unless both `static checks` and `boot test`
 are green, so adding a third gate later is one line.
 
-**The healthcheck path is `/aw/health`** (`aw_fenestration_design/
-controllers/health.py`). Set it as Railway's healthcheck: core's
-`/web/health` never loads the registry — at most it pings the Postgres
-*server* — which is why a completely broken deploy once reported healthy.
+**There are TWO health routes, and which one Railway uses is
+load-bearing** (`aw_fenestration_design/controllers/health.py`):
+
+- **`/aw/health/registry`** — registry builds, `aw.design` resolves via
+  `registry['aw.design']` (a dict lookup, `odoo/orm/registry.py:342`),
+  and **no column is read**. This is `healthcheckPath` in
+  `odoo/railway.json`.
+- **`/aw/health`** — the same plus a real `read()` of named columns. Run
+  by hand after an Upgrade; CI runs it on a database it just installed.
+
+Core's `/web/health` was the healthcheck before and never loads the
+registry at all — at most it pings the Postgres *server* — which is why a
+completely broken deploy once reported healthy.
+
+**Why the deep probe must NOT be the healthcheck.** Railway keeps the old
+container until the new one reports healthy, and the Upgrade is run FROM
+the new one. A healthcheck demanding upgraded columns therefore deadlocks
+every schema-changing release: the new container cannot go healthy until
+it is upgraded, and cannot be upgraded until it is healthy. Since this
+repo's whole history is new stored fields awaiting an Upgrade, that is
+most releases. The boot job asserts the split by **dropping
+`aw_design.finish_id`** and requiring `/aw/health/registry` → 200 while
+`/aw/health` → 500.
+
+**The healthcheck lives in `odoo/railway.json`, not the Railway UI** —
+`healthcheckTimeout` is 300s there. Cold start to first answer is
+reported by the boot job as a `::notice::`; production loads its registry
+in ~0.5s for 73 modules. Beware one misreading: the ~63s *"Registry
+loaded in"* line in an **install** log is the whole `-i` run, every
+module and every data file, not a registry load on an installed database.
+
+**Consequence for tenancy, worth knowing before the print service
+exists:** this path is served by a custom aluminium module. A service
+whose `addons_path` is `addons_print` only has no such route, so it would
+404 and never go healthy. The print service needs its own
+`healthcheckPath` — `/web/health`, or a `pp_*` route of its own.
 
 ## Hard-won lessons
 

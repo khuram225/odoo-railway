@@ -45,7 +45,20 @@ happy:
    fields turns that into a 500 here instead of a surprise on somebody's
    first page load.
 
-Path: **/aw/health** -- set it as Railway's healthcheck.
+**Two routes, because those two checks must not be the same one.**
+
+- **`/aw/health/registry`** -- registry builds, `aw.design` resolves, NO
+  columns read. **This is Railway's healthcheck.**
+- **`/aw/health`** -- the above plus a real read of named columns. Run by
+  hand after an Upgrade; CI runs it against a database it just installed.
+
+Splitting them is not tidiness, it is the difference between deploying
+and deadlocking. Railway holds the old container until the new one is
+healthy, and the Upgrade is run FROM the new one. Make the healthcheck
+demand upgraded columns and every schema-changing release wedges: the new
+container cannot go healthy until it is upgraded, and cannot be upgraded
+until it is healthy. The column probe is therefore the one you run after,
+not the gate you pass through.
 
 **One limit to know.** A request with no database at all is served by
 `Application._serve_nodb`, whose routing map is built only from
@@ -76,19 +89,68 @@ PROBE_FIELDS = ['name', 'window_series_id', 'template_id', 'finish_id']
 
 class AwHealth(http.Controller):
 
-    @http.route('/aw/health', type='http', auth='none', save_session=False)
-    def aw_health(self, db=None, **kwargs):
-        """200 when the application is really there, 500 otherwise."""
-        name = db or getattr(request, 'db', None) or self._configured_db()
+    @http.route('/aw/health/registry', type='http', auth='none',
+                save_session=False)
+    def aw_health_registry(self, db=None, **kwargs):
+        """**This is Railway's healthcheck.** Registry only, no columns.
+
+        It answers 200 for a deploy that has new code and has NOT been
+        upgraded yet, and that is the entire point. Railway keeps the old
+        container until the new one reports healthy, and the Upgrade is
+        run FROM the new one -- so a healthcheck that demands upgraded
+        columns can never go green on the deploy that would create them.
+        Every schema-changing release would deadlock: the new container
+        never becomes healthy, so it never serves the Upgrade, so the
+        columns never appear.
+
+        So this proves only what must be true before anyone can upgrade:
+        the module graph builds and `aw.design` is in the registry. The
+        lookup is `registry['aw.design']`, a dict access raising KeyError
+        (`odoo/orm/registry.py:342`) -- no cursor, no SELECT, not one
+        column named. A missing column cannot fail it.
+
+        Database connectivity is still covered, by core rather than here:
+        a request carrying a database reaches this through `_serve_db`,
+        which has already opened a readonly cursor and run
+        `check_signaling` before any controller is matched.
+
+        `/aw/health` is the deeper probe, for after the Upgrade.
+        """
+        name = self._target_db(db)
         if not name:
-            return self._fail(
-                'no single database to check (db_name names none, or more '
-                'than one, and the request carries no database)')
+            return self._fail(self._NO_DB)
 
         try:
-            # THE point of this route. Raises on a module graph that will
-            # not build; a failed registry is never cached, so a broken
-            # deploy keeps failing rather than answering from a stale one.
+            # A failed registry is never cached, so a broken deploy keeps
+            # failing rather than answering from a stale one.
+            registry = Registry(name)
+        except Exception as exc:
+            return self._fail('registry would not load: %s' % exc)
+
+        try:
+            registry['aw.design']
+        except KeyError:
+            # The 7549098 shape: the graph built but our model is not in
+            # it. Worth distinguishing from a registry that would not
+            # build at all, since the remedy is different.
+            return self._fail("'aw.design' is not in the registry")
+
+        return self._respond(200, 'pass: registry loaded, aw.design resolves')
+
+    @http.route('/aw/health', type='http', auth='none', save_session=False)
+    def aw_health(self, db=None, **kwargs):
+        """The full probe: registry, plus real columns. **Not** the
+        healthcheck -- see `/aw/health/registry` for why.
+
+        Run this by hand after an Upgrade, where "the columns are there
+        now" is exactly the question. CI runs it too, on a database it
+        has just installed.
+        """
+        name = self._target_db(db)
+        if not name:
+            return self._fail(self._NO_DB)
+
+        try:
             registry = Registry(name)
         except Exception as exc:
             return self._fail('registry would not load: %s' % exc)
@@ -111,6 +173,12 @@ class AwHealth(http.Controller):
             return self._fail('aw.design is not readable: %s' % exc)
 
         return self._respond(200, 'pass: %s' % detail)
+
+    _NO_DB = ('no single database to check (db_name names none, or more '
+              'than one, and the request carries no database)')
+
+    def _target_db(self, db=None):
+        return db or getattr(request, 'db', None) or self._configured_db()
 
     def _configured_db(self):
         """The one configured database, or None if that is not a single name.
