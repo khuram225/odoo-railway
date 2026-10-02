@@ -1471,6 +1471,15 @@ class AwDesign(models.Model):
         # deliberately would hand back one the panels are free to move.
         copy = order._create_fenestration_position(
             self.window_series_id, location=self.location,
+            # The family is passed rather than left to fall back to the
+            # system's own: the two can differ, and the fallback would
+            # quietly replace a deliberate family with the series'.
+            family=self.family_id,
+            # The SPEC, which the copy did not carry: without it
+            # _resolve_spec hands the duplicate its system's DEFAULT
+            # spec, so duplicating a position built on a non-default
+            # spec gave back a different window at a different price.
+            spec=self.template_id,
             lock_system=self.system_locked)
         copy.write({
             'qty': self.qty,
@@ -1481,6 +1490,12 @@ class AwDesign(models.Model):
             'thickness_id': self.thickness_id.id,
             'manual_rate': self.manual_rate,
         })
+        # Per-window changes. copy() on each override rather than a
+        # hand-built dict, so a field added to aw.design.override later
+        # comes along without this line being remembered.
+        for override in self.override_ids:
+            override.copy({'design_id': copy.id})
+
         copy.row_ids.unlink()          # drop the starter row
         copy._create_rows(rows, parent_leaf=None)
         copy._renumber_panels()
