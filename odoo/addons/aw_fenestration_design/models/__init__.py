@@ -19,3 +19,5 @@ from . import costing
 from . import cut_plan
 from . import position_product
 from . import sale_order
+from . import res_config_settings
+from . import cut_label_wizard

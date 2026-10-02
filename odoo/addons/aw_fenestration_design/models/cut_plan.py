@@ -30,6 +30,12 @@ PARAM_TRIM = 'aw_fenestration.start_trim_mm'
 PARAM_MARGIN = 'aw_fenestration.safety_margin_mm'
 PARAM_BUDGET = 'aw_fenestration.solve_budget_s'
 
+# Precut label sheet. Defined in models/res_config_settings.py, which
+# also owns the A4 sheet constants.
+from .res_config_settings import SHEET_H, SHEET_W  # noqa: E402
+
+LABEL_P = 'aw_fenestration.label_'
+
 DEFAULT_STOCK = '14,16,18'
 DEFAULT_KERF = 5.0
 DEFAULT_OFFCUT = 400.0
@@ -441,6 +447,89 @@ class AwCutPlan(models.Model):
             'BAR %s/%s CUT %s' % (bar_no, bar_total, cut_no),
         ]
         return ' | '.join(part for part in parts if part)
+
+    # ------------------------------------------------------------------
+    # precut label sheet
+    # ------------------------------------------------------------------
+    def _label_layout(self):
+        """The sheet's geometry, from settings."""
+        param = self.env['ir.config_parameter'].sudo()
+
+        def number(key, default):
+            try:
+                return float(param.get_param(LABEL_P + key, default))
+            except (TypeError, ValueError):
+                return default
+
+        def count(key, default):
+            try:
+                return max(1, int(float(param.get_param(LABEL_P + key,
+                                                        default))))
+            except (TypeError, ValueError):
+                return default
+
+        return {
+            'w': number('w', 70.0), 'h': number('h', 29.7),
+            'across': count('across', 3), 'down': count('down', 10),
+            'top': number('top', 0.0), 'left': number('left', 0.0),
+            'gap_x': number('gap_x', 0.0), 'gap_y': number('gap_y', 0.0),
+            'offset_x': number('offset_x', 0.0),
+            'offset_y': number('offset_y', 0.0),
+            'safe': number('safe', 4.0),
+        }
+
+    def _sticker_pages(self, start_at=1):
+        """Stickers placed on the precut grid, one list per sheet.
+
+        The arithmetic is here and not in the template because it is
+        arithmetic: a cell's position, and how much of the safe padding
+        each of its four sides needs. QWeb would make it unreadable and
+        untestable.
+
+        `start_at` is 1-based and lets a part-used sheet be reused: the
+        first N-1 cells are left empty and the run continues from there.
+        """
+        self.ensure_one()
+        rows = self._sticker_rows()
+        layout = self._label_layout()
+        across, down = layout['across'], layout['down']
+        per_sheet = across * down
+
+        # Clamped, because a start beyond the sheet would silently
+        # print nothing at all.
+        start = min(max(int(start_at or 1), 1), per_sheet)
+        queue = [None] * (start - 1) + rows
+
+        pages = []
+        for offset in range(0, len(queue), per_sheet):
+            cells = []
+            for slot, row in enumerate(queue[offset:offset + per_sheet]):
+                if row is None:
+                    continue        # a used-up label on a reused sheet
+                column, line = slot % across, slot // across
+                x = (layout['left'] + column * (layout['w'] + layout['gap_x'])
+                     + layout['offset_x'])
+                y = (layout['top'] + line * (layout['h'] + layout['gap_y'])
+                     + layout['offset_y'])
+                # Padding only where the label meets the SHEET edge, so
+                # an inner label keeps the full width of its stock.
+                pad_left = max(0.0, layout['safe'] - x)
+                pad_top = max(0.0, layout['safe'] - y)
+                pad_right = max(
+                    0.0, layout['safe'] - (SHEET_W - (x + layout['w'])))
+                pad_bottom = max(
+                    0.0, layout['safe'] - (SHEET_H - (y + layout['h'])))
+                cells.append({
+                    'row': row,
+                    'box': ('position:absolute; left:%.2fmm; top:%.2fmm; '
+                            'width:%.2fmm; height:%.2fmm; overflow:hidden;'
+                            % (x, y, layout['w'], layout['h'])),
+                    'inner': ('height:100%%; padding:%.2fmm %.2fmm %.2fmm '
+                              '%.2fmm;' % (pad_top, pad_right, pad_bottom,
+                                           pad_left)),
+                })
+            pages.append(cells)
+        return pages or [[]]
 
     def _sticker_rows(self):
         """Every cut, in cutting order: group, bar, then cut.

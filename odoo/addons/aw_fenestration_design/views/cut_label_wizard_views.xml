@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_cut_label_start_wizard_form" model="ir.ui.view">
+        <field name="name">aw.cut.label.start.wizard.form</field>
+        <field name="model">aw.cut.label.start.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Print Piece Stickers">
+                <group>
+                    <field name="plan_id" invisible="1"/>
+                    <field name="per_sheet" invisible="1"/>
+                    <field name="start_at"/>
+                </group>
+                <p class="text-muted">
+                    <field name="sticker_count" class="oe_inline"/>
+                    sticker(s) to print, <field name="per_sheet" class="oe_inline"/>
+                    per sheet. Counting left to right, top to bottom, so a
+                    part-used sheet can be fed back in.
+                </p>
+                <footer>
+                    <button name="action_print" type="object" string="Print"
+                            class="btn-primary"/>
+                    <button special="cancel" string="Cancel"
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_cut_label_start" model="ir.actions.act_window">
+        <field name="name">Print Piece Stickers</field>
+        <field name="res_model">aw.cut.label.start.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="views" eval="[(0, 'form')]"/>
+        <field name="target">new</field>
+        <field name="context">{'default_plan_id': active_id}</field>
+        <field name="binding_model_id" ref="model_aw_cut_plan"/>
+        <field name="binding_type">action</field>
+    </record>
+
+</odoo>

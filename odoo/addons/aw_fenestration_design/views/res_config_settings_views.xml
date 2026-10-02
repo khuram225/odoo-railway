@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+    Added to core's Fenestration app block rather than a new one: a
+    second "Fenestration" app page in Settings would read as a second
+    product. The app element is matched by name, which is why core's
+    one carries it.
+    -->
+    <record id="res_config_settings_view_form_labels" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.aw_fenestration_design</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="aw_fenestration_core.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//app[@name='aw_fenestration_core']" position="inside">
+                <block title="Piece Sticker Sheet"
+                       name="aw_fenestration_label_setting_container">
+                    <setting id="aw_label_size_setting" string="Label size"
+                             help="One label on the precut sheet, in millimetres.">
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label for="aw_label_w" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_w"/>
+                            </div>
+                            <div class="row">
+                                <label for="aw_label_h" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_h"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="aw_label_grid_setting" string="Labels per sheet"
+                             help="How many labels the sheet carries across and down.">
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label for="aw_label_across" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_across"/>
+                            </div>
+                            <div class="row">
+                                <label for="aw_label_down" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_down"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="aw_label_margin_setting" string="Sheet margins and gaps"
+                             help="Measured from the sheet's own top-left corner. Zero for stock that tiles the page edge to edge.">
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label for="aw_label_top_mm" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_top_mm"/>
+                            </div>
+                            <div class="row">
+                                <label for="aw_label_left_mm" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_left_mm"/>
+                            </div>
+                            <div class="row">
+                                <label for="aw_label_gap_x_mm" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_gap_x_mm"/>
+                            </div>
+                            <div class="row">
+                                <label for="aw_label_gap_y_mm" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_gap_y_mm"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="aw_label_offset_setting" string="Printer offset"
+                             help="Nudges the whole grid, for a printer that feeds slightly off. Print one sheet, measure the drift, put it here.">
+                        <div class="content-group">
+                            <div class="row mt8">
+                                <label for="aw_label_offset_x_mm" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_offset_x_mm"/>
+                            </div>
+                            <div class="row">
+                                <label for="aw_label_offset_y_mm" class="col-lg-4 o_light_label"/>
+                                <field name="aw_label_offset_y_mm"/>
+                            </div>
+                        </div>
+                    </setting>
+                    <setting id="aw_label_safe_setting" string="Safe inner padding"
+                             help="Keeps content this far from the edge of the SHEET, so labels touching the paper edge are not clipped by the laser's unprintable border. Only the outer rows and columns are affected.">
+                        <field name="aw_label_safe_mm"/>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
