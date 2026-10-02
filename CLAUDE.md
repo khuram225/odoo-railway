@@ -1276,12 +1276,31 @@ most releases. The boot job asserts the split by **dropping
 `aw_design.finish_id`** and requiring `/aw/health/registry` → 200 while
 `/aw/health` → 500.
 
-**The healthcheck lives in `odoo/railway.json`, not the Railway UI** —
-`healthcheckTimeout` is 300s there. Cold start to first answer is
-reported by the boot job as a `::notice::`; production loads its registry
-in ~0.5s for 73 modules. Beware one misreading: the ~63s *"Registry
-loaded in"* line in an **install** log is the whole `-i` run, every
-module and every data file, not a registry load on an installed database.
+**`odoo/railway.json` declares `healthcheckPath` — but verify it took.**
+That file is the service's config-as-code (`rootDirectory` is `odoo`, and
+the deployment meta's `propertyFileMapping` maps
+`deploy.healthcheckPath` to `$.deploy.healthcheckPath`). Setting it to
+`/aw/health/registry` deployed green, and `restartPolicyType`,
+`restartPolicyMaxRetries` and `numReplicas` in the resolved
+`serviceManifest` all match the file — yet `healthcheckPath` in that
+manifest stayed `/web/health`, and the container log shows Railway
+probing `/web/health`. So that one key was NOT picked up from the file on
+that deploy, for a reason the CLI does not expose. **Check the Railway
+dashboard's Healthcheck Path**, and read the deployment's
+`serviceManifest.deploy.healthcheckPath` (via `railway status --json`)
+rather than trusting the file.
+
+**Timings, measured, against a 300s `healthcheckTimeout`:**
+`/aw/health/registry` costs **0.0025s** server-side, and **cold start to
+first HTTP answer is 2s** (registry load 0.74s) in the boot job, which
+reports both as a `::notice::`. Production loads its registry in
+0.5–0.8s for 73 modules and answers the healthcheck within ~0.1s of the
+workers coming alive. That is ~150x inside the timeout.
+
+Beware one misreading, which is where the "~63s" figure comes from: the
+*"Registry loaded in"* line in an **install** log times the whole `-i`
+run, every module and every data file. It is not a registry load on an
+installed database, and the two differ by two orders of magnitude.
 
 **Consequence for tenancy, worth knowing before the print service
 exists:** this path is served by a custom aluminium module. A service
