@@ -1348,9 +1348,19 @@ controllers/health.py`). Set it as Railway's healthcheck: core's
   the log; a static check must NAME the fault, since any non-zero exit
   would otherwise read as "caught"), it must be seen to **fail** on a
   tree that is deliberately broken on every push
-  (`scripts/ci_break_registry.sh`), and its verdict goes to
-  `$GITHUB_STEP_SUMMARY`, which the check-runs API returns without a
-  token so a pass can be inspected rather than trusted.
+  (`scripts/ci_break_registry.sh`), and its verdict is published as a
+  **`::notice::` annotation** so a pass can be inspected rather than
+  trusted. `$GITHUB_STEP_SUMMARY` was tried first and does NOT work for
+  that: it renders in the run's UI but never appears as the check run's
+  `output.summary`, so the evidence stayed unreadable. Annotations come
+  back from `/check-runs/<id>/annotations` with no token. The run that
+  proved all this recorded: `aw_boot` clean in 933 lines with the
+  registry loaded in 64.3s, `/aw/health` → 200 `pass: no designs yet`,
+  then after the sabotage → 500 with *"Model 'aw.design' does not exist
+  in registry"*. That 500's body was **Werkzeug's generic page, not this
+  route's `fail:` text** — which is the dispatcher-before-controller
+  finding above, confirmed from the outside rather than only read in
+  `odoo-src`.
 
 - **A script that starts and kills a server must refuse to run outside
   CI.** `ci_check_health_route.sh` was pointed at this workstation by
