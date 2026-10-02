@@ -39,6 +39,7 @@ every product view.
 """
 import ast
 import importlib.util
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -54,6 +55,13 @@ SUBVIEW_TAGS = {'list', 'tree', 'form', 'kanban', 'calendar', 'graph',
 # Not fields: a <field> inside one of these is a RECORD's column, not a
 # view's. `arch` itself is the obvious one.
 RECORD_LEVEL = {'record', 'function', 'value'}
+
+# `record.<name>` inside a kanban QWeb expression -- t-att-*, t-esc,
+# t-out, t-if, or element text.
+RECORD_REF = re.compile(r'\brecord\.([A-Za-z_]\w*)')
+
+# Present on every kanban record whether or not the arch declares it.
+ALWAYS_ON_RECORD = {'id'}
 
 
 def our_modules():
@@ -185,6 +193,111 @@ def walk(node, model, known_for, comodels, problems, path, lineno_of):
     return checked
 
 
+def kanban_scopes(node, model, comodels):
+    """Yield (kanban element, the model its `record` refers to).
+
+    A kanban reached through a `<field>` holding a sub-view belongs to
+    that field's comodel, not the view's own, so the model is carried
+    down the same way `walk` carries it.
+    """
+    for child in node:
+        if not isinstance(child.tag, str):
+            continue
+        if child.tag == 'kanban':
+            yield child, model
+            yield from kanban_scopes(child, model, comodels)
+        elif child.tag == 'field':
+            next_model = comodels.get(model, {}).get(child.get('name')) or model
+            yield from kanban_scopes(child, next_model, comodels)
+        else:
+            yield from kanban_scopes(child, model, comodels)
+
+
+def declared_fields(node):
+    """Field names this kanban declares, anywhere in its own arch.
+
+    Both placements count, because Odoo collects its fieldNodes from the
+    whole arch: the `<field>` list above `<templates>` and a `<field>`
+    used inside the card itself. Descent stops at a `<field>` that opens
+    a sub-view, whose contents describe another model.
+    """
+    names = set()
+    for child in node:
+        if not isinstance(child.tag, str):
+            continue
+        if child.tag == 'field':
+            name = child.get('name')
+            if name:
+                names.add(name)
+            if any(c.tag in SUBVIEW_TAGS for c in child
+                   if isinstance(c.tag, str)):
+                continue
+            names |= declared_fields(child)
+        elif child.tag in SUBVIEW_TAGS:
+            continue
+        else:
+            names |= declared_fields(child)
+    return names
+
+
+def record_refs(node):
+    """Every `record.<name>` in this kanban's expressions and text."""
+    names = []
+    for element in node.iter():
+        if not isinstance(element.tag, str):
+            continue
+        for value in list(element.attrib.values()) + [element.text]:
+            if value:
+                names.extend(RECORD_REF.findall(value))
+    return names
+
+
+def check_kanbans(arch, model, known_for, comodels, problems, path, ref_lineno):
+    """`record.x.value` in a kanban must be declared AND be a real field.
+
+    Two separate rules, and the FIRST is the one that bites. A kanban
+    populates `record` only from the arch's own fieldNodes, so reading an
+    undeclared field yields `undefined` rather than an empty value, and
+    the card dies on open with
+
+        TypeError: Cannot read properties of undefined (reading 'value')
+
+    Phase 7e added `t-att-title="record.name.value"` to the Window
+    Systems card without adding `<field name="name"/>`, and every kanban
+    check here was blind to it: the XML is well formed, RelaxNG ships no
+    kanban schema, `check_kanban_fields.py` only looks for QWeb
+    directives sitting on a `<field>`, and this check only read
+    `<field name=...>`. Nothing looked at the expressions.
+
+    The second rule catches the same thing as the rest of this script --
+    a field that was renamed or removed -- reached through a template
+    expression instead of a `<field>` tag.
+    """
+    checked = 0
+    for kanban, kanban_model in kanban_scopes(arch, model, comodels):
+        declared = declared_fields(kanban)
+        known = known_for(kanban_model)
+        for name in sorted(set(record_refs(kanban))):
+            if name in ALWAYS_ON_RECORD:
+                continue
+            checked += 1
+            if name not in declared:
+                problems.append(
+                    '%s:%s: the kanban template reads record.%s but the arch '
+                    'does not declare <field name="%s"/>, so `record.%s` is '
+                    'undefined and the card dies on open with "Cannot read '
+                    'properties of undefined"'
+                    % (path.relative_to(ROOT), ref_lineno(name), name, name,
+                       name))
+            elif known and name not in known:
+                problems.append(
+                    '%s:%s: the kanban template reads record.%s, which is not '
+                    'a field of %s'
+                    % (path.relative_to(ROOT), ref_lineno(name), name,
+                       kanban_model))
+    return checked
+
+
 def main():
     if not ODOO_SRC.is_dir():
         print('check_view_fields: ../odoo-src not found, skipping')
@@ -204,7 +317,7 @@ def main():
         return cache[model]
 
     problems = []
-    checked = views = 0
+    checked = views = refs = 0
 
     for module in our_modules():
         for path in manifest_views(module):
@@ -238,6 +351,13 @@ def main():
                         return index
                 return 0
 
+            def ref_lineno(name, _text=text):
+                needle = 'record.%s' % name
+                for index, line in enumerate(_text, start=1):
+                    if needle in line:
+                        return index
+                return 0
+
             for record in tree.getroot().iter('record'):
                 if record.get('model') != 'ir.ui.view':
                     continue
@@ -253,6 +373,8 @@ def main():
                 views += 1
                 checked += walk(arch, model, known_for, comodels, problems,
                                 path, lineno_of)
+                refs += check_kanbans(arch, model, known_for, comodels,
+                                      problems, path, ref_lineno)
 
     if problems:
         print('Views naming fields their model does not have:')
@@ -261,7 +383,8 @@ def main():
         return 1
 
     print('%s field reference(s) in %s standalone view arch(es) all exist '
-          'on their model.' % (checked, views))
+          'on their model; %s kanban record.<field> reference(s) are both '
+          'declared and real.' % (checked, views, refs))
     return 0
 
 

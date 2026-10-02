@@ -194,6 +194,52 @@ jobs:
       # Verifying the route here is the difference between believing it
       # reports a broken registry and knowing it does.
       # --------------------------------------------------------------
+      # --------------------------------------------------------------
+      # Compose and post-process every view, which installing does NOT
+      # do: get_view() resolves each field against the model, applies
+      # every inheriting xpath, and runs access-rights post-processing.
+      # The option_label upgrade death and the missing button_box were
+      # both that shape. Our extensions of CORE views are exercised too,
+      # because an extension is opened through its primary ancestor.
+      #
+      # Deliberately BEFORE the sabotage steps, which damage the
+      # database on purpose.
+      # --------------------------------------------------------------
+      - name: Every view opens the way the web client opens it
+        env:
+          AW_CI_MODULES: ${{ steps.modules.outputs.aluminum }}
+        run: |
+          set -eu
+          # NOT piped into tee: a pipe returns tee's status, so without
+          # pipefail a failing odoo would be masked -- the exact shape of
+          # bug this whole suite keeps finding. Redirect, then show it.
+          odoo shell -d aw_boot --no-http \
+            --addons-path=/usr/lib/python3/dist-packages/odoo/addons,odoo/addons \
+            --log-level=warn < scripts/ci_open_views.py \
+            > /tmp/views.log 2>&1 || { cat /tmp/views.log; exit 1; }
+          cat /tmp/views.log
+          # The sentinel is checked as well as the exit code, because
+          # `odoo shell` execs piped stdin and a swallowed SystemExit
+          # would otherwise read as a pass.
+          grep -q '^OK_VIEWS_OPENED [1-9]' /tmp/views.log || {
+            echo "::error::the view opener did not report opening any view"
+            exit 1; }
+
+      - name: Every print view opens too
+        if: steps.modules.outputs.print != ''
+        env:
+          AW_CI_MODULES: ${{ steps.modules.outputs.print }}
+        run: |
+          set -eu
+          odoo shell -d pp_boot --no-http \
+            --addons-path=/usr/lib/python3/dist-packages/odoo/addons,odoo/addons/addons_print \
+            --log-level=warn < scripts/ci_open_views.py \
+            > /tmp/views_pp.log 2>&1 || { cat /tmp/views_pp.log; exit 1; }
+          cat /tmp/views_pp.log
+          grep -q '^OK_VIEWS_OPENED [1-9]' /tmp/views_pp.log || {
+            echo "::error::the view opener did not report opening any view"
+            exit 1; }
+
       - name: Both health routes answer 200 on a good, upgraded build
         run: |
           sh scripts/ci_check_health_route.sh aw_boot \

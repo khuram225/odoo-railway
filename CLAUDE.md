@@ -1116,6 +1116,22 @@ about. Stock UoM is the metre, so cost = rate/ft x 3.280839895.
   under the models inheriting it — twelve false alarms before that was
   added.
 
+  **It also resolves `record.<field>` inside kanban QWeb templates**, and
+  the rule that bites is not "is it a field" but **"is it declared in the
+  arch"**. A kanban populates `record` only from its own fieldNodes, so
+  reading an undeclared field gives `undefined` rather than an empty
+  value, and the card dies the moment anyone opens it with *"TypeError:
+  Cannot read properties of undefined (reading 'value')"*. Phase 7e added
+  `t-att-title="record.name.value"` to the Window Systems card without
+  adding `<field name="name"/>`. **Nothing could see it**: the XML is well
+  formed, Odoo ships no RelaxNG for kanban, `check_kanban_fields.py` only
+  looks for QWeb directives sitting ON a `<field>`, and this check read
+  only `<field name="...">` — the expressions were nobody's business.
+  Declarations count from anywhere in the arch (the list above
+  `<templates>` and a `<field>` used inside the card both register), and
+  `record.id` always exists. Verified by removing the declaration again,
+  which it reports by file, line, field and consequence.
+
   **It REPORTS a file it cannot parse rather than skipping it**, and that
   rule was learned the hard way three times in one session. Its first
   version did `continue` on a ParseError because
@@ -1247,6 +1263,20 @@ It then starts a server and requires `/aw/health` to answer 200, breaks
 the registry on purpose with `scripts/ci_break_registry.sh`, and
 requires 500 — see the "asserting a reason" lesson below for why both
 directions check *why*, not just the code.
+
+It then **opens every view our modules own** with `get_view()`, which is
+not what installing does: installing validates each arch as it loads,
+whereas `get_view()` composes the inheritance, resolves every field
+against the model and runs access-rights post-processing. The
+`option_label` upgrade death and the missing `button_box` were both of
+that kind, and our extensions of CORE views were never composed in CI at
+all, since an extension is only built when something asks for its primary
+ancestor — which is what this now asks for (`scripts/ci_open_views.py`,
+piped into `odoo shell`, module list passed in from the job's own
+discovery so there is no second list to go stale). **It does not catch
+anything that only happens in a browser**: `get_view` returns an arch and
+never compiles an OWL template, so the kanban `record.<field>` class
+belongs to `check_view_fields.py`. Complements, not substitutes.
 
 **`all checks`** is the single status Railway's "Wait for CI" waits on.
 It has no steps; it is red unless both `static checks` and `boot test`

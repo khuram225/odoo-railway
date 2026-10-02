@@ -38,6 +38,14 @@
                 <field name="family_id"/>
                 <field name="system_role"/>
                 <field name="template_count"/>
+                <!-- Declared because the template reads it as
+                     record.name.value for the tooltip below. A kanban
+                     only populates `record` with the arch's own fields,
+                     so reading an undeclared one is not an empty value,
+                     it is `undefined`, and the card dies on open with
+                     "Cannot read properties of undefined (reading
+                     'value')". Phase 7e added the tooltip and not this. -->
+                <field name="name"/>
                 <templates>
                     <t t-name="card">
                         <div class="oe_kanban_details">
