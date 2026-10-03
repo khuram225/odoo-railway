@@ -519,6 +519,15 @@ class AwCutPlan(models.Model):
                     0.0, layout['safe'] - (SHEET_W - (x + layout['w'])))
                 pad_bottom = max(
                     0.0, layout['safe'] - (SHEET_H - (y + layout['h'])))
+                # The QR is square and fills the height actually left
+                # after this cell's own padding, so an edge label gets a
+                # slightly smaller one rather than an overflowing one.
+                usable_h = max(0.0, layout['h'] - pad_top - pad_bottom)
+                usable_w = max(0.0, layout['w'] - pad_left - pad_right)
+                # Never wider than half the label: the text needs room,
+                # and a pathological setting should shrink the QR rather
+                # than push the text out of the cell.
+                qr_mm = min(usable_h, usable_w / 2.0)
                 cells.append({
                     'row': row,
                     'box': ('position:absolute; left:%.2fmm; top:%.2fmm; '
@@ -527,6 +536,12 @@ class AwCutPlan(models.Model):
                     'inner': ('height:100%%; padding:%.2fmm %.2fmm %.2fmm '
                               '%.2fmm;' % (pad_top, pad_right, pad_bottom,
                                            pad_left)),
+                    'qr_size': '%.2fmm' % qr_mm,
+                    # Capped so the text block cannot be the thing that
+                    # makes the sticker taller than its cell.
+                    'text_box': 'max-height:%.2fmm;' % usable_h,
+                    'ref_size': '%.2fmm' % min(4.2, usable_h / 6.0),
+                    'small': '%.2fmm' % min(2.3, usable_h / 11.0),
                 })
             pages.append(cells)
         return pages or [[]]
