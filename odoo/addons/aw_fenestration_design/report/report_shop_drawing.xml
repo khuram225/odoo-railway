@@ -6,7 +6,7 @@
             <div class="page">
 
                 <h2 class="mt-0">
-                    Shop Drawing
+                    Window Sheet
                     <span class="float-end" t-esc="doc.name"/>
                 </h2>
 
@@ -20,41 +20,35 @@
                     <strong>⚠ <span t-esc="warning"/></strong>
                 </div>
 
-                <table class="table table-sm table-borderless mb-3">
+                <!-- Header and QR are built from ONE list
+                     (_sheet_header), so what is scanned is what is
+                     printed. -->
+                <table style="width:100%; margin-bottom:8px;">
                     <tr>
-                        <td style="width:16%"><strong>Quote</strong></td>
-                        <td style="width:34%">
-                            <span t-esc="doc.sale_order_id.name or '—'"/>
+                        <td style="vertical-align:top;">
+                            <table class="table table-sm table-borderless mb-0">
+                                <tr t-foreach="doc._sheet_header()" t-as="pair"
+                                    t-key="pair_index">
+                                    <td style="width:30%"><strong t-esc="pair[0]"/></td>
+                                    <td><span t-esc="pair[1] or '—'"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Quantity</strong></td>
+                                    <td><span t-esc="doc.qty"/></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Changes</strong></td>
+                                    <td>
+                                        <span t-if="doc.override_count"
+                                              t-esc="'%s change(s) for this window' % doc.override_count"/>
+                                        <span t-else="">As the spec</span>
+                                    </td>
+                                </tr>
+                            </table>
                         </td>
-                        <td style="width:16%"><strong>Location</strong></td>
-                        <td><span t-esc="doc.location or '—'"/></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Series</strong></td>
-                        <td><span t-esc="doc.window_series_id.display_name or '—'"/></td>
-                        <td><strong>Profile Section</strong></td>
-                        <td><span t-esc="doc.profile_section_id.display_name or '—'"/></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Glass</strong></td>
-                        <td><span t-esc="doc.glass_spec_id.display_name or '—'"/></td>
-                        <td><strong>Finish</strong></td>
-                        <td><span t-esc="doc.finish_id.display_name or '—'"/></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Size</strong></td>
-                        <td><span t-esc="doc.size_display"/></td>
-                        <td><strong>Quantity</strong></td>
-                        <td><span t-esc="doc.qty"/></td>
-                    </tr>
-                    <tr>
-                        <td><strong>Specification</strong></td>
-                        <td><span t-esc="doc.template_id.full_name or '—'"/></td>
-                        <td><strong>Changes</strong></td>
-                        <td>
-                            <span t-if="doc.override_count"
-                                  t-esc="'%s change(s) for this window' % doc.override_count"/>
-                            <span t-else="">As the spec</span>
+                        <td style="width:34mm; vertical-align:top; text-align:right;">
+                            <img t-att-src="doc._sheet_qr_src()"
+                                 style="width:30mm; height:30mm;"/>
                         </td>
                     </tr>
                 </table>
@@ -72,6 +66,45 @@
                     View from inside. Panel numbers read left to right, top
                     to bottom.
                 </p>
+
+                <h4>Inputs</h4>
+                <table class="table table-sm o_main_table mb-3">
+                    <thead>
+                        <tr>
+                            <th>Panel</th><th>Type</th>
+                            <th class="text-end">PW (mm)</th>
+                            <th class="text-end">PH (mm)</th>
+                            <th class="text-end">LS (mm)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="2"><strong>Opening</strong></td>
+                            <td class="text-end">
+                                <strong>W <span t-esc="'%.1f' % doc.width_mm"/></strong>
+                            </td>
+                            <td class="text-end">
+                                <strong>H <span t-esc="'%.1f' % doc.height_mm"/></strong>
+                            </td>
+                            <td/>
+                        </tr>
+                        <tr t-foreach="doc._sheet_inputs()" t-as="panel"
+                            t-key="panel['panel_no']">
+                            <td><span t-esc="panel['panel_no']"/></td>
+                            <td><span t-esc="panel['type']"/></td>
+                            <td class="text-end"><span t-esc="'%.1f' % panel['pw']"/></td>
+                            <td class="text-end"><span t-esc="'%.1f' % panel['ph']"/></td>
+                            <td class="text-end">
+                                <t t-if="panel['ls']">
+                                    <span t-esc="'%.1f' % panel['ls']"/>
+                                    <span class="text-muted small"
+                                          t-esc="'(%s)' % panel['lock_edge']"/>
+                                </t>
+                                <span t-else="" class="text-muted">—</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
 
                 <h4>Panel Schedule</h4>
                 <table class="table table-sm o_main_table">
@@ -99,16 +132,27 @@
 
                 <t t-set="profiles" t-value="doc._report_bom(['profile'])"/>
                 <h4 t-if="profiles">Profile Cut List</h4>
+                <t t-set="bar_cut" t-value="doc._sheet_bar_cut()"/>
+                <p t-if="profiles and bar_cut[1]" class="small text-muted mb-1">
+                    <span t-esc="bar_cut[1]"/>
+                </p>
                 <table t-if="profiles" class="table table-sm o_main_table">
                     <thead>
                         <tr>
-                            <th>Product</th><th class="text-end">Length (mm)</th>
+                            <th>Ref</th><th>Piece</th><th>Profile</th>
+                            <th class="text-end">Length (mm)</th>
+                            <th class="text-end">Length</th>
                             <th>Angle</th><th class="text-end">Qty</th>
-                            <th>Label</th>
+                            <th>Bar / Cut</th>
+                            <t t-if="with_calc">
+                                <th>Rule</th><th>Source</th><th>Worked out</th>
+                            </t>
                         </tr>
                     </thead>
                     <tbody>
                         <tr t-foreach="profiles" t-as="line" t-key="line.id">
+                            <td><strong t-esc="line.piece_ref or '—'"/></td>
+                            <td><span t-esc="line.label or ''"/></td>
                             <td>
                                 <span t-esc="line.product_id.display_name or '(no product)'"/>
                                 <div t-if="line.is_changed" class="small fw-bold">
@@ -119,9 +163,17 @@
                             <td class="text-end">
                                 <span t-esc="'%.1f' % line.length_mm"/>
                             </td>
+                            <td class="text-end">
+                                <span t-esc="doc._format_length(line.length_mm)"/>
+                            </td>
                             <td><span t-esc="line.cut_angle or '—'"/>°</td>
                             <td class="text-end"><span t-esc="line.qty"/></td>
-                            <td><span t-esc="line.label or ''"/></td>
+                            <td><span t-esc="bar_cut[0].get(line.id) or ''"/></td>
+                            <t t-if="with_calc">
+                                <td><span t-esc="line.calc_rule or ''"/></td>
+                                <td><span t-esc="line.calc_source or ''"/></td>
+                                <td><span t-esc="line.calc_worked or ''"/></td>
+                            </t>
                         </tr>
                     </tbody>
                 </table>
@@ -135,6 +187,9 @@
                             <th class="text-end">Height (mm)</th>
                             <th class="text-end">Area (m²)</th>
                             <th class="text-end">Qty</th><th>Label</th>
+                            <t t-if="with_calc">
+                                <th>Rule</th><th>Source</th><th>Worked out</th>
+                            </t>
                         </tr>
                     </thead>
                     <tbody>
@@ -196,22 +251,102 @@
         </t>
     </template>
 
+    <!--
+    One document template, four actions. The only difference between the
+    plain and the calculation variants is `with_calc`, set by the
+    wrapper: two templates that each drew their own table would drift,
+    and the calculation columns are exactly the kind of thing that would
+    then disagree with the BOM tab.
+
+    A page break BETWEEN windows, not after each: a trailing break on
+    the last window prints a blank page, which on a shop floor gets
+    picked up as a missing sheet.
+    -->
     <template id="report_shop_drawing">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="doc">
+                <t t-set="with_calc" t-value="False"/>
                 <t t-call="aw_fenestration_design.report_shop_drawing_document"/>
             </t>
         </t>
     </template>
 
+    <template id="report_window_sheet_calc">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-set="with_calc" t-value="True"/>
+                <t t-call="aw_fenestration_design.report_shop_drawing_document"/>
+            </t>
+        </t>
+    </template>
+
+    <template id="report_window_sheet_order">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="order">
+                <t t-foreach="order.aw_design_ids" t-as="doc" t-key="doc.id">
+                    <t t-set="with_calc" t-value="False"/>
+                    <div t-attf-style="#{'page-break-before: always;' if not doc_first else ''}">
+                        <t t-call="aw_fenestration_design.report_shop_drawing_document"/>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <template id="report_window_sheet_order_calc">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="order">
+                <t t-foreach="order.aw_design_ids" t-as="doc" t-key="doc.id">
+                    <t t-set="with_calc" t-value="True"/>
+                    <div t-attf-style="#{'page-break-before: always;' if not doc_first else ''}">
+                        <t t-call="aw_fenestration_design.report_shop_drawing_document"/>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
     <record id="action_report_aw_shop_drawing" model="ir.actions.report">
-        <field name="name">Shop Drawing</field>
+        <field name="name">Window Sheet</field>
         <field name="model">aw.design</field>
         <field name="report_type">qweb-pdf</field>
         <field name="report_name">aw_fenestration_design.report_shop_drawing</field>
         <field name="report_file">aw_fenestration_design.report_shop_drawing</field>
-        <field name="print_report_name">'Shop Drawing - %s' % (object.name or '')</field>
+        <field name="print_report_name">'Window Sheet - %s' % (object.name or '')</field>
         <field name="binding_model_id" ref="model_aw_design"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <record id="action_report_aw_window_sheet_calc" model="ir.actions.report">
+        <field name="name">Window Sheet (with calculation)</field>
+        <field name="model">aw.design</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_window_sheet_calc</field>
+        <field name="report_file">aw_fenestration_design.report_window_sheet_calc</field>
+        <field name="print_report_name">'Window Sheet (calc) - %s' % (object.name or '')</field>
+        <field name="binding_model_id" ref="model_aw_design"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <record id="action_report_aw_window_sheet_order" model="ir.actions.report">
+        <field name="name">Window Sheets</field>
+        <field name="model">sale.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_window_sheet_order</field>
+        <field name="report_file">aw_fenestration_design.report_window_sheet_order</field>
+        <field name="print_report_name">'Window Sheets - %s' % (object.name or '')</field>
+        <field name="binding_model_id" ref="sale.model_sale_order"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <record id="action_report_aw_window_sheet_order_calc" model="ir.actions.report">
+        <field name="name">Window Sheets (with calculation)</field>
+        <field name="model">sale.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_window_sheet_order_calc</field>
+        <field name="report_file">aw_fenestration_design.report_window_sheet_order_calc</field>
+        <field name="print_report_name">'Window Sheets (calc) - %s' % (object.name or '')</field>
+        <field name="binding_model_id" ref="sale.model_sale_order"/>
         <field name="binding_type">report</field>
     </record>
 

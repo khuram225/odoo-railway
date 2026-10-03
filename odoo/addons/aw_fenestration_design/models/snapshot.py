@@ -185,6 +185,129 @@ class AwDesign(models.Model):
         walk(self.row_ids, self.height_mm)
         return sorted(rows, key=lambda r: r['panel_no'])
 
+    # ------------------------------------------------------------------
+    # window sheet
+    # ------------------------------------------------------------------
+    def _sheet_header(self):
+        """The header block, as label/value pairs.
+
+        Built here rather than in the template so the QR and the printed
+        header are made from ONE list and cannot drift apart -- the
+        whole point of a scannable header is that it says what the paper
+        says.
+        """
+        self.ensure_one()
+        order = self.sale_order_id
+        spec = self.template_id
+        return [
+            (_('Order'), order.name or ''),
+            (_('Customer'), order.partner_id.display_name or ''),
+            (_('Site'), order._aw_site_address() if order else ''),
+            (_('Window'), self.name or ''),
+            (_('Location'), self.location or ''),
+            (_('Size'), self.size_display or ''),
+            (_('System'), self.window_series_id.display_name or ''),
+            (_('Spec'), spec.full_name or spec.display_name or ''),
+            (_('Finish'), self.finish_id.name or ''),
+            (_('Glass'), self.glass_spec_id.display_name or ''),
+        ]
+
+    def _sheet_qr_src(self):
+        """QR of the header: compact labelled text, ECC M.
+
+        The payload and the url-encoding both come from
+        aw.cut.plan._qr_src, so error correction and the barLevel query
+        parameter are settled in one place for every QR this module
+        prints.
+        """
+        self.ensure_one()
+        payload = ' | '.join(
+            '%s %s' % (label.upper(), value)
+            for label, value in self._sheet_header() if value)
+        return self.env['aw.cut.plan']._qr_src(payload)
+
+    def _sheet_inputs(self):
+        """W, H and each panel's PW, PH and LS.
+
+        Recomputed through the explosion's OWN context builder and its
+        own _lock_side_length, not re-derived here: a verification sheet
+        that worked the inputs out a second way would eventually
+        disagree with the BOM it is meant to verify, and the reader
+        would have no way to tell which was wrong.
+        """
+        self.ensure_one()
+        by_scope = self._section_lines_by_scope()
+        rows = []
+
+        def walk(row_set, container_w, container_h):
+            for row in row_set.sorted(lambda r: (r.sequence, r.id)):
+                leaves = row.leaf_ids.sorted(lambda l: (l.sequence, l.id))
+                for leaf in leaves:
+                    if leaf.child_row_ids:
+                        walk(leaf.child_row_ids, leaf.width_mm,
+                             row.height_mm)
+                        continue
+                    context = self._formula_context(
+                        panel_w=leaf.width_mm or 0.0,
+                        panel_h=row.height_mm or 0.0,
+                        container_w=container_w, container_h=container_h,
+                        panels_in_row=len(leaves),
+                        tracks=max(leaves.mapped('track_no') or [0]) or 1)
+                    edge = self._lock_edge(leaf)
+                    lock = (self._lock_side_length(edge, by_scope, context)
+                            if edge and leaf.has_lock else 0.0)
+                    rows.append({
+                        'panel_no': leaf.panel_no or 0,
+                        'type': leaf.leaf_type_id.display_name or '',
+                        'pw': context['PW'],
+                        'ph': context['PH'],
+                        'ls': lock,
+                        'lock_edge': edge or '',
+                    })
+
+        walk(self.row_ids, self.width_mm, self.height_mm)
+        return sorted(rows, key=lambda r: r['panel_no'])
+
+    def _sheet_plan(self):
+        """The order's latest cutting plan, if it has one."""
+        self.ensure_one()
+        if not self.sale_order_id:
+            return self.env['aw.cut.plan']
+        # _order is create_date desc, so the first is the latest.
+        return self.env['aw.cut.plan'].search(
+            [('sale_order_id', '=', self.sale_order_id.id)], limit=1)
+
+    def _sheet_bar_cut(self):
+        """({bom line id: 'bar 3/13 cut 2'}, note).
+
+        Blank with ONE explanatory line rather than a column of dashes:
+        a cut list whose Bar column is empty invites the reader to think
+        the plan says something it does not, and saying why once at the
+        top is the honest version.
+
+        An out-of-date plan is treated exactly like no plan. It still
+        describes real bars, but for a window that has since changed --
+        and a bar number that was right last week is worse than a blank.
+        """
+        self.ensure_one()
+        plan = self._sheet_plan()
+        if not plan:
+            return {}, _("No cutting plan for this order yet, so Bar and "
+                         "Cut are blank.")
+        if not plan.is_current:
+            return {}, _("The cutting plan is out of date (a position "
+                         "changed after it was made), so Bar and Cut are "
+                         "blank. Regenerate it to fill them in.")
+        mapping = {}
+        for group in plan.group_ids:
+            bars = group.bar_ids
+            for bar_index, bar in enumerate(bars, start=1):
+                for cut_index, cut in enumerate(bar.cut_ids, start=1):
+                    if cut.bom_line_id:
+                        mapping[cut.bom_line_id.id] = '%s/%s · %s' % (
+                            bar_index, len(bars), cut_index)
+        return mapping, ''
+
     def _report_bom(self, kinds):
         """BOM lines of the given kinds, in print order."""
         self.ensure_one()
