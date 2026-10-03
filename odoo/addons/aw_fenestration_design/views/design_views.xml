@@ -225,6 +225,11 @@
                                     <field name="cost_note" string="No cost because"/>
                                     <field name="is_changed" string="Changed"/>
                                     <field name="change_note" optional="hide"/>
+                                    <field name="calc_rule" optional="hide"/>
+                                    <field name="calc_source" optional="hide"/>
+                                    <field name="calc_worked" optional="hide"/>
+                                    <field name="calc_rule_h" optional="hide"/>
+                                    <field name="calc_worked_h" optional="hide"/>
                                 </list>
                             </field>
                         </page>

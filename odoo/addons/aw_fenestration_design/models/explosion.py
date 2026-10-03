@@ -10,7 +10,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from odoo.addons.aw_fenestration_core.models.formula import (
-    evaluate_formula, formula_truthy,
+    evaluate_formula, formula_truthy, substitute_formula,
 )
 
 from .cut_algorithm import max_piece_mm
@@ -83,6 +83,18 @@ class AwDesign(models.Model):
         """
         self.ensure_one()
         return self.template_id or self.window_series_id
+
+    def _deduction_source(self):
+        """Where a glass or mesh deduction came from, in words.
+
+        Named off the same fallback _deduction_rules() uses, so the
+        calculation sheet cannot claim the spec supplied a rule that
+        actually came from the system.
+        """
+        self.ensure_one()
+        if self.template_id:
+            return _('Spec: %s', self.template_id.display_name or '')
+        return _('System: %s', self.window_series_id.display_name or '')
 
     # ------------------------------------------------------------------
     # context building
@@ -205,6 +217,18 @@ class AwDesign(models.Model):
         length_w = line.length_formula or position.default_length
         length_h = (line.length_formula_h or position.default_length_h
                     or length_w)
+        # Where each rule came from, read off the SAME fallback chain
+        # that chose it, so the sheet cannot name a source the length
+        # did not actually come from.
+        spec_name = line.spec_id.display_name or ''
+        source_w = (_('Spec line: %s', spec_name) if line.length_formula
+                    else _('Position default: %s', position.name or ''))
+        if line.length_formula_h:
+            source_h = _('Spec line: %s', spec_name)
+        elif position.default_length_h:
+            source_h = _('Position default: %s', position.name or '')
+        else:
+            source_h = source_w       # fell back to the width rule
         angle = line.cut_angle or position.default_angle or '90'
         qty_formula = line.qty_formula or position.default_qty or '1'
         qty = int(round(evaluate_formula(qty_formula, context, default=1))) or 1
@@ -214,15 +238,16 @@ class AwDesign(models.Model):
         # numbering does not have to re-derive which side is which.
         edge = position.edge
         if edge == 'sides':
-            spec = [(length_h, 2, (2, 4))]
+            spec = [(length_h, 2, (2, 4), source_h)]
         elif edge == 'all':
-            spec = [(length_w, 2, (1, 3)), (length_h, 2, (2, 4))]
+            spec = [(length_w, 2, (1, 3), source_w),
+                    (length_h, 2, (2, 4), source_h)]
         elif edge == 'bottom':
-            spec = [(length_w, 1, (3,))]
+            spec = [(length_w, 1, (3,), source_w)]
         elif edge == 'top':
-            spec = [(length_w, 1, (1,))]
+            spec = [(length_w, 1, (1,), source_w)]
         else:
-            spec = [(length_w, 1, (0,))]
+            spec = [(length_w, 1, (0,), source_w)]
 
         product = self._profile_variant(line, product_tmpl=product_tmpl)
         change = self._profile_change(line)
@@ -237,8 +262,11 @@ class AwDesign(models.Model):
         # members cannot share a BOM line and still carry four distinct
         # references (spec B), and the cut list wants them separate
         # anyway -- each one is a cut.
-        for formula, count, edges in spec:
+        for formula, count, edges, source in spec:
             length = evaluate_formula(formula, context, default=0.0)
+            # Rendered from the same context the length was evaluated
+            # with, so the working out and the result always agree.
+            worked = substitute_formula(formula, context)
             for index in range(count * qty):
                 pieces.append({
                     'kind': 'profile',
@@ -253,6 +281,9 @@ class AwDesign(models.Model):
                     'missing_product_reason': reason,
                     'is_changed': bool(change),
                     'change_note': change.note if change else '',
+                    'calc_rule': formula or '',
+                    'calc_source': source,
+                    'calc_worked': worked,
                     '_order': (
                         self._piece_rank(position.scope),
                         panel_no,
@@ -396,6 +427,11 @@ class AwDesign(models.Model):
                 'label': '%s %s' % (label, leaf.mesh_type_id.name),
                 'glass_w': evaluate_formula(rules.mesh_w, context),
                 'glass_h': evaluate_formula(rules.mesh_h, context),
+                'calc_rule': rules.mesh_w or '',
+                'calc_rule_h': rules.mesh_h or '',
+                'calc_source': self._deduction_source(),
+                'calc_worked': substitute_formula(rules.mesh_w, context),
+                'calc_worked_h': substitute_formula(rules.mesh_h, context),
                 'qty': 1,
             })
 
@@ -409,12 +445,10 @@ class AwDesign(models.Model):
         if uses_glass:
             rules = self._deduction_rules()
             spec = leaf.glass_spec_id or self.glass_spec_id
-            width = evaluate_formula(
-                rules.glass_sash_w if opening else rules.glass_fixed_w,
-                context)
-            height = evaluate_formula(
-                rules.glass_sash_h if opening else rules.glass_fixed_h,
-                context)
+            rule_w = rules.glass_sash_w if opening else rules.glass_fixed_w
+            rule_h = rules.glass_sash_h if opening else rules.glass_fixed_h
+            width = evaluate_formula(rule_w, context)
+            height = evaluate_formula(rule_h, context)
             out.append({
                 'kind': 'glass',
                 'product_id': spec.product_id.id if spec else False,
@@ -423,6 +457,11 @@ class AwDesign(models.Model):
                 'label': '%s glass' % label,
                 'glass_w': width,
                 'glass_h': height,
+                'calc_rule': rule_w or '',
+                'calc_rule_h': rule_h or '',
+                'calc_source': self._deduction_source(),
+                'calc_worked': substitute_formula(rule_w, context),
+                'calc_worked_h': substitute_formula(rule_h, context),
                 'qty': 1,
                 # Not `missing_product`: that reports per line, and glass
                 # is chosen once in the header, so a 6-panel design would

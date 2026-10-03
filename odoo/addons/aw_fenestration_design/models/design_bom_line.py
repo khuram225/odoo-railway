@@ -60,6 +60,26 @@ class AwDesignBomLine(models.Model):
     # the explosion from the design's own geometry, so it survives
     # re-optimising the cutting plan -- which is the whole point: the
     # shop writes it on the bar.
+    # -- how this length was reached, for manual verification ----------
+    # Written by the explosion, never computed on read: the BOM is the
+    # record of what was quoted, and a rule edited next month must not
+    # silently restate the working of a piece already priced and sent.
+    # Same reasoning as is_changed/change_note above.
+    calc_rule = fields.Char(
+        string='Rule', readonly=True,
+        help="The formula as written, e.g. 'PW - 10'.")
+    calc_source = fields.Char(
+        string='Source', readonly=True,
+        help="Where the rule came from: the spec's own line, or the "
+             "profile position's default.")
+    calc_worked = fields.Char(
+        string='Worked out', readonly=True,
+        help="The formula with the values used, e.g. '1066.8 - 10'.")
+    # Glass is two dimensions from two rules. Width uses the three
+    # fields above; these carry the height, whose source is the same.
+    calc_rule_h = fields.Char(string='Rule (height)', readonly=True)
+    calc_worked_h = fields.Char(string='Worked out (height)', readonly=True)
+
     piece_ref = fields.Char(string='Ref', index=True)
     unit_no = fields.Integer(
         string='Unit', default=1,

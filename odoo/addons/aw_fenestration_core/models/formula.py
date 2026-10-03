@@ -114,6 +114,103 @@ def evaluate_formula(expression, context, default=0.0):
         return default
 
 
+def substitute_formula(expression, context):
+    """The formula with its variables replaced by the values used.
+
+    "PW - 10" becomes "1066.8 - 10": the arithmetic a person can check
+    by hand against the drawing, which is the whole point of the
+    calculation sheet.
+
+    Rendered from the SAME validated AST `evaluate_formula` compiles, so
+    the two cannot describe different sums. It deliberately does not
+    evaluate anything: no folding of "2 * 3" into "6", because the
+    reader is checking the working, not the answer. Operator precedence
+    is preserved with brackets only where the tree says they are needed,
+    so "(PW - 10) / 2" keeps them and "PW - 10 / 2" does not gain any.
+
+    Returns '' for an empty formula and the expression unchanged if it
+    will not parse -- this is for reading, and a reader is better served
+    by the raw text than by a blank.
+    """
+    if expression is None or not str(expression).strip():
+        return ''
+    text = str(expression).strip()
+    if validate_formula(text) is not None:
+        return text
+    try:
+        tree = ast.parse(text, mode='eval')
+    except SyntaxError:
+        return text
+
+    def number(value):
+        # Two decimals, trailing zeros trimmed: integers stay integers so
+        # "2" does not read as "2.0", and a panel height of 1400.25 is
+        # not shown as 1400.2. That mattered -- at one decimal the
+        # rendered sum came to 4934.0 where the real answer was 4934.1,
+        # and a verification sheet whose working does not reproduce its
+        # own result is worse than no sheet.
+        if isinstance(value, bool):
+            return '1' if value else '0'
+        if isinstance(value, int):
+            return str(value)
+        if isinstance(value, float):
+            return ('%.2f' % value).rstrip('0').rstrip('.') or '0'
+        return str(value)
+
+    binary = {
+        ast.Add: '+', ast.Sub: '-', ast.Mult: '*', ast.Div: '/',
+        ast.FloorDiv: '//', ast.Mod: '%', ast.Pow: '**',
+    }
+    compare = {
+        ast.Eq: '==', ast.NotEq: '!=', ast.Lt: '<', ast.LtE: '<=',
+        ast.Gt: '>', ast.GtE: '>=',
+    }
+
+    def render(node, parent=None):
+        if isinstance(node, ast.Expression):
+            return render(node.body)
+        if isinstance(node, ast.Name):
+            if node.id in VARIABLES:
+                return number(context.get(node.id, 0))
+            return node.id
+        if isinstance(node, ast.Constant):
+            return number(node.value)
+        if isinstance(node, ast.BinOp):
+            inner = '%s %s %s' % (render(node.left, node),
+                                  binary.get(type(node.op), '?'),
+                                  render(node.right, node))
+            # Bracket only when the parent binds tighter, which is what
+            # keeps the rendering faithful without littering it.
+            return '(%s)' % inner if isinstance(parent, ast.BinOp) else inner
+        if isinstance(node, ast.UnaryOp):
+            sign = '-' if isinstance(node.op, ast.USub) else (
+                'not ' if isinstance(node.op, ast.Not) else '+')
+            return '%s%s' % (sign, render(node.operand, node))
+        if isinstance(node, ast.Call):
+            name = node.func.id if isinstance(node.func, ast.Name) else '?'
+            return '%s(%s)' % (name, ', '.join(
+                render(arg) for arg in node.args))
+        if isinstance(node, ast.Compare):
+            parts = [render(node.left, node)]
+            for operator, right in zip(node.ops, node.comparators):
+                parts.append(compare.get(type(operator), '?'))
+                parts.append(render(right, node))
+            return ' '.join(parts)
+        if isinstance(node, ast.BoolOp):
+            joiner = ' and ' if isinstance(node.op, ast.And) else ' or '
+            return joiner.join(render(value, node) for value in node.values)
+        if isinstance(node, ast.IfExp):
+            return '%s if %s else %s' % (render(node.body, node),
+                                         render(node.test, node),
+                                         render(node.orelse, node))
+        return '?'
+
+    try:
+        return render(tree)
+    except Exception:
+        return text
+
+
 def formula_truthy(expression, context):
     """A condition formula. Empty means 'always', per spec 6.3."""
     if expression is None or not str(expression).strip():
