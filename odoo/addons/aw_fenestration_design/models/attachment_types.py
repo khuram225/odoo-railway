@@ -59,7 +59,14 @@ class AwMeshType(models.Model):
         ('hinged', 'Hinged'),
         ('pleated', 'Pleated'),
         ('roller', 'Roller'),
+        ('rollup', 'Roll-up'),
     ], required=True, default='fixed')
+    opening_only = fields.Boolean(
+        string='Opening sashes only', default=False,
+        help="Offer this only on opening sashes (casement, awning, "
+             "hopper, tilt & turn). A roll-up screen rolls back into a "
+             "cassette on the sash, so it has no place on a fixed light "
+             "or a slider.")
     pull = fields.Selection([
         ('left', 'Left'),
         ('right', 'Right'),

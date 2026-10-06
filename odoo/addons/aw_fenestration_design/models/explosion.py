@@ -14,6 +14,7 @@ from odoo.addons.aw_fenestration_core.models.formula import (
 )
 
 from .cut_algorithm import max_piece_mm
+from .family import OPENING_LEAF_CODES
 
 # Keys the checks read that are NOT fields on aw.design.bom.line. Kept
 # as one list because each is stripped in exactly one place, and a new
@@ -920,6 +921,19 @@ class AwDesign(models.Model):
         mixed = self._mixed_frame_error()
         if mixed:
             problems.append(('error', mixed))
+
+        # A screen that rolls into a cassette on the sash fits opening
+        # sashes only. The configurator does not offer it elsewhere; this
+        # catches a panel changed to another type afterwards.
+        for leaf in self._all_panels():
+            mesh = leaf.mesh_type_id
+            if mesh.opening_only and (
+                    (leaf.leaf_type_id.code or '').upper()
+                    not in OPENING_LEAF_CODES):
+                problems.append(('error', _(
+                    "Panel %(panel)s has '%(mesh)s', which fits opening "
+                    "sashes only.",
+                    panel=leaf.panel_no or 0, mesh=mesh.display_name)))
 
         floor = self._min_margin_pct()
         if self._below_margin_floor():

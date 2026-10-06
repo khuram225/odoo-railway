@@ -1088,7 +1088,7 @@
                                                 t-on-click="() => this.applyMesh(selectedPanel.mesh_type_id)">
                                             None
                                         </button>
-                                        <t t-foreach="meshTypes" t-as="mesh" t-key="mesh.id">
+                                        <t t-foreach="panelMeshTypes" t-as="mesh" t-key="mesh.id">
                                             <button class="btn btn-sm"
                                                     t-att-class="selectedPanel.mesh_type_id === mesh.id ? 'btn-primary' : 'btn-outline-secondary'"
                                                     t-att-title="mesh.code"
@@ -1097,6 +1097,19 @@
                                             </button>
                                         </t>
                                     </div>
+
+                                    <t t-if="selectedMeshType and selectedMeshType.mechanism === 'rollup'">
+                                        <div class="small text-muted mb-1">Cassette side</div>
+                                        <div class="d-flex flex-wrap gap-1 mb-2">
+                                            <t t-foreach="['left', 'right']" t-as="cs" t-key="cs">
+                                                <button class="btn btn-sm text-capitalize"
+                                                        t-att-class="selectedPanel.mesh_cassette_side === cs ? 'btn-primary' : 'btn-outline-secondary'"
+                                                        t-on-click="() => this.setMeshCassette(cs)">
+                                                    <t t-esc="cs"/>
+                                                </button>
+                                            </t>
+                                        </div>
+                                    </t>
 
                                     <t t-if="selectedMeshType and selectedMeshType.mechanism === 'hinged'">
                                         <div class="small text-muted mb-1">Mesh hinge side</div>

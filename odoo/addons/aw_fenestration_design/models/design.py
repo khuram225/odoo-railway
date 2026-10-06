@@ -718,6 +718,7 @@ class AwDesign(models.Model):
                 'mesh_type_id': leaf.mesh_type_id.id,
                 'mesh_type_code': leaf.mesh_type_id.code or '',
                 'mesh_hinge_side': leaf.mesh_hinge_side or '',
+                'mesh_cassette_side': leaf.mesh_cassette_side or '',
                 'infill_type_id': leaf.infill_type_id.id,
                 'infill_kind': leaf.infill_type_id.kind or 'glass',
                 'infill_uses_glass': (
@@ -1176,6 +1177,11 @@ class AwDesign(models.Model):
             'mesh_types': [{
                 'id': m.id, 'name': m.display_name, 'code': m.code or '',
                 'mechanism': m.mechanism, 'pull': m.pull or '',
+                # [] means any panel; otherwise the leaf type codes the
+                # screen may go on. One source, so the client keeps no
+                # list of its own.
+                'only_leaf_codes': (
+                    self._opening_leaf_codes() if m.opening_only else []),
                 'family_id': m.family_id.id or False,
                 'family_name': m.family_id.name or '',
                 'family_sequence': (
@@ -1448,6 +1454,8 @@ class AwDesign(models.Model):
                     'track_no': leaf.get('track_no') or 0,
                     'mesh_type_id': leaf.get('mesh_type_id') or False,
                     'mesh_hinge_side': leaf.get('mesh_hinge_side') or False,
+                    'mesh_cassette_side': (
+                        leaf.get('mesh_cassette_side') or False),
                     'infill_type_id': leaf.get('infill_type_id') or False,
                     'glass_spec_id': leaf.get('glass_spec_id') or False,
                     'glass_suggested': bool(

@@ -30,6 +30,17 @@
             <field name="mechanism">hinged</field>
             <field name="sequence">20</field>
         </record>
+        <!-- Slides across the sash and rolls back into a cassette on
+             one side. No lines yet: the cassette, guides and fabric are
+             not in the catalogue, and none are guessed. -->
+        <record id="mesh_type_rollup" model="aw.mesh.type">
+            <field name="code">RLU-SC</field>
+            <field name="name">Roll-up screen, side cassette</field>
+            <field name="family_id" ref="layout_family_msh"/>
+            <field name="mechanism">rollup</field>
+            <field name="opening_only" eval="True"/>
+            <field name="sequence">25</field>
+        </record>
         <record id="mesh_type_pleated_l" model="aw.mesh.type">
             <field name="code">PLT-SGL-L</field>
             <field name="name">Pleated, single, opens left</field>

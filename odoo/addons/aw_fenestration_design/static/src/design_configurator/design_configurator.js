@@ -3894,6 +3894,12 @@ export class DesignConfigurator extends Component {
         const mesh = this.meshTypes.find((m) => m.id === meshId) || null;
         // Clicking the mesh already on the panel takes it off again.
         const clearing = leaf.mesh_type_id === meshId;
+        if (!clearing && !this.meshFitsPanel(mesh, leaf)) {
+            this.notification.add(
+                _t("%s fits opening sashes only.", mesh.name),
+                { type: "warning" });
+            return;
+        }
         leaf.mesh_type_id = clearing ? false : meshId;
         leaf.mesh_type_code = clearing ? "" : mesh?.code || "";
         // A hinged mesh follows the panel's own hinge unless changed.
@@ -3901,6 +3907,34 @@ export class DesignConfigurator extends Component {
             !clearing && mesh?.mechanism === "hinged"
                 ? leaf.hinge_side || "left"
                 : "";
+        // A roll-up screen's cassette defaults to the hinge side too;
+        // an awning or hopper has no left or right, so it starts left.
+        leaf.mesh_cassette_side =
+            !clearing && mesh?.mechanism === "rollup"
+                ? (["left", "right"].includes(leaf.hinge_side)
+                    ? leaf.hinge_side : "left")
+                : "";
+        this.state.dirty = true;
+    }
+
+    /** Whether a screen may go on this panel (opening sashes only for some). */
+    meshFitsPanel(mesh, leaf) {
+        const codes = mesh?.only_leaf_codes || [];
+        return !codes.length || codes.includes(leaf?.leaf_type_code);
+    }
+
+    /** The screens offered on the selected panel. */
+    get panelMeshTypes() {
+        const leaf = this.selectedPanel;
+        return this.meshTypes.filter((m) => this.meshFitsPanel(m, leaf));
+    }
+
+    setMeshCassette(side) {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        leaf.mesh_cassette_side = side;
         this.state.dirty = true;
     }
 

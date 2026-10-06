@@ -25,9 +25,22 @@ ROLE_BY_LEAF_CODE = {
     'HOPPER': 'openable',
 }
 
+# The leaf types that are opening sashes (everything but sliders and
+# fixed lights): what an "opening sashes only" fly screen may go on.
+OPENING_LEAF_CODES = tuple(sorted(
+    code for code, role in ROLE_BY_LEAF_CODE.items()
+    if role in ('openable', 'tiltturn')))
+
 
 class AwDesign(models.Model):
     _inherit = 'aw.design'
+
+    @api.model
+    def _opening_leaf_codes(self):
+        # The leaf type codes that are opening sashes. A method rather
+        # than an import so design.py does not have to import family.py
+        # (which extends the model design.py defines).
+        return list(OPENING_LEAF_CODES)
 
     family_id = fields.Many2one(
         'aw.window.family', string='Glazing Family', tracking=True,
