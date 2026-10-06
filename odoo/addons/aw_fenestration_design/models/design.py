@@ -788,7 +788,9 @@ class AwDesign(models.Model):
             raise_if_not_found=False)
         if not attribute:
             return []
-        return [{'id': value.id, 'name': value.display_name,
+        # The value's own name: display_name carries the attribute too
+        # ("Finish: Natural"), which read twice next to a "Finish" label.
+        return [{'id': value.id, 'name': value.name,
                  'color': value.html_color or ''}
                 for value in self.env['product.attribute.value'].search(
                     [('attribute_id', '=', attribute.id)])]

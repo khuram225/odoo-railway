@@ -33,7 +33,7 @@
                             Glass: <span t-esc="aw_design.glass_spec_id.display_name"/>
                         </div>
                         <div t-if="aw_design.finish_id">
-                            Finish: <span t-esc="aw_design.finish_id.display_name"/>
+                            Finish: <span t-esc="aw_design.finish_id.name"/>
                         </div>
                         <t t-set="panels" t-value="aw_design._panel_summary()"/>
                         <div t-if="panels">
