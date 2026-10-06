@@ -1040,9 +1040,22 @@ export class DesignConfigurator extends Component {
         this.onHeaderChange("manual_rate", rate);
         // Read-only recompute, so the figures follow the rate on Enter
         // or Tab without a Save. Nothing is written server-side.
+        await this.refreshPricingPreview();
+    }
+
+    /**
+     * Pricing tab figures for the header as it stands (manual rate and
+     * finish), computed server-side and rolled back, so nothing is
+     * saved. Ignored if the header moved on while the call was out.
+     */
+    async refreshPricingPreview() {
+        const header = this.state.data.header;
+        const { manual_rate: rate, finish_id: finish } = header;
         const pricing = await this.orm.call(
-            "aw.design", "preview_pricing", [[this.designId], rate]);
-        if (this.state.data.pricing && this.state.data.header.manual_rate === rate) {
+            "aw.design", "preview_pricing",
+            [[this.designId], rate || 0, finish || false]);
+        if (this.state.data.pricing
+            && header.manual_rate === rate && header.finish_id === finish) {
             this.state.data.pricing = pricing;
         }
     }
@@ -1054,6 +1067,7 @@ export class DesignConfigurator extends Component {
     /** The finish dropdown's choice; Finish is required, so no clearing. */
     setFinish(id) {
         this.onHeaderChange("finish_id", id);
+        return this.refreshPricingPreview();
     }
 
     finishStyle(option) {

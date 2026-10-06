@@ -21,6 +21,8 @@ Margin is measured against that cost, and a design under the floor is
 an error on the design and a refusal at quote confirmation -- the same
 hook core uses for its own pre-confirmation checks.
 """
+from contextlib import closing
+
 from odoo import _, api, fields, models
 
 MIN_MARGIN_PARAM = 'aw_fenestration.min_margin_pct'
@@ -289,11 +291,25 @@ class AwDesign(models.Model):
             },
         }
 
-    def preview_pricing(self, manual_rate):
-        """The Pricing tab as it would read with `manual_rate`, WITHOUT
-        saving anything. Read-only: the cost, basic value and areas are
-        the stored ones, and only the override is swapped, which is the
-        whole of what a manual rate changes (see _compute_pricing)."""
+    def preview_pricing(self, manual_rate, finish_id=False):
+        """The Pricing tab as it would read with `manual_rate` and, when
+        given, a different `finish_id`, WITHOUT saving anything.
+
+        A manual rate only swaps the override, so it is plain arithmetic
+        over the stored cost. A finish changes every profile's variant
+        and rate, so it is explode + cost inside a savepoint that is
+        always rolled back (`closing` rolls back on exit, and the
+        numbers are read out before it does). Works from the STORED
+        layout: panels edited but not yet saved are not part of it."""
+        self.ensure_one()
+        if finish_id and finish_id != self.finish_id.id:
+            with closing(self.env.cr.savepoint()):
+                self.write({'finish_id': finish_id})
+                self._explode()
+                return self._preview_pricing_values(manual_rate)
+        return self._preview_pricing_values(manual_rate)
+
+    def _preview_pricing_values(self, manual_rate):
         self.ensure_one()
         manual_rate = float(manual_rate or 0.0)
         pricing = dict(self._pricing_payload()['pricing'])
