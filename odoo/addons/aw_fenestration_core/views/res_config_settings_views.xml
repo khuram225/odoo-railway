@@ -20,6 +20,16 @@
                             <field name="aw_min_margin_pct"/>
                         </setting>
                     </block>
+                    <block title="Glass" name="aw_fenestration_glass_setting_container">
+                        <setting id="aw_glass_threshold_1_setting" string="Glass suggestion: larger"
+                                 help="Panes at or above this area (m2) are suggested 6+10+8. Read off the Lake City schedule: confirm with the client.">
+                            <field name="aw_glass_threshold_1_m2"/>
+                        </setting>
+                        <setting id="aw_glass_threshold_2_setting" string="Glass suggestion: heaviest"
+                                 help="Panes at or above this area (m2) are suggested 8+8+8. Checked first. Read off the Lake City schedule: confirm with the client.">
+                            <field name="aw_glass_threshold_2_m2"/>
+                        </setting>
+                    </block>
                     <block title="Cutting" name="aw_fenestration_cutting_setting_container">
                         <setting id="aw_stock_lengths_setting" string="Stock bar lengths"
                                  help="Comma separated, in feet. The cutting plan costs every one of these and picks the cheapest.">

@@ -1046,7 +1046,14 @@
                                          override, so this disappears for a
                                          louvre, fan, AC cutout or solid panel. -->
                                     <t t-if="selectedPanelUsesGlass">
-                                        <div class="small text-muted mb-1">Glass override</div>
+                                        <div class="small text-muted mb-1">
+                                            Glass override
+                                            <span t-if="selectedPanel.glass_suggested"
+                                                  class="badge text-bg-info ms-1"
+                                                  title="Suggested from the panel size or the window's location. Choose another to replace it.">
+                                                suggested
+                                            </span>
+                                        </div>
                                         <select class="form-select form-select-sm mb-2"
                                                 t-on-change="onPanelGlassChange">
                                             <option value="">Design glass</option>

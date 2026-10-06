@@ -112,6 +112,11 @@ class AwDesign(models.Model):
         help="Built from components added one by one rather than from a "
              "Specification.")
 
+    suggest_glass = fields.Boolean(
+        string='Suggest Glass', default=False, copy=True,
+        help="Set on windows made after glass suggestions arrived. Older "
+             "windows keep the glass they have.")
+
     override_ids = fields.One2many(
         'aw.design.override', 'design_id', string='Changes for this window')
     override_count = fields.Integer(compute='_compute_override_count')
@@ -585,6 +590,12 @@ class AwDesign(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
+        # Glass suggestions are for windows made from now on. The column
+        # defaults False so every existing window stays out of it; a
+        # copy states its own value, so duplicating an old window keeps
+        # it out too.
+        for vals in vals_list:
+            vals.setdefault('suggest_glass', True)
         designs = super().create(vals_list)
         designs._sync_sale_order_line()
         return designs
@@ -713,6 +724,7 @@ class AwDesign(models.Model):
                     leaf.infill_type_id.uses_glass
                     if leaf.infill_type_id else True),
                 'glass_spec_id': leaf.glass_spec_id.id,
+                'glass_suggested': leaf.glass_suggested,
                 'grid_pattern_id': leaf.grid_pattern_id.id,
                 'grid_rows': leaf.grid_rows or 0,
                 'grid_cols': leaf.grid_cols or 0,
@@ -1437,6 +1449,9 @@ class AwDesign(models.Model):
                     'mesh_hinge_side': leaf.get('mesh_hinge_side') or False,
                     'infill_type_id': leaf.get('infill_type_id') or False,
                     'glass_spec_id': leaf.get('glass_spec_id') or False,
+                    'glass_suggested': bool(
+                        leaf.get('glass_suggested')
+                        and leaf.get('glass_spec_id')),
                     'grid_pattern_id': leaf.get('grid_pattern_id') or False,
                     'grid_rows': leaf.get('grid_rows') or 0,
                     'grid_cols': leaf.get('grid_cols') or 0,
@@ -1497,6 +1512,9 @@ class AwDesign(models.Model):
         # for display, but the server decides what's stored, so a payload
         # that arrived with stale or absent numbers still lands numbered.
         self._renumber_panels()
+        # After the panels are numbered and sized, before the explosion
+        # prices them: a suggested glass is part of the BOM.
+        self._suggest_glass()
         # Validated here, once, over the finished tree -- NOT by a
         # constraint on the leaf. A container leaf is created before its
         # sub-rows exist (they need its id), so at create time it looks

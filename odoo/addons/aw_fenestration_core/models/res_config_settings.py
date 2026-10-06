@@ -37,6 +37,20 @@ class ResConfigSettings(models.TransientModel):
              "blocks quote confirmation. Placeholder value -- confirm it "
              "with the business before relying on it.")
 
+    # Glass suggestion (Lake City schedule). ir.config_parameter, like
+    # the rest, so no column lands on res.company or res.users.
+    # [revisit: read off Lake City, the client is to confirm both.]
+    aw_glass_threshold_1_m2 = fields.Float(
+        string='Larger glass from (m2)', default=4.5,
+        config_parameter='aw_fenestration.glass_threshold_1_m2',
+        help="A pane at or above this area is suggested 6+10+8 Clear "
+             "Tempered.")
+    aw_glass_threshold_2_m2 = fields.Float(
+        string='Heaviest glass from (m2)', default=7.0,
+        config_parameter='aw_fenestration.glass_threshold_2_m2',
+        help="A pane at or above this area is suggested 8+8+8 Clear "
+             "Tempered. Checked before the smaller threshold.")
+
     # Cutting plan (spec 8, Phase 6c). ir.config_parameter again.
     aw_stock_lengths_ft = fields.Char(
         string='Stock Bar Lengths (ft)', default='14,16,18',

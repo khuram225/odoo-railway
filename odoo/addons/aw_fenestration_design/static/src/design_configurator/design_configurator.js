@@ -3917,6 +3917,7 @@ export class DesignConfigurator extends Component {
         // was set rather than leaving it to be quietly applied later.
         if (!leaf.infill_uses_glass) {
             leaf.glass_spec_id = false;
+            leaf.glass_suggested = false;
         }
         this.state.dirty = true;
     }
@@ -3927,6 +3928,8 @@ export class DesignConfigurator extends Component {
             return;
         }
         leaf.glass_spec_id = parseInt(value, 10) || false;
+        // A choice made here is the user's, not a suggestion.
+        leaf.glass_suggested = false;
         this.state.dirty = true;
     }
 

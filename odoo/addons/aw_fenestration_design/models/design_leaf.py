@@ -114,6 +114,12 @@ class AwDesignLeaf(models.Model):
         'aw.glass.spec', string='Glass override', ondelete='restrict',
         help="Overrides the design's glass for this panel only. Empty "
              "means the design's glass.")
+    glass_suggested = fields.Boolean(
+        string='Glass Suggested', default=False,
+        help="The glass override above was suggested from the panel's "
+             "size or the window's location, not chosen. Choosing glass "
+             "by hand clears this, and a hand-chosen glass is never "
+             "replaced by a later suggestion.")
     grid_pattern_id = fields.Many2one(
         'aw.grid.pattern', string='Grid', ondelete='restrict')
     grid_rows = fields.Integer(string='Grid Rows', default=0)

@@ -12,6 +12,7 @@ from . import library_seed
 from . import design_position_wizard
 from . import design_preset_wizard
 from . import family
+from . import glass_suggestion
 from . import override
 from . import explosion
 from . import snapshot
