@@ -40,6 +40,7 @@
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
                 <field name="code"/>
+                <field name="part_group"/>
                 <field name="scope"/>
                 <field name="is_required"/>
                 <field name="edge"/>

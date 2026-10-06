@@ -5,6 +5,34 @@ from odoo.exceptions import ValidationError
 from .formula import validate_formula
 
 
+# The window parts a spec is read by, in the order they are shown.
+# Display only: nothing in the BOM, the formulas or the cut list reads it.
+PART_GROUPS = [
+    ('outer_frame', 'Outer frame'),
+    ('sashes', 'Sashes'),
+    ('beads', 'Beads'),
+    ('dividers', 'Dividers'),
+    ('interlock_meeting', 'Interlock & meeting'),
+    ('lock', 'Lock'),
+    ('fly_screen', 'Fly screen'),
+]
+
+# scope -> group, for the seed. Name rules come first (see
+# _part_group_for): a lock bar and a Palay Bead share a scope with the
+# sash profiles but are different parts of the window.
+GROUP_BY_SCOPE = {
+    'frame': 'outer_frame',
+    'panel_opening': 'sashes',
+    'panel_fixed': 'beads',
+    'panel_mesh': 'fly_screen',
+    'mesh_attachment': 'fly_screen',
+    'junction_mullion': 'dividers',
+    'transom': 'dividers',
+    'junction_meeting': 'interlock_meeting',
+    'junction_interlock': 'interlock_meeting',
+}
+
+
 class AwProfilePosition(models.Model):
     """Open-ended replacement for the old hardcoded 5-value role Selection
     (frame/sash/interlock/bead/mesh) on aw.profile.section.line. A real
@@ -45,6 +73,11 @@ class AwProfilePosition(models.Model):
         ('transom', 'Transom (row boundary)'),
     ], help="Where this profile appears. A position with no scope is "
             "ignored by the BOM, and the checks report it.")
+    part_group = fields.Selection(
+        PART_GROUPS, string='Part Group',
+        help="Which part of the window this position belongs to. Only "
+             "how a specification lists its profiles; it changes no "
+             "length, quantity or price.")
     edge = fields.Selection([
         ('top', 'Top'),
         ('bottom', 'Bottom'),
@@ -100,6 +133,36 @@ class AwProfilePosition(models.Model):
                     raise ValidationError(_(
                         "%(label)s on '%(name)s': %(problem)s",
                         label=label, name=rec.name, problem=problem))
+
+    @api.model
+    def _part_group_for(self, position):
+        """The part group a seeded position belongs to, or False.
+
+        Name first: 'Lock Bar' and the Palay Bead set sit in the sash
+        scope but are a lock and beads. Then scope.
+        """
+        name = (position.name or '').lower()
+        if 'lock' in name and 'bar' in name:
+            return 'lock'
+        if 'bead' in name:
+            return 'beads'
+        return GROUP_BY_SCOPE.get(position.scope, False)
+
+    @api.model
+    def _seed_part_groups(self):
+        """Group the existing positions, FILLING ONLY EMPTY ones.
+
+        A position somebody has grouped is left alone, so an edit in the
+        UI survives an upgrade. Same caveat as the leaf-type seed:
+        clearing a group back to empty is not a stable state, since
+        empty is the signal for "never configured". Positions that match
+        no rule stay empty and are listed under "Other".
+        """
+        for position in self.with_context(active_test=False).search(
+                [('part_group', '=', False)]):
+            group = self._part_group_for(position)
+            if group:
+                position.part_group = group
 
     @api.model
     def _seed_bom_defaults(self):

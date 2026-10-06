@@ -82,17 +82,191 @@
                                 its own and the BOM resolves every
                                 profile's variant from it.
                             </p>
-                            <field name="profile_line_ids">
+                            <separator string="Outer frame"/>
+                            <field name="profile_line_outer_frame_ids" nolabel="1">
                                 <list editable="bottom">
-                                    <field name="sequence" widget="handle"/>
-                                    <field name="position_id"/>
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"
+                                           domain="[('part_group', '=', 'outer_frame')]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
                                     <field name="thickness_attribute_value_ids"
                                            column_invisible="1"/>
                                     <field name="thickness_id"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
-                                           optional="show"/>
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="Sashes"/>
+                            <field name="profile_line_sashes_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"
+                                           domain="[('part_group', '=', 'sashes')]"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <field name="thickness_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="thickness_id"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="Beads"/>
+                            <field name="profile_line_beads_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"
+                                           domain="[('part_group', '=', 'beads')]"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <field name="thickness_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="thickness_id"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="Dividers"/>
+                            <field name="profile_line_dividers_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"
+                                           domain="[('part_group', '=', 'dividers')]"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <field name="thickness_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="thickness_id"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="Interlock &amp; meeting"/>
+                            <field name="profile_line_interlock_meeting_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"
+                                           domain="[('part_group', '=', 'interlock_meeting')]"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <field name="thickness_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="thickness_id"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="Lock"/>
+                            <field name="profile_line_lock_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"
+                                           domain="[('part_group', '=', 'lock')]"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <field name="thickness_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="thickness_id"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="Fly screen"/>
+                            <field name="profile_line_fly_screen_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"
+                                           domain="[('part_group', '=', 'fly_screen')]"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <field name="thickness_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="thickness_id"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="Other"/>
+                            <field name="profile_line_other_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"
+                                           domain="[('part_group', '=', False)]"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <field name="thickness_attribute_value_ids"
+                                           column_invisible="1"/>
+                                    <field name="thickness_id"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
                                     <field name="length_formula" optional="hide"/>
                                     <field name="length_formula_h" optional="hide"/>
                                     <field name="cut_angle" optional="hide"/>

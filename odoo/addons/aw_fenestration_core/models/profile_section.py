@@ -59,6 +59,10 @@ class AwProfileSectionLine(models.Model):
         ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
     position_id = fields.Many2one('aw.profile.position', required=True)
+    # Stored so a spec can list its lines group by group with a plain
+    # domain. Display only.
+    part_group = fields.Selection(
+        related='position_id.part_group', store=True, readonly=True)
 
     product_tmpl_id = fields.Many2one(
         'product.template', required=True, ondelete='restrict',
@@ -68,6 +72,14 @@ class AwProfileSectionLine(models.Model):
         )],
         help="The profile filling this position. Pick a Thickness and "
              "Finish below to resolve (or create) the exact variant.")
+    # The profile again, only so the list can show its catalogue picture
+    # (a many2one with widget="image" is the way to show another
+    # record's image) and its printed section size beside it.
+    picture_tmpl_id = fields.Many2one(
+        related='product_tmpl_id', string='Picture', readonly=True)
+    section_dims = fields.Char(
+        related='product_tmpl_id.aw_section_dims', string='Section (mm)',
+        readonly=True)
     thickness_attribute_value_ids = fields.Many2many(
         'product.attribute.value', compute='_compute_available_attribute_values')
     thickness_id = fields.Many2one(

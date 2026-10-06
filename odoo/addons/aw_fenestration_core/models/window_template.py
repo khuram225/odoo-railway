@@ -84,6 +84,34 @@ class AwWindowTemplate(models.Model):
         'aw.profile.section.line', 'spec_id', string='Profiles', copy=True)
     hardware_line_ids = fields.One2many(
         'aw.hardware.set.line', 'spec_id', string='Hardware', copy=True)
+    # The SAME lines as profile_line_ids, one field per part group, so
+    # the form can show them under their own headings. Views only:
+    # copy=False because profile_line_ids is the one that copies, and
+    # nothing reads these in Python.
+    profile_line_outer_frame_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Outer frame',
+        domain=[('part_group', '=', 'outer_frame')], copy=False)
+    profile_line_sashes_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Sashes',
+        domain=[('part_group', '=', 'sashes')], copy=False)
+    profile_line_beads_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Beads',
+        domain=[('part_group', '=', 'beads')], copy=False)
+    profile_line_dividers_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Dividers',
+        domain=[('part_group', '=', 'dividers')], copy=False)
+    profile_line_interlock_meeting_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Interlock & meeting',
+        domain=[('part_group', '=', 'interlock_meeting')], copy=False)
+    profile_line_lock_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Lock',
+        domain=[('part_group', '=', 'lock')], copy=False)
+    profile_line_fly_screen_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Fly screen',
+        domain=[('part_group', '=', 'fly_screen')], copy=False)
+    profile_line_other_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Other',
+        domain=[('part_group', '=', False)], copy=False)
 
     profile_line_count = fields.Integer(compute='_compute_part_counts')
     hardware_line_count = fields.Integer(compute='_compute_part_counts')
