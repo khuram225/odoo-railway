@@ -137,7 +137,7 @@
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Spec</label>
-                            <select t-if="showSpecPicker"
+                            <select t-if="showSpecSelect"
                                     class="form-select form-select-sm"
                                     t-on-change="onSpecChange">
                                 <t t-foreach="specOptions" t-as="opt" t-key="opt.id">
@@ -146,6 +146,10 @@
                                         <t t-esc="opt.name"/>
                                     </option>
                                 </t>
+                                <option value="custom"
+                                        t-att-selected="state.data.header.spec_custom">
+                                    Custom (start empty)
+                                </option>
                             </select>
                             <div t-else="" class="form-control form-control-sm bg-view border-0 text-truncate"
                                  t-att-title="specName">
@@ -1304,7 +1308,7 @@
                                  it. -->
                             <div class="mb-2">
                                 <label class="form-label small text-muted mb-0">Spec</label>
-                                <select t-if="showSpecPicker"
+                                <select t-if="showSpecSelect"
                                         class="form-select form-select-sm"
                                         t-on-change="onSpecChange">
                                     <t t-foreach="specOptions" t-as="opt" t-key="opt.id">
@@ -1313,6 +1317,10 @@
                                             <t t-esc="opt.name"/>
                                         </option>
                                     </t>
+                                    <option value="custom"
+                                            t-att-selected="state.data.header.spec_custom">
+                                        Custom (start empty)
+                                    </option>
                                 </select>
                                 <div t-else="" class="form-control form-control-sm bg-view border-0 text-truncate"
                                      t-att-title="specName">
@@ -1320,8 +1328,14 @@
                                 </div>
                             </div>
                             <div t-if="!specProfiles.length" class="small text-muted mb-3">
-                                No Profile Section, so there are no profiles
-                                to show.
+                                <t t-if="state.data.header.spec_custom">
+                                    Custom window: nothing yet. Add its
+                                    components under each part below.
+                                </t>
+                                <t t-else="">
+                                    No Profile Section, so there are no
+                                    profiles to show.
+                                </t>
                             </div>
                             <t t-foreach="profileGroups" t-as="group" t-key="group.key">
                                 <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">

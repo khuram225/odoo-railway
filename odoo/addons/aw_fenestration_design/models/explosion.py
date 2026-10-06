@@ -976,7 +976,10 @@ class AwDesign(models.Model):
         """
         self.ensure_one()
         lines = self._spec_profile_lines() | self._added_profile_lines()
-        if not lines:
+        # A custom window with nothing added yet falls through to the
+        # per-position warnings below: it has no spec to blame, and each
+        # missing required part is the useful thing to say.
+        if not lines and not self.spec_custom:
             # One error beats one warning per position: the spec is the
             # thing to fix, and the rest would all say the same.
             return [('error', _(
@@ -1002,7 +1005,9 @@ class AwDesign(models.Model):
             problems.append(('warning', _(
                 "'%(spec)s' has no '%(position)s' line "
                 "(%(count)s %(what)s in this design).",
-                spec=self.template_id.display_name, position=position.name,
+                spec=(self.template_id.display_name
+                      or (_('Custom window') if self.spec_custom else '')),
+                position=position.name,
                 count=count, what=singular if count == 1 else plural)))
         return problems
 

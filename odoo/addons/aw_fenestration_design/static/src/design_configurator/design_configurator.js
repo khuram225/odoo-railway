@@ -656,11 +656,35 @@ export class DesignConfigurator extends Component {
         if ((role || "") === this.frameRole) {
             return;
         }
+        if (this.changeCount) {
+            // Same question as a spec change, same answers. The
+            // dropdown goes back until one is given.
+            ev.target.value = this.frameRole;
+            this.dialog.add(ConfirmationDialog, {
+                title: _t("Changes for this window"),
+                body: _t(
+                    "This window has %s change(s) of its own. Keep them on " +
+                        "top of the new frame type, or discard them and take " +
+                        "its specification as it stands?",
+                    this.changeCount
+                ),
+                confirmLabel: _t("Keep the changes"),
+                confirm: () => this.applyFrameRole(role, true),
+                cancelLabel: _t("Discard them"),
+                cancel: () => this.applyFrameRole(role, false),
+            });
+            return;
+        }
+        await this.applyFrameRole(role, true);
+    }
+
+    async applyFrameRole(role, keepChanges) {
         if (this.state.dirty) {
             await this.save();
         }
         const data = await this.orm.call(
-            "aw.design", "set_frame_role", [[this.designId], role]);
+            "aw.design", "set_frame_role",
+            [[this.designId], role, keepChanges]);
         const notice = data.frame_notice;
         this.state.data = data;
         this.state.selected = null;
@@ -753,6 +777,16 @@ export class DesignConfigurator extends Component {
     /** A dropdown only when there is more than one to choose from. */
     get showSpecPicker() {
         return this.specOptions.length > 1;
+    }
+
+    /**
+     * The Spec dropdown itself. Always offered: "Custom (start empty)"
+     * is an option on every window, so even a system with one spec has
+     * a choice to make. showSpecPicker keeps its old meaning (more than
+     * one spec to choose between).
+     */
+    get showSpecSelect() {
+        return !!this.state.data;
     }
 
     get specProfiles() {
@@ -912,8 +946,13 @@ export class DesignConfigurator extends Component {
      * loses work or quotes the wrong thing.
      */
     async onSpecChange(ev) {
-        const id = parseInt(ev.target.value, 10);
-        if (Number.isNaN(id) || id === this.state.data.header.template_id) {
+        // "custom" is the empty window: the server takes spec 0 as that.
+        const custom = ev.target.value === "custom";
+        const id = custom ? 0 : parseInt(ev.target.value, 10);
+        if (Number.isNaN(id)
+            || (custom
+                ? this.state.data.header.spec_custom
+                : id === this.state.data.header.template_id)) {
             return;
         }
         if (!this.changeCount) {

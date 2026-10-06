@@ -133,7 +133,7 @@ class AwDesign(models.Model):
                 roles.append((role, labels.get(role, role)))
         return roles
 
-    def set_frame_role(self, role=False):
+    def set_frame_role(self, role=False, keep_changes=True):
         """Choose the frame type from the configurator, or hand it back
         to the panels with a falsy `role` ("Auto").
 
@@ -145,6 +145,10 @@ class AwDesign(models.Model):
         first when it has unsaved edits.
         """
         self.ensure_one()
+        if not keep_changes:
+            # Asked of the user, as for a spec change: a per-window
+            # change may belong to the old system's spec.
+            self.override_ids.unlink()
         converted = self.env['aw.design.leaf']
         system = self.env['aw.window.series']
         if not role:

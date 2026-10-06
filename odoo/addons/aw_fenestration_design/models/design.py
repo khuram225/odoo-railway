@@ -102,6 +102,16 @@ class AwDesign(models.Model):
              "by hand. Changes made to THIS window afterwards are "
              "recorded separately, on the Spec tab.")
 
+    # A CUSTOM window starts empty: no spec, so no spec lines, and every
+    # part is added to it by hand. Kept as its own flag, not inferred
+    # from an empty template_id, because an empty template_id is also
+    # what a legacy or half-made design looks like, and _resolve_spec()
+    # must refill THAT but leave this alone.
+    spec_custom = fields.Boolean(
+        string='Custom Window', default=False, copy=True,
+        help="Built from components added one by one rather than from a "
+             "Specification.")
+
     override_ids = fields.One2many(
         'aw.design.override', 'design_id', string='Changes for this window')
     override_count = fields.Integer(compute='_compute_override_count')
@@ -352,6 +362,8 @@ class AwDesign(models.Model):
         survives.
         """
         for design in self:
+            if design.spec_custom:
+                continue
             choices = design._spec_choices()
             if design.template_id in choices:
                 continue
@@ -373,15 +385,38 @@ class AwDesign(models.Model):
         the answer through.
         """
         self.ensure_one()
+        if not spec_id:
+            return self._set_custom_spec(keep_changes)
         spec = self.env['aw.window.template'].browse(int(spec_id))
         if spec not in self._spec_choices():
             raise UserError(_(
                 "That specification does not belong to %s.",
                 self.window_series_id.display_name))
-        self.template_id = spec
+        self.write({'template_id': spec.id, 'spec_custom': False})
         self._apply_spec(force=True)
         if not keep_changes:
             self.override_ids.unlink()
+        self._explode()
+        return self.get_configurator_data()
+
+    def _set_custom_spec(self, keep_changes=True):
+        """Start the window empty: no spec, every part added by hand.
+
+        With no spec lines, a profile change has nothing left to
+        replace, so keeping the changes turns each into an ADDED
+        component -- the part stays on the window. Hardware changes
+        point at spec lines that are going away and cannot be kept.
+        Discarding drops every change.
+        """
+        self.ensure_one()
+        if keep_changes:
+            self.override_ids.filtered(
+                lambda o: o.kind == 'profile').write({'is_added': True})
+            self.override_ids.filtered(
+                lambda o: o.kind != 'profile').unlink()
+        else:
+            self.override_ids.unlink()
+        self.write({'template_id': False, 'spec_custom': True})
         self._explode()
         return self.get_configurator_data()
 
@@ -555,6 +590,9 @@ class AwDesign(models.Model):
         return designs
 
     def write(self, vals):
+        # Picking a spec ends "custom": the two cannot both be true.
+        if vals.get('template_id') and 'spec_custom' not in vals:
+            vals = dict(vals, spec_custom=False)
         res = super().write(vals)
         if any(f in vals for f in self.SALE_LINE_SYNC_FIELDS):
             self._sync_sale_order_line()
@@ -1216,7 +1254,10 @@ class AwDesign(models.Model):
                 'frame_role': (self.window_series_id.system_role or ''
                                if self.system_locked else ''),
                 'template_id': self.template_id.id,
-                'template_name': self.template_id.display_name or '',
+                'spec_custom': self.spec_custom,
+                'template_name': (self.template_id.display_name
+                                  or (_('Custom') if self.spec_custom
+                                      else '')),
                 # No control in the configurator, but it IS in the save
                 # allow-list, so without it here every save round-tripped
                 # a missing key and wiped the price override.

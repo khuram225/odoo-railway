@@ -249,6 +249,7 @@
                                            readonly="kind != 'hardware'"/>
                                     <field name="qty" readonly="kind != 'hardware'"/>
                                     <field name="note"/>
+                                    <field name="is_added" readonly="1"/>
                                 </list>
                             </field>
                         </page>
