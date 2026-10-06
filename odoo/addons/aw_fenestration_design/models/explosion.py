@@ -142,10 +142,45 @@ class AwDesign(models.Model):
             if position.id in chosen:
                 continue          # an alternate; the first one wins
             chosen[position.id] = line
+        for line in self._added_profile_lines():
+            chosen.setdefault(line.position_id.id, line)
         by_scope = {}
         for line in chosen.values():
             by_scope.setdefault(line.position_id.scope, []).append(line)
         return by_scope
+
+    def _added_profile_lines(self):
+        """Profile lines for the components added to THIS window.
+
+        An added component is a per-window change flagged `is_added`
+        whose position the spec has no line for. The explosion, the
+        costing and the checks all work on section LINES, so each one is
+        carried by an in-memory line (never stored): position and
+        profile come from the change, and everything else -- length
+        rule, angle, quantity -- falls back to the position's own
+        defaults, which is the whole point of picking an existing
+        position. `_profile_variant` finds the same change by position
+        and resolves the variant from it, so an added piece is costed
+        exactly like any other.
+
+        A spec that later gains the position wins: its own line is used
+        and the change becomes an ordinary replacement.
+        """
+        self.ensure_one()
+        Line = self.env['aw.profile.section.line']
+        in_spec = self._spec_profile_lines().position_id
+        lines = Line
+        for change in self.override_ids.filtered(
+                lambda o: o.kind == 'profile' and o.is_added
+                and o.position_id and o.position_id.scope
+                and o.position_id not in in_spec):
+            lines |= Line.new({
+                'position_id': change.position_id.id,
+                'product_tmpl_id': change.product_tmpl_id.id,
+                'thickness_id': change.thickness_id.id,
+                'sequence': change.position_id.sequence,
+            })
+        return lines
 
     def _overrides_by_key(self):
         """This window's changes, keyed by what each one replaces.
@@ -940,7 +975,7 @@ class AwDesign(models.Model):
         sash profile with the channel built in) is absent on purpose.
         """
         self.ensure_one()
-        lines = self._spec_profile_lines()
+        lines = self._spec_profile_lines() | self._added_profile_lines()
         if not lines:
             # One error beats one warning per position: the spec is the
             # thing to fix, and the rest would all say the same.

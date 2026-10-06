@@ -796,8 +796,13 @@ class AwDesign(models.Model):
 
         profiles = []
         seen = set()
-        for line in self._spec_profile_lines().sorted(
-                lambda l: (l.sequence, l.id)):
+        spec_lines = self._spec_profile_lines()
+        added_ids = set(self.override_ids.filtered('is_added').position_id.ids)
+        ordered = list(spec_lines.sorted(lambda l: (l.sequence, l.id)))
+        # Components added to this window come last, in position order.
+        ordered += sorted(self._added_profile_lines(),
+                          key=lambda l: l.position_id.sequence or 0)
+        for line in ordered:
             position = line.position_id
             if not position or position.id in seen:
                 # One line per position since phase 7d; this stays as a
@@ -825,8 +830,12 @@ class AwDesign(models.Model):
                 'thickness_name': thickness.display_name or '',
                 'product_name': (variant.display_name
                                  or template.display_name or ''),
-                'spec_name': line.product_tmpl_id.display_name or '',
+                'spec_name': ('' if position.id in added_ids
+                              and line not in spec_lines
+                              else line.product_tmpl_id.display_name or ''),
                 'changed': bool(change),
+                'added': bool(change) and change.is_added
+                and line not in spec_lines,
                 'note': (change.note or '') if change else '',
             })
 
@@ -852,8 +861,26 @@ class AwDesign(models.Model):
             'profiles': profiles,
             'hardware': hardware,
             'groups': [{'key': k, 'label': l} for k, l in groups],
+            'addable': self._addable_positions(),
+            # By ACCESS RIGHTS, not by a hard-coded group: whoever may
+            # create a position may offer to.
+            'can_create_position': self.env[
+                'aw.profile.position'].has_access('create'),
         }
 
+    def _addable_positions(self):
+        """Positions this window could take as an added component:
+        reachable by the explosion (they have a scope) and not already
+        in the spec or already added."""
+        self.ensure_one()
+        taken = (self._spec_profile_lines() | self._added_profile_lines()
+                 ).position_id
+        positions = self.env['aw.profile.position'].search(
+            [('scope', '!=', False)]) - taken
+        return [{
+            'id': p.id, 'name': p.display_name,
+            'part_group': p.part_group or 'other',
+        } for p in positions]
     @staticmethod
     def _length_rule_text(line):
         """The formula a profile line is cut by, as the spec form shows
@@ -882,12 +909,25 @@ class AwDesign(models.Model):
         if kind == 'profile':
             position = self.env['aw.profile.position'].browse(
                 int(values.get('position_id') or 0)).exists()
-            if position not in self._spec_profile_lines().position_id:
+            existing = self.override_ids.filtered(
+                lambda o, p=position: o.position_id == p)
+            in_spec = position in self._spec_profile_lines().position_id
+            # Adding a part is its own, explicit request: the position
+            # has to be one the explosion can reach and the spec must
+            # not already have it (that is a Change, not an Add).
+            adding = bool(values.get('added')) and not in_spec
+            if values.get('added') and in_spec:
+                raise UserError(_(
+                    "'%s' is already part of this window's Specification; "
+                    "use Change for it.", position.display_name))
+            if adding and not position.scope:
+                raise UserError(_(
+                    "'%s' has no scope, so the bill of materials cannot "
+                    "reach it. Give it one first.", position.display_name))
+            if not in_spec and not (adding or existing.filtered('is_added')):
                 raise UserError(_(
                     "That profile position is not part of this window's "
                     "Specification."))
-            existing = self.override_ids.filtered(
-                lambda o, p=position: o.position_id == p)
             template = self.env['product.template'].browse(
                 int(values.get('product_tmpl_id') or 0)).exists()
             if not template:
@@ -918,6 +958,8 @@ class AwDesign(models.Model):
                 'thickness_id': thickness.id if thickness else False,
                 'note': values.get('note') or '',
             }
+            if adding:
+                payload['is_added'] = True
         else:
             line = self.env['aw.hardware.set.line'].browse(
                 int(values.get('line_id') or 0)).exists()
@@ -1002,6 +1044,19 @@ class AwDesign(models.Model):
                     'product_tmpl_id': change.product_tmpl_id.id,
                     'thickness_id': change.thickness_id.id,
                 })
+        # Components added to this window become lines of the new spec;
+        # the copy above only carries what the old spec had.
+        Line = self.env['aw.profile.section.line']
+        for change in self.override_ids.filtered(
+                lambda o: o.kind == 'profile' and o.is_added
+                and o.position_id not in spec.profile_line_ids.position_id):
+            Line.create({
+                'spec_id': spec.id,
+                'position_id': change.position_id.id,
+                'product_tmpl_id': change.product_tmpl_id.id,
+                'thickness_id': change.thickness_id.id,
+                'sequence': change.position_id.sequence or 10,
+            })
         for original, copied in zip(
                 source_hardware,
                 spec.hardware_line_ids.sorted(

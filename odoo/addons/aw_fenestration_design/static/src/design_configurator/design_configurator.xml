@@ -1327,7 +1327,7 @@
                                 <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
                                     <t t-esc="group.label"/>
                                 </div>
-                                <table class="table table-sm o_aw_spec_table mb-3">
+                                <table t-if="group.rows.length" class="table table-sm o_aw_spec_table mb-1">
                                     <tbody>
                                         <tr t-foreach="group.rows" t-as="row"
                                             t-key="row.position_id">
@@ -1356,7 +1356,10 @@
                                                     </t>
                                                 </div>
                                                 <div t-attf-class="small {{ row.changed ? 'text-warning fw-bold' : 'text-muted' }}">
-                                                    <t t-if="row.changed">
+                                                    <t t-if="row.added">
+                                                        added for this window
+                                                    </t>
+                                                    <t t-elif="row.changed">
                                                         changed for this window &#183; spec says
                                                         <t t-esc="row.spec_name"/>
                                                     </t>
@@ -1371,14 +1374,37 @@
                                                 </button>
                                                 <button t-if="row.changed"
                                                         class="btn btn-sm btn-link px-1"
-                                                        title="Back to what the spec says"
+                                                        t-att-title="row.added ? 'Take this component off the window' : 'Back to what the spec says'"
                                                         t-on-click="() => this.resetPart(row, 'profile')">
-                                                    Reset
+                                                    <t t-esc="row.added ? 'Remove' : 'Reset'"/>
                                                 </button>
                                             </td>
                                         </tr>
                                     </tbody>
                                 </table>
+                                <div class="d-flex gap-1 align-items-center mb-3">
+                                    <select t-if="addablePositions(group.key).length"
+                                            class="form-select form-select-sm"
+                                            t-on-change="(ev) => this.onAddPosChange(group.key, ev)">
+                                        <option t-foreach="addablePositions(group.key)" t-as="pos"
+                                                t-key="pos.id" t-att-value="pos.id"
+                                                t-att-selected="pos.id === addPosition(group.key)">
+                                            <t t-esc="pos.name"/>
+                                        </option>
+                                    </select>
+                                    <button t-if="addablePositions(group.key).length"
+                                            class="btn btn-sm btn-outline-secondary text-nowrap"
+                                            title="Add a profile to this window for the chosen position"
+                                            t-on-click="() => this.addComponent(group)">
+                                        Add component
+                                    </button>
+                                    <button t-if="canCreatePosition"
+                                            class="btn btn-sm btn-link text-nowrap px-1"
+                                            title="Create a position when none of these fits"
+                                            t-on-click="() => this.newPosition(group)">
+                                        New position
+                                    </button>
+                                </div>
                             </t>
 
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">

@@ -67,6 +67,13 @@ class AwDesignOverride(models.Model):
 
     note = fields.Char(
         help="Why this window is different. Shown on the shop drawing.")
+    is_added = fields.Boolean(
+        string='Added Component', default=False,
+        help="This change ADDS a part the Specification does not have, "
+             "rather than replacing one it does. Only a change flagged "
+             "so produces a piece on its own: an ordinary change whose "
+             "position the spec no longer carries (after a spec switch) "
+             "stays dormant, exactly as before.")
 
     _sql_constraints = [
         ('profile_uniq', 'unique(design_id, position_id)',

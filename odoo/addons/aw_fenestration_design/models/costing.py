@@ -118,7 +118,8 @@ class AwDesign(models.Model):
         # whose variant was never in this map, so its thickness fell
         # back to False and the rate was looked up loosely.
         section_lines = {}
-        for source in self._spec_profile_lines():
+        for source in (self._spec_profile_lines()
+                       | self._added_profile_lines()):
             for template in source._profile_choices():
                 section_lines.setdefault(template.id, source)
 

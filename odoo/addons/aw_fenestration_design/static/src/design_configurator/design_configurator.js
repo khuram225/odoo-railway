@@ -13,6 +13,7 @@ import { standardActionServiceProps } from "@web/webclient/actions/action_servic
 import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
+import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
 
 const MM_PER_IN = 25.4;
@@ -205,6 +206,9 @@ export class DesignConfigurator extends Component {
             multiSel: [],
             // The enlarged profile picture on the Spec tab, or null.
             zoomPic: null,
+            // Position picked in each group's "Add component" row,
+            // keyed by group.
+            addPos: {},
             selectedDivider: null, // divider key
             zoom: 1, // 1 = fitted to the canvas
             paneLeft: loadPaneWidth("left", 220),
@@ -770,7 +774,90 @@ export class DesignConfigurator extends Component {
                 rows: rows.filter(
                     (row) => (row.part_group || "other") === group.key),
             }))
-            .filter((group) => group.rows.length);
+            .filter((group) => group.rows.length || group.key !== "other"
+                    || this.addablePositions("other").length);
+    }
+
+    // -- add component --------------------------------------------------
+    /** Positions the window could take in this group, from the server. */
+    addablePositions(groupKey) {
+        return (this.state.data?.spec_parts?.addable || []).filter(
+            (p) => p.part_group === groupKey);
+    }
+
+    get canCreatePosition() {
+        return !!this.state.data?.spec_parts?.can_create_position;
+    }
+
+    /** The position chosen for a group, defaulting to its first. */
+    addPosition(groupKey) {
+        const options = this.addablePositions(groupKey);
+        const picked = this.state.addPos[groupKey];
+        return options.some((p) => p.id === picked)
+            ? picked : (options[0] ? options[0].id : 0);
+    }
+
+    onAddPosChange(groupKey, ev) {
+        this.state.addPos[groupKey] = parseInt(ev.target.value, 10) || 0;
+    }
+
+    /** Pick a profile for the chosen position, then add it as a change. */
+    addComponent(group) {
+        const positionId = this.addPosition(group.key);
+        if (!positionId) {
+            return;
+        }
+        const position = this.addablePositions(group.key).find(
+            (p) => p.id === positionId);
+        this.dialog.add(SelectCreateDialog, {
+            resModel: "product.template",
+            title: _t("Choose a profile for %s", position.name),
+            noCreate: true,
+            multiSelect: false,
+            context: {
+                list_view_ref: "aw_fenestration_design.view_aw_profile_picker_list",
+            },
+            domain: [["categ_id", "child_of", this.profileCategoryId]],
+            onSelected: (ids) => this.saveAddedComponent(positionId, ids[0]),
+        });
+    }
+
+    async saveAddedComponent(positionId, templateId) {
+        // The server works on the stored layout and hands back a fresh
+        // payload, so unsaved edits are saved first rather than lost.
+        if (this.state.dirty) {
+            await this.save();
+        }
+        this.state.data = await this.orm.call("aw.design", "set_override", [
+            [this.designId],
+            {
+                kind: "profile",
+                position_id: positionId,
+                product_tmpl_id: templateId,
+                added: true,
+            },
+        ]);
+        this.surfaceCheckErrors();
+    }
+
+    /** Create a position when none fits; only offered to those allowed. */
+    newPosition(group) {
+        this.dialog.add(FormViewDialog, {
+            resModel: "aw.profile.position",
+            title: _t("New position"),
+            context: {
+                form_view_ref: "aw_fenestration_design.view_aw_position_quick_form",
+                default_part_group: group.key === "other" ? false : group.key,
+                // A position made on the spot is not something every
+                // spec must have, so it must not warn on all of them.
+                default_is_required: false,
+            },
+            onRecordSaved: async (record) => {
+                this.state.addPos[group.key] = record.resId;
+                this.state.data = await this.orm.call(
+                    "aw.design", "get_configurator_data", [[this.designId]]);
+            },
+        });
     }
 
     /**

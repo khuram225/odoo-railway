@@ -22,4 +22,26 @@
         </field>
     </record>
 
+    <!-- "New position" in the configurator's Spec tab. Only what a
+         position needs to be reachable and cut: a name, where it lists,
+         where the explosion applies it, which edge, how long, what
+         angle. The full form stays under Profile Positions. -->
+    <record id="view_aw_position_quick_form" model="ir.ui.view">
+        <field name="name">aw.profile.position.quick.form</field>
+        <field name="model">aw.profile.position</field>
+        <field name="arch" type="xml">
+            <form>
+                <group>
+                    <field name="name"/>
+                    <field name="part_group"/>
+                    <field name="scope" required="1"/>
+                    <field name="edge"/>
+                    <field name="default_length"/>
+                    <field name="default_angle"/>
+                    <field name="is_required" invisible="1"/>
+                </group>
+            </form>
+        </field>
+    </record>
+
 </odoo>
