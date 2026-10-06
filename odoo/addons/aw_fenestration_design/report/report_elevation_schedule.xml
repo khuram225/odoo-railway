@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- A4 landscape, six windows a page. Tight margins: the cells need
+         the room, and the page header is part of the template. -->
+    <record id="paperformat_aw_elevation_schedule" model="report.paperformat">
+        <field name="name">Fenestration Elevation Schedule A4 Landscape</field>
+        <field name="format">A4</field>
+        <field name="orientation">Landscape</field>
+        <field name="margin_top">8</field>
+        <field name="margin_bottom">8</field>
+        <field name="margin_left">8</field>
+        <field name="margin_right">8</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">0</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <!-- Client-facing: no prices, no cut lists, no checks. Tables only,
+         because wkhtmltopdf has no flexbox. -->
+    <template id="report_elevation_schedule">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="order">
+                <t t-set="pages" t-value="order._aw_elevation_schedule_pages()"/>
+                <div t-if="not pages" style="font-size:14px; padding:20mm;">
+                    No windows on this quote
+                </div>
+                <t t-foreach="pages" t-as="page">
+                    <div t-attf-style="font-size:11px; #{'page-break-after: always;' if not page_last else ''}">
+
+                        <table style="width:100%; table-layout:fixed; margin-bottom:3mm;">
+                            <tr>
+                                <td style="width:28%; vertical-align:middle;">
+                                    <img t-if="order.company_id.logo"
+                                         t-att-src="image_data_uri(order.company_id.logo)"
+                                         style="max-height:16mm; max-width:60mm;"/>
+                                </td>
+                                <td style="width:36%; text-align:center; vertical-align:middle;">
+                                    <span style="font-size:20px; font-weight:bold;">Elevation Diagram</span>
+                                </td>
+                                <td style="width:36%; text-align:right; vertical-align:middle; font-size:11px;">
+                                    <div><strong t-esc="order.partner_id.display_name"/></div>
+                                    <div t-esc="order._aw_site_address()"/>
+                                    <div>
+                                        <span t-esc="order.date_order" t-options="{'widget': 'date'}"/>
+                                        &#183; <span t-esc="order.name"/>
+                                        &#183; Page <span t-esc="page_index + 1"/> of <span t-esc="len(pages)"/>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+
+                        <table style="width:100%; table-layout:fixed; border-collapse:collapse;">
+                            <t t-foreach="[0, 3]" t-as="start">
+                                <tr>
+                                    <t t-foreach="[0, 1, 2]" t-as="col">
+                                        <t t-set="doc" t-value="page[start + col] if start + col &lt; len(page) else False"/>
+                                        <td style="width:33.33%; height:84mm; border:1px solid #444; vertical-align:top; padding:2mm; overflow:hidden;">
+                                            <t t-if="doc">
+                                                <div style="text-align:center; font-weight:bold; margin-bottom:1mm;">
+                                                    View From Inside
+                                                </div>
+                                                <div style="text-align:center; height:48mm;">
+                                                    <img t-if="doc.elevation_png"
+                                                         t-att-src="image_data_uri(doc.elevation_png)"
+                                                         style="max-width:100%; max-height:48mm;"/>
+                                                    <span t-else="" style="color:#888;">No drawing</span>
+                                                </div>
+                                                <div t-if="doc.elevation_png and not doc.elevation_is_current"
+                                                     style="text-align:center; color:#a00; font-weight:bold;">
+                                                    Drawing out of date
+                                                </div>
+                                                <table style="width:100%; margin-top:1mm;">
+                                                    <tr>
+                                                        <td style="width:34%;"><strong>Design Ref</strong></td>
+                                                        <td><span t-esc="doc.name"/></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Qty</strong></td>
+                                                        <td><span t-esc="doc.qty"/></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Location</strong></td>
+                                                        <td><span t-esc="doc.location or '-'"/></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>W</strong></td>
+                                                        <td><span t-esc="doc._schedule_dimension(doc.width_mm)"/></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>H</strong></td>
+                                                        <td><span t-esc="doc._schedule_dimension(doc.height_mm)"/></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td style="vertical-align:top;"><strong>Glass</strong></td>
+                                                        <td><span t-esc="doc._schedule_glass() or '-'"/></td>
+                                                    </tr>
+                                                </table>
+                                            </t>
+                                        </td>
+                                    </t>
+                                </tr>
+                            </t>
+                        </table>
+                    </div>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_aw_elevation_schedule" model="ir.actions.report">
+        <field name="name">Elevation Schedule</field>
+        <field name="model">sale.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_elevation_schedule</field>
+        <field name="report_file">aw_fenestration_design.report_elevation_schedule</field>
+        <field name="print_report_name">'Elevation Schedule - %s' % (object.name or '')</field>
+        <field name="paperformat_id" ref="paperformat_aw_elevation_schedule"/>
+        <field name="binding_model_id" ref="sale.model_sale_order"/>
+        <field name="binding_type">report</field>
+    </record>
+
+</odoo>
