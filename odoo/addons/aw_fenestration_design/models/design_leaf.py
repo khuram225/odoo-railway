@@ -114,6 +114,11 @@ class AwDesignLeaf(models.Model):
         'aw.glass.spec', string='Glass override', ondelete='restrict',
         help="Overrides the design's glass for this panel only. Empty "
              "means the design's glass.")
+    glass_chosen = fields.Boolean(
+        string='Glass Chosen', default=False,
+        help="Somebody picked this panel's glass by hand, including "
+             "picking 'Design glass' on purpose. A suggestion never "
+             "touches such a panel.")
     glass_suggested = fields.Boolean(
         string='Glass Suggested', default=False,
         help="The glass override above was suggested from the panel's "

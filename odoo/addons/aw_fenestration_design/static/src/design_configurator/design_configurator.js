@@ -3928,8 +3928,11 @@ export class DesignConfigurator extends Component {
             return;
         }
         leaf.glass_spec_id = parseInt(value, 10) || false;
-        // A choice made here is the user's, not a suggestion.
+        // A choice made here is the user's, not a suggestion --
+        // "Design glass" (empty) included, which is a choice too, so
+        // later saves never suggest for this panel again.
         leaf.glass_suggested = false;
+        leaf.glass_chosen = true;
         this.state.dirty = true;
     }
 

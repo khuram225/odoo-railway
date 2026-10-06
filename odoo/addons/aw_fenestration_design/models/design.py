@@ -725,6 +725,7 @@ class AwDesign(models.Model):
                     if leaf.infill_type_id else True),
                 'glass_spec_id': leaf.glass_spec_id.id,
                 'glass_suggested': leaf.glass_suggested,
+                'glass_chosen': leaf.glass_chosen,
                 'grid_pattern_id': leaf.grid_pattern_id.id,
                 'grid_rows': leaf.grid_rows or 0,
                 'grid_cols': leaf.grid_cols or 0,
@@ -1452,6 +1453,7 @@ class AwDesign(models.Model):
                     'glass_suggested': bool(
                         leaf.get('glass_suggested')
                         and leaf.get('glass_spec_id')),
+                    'glass_chosen': bool(leaf.get('glass_chosen')),
                     'grid_pattern_id': leaf.get('grid_pattern_id') or False,
                     'grid_rows': leaf.get('grid_rows') or 0,
                     'grid_cols': leaf.get('grid_cols') or 0,

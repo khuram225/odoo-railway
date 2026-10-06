@@ -6,8 +6,9 @@ Lake City schedule; the client is to confirm them.]
 
 The rule, in order, for one panel:
 
-1. the window's Location names a wet room (BATH, POWDER, TOILET or WC,
-   as whole words, any case) -> Frosted;
+1. the window's Location has a word STARTING WITH one of the wet-room
+   words in Settings (BATH, POWDER, TOILET, WC, WASHROOM by default; any
+   case, so BATH matches Bathroom and GF-BATH) -> Frosted;
 2. the pane is at least the larger threshold (default 7 m2) -> 8+8+8;
 3. at least the smaller one (default 4.5 m2) -> 6+10+8;
 4. otherwise nothing: the panel follows the window's own glass.
@@ -26,7 +27,8 @@ import re
 
 from odoo import api, models
 
-WET_ROOM = re.compile(r'\b(bath|powder|toilet|wc)\b', re.IGNORECASE)
+WET_WORDS = 'aw_fenestration.glass_wet_words'
+DEFAULT_WET_WORDS = 'BATH, POWDER, TOILET, WC, WASHROOM'
 THRESHOLD_1 = 'aw_fenestration.glass_threshold_1_m2'
 THRESHOLD_2 = 'aw_fenestration.glass_threshold_2_m2'
 DEFAULT_THRESHOLD_1 = 4.5
@@ -54,11 +56,21 @@ class AwDesign(models.Model):
         return (read(THRESHOLD_1, DEFAULT_THRESHOLD_1),
                 read(THRESHOLD_2, DEFAULT_THRESHOLD_2))
 
+    @api.model
+    def _wet_room(self, location):
+        """Does a Location word start with a wet-room word?"""
+        raw = self.env['ir.config_parameter'].sudo().get_param(
+            WET_WORDS) or DEFAULT_WET_WORDS
+        keywords = [w.strip().lower() for w in re.split(r'[,;]', raw)
+                    if w.strip()]
+        words = re.findall(r'[a-z0-9]+', (location or '').lower())
+        return any(word.startswith(k) for word in words for k in keywords)
+
     def _suggested_glass_for(self, leaf):
         """The glass the rule suggests for one panel, or empty."""
         self.ensure_one()
         Glass = self.env['aw.glass.spec']
-        if WET_ROOM.search(self.location or ''):
+        if self._wet_room(self.location):
             return self.env.ref(FROSTED, raise_if_not_found=False) or Glass
         area_m2 = (leaf.width_mm or 0.0) * (leaf.row_id.height_mm or 0.0) / 1e6
         small, large = self._glass_thresholds()
@@ -80,7 +92,8 @@ class AwDesign(models.Model):
                         leaf.infill_type_id
                         and not leaf.infill_type_id.uses_glass):
                     continue
-                if leaf.glass_spec_id and not leaf.glass_suggested:
+                if leaf.glass_chosen or (
+                        leaf.glass_spec_id and not leaf.glass_suggested):
                     continue          # chosen by hand: never replaced
                 pick = design._suggested_glass_for(leaf)
                 if pick and pick != default:

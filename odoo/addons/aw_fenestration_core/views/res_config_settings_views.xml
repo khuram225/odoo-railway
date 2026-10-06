@@ -30,6 +30,12 @@
                             <field name="aw_glass_threshold_2_m2"/>
                         </setting>
                     </block>
+                    <block title="Glass wet rooms" name="aw_fenestration_glass_words_setting_container">
+                        <setting id="aw_glass_wet_words_setting" string="Wet-room words"
+                                 help="Comma separated. A Location word that starts with one of these gets frosted glass suggested: BATH matches Bath, Bathroom and GF-BATH.">
+                            <field name="aw_glass_wet_words"/>
+                        </setting>
+                    </block>
                     <block title="Cutting" name="aw_fenestration_cutting_setting_container">
                         <setting id="aw_stock_lengths_setting" string="Stock bar lengths"
                                  help="Comma separated, in feet. The cutting plan costs every one of these and picks the cheapest.">

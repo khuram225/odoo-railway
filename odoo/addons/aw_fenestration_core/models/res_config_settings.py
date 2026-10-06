@@ -51,6 +51,14 @@ class ResConfigSettings(models.TransientModel):
         help="A pane at or above this area is suggested 8+8+8 Clear "
              "Tempered. Checked before the smaller threshold.")
 
+    aw_glass_wet_words = fields.Char(
+        string='Wet-room words',
+        default='BATH, POWDER, TOILET, WC, WASHROOM',
+        config_parameter='aw_fenestration.glass_wet_words',
+        help="Comma separated. A window whose Location has a word that "
+             "STARTS WITH one of these (any case) is suggested frosted "
+             "glass: BATH matches Bath, Bathroom and GF-BATH.")
+
     # Cutting plan (spec 8, Phase 6c). ir.config_parameter again.
     aw_stock_lengths_ft = fields.Char(
         string='Stock Bar Lengths (ft)', default='14,16,18',
