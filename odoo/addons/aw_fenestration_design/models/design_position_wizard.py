@@ -26,7 +26,7 @@ class AwDesignPositionWizard(models.TransientModel):
     Name and location are a convenience, editable on the design form
     right afterwards."""
     _name = 'aw.design.position.wizard'
-    _description = 'Add Fenestration Position'
+    _description = 'Add Fenestration Window'
 
     order_id = fields.Many2one(
         'sale.order', required=True, ondelete='cascade')
@@ -62,13 +62,13 @@ class AwDesignPositionWizard(models.TransientModel):
         help="Defaults to that system's default specification.")
 
     name = fields.Char(
-        string='Position Ref',
-        help="Leave blank to auto-number (D1, D2, ...).")
+        string='Design Ref',
+        help="Leave blank to auto-number (W1, W2, ...).")
     location = fields.Char(help="e.g. 'Drawing room', 'Bathroom'.")
     set_as_default = fields.Boolean(
         string='Use as default for this quote', default=True,
         help="Sets this family as the quote's default, so further "
-             "positions skip this dialog. Each design's own family can "
+             "windows skip this dialog. Each design's own family can "
              "still be changed afterwards.")
 
     @api.depends('family_id', 'frame_role')

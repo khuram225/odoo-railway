@@ -34,7 +34,7 @@
                             </select>
                         </div>
                         <div>
-                            <label class="form-label small text-muted mb-0">Position</label>
+                            <label class="form-label small text-muted mb-0">Design Ref</label>
                             <input type="text" class="form-control form-control-sm"
                                    t-att-value="state.data.header.name"
                                    t-on-input="() => this.markDirty()"
@@ -57,23 +57,45 @@
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">
-                                Width (<t t-esc="uomLabel"/>)
+                                Width (in)
                             </label>
                             <input type="text" class="form-control form-control-sm"
-                                   style="width: 9rem;"
-                                   t-att-value="formatLength(state.data.header.width_mm)"
+                                   style="width: 7rem;"
+                                   placeholder="8' 6&quot;"
+                                   t-att-value="formatInchesBox(state.data.header.width_mm)"
                                    t-on-input="() => this.markDirty()"
-                                   t-on-change="(ev) => this.onDimensionChange('width_mm', ev.target.value)"/>
+                                   t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'in', ev)"/>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">
-                                Height (<t t-esc="uomLabel"/>)
+                                Width (mm)
+                            </label>
+                            <input type="text" inputmode="decimal" class="form-control form-control-sm"
+                                   style="width: 6rem;"
+                                   t-att-value="formatMmBox(state.data.header.width_mm)"
+                                   t-on-input="() => this.markDirty()"
+                                   t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'mm', ev)"/>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">
+                                Height (in)
                             </label>
                             <input type="text" class="form-control form-control-sm"
-                                   style="width: 9rem;"
-                                   t-att-value="formatLength(state.data.header.height_mm)"
+                                   style="width: 7rem;"
+                                   placeholder="8' 6&quot;"
+                                   t-att-value="formatInchesBox(state.data.header.height_mm)"
                                    t-on-input="() => this.markDirty()"
-                                   t-on-change="(ev) => this.onDimensionChange('height_mm', ev.target.value)"/>
+                                   t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'in', ev)"/>
+                        </div>
+                        <div>
+                            <label class="form-label small text-muted mb-0">
+                                Height (mm)
+                            </label>
+                            <input type="text" inputmode="decimal" class="form-control form-control-sm"
+                                   style="width: 6rem;"
+                                   t-att-value="formatMmBox(state.data.header.height_mm)"
+                                   t-on-input="() => this.markDirty()"
+                                   t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'mm', ev)"/>
                         </div>
                         <!-- Derived, not chosen: a label unless more
                              than one system could carry this layout. -->
@@ -126,24 +148,32 @@
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Finish</label>
-                            <!-- Swatches, not a dropdown: Finish is a
-                                 colour attribute and the colour is the
-                                 thing being chosen. Name on hover;
-                                 the selected one is outlined. -->
-                            <div class="d-flex gap-1 align-items-center"
-                                 style="height: calc(1.5em + 0.5rem + 2px);">
-                                <t t-foreach="finishOptions" t-as="opt" t-key="opt.id">
-                                    <button type="button"
-                                            class="o_aw_finish_swatch"
-                                            t-att-class="{'o_aw_finish_selected': opt.id === state.data.header.finish_id}"
-                                            t-att-title="opt.name"
-                                            t-att-style="finishStyle(opt)"
-                                            t-on-click="() => this.setFinish(opt.id)"/>
-                                </t>
-                                <span t-if="!finishOptions.length"
-                                      class="small text-muted">
-                                    No finishes configured.
-                                </span>
+                            <!-- Dropdown, each option led by its colour
+                                 dot (html_color). Bootstrap's own
+                                 dropdown, so it closes on outside click. -->
+                            <div class="dropdown">
+                                <button type="button"
+                                        class="btn btn-sm btn-light border dropdown-toggle d-flex align-items-center gap-2"
+                                        data-bs-toggle="dropdown" aria-expanded="false">
+                                    <span class="o_aw_finish_dot"
+                                          t-att-style="finishStyle(currentFinish)"/>
+                                    <span t-esc="currentFinish.name || 'Choose...'"/>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li t-foreach="finishOptions" t-as="opt" t-key="opt.id">
+                                        <a class="dropdown-item d-flex align-items-center gap-2" href="#"
+                                           t-att-class="{'active': opt.id === state.data.header.finish_id}"
+                                           t-on-click.prevent="() => this.setFinish(opt.id)">
+                                            <span class="o_aw_finish_dot"
+                                                  t-att-style="finishStyle(opt)"/>
+                                            <span t-esc="opt.name"/>
+                                        </a>
+                                    </li>
+                                    <li t-if="!finishOptions.length"
+                                        class="dropdown-item-text small text-muted">
+                                        No finishes configured.
+                                    </li>
+                                </ul>
                             </div>
                         </div>
                         <div class="ms-auto d-flex gap-2">
@@ -152,7 +182,7 @@
                                 Save as Preset
                             </button>
                             <button class="btn btn-sm btn-secondary" t-on-click="duplicatePosition"
-                                    title="Copy this position to a new quote line">
+                                    title="Copy this window to a new quote line">
                                 Duplicate
                             </button>
                             <button class="btn btn-sm btn-secondary" t-on-click="openForm">
@@ -468,75 +498,6 @@
                                         t-on-click="zoomFit">Fit</button>
                             </div>
 
-                            <!-- Floating toolbar. Child of the NON-scrolling
-                                 wrapper, positioned from screen coordinates, so
-                                 it tracks the selection through zoom and scroll
-                                 instead of drifting with the content. -->
-                            <div t-if="state.toolbar.show and selectionMode !== 'none'"
-                                 t-ref="toolbar"
-                                 class="o_aw_cfg_floating d-flex gap-1"
-                                 t-attf-style="left: {{state.toolbar.left}}px; top: {{state.toolbar.top}}px;">
-
-                                <t t-if="selectionMode === 'panel'">
-                                    <!-- Icon then counts, twice: the
-                                         toolbar floats over the drawing
-                                         and has to stay narrow, so the
-                                         direction is the icon and the
-                                         number of parts is the button. -->
-                                    <span class="o_aw_cfg_tool_icon" title="Split side by side">
-                                        <i class="fa fa-columns"/>
-                                    </span>
-                                    <t t-foreach="splitCounts" t-as="n" t-key="n">
-                                        <button class="btn btn-sm btn-light px-2"
-                                                t-att-title="'Split into ' + n + ' side by side'"
-                                                t-att-disabled="!canSplit"
-                                                t-on-click="() => this.splitPanel('vertical', n)">
-                                            <t t-esc="n"/>
-                                        </button>
-                                    </t>
-                                    <span class="o_aw_cfg_tool_icon" title="Split stacked">
-                                        <i class="fa fa-bars"/>
-                                    </span>
-                                    <t t-foreach="splitCounts" t-as="n" t-key="n">
-                                        <button class="btn btn-sm btn-light px-2"
-                                                t-att-title="'Split into ' + n + ' stacked'"
-                                                t-att-disabled="!canSplit"
-                                                t-on-click="() => this.splitPanel('horizontal', n)">
-                                            <t t-esc="n"/>
-                                        </button>
-                                    </t>
-                                    <button class="btn btn-sm btn-light px-2"
-                                            title="Make the panels in this row equally wide"
-                                            t-att-disabled="!canEqualizeWidths"
-                                            t-on-click="equalizeWidths">
-                                        <i class="fa fa-arrows-h"/>
-                                    </button>
-                                    <button class="btn btn-sm btn-light px-2"
-                                            title="Make the rows in this stack equally tall"
-                                            t-att-disabled="!canEqualizeHeights"
-                                            t-on-click="equalizeHeights">
-                                        <i class="fa fa-arrows-v"/>
-                                    </button>
-                                    <button class="btn btn-sm btn-light text-danger" title="Remove this panel"
-                                            t-att-disabled="!canRemove"
-                                            t-on-click="removePanel">
-                                        <i class="fa fa-trash"/>
-                                    </button>
-                                </t>
-
-                                <t t-else="">
-                                    <t t-foreach="junctionOptions" t-as="opt" t-key="opt.value">
-                                        <button class="btn btn-sm"
-                                                t-att-class="selectedDividerEntry.junction === opt.value ? 'btn-primary' : 'btn-light'"
-                                                t-att-disabled="!opt.enabled"
-                                                t-att-title="opt.title"
-                                                t-on-click="() => this.setJunction(opt.value)">
-                                            <t t-esc="opt.label"/>
-                                        </button>
-                                    </t>
-                                </t>
-                            </div>
-
                             <!-- The scrolling viewport. Its pixel size is what
                                  the fitted scale is computed from, so the
                                  ResizeObserver watches exactly this element. -->
@@ -551,7 +512,7 @@
                                 <div t-if="!scene"
                                      class="text-muted text-center d-flex flex-column justify-content-center align-items-center h-100 p-4">
                                     <div class="fs-5 mb-1">No drawing yet</div>
-                                    <div class="small">Set a width and a height above to draw this position.</div>
+                                    <div class="small">Set a width and a height above to draw this window.</div>
                                 </div>
 
                                 <!-- Sized in CSS pixels to fitScale * zoom. At
@@ -578,7 +539,7 @@
                                 <!-- outer frame -->
                                 <rect t-att-x="scene.frame.x" t-att-y="scene.frame.y"
                                       t-att-width="scene.frame.w" t-att-height="scene.frame.h"
-                                      fill="#8a9095" stroke="#6a7075" stroke-width="1"/>
+                                      t-att-fill="finishFill" t-att-stroke="finishStroke" stroke-width="1"/>
 
                                 <!-- leaves -->
                                 <t t-foreach="scene.leaves" t-as="leaf" t-key="leaf.key">
@@ -586,8 +547,8 @@
                                        t-on-click="(ev) => this.selectLeaf(leaf.path, ev)">
                                         <rect t-att-x="leaf.x" t-att-y="leaf.y"
                                               t-att-width="leaf.w" t-att-height="leaf.h"
-                                              fill="#8a9095" fill-opacity="0.55"
-                                              stroke="#6a7075" stroke-width="0.7"/>
+                                              t-att-fill="finishFill" fill-opacity="0.55"
+                                              t-att-stroke="finishStroke" stroke-width="0.7"/>
                                         <rect t-att-x="leaf.glassX" t-att-y="leaf.glassY"
                                               t-att-width="leaf.glassW" t-att-height="leaf.glassH"
                                               t-att-fill="leaf.isMesh ? 'url(#aw_mesh)' : '#c3dce3'"
@@ -910,6 +871,15 @@
                                                t-att-value="selectedPanelHeightText"
                                                t-on-change="(ev) => this.setPanelHeight(ev.target.value)"/>
                                     </div>
+                                </div>
+
+                                <div t-if="selectionPaths.length" class="alert alert-info py-1 px-2 small d-flex align-items-center gap-2 mb-2">
+                                    <span><t t-esc="selectionPaths.length"/> panels selected</span>
+                                    <button class="btn btn-sm btn-outline-secondary ms-auto"
+                                            title="Make the selected panels equal, keeping their total"
+                                            t-on-click="equalizeSelection">
+                                        Equalize selection
+                                    </button>
                                 </div>
 
                                 <!-- Panel toolbar. Splitting into 3 or 4
@@ -1261,7 +1231,7 @@
                                        t-on-change="onManualRateChange"/>
                                 <div class="form-text small">
                                     Clear it to return to the calculated
-                                    price. Figures refresh on save.
+                                    price. Applies on Enter or Tab; Save keeps it.
                                 </div>
                             </div>
 

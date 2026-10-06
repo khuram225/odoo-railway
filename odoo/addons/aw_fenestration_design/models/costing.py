@@ -288,3 +288,31 @@ class AwDesign(models.Model):
                 },
             },
         }
+
+    def preview_pricing(self, manual_rate):
+        """The Pricing tab as it would read with `manual_rate`, WITHOUT
+        saving anything. Read-only: the cost, basic value and areas are
+        the stored ones, and only the override is swapped, which is the
+        whole of what a manual rate changes (see _compute_pricing)."""
+        self.ensure_one()
+        manual_rate = float(manual_rate or 0.0)
+        pricing = dict(self._pricing_payload()['pricing'])
+        units = max(1, self.qty or 1)
+        total_sqft = (self.area_sqft or 0.0) * units
+        manual = manual_rate * total_sqft if manual_rate else 0.0
+        price = manual if manual_rate else self.basic_value
+
+        def margin_of(value):
+            return ((value - self.cost_total) / value * 100.0
+                    if value else 0.0)
+
+        pricing.update({
+            'manual_rate': manual_rate,
+            'manual_in_use': bool(manual_rate),
+            'price': price,
+            'price_per_sqft': price / total_sqft if total_sqft else 0.0,
+            'margin_pct': margin_of(price),
+            'manual_price': manual,
+            'manual_margin_pct': margin_of(manual),
+        })
+        return pricing

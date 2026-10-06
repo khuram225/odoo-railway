@@ -13,7 +13,7 @@
         <field name="name">aw.design.position.wizard.form</field>
         <field name="model">aw.design.position.wizard</field>
         <field name="arch" type="xml">
-            <form string="Add Position">
+            <form string="Add Window">
                 <group>
                     <field name="order_id" invisible="1"/>
                     <field name="family_id"/>
@@ -27,7 +27,7 @@
                 </group>
                 <footer>
                     <button name="action_confirm" type="object"
-                            string="Create Position" class="btn-primary"
+                            string="Create Window" class="btn-primary"
                             data-hotkey="q"/>
                     <button string="Cancel" class="btn-secondary"
                             special="cancel" data-hotkey="x"/>

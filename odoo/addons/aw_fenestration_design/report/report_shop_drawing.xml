@@ -60,7 +60,7 @@
                          style="max-width:100%; max-height:380px;"/>
                 </div>
                 <div t-else="" class="text-center text-muted border p-4 mb-2">
-                    No drawing stored for this position.
+                    No drawing stored for this window.
                 </div>
                 <p class="text-center small text-muted">
                     View from inside. Panel numbers read left to right, top

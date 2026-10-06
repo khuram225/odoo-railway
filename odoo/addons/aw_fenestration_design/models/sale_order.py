@@ -33,7 +33,7 @@ class SaleOrder(models.Model):
     aw_default_family_id = fields.Many2one(
         'aw.window.family', string='Default Glazing Family',
         ondelete='restrict',
-        help="What every new position on this quote starts as. The "
+        help="What every new window on this quote starts as. The "
              "profile system follows from the panels drawn.")
     # Phase 7e: one colour per quote, usually. Set it here and every
     # position added afterwards starts there; a design's own finish stays
@@ -44,14 +44,14 @@ class SaleOrder(models.Model):
             'attribute_id', '=',
             self.env.ref('aw_fenestration_core.aw_attribute_finish').id,
         )],
-        help="The finish new positions on this quote start in. Each "
+        help="The finish new windows on this quote start in. Each "
              "design's own finish can still be changed.")
 
     aw_default_series_id = fields.Many2one(
         'aw.window.series', string='Default Window Series',
         ondelete='restrict',
-        help="Series every new position on this quote starts from. Leave "
-             "blank to be asked each time. A position's own Series can "
+        help="Series every new window on this quote starts from. Leave "
+             "blank to be asked each time. A window's own Series can "
              "always be changed afterwards on the design itself.")
 
     def _confirmation_error_message(self):
@@ -66,7 +66,7 @@ class SaleOrder(models.Model):
         incomplete = self.aw_design_ids._incomplete_dimension_designs()
         if incomplete:
             return _(
-                "These positions still need a width and a height before "
+                "These windows still need a width and a height before "
                 "the order can be confirmed:\n%s",
                 '\n'.join('- %s' % d.display_name for d in incomplete))
         # Spec 8: the margin floor is a refusal, not a warning. Rides on
@@ -76,7 +76,7 @@ class SaleOrder(models.Model):
         if thin:
             floor = self.env['aw.design']._min_margin_pct()
             return _(
-                "These positions are below the %(floor).1f%% minimum "
+                "These windows are below the %(floor).1f%% minimum "
                 "margin:\n%(list)s",
                 floor=floor,
                 list='\n'.join(
@@ -98,11 +98,11 @@ class SaleOrder(models.Model):
         self.ensure_one()
         designs = self.aw_design_ids
         if not designs:
-            raise UserError(_("This quote has no fenestration positions."))
+            raise UserError(_("This quote has no fenestration windows."))
         blocking = designs.filtered(lambda d: d.check_error_count)
         if blocking:
             raise UserError(_(
-                "Fix these positions before planning the cuts:\n%s",
+                "Fix these windows before planning the cuts:\n%s",
                 '\n'.join('- %s' % design.display_name
                           for design in blocking)))
 
@@ -135,7 +135,7 @@ class SaleOrder(models.Model):
         self.ensure_one()
         if self.state not in ('draft', 'sent'):
             raise UserError(_(
-                "Positions can only be added while the order is still a "
+                "Windows can only be added while the order is still a "
                 "quotation."))
 
         product = self.env.ref(
@@ -153,7 +153,7 @@ class SaleOrder(models.Model):
             'product_uom_qty': 1,
         })
         design = self.env['aw.design'].create({
-            'name': name or 'D%s' % position_no,
+            'name': name or 'W%s' % position_no,
             'location': location or False,
             'qty': 1,
             'window_series_id': series.id,
@@ -203,7 +203,7 @@ class SaleOrder(models.Model):
         if not self.env['aw.window.family'].search_count([]):
             raise UserError(_(
                 "No Glazing Family exists yet. Create at least one under "
-                "Fenestration before adding positions to a quote."))
+                "Fenestration before adding windows to a quote."))
 
         # The wizard opens even when the quote has a default Series, with
         # that default pre-filled. It used to be skipped entirely, which
@@ -221,7 +221,7 @@ class SaleOrder(models.Model):
                 self.aw_default_series_id.family_id.id
         return {
             'type': 'ir.actions.act_window',
-            'name': _("Add Position"),
+            'name': _("Add Window"),
             'res_model': 'aw.design.position.wizard',
             'view_mode': 'form',
             'views': [(False, 'form')],

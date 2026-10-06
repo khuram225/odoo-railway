@@ -22,8 +22,8 @@ class AwDesign(models.Model):
     _order = 'id'
 
     name = fields.Char(
-        required=True, tracking=True,
-        help="Position reference, e.g. 'D1' — matches the prototype's "
+        string='Design Ref', required=True, tracking=True,
+        help="Design Ref, e.g. 'W1' — matches the prototype's "
              "design.ref, shown on the cumulative cut-list table.")
     location = fields.Char(tracking=True, help="e.g. 'Drawing room', "
         "'Bathroom' — matches the prototype's design.loc.")
@@ -128,7 +128,7 @@ class AwDesign(models.Model):
     # every other entry point behaves exactly as before.
     system_locked = fields.Boolean(
         string='Frame type chosen explicitly', default=False, copy=True,
-        help="Set when the position was added with a Frame Type. The "
+        help="Set when the window was added with a Frame Type. The "
              "window system is then not re-derived from the panels.")
 
     # compute reproduces exactly what is there, so an upgrade moves
@@ -1344,6 +1344,13 @@ class AwDesign(models.Model):
         # right-hand panel always shows THIS layout's, never the previous
         # one's. The button stays for a manual re-run.
         self._explode()
+        # The quote line takes its price from price_total, which only
+        # exists once the explosion above has costed the BOM. write()
+        # syncs too, but that runs BEFORE the explosion and for a
+        # narrower field list (no finish_id, no rows), so the line kept
+        # the previous save's price: change the finish, save, and the
+        # Sale Order still showed the old number.
+        self._sync_sale_order_line()
         # After the rows are rebuilt and renumbered, so the drawing's
         # fingerprint is taken from what is stored rather than from what
         # the client thought it was sending.
@@ -1508,7 +1515,7 @@ class AwDesign(models.Model):
 
     def _incomplete_dimension_designs(self):
         """Designs still sitting at a zero width or height. Dimensions
-        are allowed to be unset while a position is being configured --
+        are allowed to be unset while a window is being configured --
         this is what the two points that genuinely need real numbers
         (exploding a BOM, confirming the order) check instead of a
         required= flag that would block creation itself."""
@@ -1518,7 +1525,7 @@ class AwDesign(models.Model):
         incomplete = self._incomplete_dimension_designs()
         if incomplete:
             raise UserError(_(
-                "These positions still need a width and a height:\n%s",
+                "These windows still need a width and a height:\n%s",
                 '\n'.join('- %s' % d.display_name for d in incomplete)))
 
     def action_explode(self):

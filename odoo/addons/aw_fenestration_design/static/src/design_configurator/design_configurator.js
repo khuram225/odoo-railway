@@ -198,6 +198,10 @@ export class DesignConfigurator extends Component {
             dirty: false,
             data: null,
             selected: null, // path: [[rowIdx, leafIdx], ...]
+            // Panels picked with Ctrl/Shift-click, when more than one.
+            // Only honoured while `selected` is one of them, so any
+            // code that moves the selection elsewhere drops it.
+            multiSel: [],
             selectedDivider: null, // divider key
             zoom: 1, // 1 = fitted to the canvas
             paneLeft: loadPaneWidth("left", 220),
@@ -1029,30 +1033,57 @@ export class DesignConfigurator extends Component {
      * an absent value means "not sent, leave it alone" and would make
      * the override impossible to clear.
      */
-    onManualRateChange(ev) {
+    async onManualRateChange(ev) {
         const text = (ev.target.value || "").trim();
         const value = text === "" ? 0 : parseFloat(text);
-        this.onHeaderChange("manual_rate", Number.isNaN(value) ? 0 : value);
+        const rate = Number.isNaN(value) ? 0 : value;
+        this.onHeaderChange("manual_rate", rate);
+        // Read-only recompute, so the figures follow the rate on Enter
+        // or Tab without a Save. Nothing is written server-side.
+        const pricing = await this.orm.call(
+            "aw.design", "preview_pricing", [[this.designId], rate]);
+        if (this.state.data.pricing && this.state.data.header.manual_rate === rate) {
+            this.state.data.pricing = pricing;
+        }
     }
 
     onGlassSpecChange(ev) {
         this.onHeaderIdChange("glass_spec_id", ev);
     }
 
-    /**
-     * Finish is a colour attribute, so it is picked from swatches
-     * rather than a dropdown. Clicking the one already chosen clears
-     * it, which is the only way back to "no finish" without a blank
-     * entry in the row.
-     */
+    /** The finish dropdown's choice; Finish is required, so no clearing. */
     setFinish(id) {
-        const current = this.state.data.header.finish_id;
-        this.onHeaderChange("finish_id", current === id ? false : id);
+        this.onHeaderChange("finish_id", id);
     }
 
     finishStyle(option) {
-        const colour = option.color || "#cccccc";
+        const colour = (option && option.color) || "#cccccc";
         return `background-color: ${colour};`;
+    }
+
+    get currentFinish() {
+        return this.finishOptions.find(
+            (opt) => opt.id === this.state.data?.header?.finish_id) || {};
+    }
+
+    /**
+     * Frame and sash profiles are drawn in the finish's colour. Fill is
+     * the colour itself, stroke a darker shade of it; with no colour set
+     * (or one that is not a hex code) the old grey applies.
+     */
+    get finishFill() {
+        return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(this.currentFinish.color || "")
+            ? this.currentFinish.color : "#8a9095";
+    }
+
+    get finishStroke() {
+        const hex = this.finishFill.slice(1);
+        const full = hex.length === 3
+            ? hex.split("").map((c) => c + c).join("") : hex;
+        const channel = (i) => Math.round(
+            parseInt(full.slice(i, i + 2), 16) * 0.7);
+        return "#" + [0, 2, 4]
+            .map((i) => channel(i).toString(16).padStart(2, "0")).join("");
     }
 
     onBuilderPanelsChange(ev) {
@@ -1088,8 +1119,64 @@ export class DesignConfigurator extends Component {
         this.state.dirty = true;
     }
 
+    /**
+     * The overall Width/Height boxes, one in inches and one in mm
+     * whatever the unit setting. Typing in either writes the same mm
+     * value, so the other box follows.
+     */
+    formatInchesBox(mm) {
+        if (!mm) {
+            return "";
+        }
+        const trim = (v) => String(Math.round(v * 100) / 100);
+        const totalIn = mm / MM_PER_IN;
+        const ft = Math.floor(totalIn / 12 + 1e-9);
+        const rest = totalIn - ft * 12;
+        if (!ft) {
+            return `${trim(rest)}"`;
+        }
+        return rest < 0.005 ? `${ft}'` : `${ft}' ${trim(rest)}"`;
+    }
+
+    formatMmBox(mm) {
+        return mm ? String(Math.round(mm * 100) / 100) : "";
+    }
+
+    /**
+     * 8' 6" / 8'6 / 8 6 -> feet and inches; 8' -> feet only; a lone
+     * number with no foot mark (102) is total inches.
+     */
+    parseInchesBox(text) {
+        const str = String(text || "").trim();
+        const nums = str.match(/-?\d+(\.\d+)?/g) || [];
+        if (!nums.length) {
+            return 0;
+        }
+        const first = parseFloat(nums[0]);
+        const hasFootMark = /['’]|ft|feet|foot/i.test(str);
+        if (nums.length >= 2) {
+            return (first * 12 + parseFloat(nums[1])) * MM_PER_IN;
+        }
+        return (hasFootMark ? first * 12 : first) * MM_PER_IN;
+    }
+
+    onSizeBoxChange(field, kind, ev) {
+        const text = ev.target.value;
+        const mm = kind === "mm"
+            ? parseFloat(text) || 0
+            : this.parseInchesBox(text);
+        this.applyDimension(field, mm);
+        // Rewrite the box in its normal form: OWL will not, because
+        // typed junk leaves the bound value unchanged.
+        ev.target.value = kind === "mm"
+            ? this.formatMmBox(mm) : this.formatInchesBox(mm);
+    }
+
     onDimensionChange(field, text) {
-        const value = this.parseLength(text);
+        this.applyDimension(field, this.parseLength(text));
+    }
+
+    applyDimension(field, value) {
         this.state.data.header[field] = value;
         if (field === "width_mm") {
             this.rescaleWidths(value);
@@ -1397,8 +1484,89 @@ export class DesignConfigurator extends Component {
     selectLeaf(path, ev) {
         // A click that ended a pan shouldn't also change the selection.
         ev?.stopPropagation();
-        this.state.selected = path;
         this.state.selectedDivider = null;
+        if (ev && (ev.ctrlKey || ev.shiftKey || ev.metaKey)) {
+            // Ctrl and Shift both TOGGLE: a panel in or out of the set.
+            const set = this.selectionPaths.length
+                ? [...this.selectionPaths]
+                : (this.state.selected ? [this.state.selected] : []);
+            const at = set.findIndex((p) => samePath(p, path));
+            if (at >= 0) {
+                set.splice(at, 1);
+            } else {
+                set.push(path);
+            }
+            this.state.multiSel = set.length > 1 ? set : [];
+            this.state.selected = set.length ? set[set.length - 1] : null;
+            return;
+        }
+        this.state.multiSel = [];
+        this.state.selected = path;
+    }
+
+    /** The picked panels, or [] unless a real multi-selection stands. */
+    get selectionPaths() {
+        const multi = this.state.multiSel || [];
+        const sel = this.state.selected;
+        return multi.length > 1 && multi.some((p) => samePath(p, sel))
+            ? multi : [];
+    }
+
+    isPathSelected(path) {
+        return samePath(this.state.selected, path)
+            || this.selectionPaths.some((p) => samePath(p, path));
+    }
+
+    /**
+     * Even out the selected panels, keeping their combined total.
+     *
+     * Two shapes are understood: panels all in ONE row (equal widths),
+     * and exactly one panel per row of ONE stack (equal heights). A
+     * selection that spans rows any other way is reported rather than
+     * guessed at.
+     */
+    equalizeSelection() {
+        const paths = this.selectionPaths;
+        if (paths.length < 2) {
+            return;
+        }
+        const parent = pathKey(paths[0].slice(0, -1));
+        const sameParent = paths.every(
+            (p) => pathKey(p.slice(0, -1)) === parent);
+        const rowIdx = paths.map((p) => p[p.length - 1][0]);
+        const rows = sameParent ? this.rowsAt(paths[0].slice(0, -1)) : null;
+        if (rows && new Set(rowIdx).size === 1) {
+            const row = rows[rowIdx[0]];
+            const picked = paths.map((p) => row.leaves[p[p.length - 1][1]]);
+            const total = picked.reduce((a, l) => a + (l.width_mm || 0), 0);
+            const widths = this.equalShares(total, picked.length);
+            picked.forEach((leaf, i) => {
+                leaf.width_mm = widths[i];
+                leaf.is_auto = false;
+                if (leaf.rows && leaf.rows.length) {
+                    this.rescaleWidthsIn(leaf.rows, widths[i]);
+                }
+            });
+        } else if (rows && new Set(rowIdx).size === paths.length) {
+            const picked = rowIdx.map((i) => rows[i]);
+            const total = picked.reduce((a, r) => a + (r.height_mm || 0), 0);
+            const heights = this.equalShares(total, picked.length);
+            picked.forEach((row, i) => {
+                row.height_mm = heights[i];
+                row.is_auto = false;
+                for (const leaf of row.leaves) {
+                    if (leaf.rows && leaf.rows.length) {
+                        this.rescaleHeightsIn(leaf.rows, heights[i]);
+                    }
+                }
+            });
+        } else {
+            this.notification.add(
+                _t("The selected panels span more than one row. Select panels in one row (equal widths) or one panel from each row of a stack (equal heights)."),
+                { type: "warning" });
+            return;
+        }
+        this.state.dirty = true;
     }
 
     selectDivider(divider, ev) {
@@ -2273,7 +2441,7 @@ export class DesignConfigurator extends Component {
                             glassW: Math.max(1, lw - 2 * sw),
                             glassH: Math.max(1, rh - 2 * sw),
                             isMesh,
-                            selected: samePath(this.state.selected, leafPath),
+                            selected: this.isPathSelected(leafPath),
                             glyph: this.leafGlyph(rx, ry, lw, rh, leaf),
                             // Attachments: positions only, no stroke
                             // widths -- those are screen-sized and live

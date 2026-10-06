@@ -20,7 +20,7 @@
                 <sheet>
                     <div class="alert alert-warning" role="status"
                          invisible="is_current">
-                        A position changed after this plan was made.
+                        A window changed after this plan was made.
                         <strong>Out of date — regenerate.</strong>
                     </div>
                     <div class="oe_title">

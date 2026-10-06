@@ -19,7 +19,7 @@
 
                 <div t-if="not doc.is_current"
                      class="alert alert-warning border border-dark p-2 mb-3">
-                    <strong>⚠ Out of date — a position changed after this
+                    <strong>⚠ Out of date — a window changed after this
                     plan was made. Regenerate before cutting.</strong>
                 </div>
 

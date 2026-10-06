@@ -30,7 +30,7 @@
                         <field name="aw_default_series_id" invisible="1"/>
                     </group>
                     <button name="action_add_position" type="object"
-                            string="Add Position" class="btn-primary"
+                            string="Add Window" class="btn-primary"
                             invisible="state not in ('draft', 'sent')"/>
                     <button name="action_cutting_plan" type="object"
                             string="Cutting Plan" class="btn-secondary mb-2"
@@ -59,7 +59,7 @@
                                     icon="fa-external-link"
                                     title="Open in the configurator"/>
                             <button name="action_duplicate_position" type="object"
-                                    icon="fa-copy" title="Duplicate this position"
+                                    icon="fa-copy" title="Duplicate this window"
                                     invisible="parent.state not in ('draft', 'sent')"/>
                         </list>
                     </field>

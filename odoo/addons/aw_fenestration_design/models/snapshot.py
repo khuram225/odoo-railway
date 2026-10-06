@@ -137,7 +137,7 @@ class AwDesign(models.Model):
         disagree about whether the drawing is trustworthy."""
         self.ensure_one()
         if not self.elevation_svg:
-            return _("No drawing yet — open this position in the "
+            return _("No drawing yet — open this window in the "
                      "configurator and save.")
         if not self.elevation_is_current:
             return _("Drawing out of date — open in configurator and save.")
@@ -295,7 +295,7 @@ class AwDesign(models.Model):
             return {}, _("No cutting plan for this order yet, so Bar and "
                          "Cut are blank.")
         if not plan.is_current:
-            return {}, _("The cutting plan is out of date (a position "
+            return {}, _("The cutting plan is out of date (a window "
                          "changed after it was made), so Bar and Cut are "
                          "blank. Regenerate it to fill them in.")
         mapping = {}
