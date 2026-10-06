@@ -36,6 +36,10 @@
              its scope and formula, and after the section exists. -->
         <function model="aw.profile.section" name="_seed_lock_bar_line"/>
         <function model="aw.profile.section" name="_seed_dg_openable_spec"/>
+        <!-- Lake City glass, then the RE spec's default. After the spec
+             seed so a fresh database has the spec to point at. -->
+        <function model="aw.glass.spec" name="_seed_lake_city_glass"/>
+        <function model="aw.glass.spec" name="_seed_re_spec_default_glass"/>
         <!-- Phase 7d, LAST: every section and spec must exist before
              the lines are re-pointed onto them. -->
         <function model="aw.window.template" name="_migrate_lines_to_specs"/>

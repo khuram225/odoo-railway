@@ -1,5 +1,20 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from odoo import api, fields, models
+
+_logger = logging.getLogger(__name__)
+
+# The Lake City schedule: (xmlid suffix, name, overall mm, kg/m2). The
+# weight is 2.5 kg/m2 per mm of GLASS, so the air gap counts for nothing:
+# 6+10+6 is 12 mm of glass = 30, not 22 mm worth.
+LAKE_CITY_GLASS = [
+    ('lc_6_10_6_clear', '6+10+6 Clear Tempered', 22, 30),
+    ('lc_6_10_8_clear', '6+10+8 Clear Tempered', 24, 35),
+    ('lc_8_8_8_clear', '8+8+8 Clear Tempered', 24, 40),
+    ('lc_6_10_6_frosted', '6+10+6 Frosted Tempered', 22, 30),
+]
+RE_SPEC_GLASS_PARAM = 'aw_fenestration.re_spec_glass_lake_city'
 
 
 class AwGlassSpec(models.Model):
@@ -62,3 +77,87 @@ class AwGlassSpec(models.Model):
                 marked += 1
         param.set_param(key, '1')
         return marked
+
+    @api.model
+    def _lake_city_xmlid(self, suffix):
+        return 'aw_fenestration_core.glass_spec_%s' % suffix
+
+    @api.model
+    def _seed_lake_city_glass(self):
+        """Seed the four Lake City glass types, FILL-ONLY BY NAME.
+
+        A glass spec of that name that already exists (made by hand, or
+        by an earlier run) is adopted untouched and only given the seed
+        xmlid, so later code can find it even after a rename. Nothing
+        that exists is overwritten: prices, weights and names stay
+        editable. Products sit under Fenestration / Glass / DGU, priced
+        at zero and marked "price to be set" -- the same rule as the
+        starter list: no invented prices in a quote.
+        """
+        category = self.env.ref(
+            'aw_fenestration_core.product_category_glass_dgu',
+            raise_if_not_found=False)
+        uom = self.env.ref('uom.product_uom_square_meter',
+                           raise_if_not_found=False)
+        if not (category and uom):
+            return 0
+        Data = self.env['ir.model.data'].sudo()
+        created = 0
+        for suffix, name, thickness, weight in LAKE_CITY_GLASS:
+            spec = self.with_context(active_test=False).search(
+                [('name', '=', name)], limit=1)
+            if not spec:
+                product = self.env['product.product'].create({
+                    'name': 'Glass %s' % name,
+                    'type': 'consu',
+                    'is_storable': True,
+                    'categ_id': category.id,
+                    'uom_id': uom.id,
+                    'list_price': 0.0,
+                    'standard_price': 0.0,
+                    'description_sale':
+                        'Price to be set from the supplier list.',
+                })
+                spec = self.create({
+                    'name': name,
+                    'product_id': product.id,
+                    'glazing': 'double',
+                    'thickness_mm': thickness,
+                    'weight_kg_m2': weight,
+                })
+                created += 1
+            xmlid = 'glass_spec_%s' % suffix
+            if not Data.search_count([('module', '=', 'aw_fenestration_core'),
+                                      ('name', '=', xmlid)]):
+                Data.create({
+                    'module': 'aw_fenestration_core', 'name': xmlid,
+                    'model': self._name, 'res_id': spec.id,
+                    'noupdate': True,
+                })
+        return created
+
+    @api.model
+    def _seed_re_spec_default_glass(self):
+        """Point the RE spec's default glass at 6+10+6 Clear Tempered,
+        ONCE.
+
+        Only the SPEC's default changes. A design copies its glass when
+        it is made (glass_spec_id is stored and recomputed only when
+        the system changes), so existing windows keep what they have.
+        Guarded by a parameter so a later choice in the UI is not
+        reverted; set only once the spec and the glass both exist, so a
+        database that gets the spec later still gets this.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(RE_SPEC_GLASS_PARAM):
+            return False
+        from .section_seed import SPEC_NAME
+        glass = self.env.ref(self._lake_city_xmlid('lc_6_10_6_clear'),
+                             raise_if_not_found=False)
+        specs = self.env['aw.window.template'].with_context(
+            active_test=False).search([('name', '=', SPEC_NAME)])
+        if not (glass and specs):
+            return False
+        specs.write({'glass_spec_id': glass.id})
+        param.set_param(RE_SPEC_GLASS_PARAM, '1')
+        return True
