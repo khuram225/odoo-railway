@@ -1054,7 +1054,7 @@ class AwDesign(models.Model):
         if not name:
             raise UserError(_("Give the new specification a name."))
         system = self.window_series_id
-        if not (system and self.template_id):
+        if not (system and (self.template_id or self.spec_custom)):
             raise UserError(_(
                 "This window needs a profile system and a Specification "
                 "before it can become a new one."))
@@ -1068,13 +1068,34 @@ class AwDesign(models.Model):
         source_hardware = self._spec_hardware_lines().sorted(
             lambda l: (l.sequence, l.id))
 
-        # One copy now, where it used to be three records kept in step:
-        # the spec owns its lines, so copy() brings them with it.
-        spec = self.template_id.copy({
-            'name': name,
-            'is_default': False,
-            'notes': _("Saved from window %s.", self.name or ''),
-        })
+        if self.template_id:
+            # One copy now, where it used to be three records kept in
+            # step: the spec owns its lines, so copy() brings them with it.
+            spec = self.template_id.copy({
+                'name': name,
+                'is_default': False,
+                'notes': _("Saved from window %s.", self.name or ''),
+            })
+        else:
+            # A CUSTOM window has no spec to copy: the new one is made
+            # under the window's current system, and its lines are the
+            # components added to the window (below). The glass and
+            # panel rules are the system's own, which is what the
+            # window was being cut to (see _deduction_rules).
+            if not self.glass_spec_id:
+                raise UserError(_(
+                    "Choose a glass for this window first: a specification "
+                    "needs one."))
+            rules = ('glass_fixed_w', 'glass_fixed_h', 'glass_sash_w',
+                     'glass_sash_h', 'mesh_w', 'mesh_h', 'max_panel_w',
+                     'max_panel_h', 'max_panel_kg')
+            spec = self.env['aw.window.template'].create(dict(
+                {f: system[f] for f in rules},
+                name=name,
+                window_type_id=system.id,
+                glass_spec_id=self.glass_spec_id.id,
+                is_default=False,
+                notes=_("Saved from custom window %s.", self.name or '')))
         for line in spec.profile_line_ids:
             change = by_position.get(line.position_id.id)
             if change:
@@ -1107,10 +1128,17 @@ class AwDesign(models.Model):
                     'qty_formula': str(change.qty),
                 })
 
-        self.template_id = spec
+        # Selecting the new spec ends "custom" (the write hook clears it).
+        self.write({'template_id': spec.id, 'spec_custom': False})
         self.override_ids.unlink()
         self._explode()
-        return self.get_configurator_data()
+        data = self.get_configurator_data()
+        data['saved_spec'] = {
+            'id': spec.id,
+            'name': spec.display_name or name,
+            'system': system.display_name or '',
+        }
+        return data
 
     def _glass_context(self):
         """Context carrying this design's glass domain."""

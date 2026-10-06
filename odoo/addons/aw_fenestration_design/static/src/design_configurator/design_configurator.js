@@ -1091,14 +1091,36 @@ export class DesignConfigurator extends Component {
         if (!name) {
             return;
         }
-        this.state.data = await this.orm.call("aw.design", "save_as_spec", [
+        // The server works on the stored layout and replaces the whole
+        // payload, so unsaved edits are saved first.
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const data = await this.orm.call("aw.design", "save_as_spec", [
             [this.designId],
             name,
         ]);
+        const saved = data.saved_spec;
+        this.state.data = data;
         this.state.specName = "";
-        this.notification.add(_t("Saved as a new specification."), {
-            type: "success",
-        });
+        this.notification.add(
+            _t("Saved to Window Systems > %(system)s > Specifications: %(name)s",
+               { system: saved.system, name: saved.name }),
+            {
+                type: "success",
+                buttons: [{
+                    name: _t("Open the specification"),
+                    primary: true,
+                    onClick: () => this.action.doAction({
+                        type: "ir.actions.act_window",
+                        res_model: "aw.window.template",
+                        res_id: saved.id,
+                        view_mode: "form",
+                        views: [[false, "form"]],
+                    }),
+                }],
+            });
+        this.surfaceCheckErrors();
     }
 
     get finishOptions() {
