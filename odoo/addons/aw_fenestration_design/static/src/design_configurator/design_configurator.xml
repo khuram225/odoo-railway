@@ -97,6 +97,19 @@
                                    t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'mm', ev)"/>
                         </div>
+                        <div t-if="frameRoles.length">
+                            <label class="form-label small text-muted mb-0">Frame type</label>
+                            <select class="form-select form-select-sm"
+                                    t-on-change="(ev) => this.onFrameRoleChange(ev)">
+                                <option value="" t-att-selected="!frameRole">Auto</option>
+                                <t t-foreach="frameRoles" t-as="opt" t-key="opt.value">
+                                    <option t-att-value="opt.value"
+                                            t-att-selected="opt.value === frameRole">
+                                        <t t-esc="opt.label"/>
+                                    </option>
+                                </t>
+                            </select>
+                        </div>
                         <!-- Derived, not chosen: a label unless more
                              than one system could carry this layout. -->
                         <div>

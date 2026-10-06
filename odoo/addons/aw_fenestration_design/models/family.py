@@ -12,6 +12,7 @@ DERIVED from the family plus the panels, but it is still a real field
 holding a real system.
 """
 from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 # Which system role a leaf type needs. Anything not listed is a fixed
 # panel as far as the frame is concerned.
@@ -118,6 +119,100 @@ class AwDesign(models.Model):
             if design.window_series_id in candidates:
                 continue
             design.window_series_id = candidates[0]
+
+    def _frame_roles(self):
+        """(value, label) for each role the family has an active system
+        for -- what the Frame type dropdown offers besides Auto."""
+        self.ensure_one()
+        labels = dict(
+            self.env['aw.window.series']._fields['system_role'].selection)
+        roles = []
+        for system in self.family_id.series_ids.filtered('active'):
+            role = system.system_role
+            if role and role not in [r[0] for r in roles]:
+                roles.append((role, labels.get(role, role)))
+        return roles
+
+    def set_frame_role(self, role=False):
+        """Choose the frame type from the configurator, or hand it back
+        to the panels with a falsy `role` ("Auto").
+
+        A role LOCKS the design to that role's system in its family and
+        to the system's default spec, so drawing panels afterwards
+        cannot move it. Panels the system cannot host become Fixed and
+        are listed in the returned `frame_notice`, never dropped
+        silently. Works on the STORED layout, so the configurator saves
+        first when it has unsaved edits.
+        """
+        self.ensure_one()
+        converted = self.env['aw.design.leaf']
+        system = self.env['aw.window.series']
+        if not role:
+            self.system_locked = False
+            self._resolve_system()
+            self._resolve_spec()
+        else:
+            if role not in dict(self._frame_roles()):
+                labels = ', '.join(l for _r, l in self._frame_roles())
+                raise UserError(_(
+                    "'%(family)s' has no %(role)s system. It has: %(has)s.",
+                    family=self.family_id.display_name or '', role=role,
+                    has=labels or _('no systems with a role set')))
+            system = self.family_id.series_ids.filtered(
+                lambda s: s.active and s.system_role == role)[:1]
+            spec = self.env['aw.window.template']._default_for_system(system)
+            if not spec:
+                raise UserError(_(
+                    "%s has no specification yet; choose another frame "
+                    "type or set one up for it first.",
+                    system.display_name))
+            self.write({
+                'system_locked': True,
+                'window_series_id': system.id,
+                'template_id': spec.id,
+            })
+            self._apply_spec(force=True)
+            converted = self._convert_unhostable_panels(system)
+        self._explode()
+        self._sync_sale_order_line()
+        data = self.get_configurator_data()
+        data['frame_notice'] = (_(
+            "%(system)s cannot host the type of panel(s) %(numbers)s; "
+            "they are now Fixed.",
+            system=system.display_name,
+            numbers=', '.join(str(n) for n in sorted(
+                converted.mapped('panel_no')))) if converted else '')
+        return data
+
+    def _convert_unhostable_panels(self, system):
+        """Make every panel whose type `system` cannot host Fixed."""
+        self.ensure_one()
+        fixed = self.env['aw.leaf.type'].search([('code', '=', 'FIXED')],
+                                                limit=1)
+        bad = self._all_panels().filtered(
+            lambda l: l.leaf_type_id
+            and l.leaf_type_id not in system.leaf_type_ids)
+        if not bad or not fixed:
+            return self.env['aw.design.leaf']
+        bad.write({
+            'leaf_type_id': fixed.id, 'hinge_side': False,
+            'swing': False, 'slide_dir': False,
+        })
+        # Only the boundaries touching a converted panel: a junction
+        # somebody set by hand elsewhere in the row stays.
+        Leaf = self.env['aw.design.leaf']
+        for row in bad.mapped('row_id'):
+            leaves = row.leaf_ids.sorted('sequence')
+            for index, leaf in enumerate(leaves):
+                after = leaves[index + 1] if index + 1 < len(leaves)                     else Leaf
+                if leaf not in bad and after not in bad:
+                    continue
+                as_dict = lambda l: {
+                    'leaf_type_code': l.leaf_type_id.code,
+                    'hinge_side': l.hinge_side}
+                leaf.junction_after = Leaf._default_junction(
+                    as_dict(leaf), as_dict(after) if after else None)
+        return bad
 
     def _mixed_frame_error(self):
         """Sliding and opening panels cannot share one frame.

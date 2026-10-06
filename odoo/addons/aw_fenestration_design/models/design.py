@@ -1132,6 +1132,10 @@ class AwDesign(models.Model):
                 'hardware_set_id': self.hardware_set_id.id,
                 'family_id': self.family_id.id,
                 'family_name': self.family_id.display_name or '',
+                # Read-only here: set_frame_role() is the only writer.
+                'system_locked': self.system_locked,
+                'frame_role': (self.window_series_id.system_role or ''
+                               if self.system_locked else ''),
                 'template_id': self.template_id.id,
                 'template_name': self.template_id.display_name or '',
                 # No control in the configurator, but it IS in the save
@@ -1159,9 +1163,15 @@ class AwDesign(models.Model):
             'system_short': dict(
                 self.env['aw.window.series']._fields['system_role']
                 .selection).get(self.window_series_id.system_role, ''),
+            # A locked design has one system, so the picker has nothing
+            # to offer; the Frame type dropdown is how it changes.
             'system_options': [
                 {'id': system.id, 'name': system.display_name}
-                for system in self._candidate_systems()],
+                for system in (self.window_series_id if self.system_locked
+                               else self._candidate_systems())],
+            'frame_roles': [
+                {'value': value, 'label': label}
+                for value, label in self._frame_roles()],
             'divider_options': self._divider_options(),
             'spec_options': [
                 {'id': spec.id, 'name': spec.display_name,
@@ -1322,6 +1332,11 @@ class AwDesign(models.Model):
 
         self.row_ids.unlink()
         self._create_rows(payload.get('rows') or [], parent_leaf=None)
+        # A locked frame type belongs to one family's system; once the
+        # design moves to another family the lock cannot stand.
+        if (self.system_locked and self.family_id
+                and self.window_series_id.family_id != self.family_id):
+            self.system_locked = False
         # The system follows from the panels that now exist, so this has
         # to run after the rows are rebuilt and before the explosion.
         self._resolve_system()

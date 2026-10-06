@@ -627,6 +627,43 @@ export class DesignConfigurator extends Component {
         this.onHeaderIdChange("window_series_id", ev);
     }
 
+    // -- frame type ---------------------------------------------------
+    /** The family's roles, offered after "Auto". */
+    get frameRoles() {
+        return this.state.data?.frame_roles || [];
+    }
+
+    get frameRole() {
+        return this.state.data?.header?.frame_role || "";
+    }
+
+    /**
+     * Choose a frame type, or "" for Auto. The server converts panels
+     * the new system cannot host, so unsaved edits are saved first: it
+     * works on the stored layout, and a conversion on top of a stale
+     * one would lose them.
+     */
+    async onFrameRoleChange(ev) {
+        const role = ev.target.value || false;
+        if ((role || "") === this.frameRole) {
+            return;
+        }
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const data = await this.orm.call(
+            "aw.design", "set_frame_role", [[this.designId], role]);
+        const notice = data.frame_notice;
+        this.state.data = data;
+        this.state.selected = null;
+        this.state.multiSel = [];
+        this.state.dirty = false;
+        this.surfaceCheckErrors();
+        if (notice) {
+            this.notification.add(notice, { type: "warning", sticky: true });
+        }
+    }
+
     // -- divider options ---------------------------------------------
     get dividerOptions() {
         const entry = this.selectedDividerEntry;
