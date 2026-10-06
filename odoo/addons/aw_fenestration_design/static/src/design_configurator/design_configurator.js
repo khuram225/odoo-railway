@@ -576,7 +576,8 @@ export class DesignConfigurator extends Component {
     get marginIsThin() {
         const pricing = this.pricing;
         return !!pricing && !!pricing.price
-            && pricing.margin_pct < pricing.min_margin_pct;
+            && Math.round(pricing.margin_pct * 100)
+                < Math.round(pricing.min_margin_pct * 100);
     }
 
     formatMoney(value) {

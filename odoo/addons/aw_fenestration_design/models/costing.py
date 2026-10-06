@@ -228,11 +228,14 @@ class AwDesign(models.Model):
     def _below_margin_floor(self):
         """Designs priced under the floor. Only ones that actually have
         a price: a design costing nothing yet is incomplete, not
-        underpriced, and the uncosted-lines warning already covers it."""
-        floor = self._min_margin_pct()
+        underpriced, and the uncosted-lines warning already covers it.
+
+        Compared at 0.01%, the precision it is shown at: 19.996% is
+        "20.00%", and a message saying "20.0% is below 20.0%" is a bug."""
+        floor = round(self._min_margin_pct(), 2)
         return self.filtered(
             lambda d: d.price_total and d.cost_total
-            and d.margin_pct < floor)
+            and round(d.margin_pct, 2) < floor)
 
     def _pricing_payload(self):
         """The configurator's Pricing section. Internal only -- none of

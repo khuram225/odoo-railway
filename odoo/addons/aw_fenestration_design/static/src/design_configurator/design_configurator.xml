@@ -1239,7 +1239,7 @@
                                 Minimum margin
                                 <t t-esc="pricing.min_margin_pct"/>%
                                 <t t-if="marginIsThin">
-                                    — below it, the quote cannot be confirmed.
+                                    — below it, Checks shows a warning.
                                 </t>
                             </div>
                         </div>

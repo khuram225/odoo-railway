@@ -888,10 +888,9 @@ class AwDesign(models.Model):
 
         floor = self._min_margin_pct()
         if self._below_margin_floor():
-            problems.append(('error', _(
-                "Margin is %(margin).1f%%, below the %(floor).1f%% "
-                "minimum. The order cannot be confirmed until this is "
-                "fixed.", margin=self.margin_pct, floor=floor)))
+            problems.append(('warning', _(
+                "Margin is %(margin).2f%%, below the %(floor).2f%% "
+                "minimum.", margin=self.margin_pct, floor=floor)))
         if self.bom_line_ids and not self.price_structure_id:
             problems.append(('warning', _(
                 "No Price Structure, so this design is costed with no "
