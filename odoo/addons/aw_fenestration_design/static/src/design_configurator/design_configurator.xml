@@ -1312,59 +1312,67 @@
                                     <t t-esc="specName or '\u2014'"/>
                                 </div>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label small text-muted mb-0">Glass</label>
-                                <select class="form-select form-select-sm"
-                                        t-on-change="onGlassSpecChange">
-                                    <option value="">No glass</option>
-                                    <t t-foreach="glassSpecOptions" t-as="opt" t-key="opt.id">
-                                        <option t-att-value="opt.id"
-                                                t-att-selected="opt.id === state.data.header.glass_spec_id">
-                                            <t t-esc="opt.name"/>
-                                        </option>
-                                    </t>
-                                </select>
-                            </div>
-
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
-                                Profiles
-                            </div>
                             <div t-if="!specProfiles.length" class="small text-muted mb-3">
                                 No Profile Section, so there are no profiles
                                 to show.
                             </div>
-                            <table t-else="" class="table table-sm o_aw_spec_table mb-3">
-                                <tbody>
-                                    <tr t-foreach="specProfiles" t-as="row"
-                                        t-key="row.position_id">
-                                        <td>
-                                            <div class="small">
-                                                <t t-esc="row.position_name"/>
-                                            </div>
-                                            <div t-attf-class="small {{ row.changed ? 'text-warning fw-bold' : 'text-muted' }}">
-                                                <t t-esc="row.product_name"/>
-                                            </div>
-                                            <div t-if="row.changed" class="small text-muted">
-                                                changed &#183; spec says
-                                                <t t-esc="row.spec_name"/>
-                                            </div>
-                                        </td>
-                                        <td class="text-end text-nowrap">
-                                            <button class="btn btn-sm btn-outline-secondary px-2"
-                                                    title="Choose another profile for this window"
-                                                    t-on-click="() => this.changePart(row, 'profile')">
-                                                Change
-                                            </button>
-                                            <button t-if="row.changed"
-                                                    class="btn btn-sm btn-link px-1"
-                                                    title="Back to what the spec says"
-                                                    t-on-click="() => this.resetPart(row, 'profile')">
-                                                Reset
-                                            </button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            <t t-foreach="profileGroups" t-as="group" t-key="group.key">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
+                                    <t t-esc="group.label"/>
+                                </div>
+                                <table class="table table-sm o_aw_spec_table mb-3">
+                                    <tbody>
+                                        <tr t-foreach="group.rows" t-as="row"
+                                            t-key="row.position_id">
+                                            <td class="o_aw_spec_pic">
+                                                <div class="o_aw_spec_thumb">
+                                                    <img t-att-src="profileImage(row, 128)"
+                                                         width="40" height="40" alt=""/>
+                                                    <img class="o_aw_spec_zoom" loading="lazy"
+                                                         t-att-src="profileImage(row, 512)" alt=""/>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div class="small">
+                                                    <b t-esc="row.code or row.product_name"/>
+                                                    <span class="text-muted">
+                                                        &#183; <t t-esc="row.thickness_name"/>
+                                                        <t t-if="row.section_dims">
+                                                            &#183; <t t-esc="row.section_dims"/> mm
+                                                        </t>
+                                                    </span>
+                                                </div>
+                                                <div class="small text-muted">
+                                                    <t t-esc="row.position_name"/>
+                                                    <t t-if="row.length_rule">
+                                                        &#183; <t t-esc="row.length_rule"/>
+                                                    </t>
+                                                </div>
+                                                <div t-attf-class="small {{ row.changed ? 'text-warning fw-bold' : 'text-muted' }}">
+                                                    <t t-if="row.changed">
+                                                        changed for this window &#183; spec says
+                                                        <t t-esc="row.spec_name"/>
+                                                    </t>
+                                                    <t t-else="">spec</t>
+                                                </div>
+                                            </td>
+                                            <td class="text-end text-nowrap">
+                                                <button class="btn btn-sm btn-outline-secondary px-2"
+                                                        title="Choose another profile for this window"
+                                                        t-on-click="() => this.changePart(row, 'profile')">
+                                                    Change
+                                                </button>
+                                                <button t-if="row.changed"
+                                                        class="btn btn-sm btn-link px-1"
+                                                        title="Back to what the spec says"
+                                                        t-on-click="() => this.resetPart(row, 'profile')">
+                                                    Reset
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </t>
 
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
                                 Hardware
@@ -1405,6 +1413,20 @@
                                     </tr>
                                 </tbody>
                             </table>
+
+                            <div class="mb-3">
+                                <label class="form-label small text-muted mb-0">Glass</label>
+                                <select class="form-select form-select-sm"
+                                        t-on-change="onGlassSpecChange">
+                                    <option value="">No glass</option>
+                                    <t t-foreach="glassSpecOptions" t-as="opt" t-key="opt.id">
+                                        <option t-att-value="opt.id"
+                                                t-att-selected="opt.id === state.data.header.glass_spec_id">
+                                            <t t-esc="opt.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
 
                             <!-- Saving copies the section and the hardware
                                  set with the changes applied. The originals

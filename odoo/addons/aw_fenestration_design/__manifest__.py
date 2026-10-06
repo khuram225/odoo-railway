@@ -45,6 +45,7 @@ row/leaf grid shape:
         'data/layout_preset_p3_data.xml',
         'data/layout_preset_series_data.xml',
         'views/design_views.xml',
+        'views/profile_picker_views.xml',
         'views/window_series_views.xml',
         'views/attachment_types_views.xml',
         'views/panel_option_views.xml',

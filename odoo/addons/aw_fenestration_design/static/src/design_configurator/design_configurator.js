@@ -751,6 +751,29 @@ export class DesignConfigurator extends Component {
         return this.state.data?.spec_parts?.profiles || [];
     }
 
+    /**
+     * The profile rows under their part headings, in the order the
+     * server sends them (the position's own group order), with a row's
+     * group falling back to "other". A heading with no rows is dropped
+     * rather than drawn over nothing.
+     */
+    get profileGroups() {
+        const parts = this.state.data?.spec_parts || {};
+        const rows = parts.profiles || [];
+        return (parts.groups || [])
+            .map((group) => ({
+                ...group,
+                rows: rows.filter(
+                    (row) => (row.part_group || "other") === group.key),
+            }))
+            .filter((group) => group.rows.length);
+    }
+
+    /** Catalogue picture of a profile, small and large. */
+    profileImage(row, size) {
+        return `/web/image/product.template/${row.product_tmpl_id}/image_${size}`;
+    }
+
     get specHardware() {
         return this.state.data?.spec_parts?.hardware || [];
     }
@@ -829,6 +852,12 @@ export class DesignConfigurator extends Component {
                 : _t("Choose hardware for %s", row.line_name),
             noCreate: true,
             multiSelect: false,
+            // Profiles get their own list with the picture and the
+            // section size; the domain is what keeps it to Fenestration
+            // / Profiles.
+            context: isProfile
+                ? { list_view_ref: "aw_fenestration_design.view_aw_profile_picker_list" }
+                : {},
             domain: isProfile
                 ? [["categ_id", "child_of", this.profileCategoryId]]
                 : [["categ_id", "child_of", this.hardwareCategoryId]],

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The list the configurator's Change picker shows for profiles:
+         the catalogue picture and the printed section size beside the
+         name, so a replacement can be chosen by looking at it. Opened
+         through list_view_ref; the picker's domain keeps it to
+         Fenestration / Profiles. -->
+    <record id="view_aw_profile_picker_list" model="ir.ui.view">
+        <field name="name">aw.profile.picker.list</field>
+        <field name="model">product.template</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="image_128" string="Picture" widget="image"
+                       nolabel="1"
+                       options="{'size': [48, 48], 'zoom': true, 'zoom_delay': 200}"/>
+                <field name="default_code" string="Code"/>
+                <field name="name"/>
+                <field name="aw_section_dims"/>
+                <field name="aw_catalogue_category" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+</odoo>

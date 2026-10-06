@@ -271,3 +271,36 @@
         vertical-align: middle;
     }
 }
+
+// Profile picture on the Spec tab: a small thumbnail, and a larger copy
+// that appears on hover. position: fixed so the scrolling Spec tab does
+// not clip it; with no offsets it sits where it would have in the flow,
+// pulled left into the drawing, because this column is on the right.
+.o_aw_spec_pic {
+    width: 48px;
+}
+
+.o_aw_spec_thumb {
+    img:first-child {
+        object-fit: contain;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        background: #fff;
+    }
+
+    .o_aw_spec_zoom {
+        display: none;
+        position: fixed;
+        margin-left: -300px;
+        width: 280px;
+        height: 280px;
+        object-fit: contain;
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.25);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+        z-index: 1100;
+    }
+
+    &:hover .o_aw_spec_zoom {
+        display: block;
+    }
+}

@@ -814,6 +814,12 @@ class AwDesign(models.Model):
                 'position_id': position.id,
                 'position_name': position.display_name,
                 'scope': position.scope or '',
+                # Display only: which heading the Spec tab lists it
+                # under, and what it shows beside the picture.
+                'part_group': position.part_group or 'other',
+                'code': variant.default_code or template.default_code or '',
+                'section_dims': template.aw_section_dims or '',
+                'length_rule': self._length_rule_text(line),
                 'product_tmpl_id': template.id,
                 'thickness_id': thickness.id,
                 'thickness_name': thickness.display_name or '',
@@ -840,7 +846,25 @@ class AwDesign(models.Model):
                 'changed': bool(change),
                 'note': (change.note or '') if change else '',
             })
-        return {'profiles': profiles, 'hardware': hardware}
+        groups = list(self.env['aw.profile.position']._fields[
+            'part_group'].selection) + [('other', _('Other'))]
+        return {
+            'profiles': profiles,
+            'hardware': hardware,
+            'groups': [{'key': k, 'label': l} for k, l in groups],
+        }
+
+    @staticmethod
+    def _length_rule_text(line):
+        """The formula a profile line is cut by, as the spec form shows
+        it: the line's own rule, else the position's default. Two
+        formulas ("PW - 10 / PH - 10") when the width and height edges
+        differ."""
+        position = line.position_id
+        width = line.length_formula or position.default_length or ''
+        height = (line.length_formula_h or position.default_length_h
+                  or '')
+        return ' / '.join(f for f in (width, height) if f)
 
     def set_override(self, values):
         """Record (or update) one change for this window.
