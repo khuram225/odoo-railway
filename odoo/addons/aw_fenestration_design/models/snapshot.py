@@ -76,6 +76,11 @@ class AwDesign(models.Model):
                         'panel_no': leaf.panel_no or 0,
                         'rows': leaves(leaf.child_row_ids),
                     })
+                    # Only when set, so every drawing stored before the
+                    # roll-up screen existed keeps the fingerprint it was
+                    # saved with instead of all turning "out of date".
+                    if leaf.mesh_cassette_side:
+                        panels[-1]['cassette'] = leaf.mesh_cassette_side
                 out.append({
                     'h': round(row.height_mm or 0.0, 3), 'leaves': panels})
             return out
@@ -99,6 +104,7 @@ class AwDesign(models.Model):
                  'row_ids.leaf_ids.slide_dir', 'row_ids.leaf_ids.track_no',
                  'row_ids.leaf_ids.junction_after',
                  'row_ids.leaf_ids.mesh_type_id',
+                 'row_ids.leaf_ids.mesh_cassette_side',
                  'row_ids.leaf_ids.infill_type_id',
                  'row_ids.leaf_ids.grid_pattern_id',
                  'row_ids.leaf_ids.glass_spec_id')

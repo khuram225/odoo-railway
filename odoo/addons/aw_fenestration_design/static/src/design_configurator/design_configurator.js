@@ -3024,6 +3024,7 @@ export class DesignConfigurator extends Component {
         const out = {
             meshOverlay: null,
             meshBadge: null,
+            meshStrips: null,
             infill: null,
             grid: null,
             lock: null,
@@ -3037,12 +3038,24 @@ export class DesignConfigurator extends Component {
         out.lock = this.lockMark(x, y, w, h, leaf);
 
         if (leaf.mesh_type_id) {
-            out.meshOverlay = { x, y, w, h };
-            out.meshBadge = {
-                x: x + w - 4,
-                y: y + 4,
-                label: leaf.mesh_type_code || "MSH",
-            };
+            const strips = this.retractableStrips(x, y, w, h, leaf);
+            if (strips.length) {
+                // A screen that retracts is a narrow strip on its own
+                // side, tagged M, not a hatch over the whole panel.
+                out.meshStrips = strips;
+                out.meshBadge = {
+                    x: strips[0].x + strips[0].w / 2,
+                    y: strips[0].y + 3,
+                    label: "M",
+                };
+            } else {
+                out.meshOverlay = { x, y, w, h };
+                out.meshBadge = {
+                    x: x + w - 4,
+                    y: y + 4,
+                    label: leaf.mesh_type_code || "MSH",
+                };
+            }
         }
 
         const kind = leaf.infill_kind || "glass";
@@ -3097,6 +3110,45 @@ export class DesignConfigurator extends Component {
             out.grid = { bars };
         }
         return out;
+    }
+
+    /**
+     * The strip(s) a RETRACTABLE screen is drawn as: roll-up (cassette
+     * side), pleated (its pull side, both for centre/sides) and roller
+     * (along the top). Fixed and hinged screens return [] and keep the
+     * whole-panel hatch. Geometry only, in drawing units, like the rest
+     * of leafAttachments.
+     */
+    retractableStrips(x, y, w, h, leaf) {
+        const mesh = (this.state.data?.mesh_types || []).find(
+            (m) => m.id === leaf.mesh_type_id);
+        const mechanism = mesh?.mechanism;
+        if (!["rollup", "pleated", "roller"].includes(mechanism)) {
+            return [];
+        }
+        const inset = 3;
+        const thick = Math.max(8, Math.min(28, Math.min(w, h) * 0.09));
+        const side = (which) => ({
+            key: which,
+            x: which === "left" ? x + inset : x + w - inset - thick,
+            y: y + inset,
+            w: thick,
+            h: Math.max(0, h - 2 * inset),
+        });
+        if (mechanism === "roller") {
+            return [{
+                key: "top", x: x + inset, y: y + inset,
+                w: Math.max(0, w - 2 * inset), h: thick,
+            }];
+        }
+        if (mechanism === "rollup") {
+            return [side(leaf.mesh_cassette_side === "right" ? "right" : "left")];
+        }
+        // pleated
+        if (["center", "sides"].includes(mesh.pull)) {
+            return [side("left"), side("right")];
+        }
+        return [side(mesh.pull === "right" ? "right" : "left")];
     }
 
     /** Port of leafGlyph(): slide arrow, opening triangle + IN/OUT tag. */

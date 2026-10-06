@@ -661,6 +661,22 @@
                                             </t>
                                         </t>
 
+                                        <t t-if="leaf.attach.meshStrips">
+                                            <rect t-foreach="leaf.attach.meshStrips" t-as="strip"
+                                                  t-key="strip.key"
+                                                  t-att-x="strip.x" t-att-y="strip.y"
+                                                  t-att-width="strip.w" t-att-height="strip.h"
+                                                  fill="url(#aw_mesh)" fill-opacity="0.9"
+                                                  stroke="#6a7075" stroke-width="0.6"/>
+                                            <text class="o_aw_mesh_badge"
+                                                  t-att-x="leaf.attach.meshBadge.x"
+                                                  t-att-y="leaf.attach.meshBadge.y"
+                                                  t-att-font-size="adornments.badgeFontSmall"
+                                                  text-anchor="middle" dominant-baseline="hanging">
+                                                <t t-esc="leaf.attach.meshBadge.label"/>
+                                            </text>
+                                        </t>
+
                                         <t t-if="leaf.attach.meshOverlay">
                                             <rect t-att-x="leaf.attach.meshOverlay.x"
                                                   t-att-y="leaf.attach.meshOverlay.y"
