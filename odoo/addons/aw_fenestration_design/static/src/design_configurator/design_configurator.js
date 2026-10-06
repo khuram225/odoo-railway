@@ -659,7 +659,10 @@ export class DesignConfigurator extends Component {
         if (this.changeCount) {
             // Same question as a spec change, same answers. The
             // dropdown goes back until one is given.
-            ev.target.value = this.frameRole;
+            const revert = () => {
+                ev.target.value = this.frameRole;
+            };
+            revert();
             this.dialog.add(ConfirmationDialog, {
                 title: _t("Changes for this window"),
                 body: _t(
@@ -672,6 +675,7 @@ export class DesignConfigurator extends Component {
                 confirm: () => this.applyFrameRole(role, true),
                 cancelLabel: _t("Discard them"),
                 cancel: () => this.applyFrameRole(role, false),
+                dismiss: revert,
             });
             return;
         }
@@ -959,6 +963,15 @@ export class DesignConfigurator extends Component {
             await this.applySpec(id, true);
             return;
         }
+        // The X (and Escape) CANCELS: nothing is applied and the
+        // dropdown goes back. Only the Discard button discards, which is
+        // why `dismiss` is given separately from `cancel`.
+        const header = this.state.data.header;
+        const current = header.spec_custom ? "custom" : String(header.template_id);
+        const revert = () => {
+            ev.target.value = current;
+        };
+        revert();
         this.dialog.add(ConfirmationDialog, {
             title: _t("Changes for this window"),
             body: _t(
@@ -971,6 +984,7 @@ export class DesignConfigurator extends Component {
             confirm: () => this.applySpec(id, true),
             cancelLabel: _t("Discard them"),
             cancel: () => this.applySpec(id, false),
+            dismiss: revert,
         });
     }
 
