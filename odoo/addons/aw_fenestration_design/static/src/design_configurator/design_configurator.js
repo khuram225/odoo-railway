@@ -37,6 +37,7 @@ const MIN_LEAF_MM = 4 * MM_PER_IN; // prototype's IN(4) drag floor
 // spec section 6.2.
 const MULLION_WIDTH_MM = 60;
 
+const PROFILE_ZOOM_PX = 280; // matches .o_aw_spec_zoom in the scss
 const MAX_DEPTH = 3; // matches aw.design.MAX_NESTING_DEPTH
 
 // A panel is addressed by its PATH: [[rowIndex, leafIndex], ...] from the
@@ -202,6 +203,8 @@ export class DesignConfigurator extends Component {
             // Only honoured while `selected` is one of them, so any
             // code that moves the selection elsewhere drops it.
             multiSel: [],
+            // The enlarged profile picture on the Spec tab, or null.
+            zoomPic: null,
             selectedDivider: null, // divider key
             zoom: 1, // 1 = fitted to the canvas
             paneLeft: loadPaneWidth("left", 220),
@@ -242,6 +245,7 @@ export class DesignConfigurator extends Component {
         this.canvasRef = useRef("canvas");
         this.svgRef = useRef("svg");
         this.toolbarRef = useRef("toolbar");
+        this.rightPaneRef = useRef("rightPane");
 
         onWillStart(async () => {
             await this.load();
@@ -767,6 +771,31 @@ export class DesignConfigurator extends Component {
                     (row) => (row.part_group || "other") === group.key),
             }))
             .filter((group) => group.rows.length);
+    }
+
+    /**
+     * Show the enlarged picture in ONE place: just left of the
+     * right-hand panel, level with its top, whichever row is hovered.
+     * Clamped to the window so it is never partly off screen.
+     */
+    showProfileZoom(row) {
+        const pane = this.rightPaneRef.el;
+        if (!pane) {
+            return;
+        }
+        const size = PROFILE_ZOOM_PX;
+        const gap = 12;
+        const rect = pane.getBoundingClientRect();
+        const left = Math.max(gap, rect.left - size - gap);
+        const top = Math.max(
+            gap, Math.min(rect.top, window.innerHeight - size - gap));
+        this.state.zoomPic = {
+            url: this.profileImage(row, 512), left, top,
+        };
+    }
+
+    hideProfileZoom() {
+        this.state.zoomPic = null;
     }
 
     /** Catalogue picture of a profile, small and large. */

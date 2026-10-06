@@ -8,6 +8,12 @@
              which is what pushes a tall drawing past the bottom of the page
              instead of letting the canvas scroll internally. -->
         <div class="o_aw_configurator d-flex flex-column h-100 overflow-hidden">
+            <!-- The profile picture popup: ONE element, placed by
+                 showProfileZoom() beside the right-hand panel, so it is
+                 in the same place whichever row is hovered. -->
+            <img t-if="state.zoomPic" class="o_aw_spec_zoom" alt=""
+                 t-att-src="state.zoomPic.url"
+                 t-att-style="'left: ' + state.zoomPic.left + 'px; top: ' + state.zoomPic.top + 'px;'"/>
 
             <div t-if="state.loading" class="d-flex h-100 align-items-center justify-content-center text-muted">
                 Loading design...
@@ -785,6 +791,7 @@
                          t-on-dblclick="onRightDragReset"/>
 
                     <div class="o_aw_cfg_side border-start bg-view d-flex flex-column flex-shrink-0"
+                         t-ref="rightPane"
                          t-att-style="rightPaneStyle">
                         <!-- Tabs, not four stacked collapsibles with a
                              max-height each: the column is ~260px wide
@@ -1325,11 +1332,11 @@
                                         <tr t-foreach="group.rows" t-as="row"
                                             t-key="row.position_id">
                                             <td class="o_aw_spec_pic">
-                                                <div class="o_aw_spec_thumb">
+                                                <div class="o_aw_spec_thumb"
+                                                     t-on-mouseenter="() => this.showProfileZoom(row)"
+                                                     t-on-mouseleave="() => this.hideProfileZoom()">
                                                     <img t-att-src="profileImage(row, 128)"
                                                          width="40" height="40" alt=""/>
-                                                    <img class="o_aw_spec_zoom" loading="lazy"
-                                                         t-att-src="profileImage(row, 512)" alt=""/>
                                                 </div>
                                             </td>
                                             <td>
