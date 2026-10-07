@@ -16,7 +16,7 @@ effective values are always resolved the same way:
     finish:    the choice, else the window's finish.
 """
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 PARAM = 'aw_fenestration.part_choice_thickness_migrated'
 
@@ -83,17 +83,35 @@ class AwDesign(models.Model):
         self.ensure_one()
         return {c.position_id.id: c for c in self.part_choice_ids}
 
-    def _sync_part_choices(self, reset=False):
+    def _sync_part_choices(self, reset=False, old_line_thickness=None):
         """Make sure every profile line of the spec has a choice row.
 
-        New rows take the line's thickness. `reset` drops the existing
-        rows first, which is what a change of spec means while the lines
-        still carry a thickness: the old rows mirrored the OLD spec.
-        Returns the rows created.
+        New rows take the line's thickness. `reset` is a change of spec:
+        the rows are rebuilt for the new lines, but a PICK is kept where
+        the new profile still offers it. A pick is a thickness that
+        differs from what the old line said (a thickness equal to it
+        was only the mirrored default, and the new spec's own wins); a
+        finish choice is always a pick. Positions the new spec does not
+        have lose their rows. Returns the rows created.
         """
         self.ensure_one()
+        old_line_thickness = old_line_thickness or {}
+        kept = {}
         if reset:
+            for choice in self.part_choice_ids:
+                pos = choice.position_id.id
+                thick = choice.thickness_id
+                kept[pos] = {
+                    'thickness': (thick if thick and thick.id
+                                  != old_line_thickness.get(pos)
+                                  else thick.browse()),
+                    'finish': choice.finish_id,
+                }
             self.part_choice_ids.unlink()
+        Section = self.env['aw.profile.section.line']
+        thickness_attr = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness')
+        finish_attr = self.env.ref('aw_fenestration_core.aw_attribute_finish')
         have = set(self.part_choice_ids.position_id.ids)
         vals = []
         for line in self._spec_profile_lines():
@@ -101,10 +119,22 @@ class AwDesign(models.Model):
             if not position or position.id in have:
                 continue
             have.add(position.id)
+            old = kept.get(position.id, {})
+            template = line.product_tmpl_id
+            thickness = line.thickness_id
+            pick = old.get('thickness')
+            if pick and pick in Section._template_values(
+                    template, thickness_attr):
+                thickness = pick
+            finish = old.get('finish')
+            if finish and finish not in Section._template_values(
+                    template, finish_attr):
+                finish = finish.browse()
             vals.append({
                 'design_id': self.id,
                 'position_id': position.id,
-                'thickness_id': line.thickness_id.id or False,
+                'thickness_id': thickness.id or False,
+                'finish_id': finish.id if finish else False,
             })
         return self.env['aw.design.part.choice'].create(vals)
 
@@ -121,6 +151,94 @@ class AwDesign(models.Model):
         options = self.env['aw.profile.section.line']._template_values(
             template, self.env.ref('aw_fenestration_core.aw_attribute_thickness'))
         return options if len(options) == 1 else options.browse()
+
+    def _profile_rows(self):
+        """The profile lines the Spec tab lists: the spec's own, then the
+        components added to this window."""
+        self.ensure_one()
+        return self._spec_profile_lines() | self._added_profile_lines()
+
+    def _row_template(self, line):
+        change = self._overrides_by_key()[0].get(line.position_id.id)
+        return change.product_tmpl_id if change else line.product_tmpl_id
+
+    def _row_thickness(self, line):
+        """The thickness a row is cut in, an override's own included."""
+        change = self._overrides_by_key()[0].get(line.position_id.id)
+        if change:
+            return change.thickness_id
+        return self._line_thickness(line)
+
+    def _thickness_options(self, template):
+        return self.env['aw.profile.section.line']._template_values(
+            template,
+            self.env.ref('aw_fenestration_core.aw_attribute_thickness'))
+
+    def _set_row_thickness(self, line, thickness):
+        """Write one row's thickness where it actually lives: on the
+        window's override when the row has one (the override resolves its
+        own variant), otherwise on the row's choice."""
+        change = self._overrides_by_key()[0].get(line.position_id.id)
+        if change:
+            change.thickness_id = thickness
+            return
+        self._choice_row(line.position_id).thickness_id = thickness
+
+    def _choice_row(self, position):
+        choice = self.part_choice_ids.filtered(
+            lambda c: c.position_id == position)[:1]
+        return choice or self.env['aw.design.part.choice'].create({
+            'design_id': self.id, 'position_id': position.id})
+
+    def set_part_choice(self, values):
+        """One row's thickness and/or finish, from the Spec tab.
+
+        Public RPC, so nothing is trusted: the position has to be one of
+        THIS window's rows, the thickness one the row's profile is sold
+        in, and the finish one of the Finish attribute's values. A
+        falsy finish goes back to the window's own.
+        """
+        self.ensure_one()
+        values = values or {}
+        rows = self._profile_rows().filtered(
+            lambda l: l.position_id.id == int(values.get('position_id') or 0))
+        if not rows:
+            raise UserError(_(
+                "That profile position is not part of this window."))
+        line = rows[:1]
+        if 'thickness_id' in values:
+            thickness = self.env['product.attribute.value'].browse(
+                int(values['thickness_id'] or 0)).exists()
+            if thickness and thickness not in self._thickness_options(
+                    self._row_template(line)):
+                raise UserError(_(
+                    "%(profile)s is not sold in that thickness.",
+                    profile=self._row_template(line).display_name))
+            self._set_row_thickness(line, thickness)
+        if 'finish_id' in values:
+            finish = self.env['product.attribute.value'].browse(
+                int(values['finish_id'] or 0)).exists()
+            if finish and finish.id not in [
+                    f['id'] for f in self._finish_options()]:
+                raise UserError(_("That is not a finish."))
+            self._choice_row(line.position_id).finish_id = finish
+        self._explode()
+        return self.get_configurator_data()
+
+    def apply_thickness_all(self, thickness_id):
+        """Give every row that offers this thickness that thickness.
+        Rows whose profile is not sold in it are left as they are; rows
+        already on another thickness are overwritten."""
+        self.ensure_one()
+        thickness = self.env['product.attribute.value'].browse(
+            int(thickness_id or 0)).exists()
+        if not thickness:
+            raise UserError(_("Choose a thickness first."))
+        for line in self._profile_rows():
+            if thickness in self._thickness_options(self._row_template(line)):
+                self._set_row_thickness(line, thickness)
+        self._explode()
+        return self.get_configurator_data()
 
     def _line_finish(self, line):
         """The finish a profile line is made in: its own choice, else the

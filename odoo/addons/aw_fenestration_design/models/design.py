@@ -606,6 +606,10 @@ class AwDesign(models.Model):
             vals = dict(vals, spec_custom=False)
         before = ({d.id: d.template_id.id for d in self}
                   if 'template_id' in vals else {})
+        old_thickness = ({d.id: {l.position_id.id: l.thickness_id.id
+                                 for l in d._spec_profile_lines()}
+                          for d in self}
+                         if 'template_id' in vals else {})
         res = super().write(vals)
         # A different spec means different lines, so the per-line
         # thickness the window mirrored belongs to the old one. Only on
@@ -613,7 +617,9 @@ class AwDesign(models.Model):
         # every save, which must not reset anything.
         for design in self:
             if design.id in before and before[design.id] != design.template_id.id:
-                design._sync_part_choices(reset=True)
+                design._sync_part_choices(
+                    reset=True,
+                    old_line_thickness=old_thickness.get(design.id))
         if any(f in vals for f in self.SALE_LINE_SYNC_FIELDS):
             self._sync_sale_order_line()
         return res
@@ -856,6 +862,7 @@ class AwDesign(models.Model):
         """
         self.ensure_one()
         by_position, by_hardware = self._overrides_by_key()
+        choices = self._choices_by_position()
 
         profiles = []
         seen = set()
@@ -886,6 +893,12 @@ class AwDesign(models.Model):
                 # Display only: which heading the Spec tab lists it
                 # under, and what it shows beside the picture.
                 'part_group': position.part_group or 'other',
+                'thickness_options': [
+                    {'id': t.id, 'name': t.name}
+                    for t in self._thickness_options(template)],
+                'needs_thickness': not thickness,
+                'finish_id': (choices[position.id].finish_id.id
+                              if position.id in choices else False),
                 'code': variant.default_code or template.default_code or '',
                 'section_dims': template.aw_section_dims or '',
                 'length_rule': self._length_rule_text(line),

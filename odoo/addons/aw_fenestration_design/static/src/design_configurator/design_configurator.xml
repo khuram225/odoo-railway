@@ -1373,6 +1373,23 @@
                                     profiles to show.
                                 </t>
                             </div>
+                            <div t-if="allThicknesses.length"
+                                 class="d-flex gap-1 align-items-center mb-2">
+                                <span class="small text-muted text-nowrap">Apply thickness to all</span>
+                                <select class="form-select form-select-sm"
+                                        t-on-change="(ev) => this.onApplyThicknessSelect(ev)">
+                                    <option value="">Choose...</option>
+                                    <option t-foreach="allThicknesses" t-as="th" t-key="th.id"
+                                            t-att-value="th.id">
+                                        <t t-esc="th.name"/>
+                                    </option>
+                                </select>
+                                <button class="btn btn-sm btn-outline-secondary"
+                                        title="Every row whose profile is sold in this thickness takes it"
+                                        t-on-click="(ev) => this.onApplyThicknessAll(ev)">
+                                    Apply
+                                </button>
+                            </div>
                             <t t-foreach="profileGroups" t-as="group" t-key="group.key">
                                 <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
                                     <t t-esc="group.label"/>
@@ -1404,6 +1421,28 @@
                                                     <t t-if="row.length_rule">
                                                         &#183; <t t-esc="row.length_rule"/>
                                                     </t>
+                                                </div>
+                                                <div class="d-flex flex-wrap gap-1 align-items-center my-1">
+                                                    <button t-foreach="row.thickness_options" t-as="th" t-key="th.id"
+                                                            class="btn btn-sm py-0 px-1"
+                                                            t-att-class="th.id === row.thickness_id ? 'btn-primary' : 'btn-outline-secondary'"
+                                                            t-on-click="() => this.setPartThickness(row, th.id)">
+                                                        <t t-esc="th.name"/>
+                                                    </button>
+                                                    <span t-if="row.needs_thickness"
+                                                          class="small text-danger fw-bold">
+                                                        choose a thickness
+                                                    </span>
+                                                    <select class="form-select form-select-sm w-auto py-0"
+                                                            title="Finish for this profile only; the window's own when left on 'Window finish'"
+                                                            t-on-change="(ev) => this.onPartFinishChange(row, ev)">
+                                                        <option value="" t-att-selected="!row.finish_id">Window finish</option>
+                                                        <option t-foreach="finishOptions" t-as="fo" t-key="fo.id"
+                                                                t-att-value="fo.id"
+                                                                t-att-selected="fo.id === row.finish_id">
+                                                            <t t-esc="fo.name"/>
+                                                        </option>
+                                                    </select>
                                                 </div>
                                                 <div t-attf-class="small {{ row.changed ? 'text-warning fw-bold' : 'text-muted' }}">
                                                     <t t-if="row.added">

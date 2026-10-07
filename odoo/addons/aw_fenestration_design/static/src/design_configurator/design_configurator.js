@@ -206,6 +206,8 @@ export class DesignConfigurator extends Component {
             multiSel: [],
             // The enlarged profile picture on the Spec tab, or null.
             zoomPic: null,
+            // The thickness picked in "Apply thickness to all".
+            applyThickness: "",
             // Position picked in each group's "Add component" row,
             // keyed by group.
             addPos: {},
@@ -921,6 +923,55 @@ export class DesignConfigurator extends Component {
 
     hideProfileZoom() {
         this.state.zoomPic = null;
+    }
+
+    // -- thickness and finish per row -------------------------------------
+    /** Every thickness any row offers, for "Apply thickness to all". */
+    get allThicknesses() {
+        const seen = new Map();
+        for (const row of this.specProfiles) {
+            for (const t of row.thickness_options || []) {
+                seen.set(t.id, t);
+            }
+        }
+        return [...seen.values()];
+    }
+
+    /** Saves first when dirty: the server works on the stored layout. */
+    async partCall(method, args) {
+        if (this.state.dirty) {
+            await this.save();
+        }
+        this.state.data = await this.orm.call(
+            "aw.design", method, [[this.designId], ...args]);
+        this.surfaceCheckErrors();
+    }
+
+    setPartThickness(row, thicknessId) {
+        return this.partCall("set_part_choice", [{
+            position_id: row.position_id, thickness_id: thicknessId,
+        }]);
+    }
+
+    onPartFinishChange(row, ev) {
+        return this.partCall("set_part_choice", [{
+            position_id: row.position_id,
+            finish_id: parseInt(ev.target.value, 10) || false,
+        }]);
+    }
+
+    onApplyThicknessAll(ev) {
+        const id = parseInt(this.state.applyThickness, 10);
+        if (!id) {
+            this.notification.add(
+                _t("Choose a thickness to apply first."), { type: "warning" });
+            return;
+        }
+        return this.partCall("apply_thickness_all", [id]);
+    }
+
+    onApplyThicknessSelect(ev) {
+        this.state.applyThickness = ev.target.value;
     }
 
     /** Catalogue picture of a profile, small and large. */

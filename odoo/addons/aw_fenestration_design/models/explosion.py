@@ -859,6 +859,14 @@ class AwDesign(models.Model):
         # piece would go on the cut list with no product and no price.
         # The reason already names the profile, the value and what IS
         # available.
+        # A row with no thickness is an error even when nothing used it
+        # yet, said in the same words as the piece would have said it so
+        # the two collapse into one line.
+        for line in self._profile_rows():
+            if line.position_id and not self._row_thickness(line):
+                reasons.add(self.env['aw.profile.section.line']._variant_problem(
+                    self._row_template(line), self.env['product.attribute.value'],
+                    self._line_finish(line)))
         for reason in sorted(reasons):
             problems.append(('error', reason))
 
