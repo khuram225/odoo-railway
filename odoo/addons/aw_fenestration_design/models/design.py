@@ -897,6 +897,13 @@ class AwDesign(models.Model):
                     {'id': t.id, 'name': t.name}
                     for t in self._thickness_options(template)],
                 'needs_thickness': not thickness,
+                # Only the finishes THIS profile is sold in: offering the
+                # others just produces a variant that cannot be made.
+                'finish_options': [
+                    {'id': f.id, 'name': f.name}
+                    for f in self.env['aw.profile.section.line']
+                    ._template_values(template, self.env.ref(
+                        'aw_fenestration_core.aw_attribute_finish'))],
                 'finish_id': (choices[position.id].finish_id.id
                               if position.id in choices else False),
                 'code': variant.default_code or template.default_code or '',

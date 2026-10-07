@@ -157,13 +157,15 @@
                             </div>
                         </div>
                         <div>
+                            <!-- Each panel's glass is its own choice (Panel
+                                 tab). This only fills the panels nobody has
+                                 chosen for, and the window's own glass. -->
                             <label class="form-label small text-muted mb-0">Glass</label>
                             <select class="form-select form-select-sm"
-                                    t-on-change="onGlassSpecChange">
-                                <option value="">No glass</option>
+                                    t-on-change="(ev) => this.onApplyGlassToAll(ev)">
+                                <option value="">Apply to all panels...</option>
                                 <t t-foreach="glassSpecOptions" t-as="opt" t-key="opt.id">
-                                    <option t-att-value="opt.id"
-                                            t-att-selected="opt.id === state.data.header.glass_spec_id">
+                                    <option t-att-value="opt.id">
                                         <t t-esc="opt.name"/>
                                     </option>
                                 </t>
@@ -1437,7 +1439,7 @@
                                                             title="Finish for this profile only; the window's own when left on 'Window finish'"
                                                             t-on-change="(ev) => this.onPartFinishChange(row, ev)">
                                                         <option value="" t-att-selected="!row.finish_id">Window finish</option>
-                                                        <option t-foreach="finishOptions" t-as="fo" t-key="fo.id"
+                                                        <option t-foreach="row.finish_options" t-as="fo" t-key="fo.id"
                                                                 t-att-value="fo.id"
                                                                 t-att-selected="fo.id === row.finish_id">
                                                             <t t-esc="fo.name"/>

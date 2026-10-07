@@ -1369,6 +1369,54 @@ export class DesignConfigurator extends Component {
         }
     }
 
+    /**
+     * The header Glass: apply one glass to the panels that have no
+     * hand-chosen glass. A panel counts as chosen when it was picked by
+     * hand (glass_chosen) or already carries an override that is not a
+     * suggestion -- which includes every window made before suggestions
+     * existed, so those keep what they have. The window's own glass is
+     * set too, so a panel left on "Design glass" follows it.
+     */
+    onApplyGlassToAll(ev) {
+        const id = parseInt(ev.target.value, 10);
+        ev.target.value = "";
+        if (!id) {
+            return;
+        }
+        let filled = 0;
+        let kept = 0;
+        const walk = (rows) => {
+            for (const row of rows || []) {
+                for (const leaf of row.leaves || []) {
+                    if (leaf.rows && leaf.rows.length) {
+                        walk(leaf.rows);
+                        continue;
+                    }
+                    if (leaf.leaf_type_code === "MESH"
+                            || leaf.infill_uses_glass === false) {
+                        continue;
+                    }
+                    const chosen = leaf.glass_chosen
+                        || (leaf.glass_spec_id && !leaf.glass_suggested);
+                    if (chosen) {
+                        kept += 1;
+                        continue;
+                    }
+                    leaf.glass_spec_id = id;
+                    leaf.glass_suggested = false;
+                    filled += 1;
+                }
+            }
+        };
+        walk(this.state.data.rows);
+        this.state.data.header.glass_spec_id = id;
+        this.state.dirty = true;
+        this.notification.add(
+            _t("Glass applied to %(filled)s panel(s); %(kept)s with a glass of their own were left alone.",
+               { filled, kept }),
+            { type: "success" });
+    }
+
     onGlassSpecChange(ev) {
         this.onHeaderIdChange("glass_spec_id", ev);
     }
