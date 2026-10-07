@@ -93,9 +93,13 @@
                                            domain="[('part_group', '=', 'outer_frame')]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
                                     <field name="thickness_attribute_value_ids"
-                                           column_invisible="1"/>
-                                    <field name="thickness_id"/>
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
@@ -117,9 +121,13 @@
                                            domain="[('part_group', '=', 'sashes')]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
                                     <field name="thickness_attribute_value_ids"
-                                           column_invisible="1"/>
-                                    <field name="thickness_id"/>
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
@@ -141,9 +149,13 @@
                                            domain="[('part_group', '=', 'beads')]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
                                     <field name="thickness_attribute_value_ids"
-                                           column_invisible="1"/>
-                                    <field name="thickness_id"/>
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
@@ -165,9 +177,13 @@
                                            domain="[('part_group', '=', 'dividers')]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
                                     <field name="thickness_attribute_value_ids"
-                                           column_invisible="1"/>
-                                    <field name="thickness_id"/>
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
@@ -189,9 +205,13 @@
                                            domain="[('part_group', '=', 'interlock_meeting')]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
                                     <field name="thickness_attribute_value_ids"
-                                           column_invisible="1"/>
-                                    <field name="thickness_id"/>
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
@@ -213,9 +233,13 @@
                                            domain="[('part_group', '=', 'lock')]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
                                     <field name="thickness_attribute_value_ids"
-                                           column_invisible="1"/>
-                                    <field name="thickness_id"/>
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
@@ -237,9 +261,13 @@
                                            domain="[('part_group', '=', 'fly_screen')]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
                                     <field name="thickness_attribute_value_ids"
-                                           column_invisible="1"/>
-                                    <field name="thickness_id"/>
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
@@ -261,9 +289,13 @@
                                            domain="[('part_group', '=', False)]"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
                                     <field name="thickness_attribute_value_ids"
-                                           column_invisible="1"/>
-                                    <field name="thickness_id"/>
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>

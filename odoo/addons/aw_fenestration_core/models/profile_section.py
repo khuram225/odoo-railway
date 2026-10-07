@@ -82,8 +82,12 @@ class AwProfileSectionLine(models.Model):
         readonly=True)
     thickness_attribute_value_ids = fields.Many2many(
         'product.attribute.value', compute='_compute_available_attribute_values')
+    # No longer required, and no longer shown on the spec: thickness is
+    # chosen per window and profile (aw.design.part.choice). It stays on
+    # the line only as the value a window falls back to when it has not
+    # chosen, and for the windows migrated from it.
     thickness_id = fields.Many2one(
-        'product.attribute.value', required=True,
+        'product.attribute.value',
         domain="[('id', 'in', thickness_attribute_value_ids)]")
 
     # Phase 7e: FINISH AND THE VARIANT ARE GONE FROM HERE. A spec says
