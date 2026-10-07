@@ -3123,7 +3123,7 @@ export class DesignConfigurator extends Component {
         const mesh = (this.state.data?.mesh_types || []).find(
             (m) => m.id === leaf.mesh_type_id);
         const mechanism = mesh?.mechanism;
-        if (!["rollup", "pleated", "roller"].includes(mechanism)) {
+        if (!["zigzag", "rollup", "pleated", "roller"].includes(mechanism)) {
             return [];
         }
         const inset = 3;
@@ -3140,6 +3140,13 @@ export class DesignConfigurator extends Component {
                 key: "top", x: x + inset, y: y + inset,
                 w: Math.max(0, w - 2 * inset), h: thick,
             }];
+        }
+        if (mechanism === "zigzag") {
+            // Left, right or both: a strip on each side it folds to.
+            if (leaf.mesh_cassette_side === "both") {
+                return [side("left"), side("right")];
+            }
+            return [side(leaf.mesh_cassette_side === "right" ? "right" : "left")];
         }
         if (mechanism === "rollup") {
             return [side(leaf.mesh_cassette_side === "right" ? "right" : "left")];
@@ -3962,7 +3969,7 @@ export class DesignConfigurator extends Component {
         // A roll-up screen's cassette defaults to the hinge side too;
         // an awning or hopper has no left or right, so it starts left.
         leaf.mesh_cassette_side =
-            !clearing && mesh?.mechanism === "rollup"
+            !clearing && ["zigzag", "rollup"].includes(mesh?.mechanism)
                 ? (["left", "right"].includes(leaf.hinge_side)
                     ? leaf.hinge_side : "left")
                 : "";

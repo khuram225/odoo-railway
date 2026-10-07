@@ -108,9 +108,10 @@ class AwDesignLeaf(models.Model):
     ], help="For a hinged mesh. Defaults to the panel's own hinge side "
             "when the mesh is applied.")
     mesh_cassette_side = fields.Selection([
-        ('left', 'Left'), ('right', 'Right'),
-    ], help="For a roll-up screen: the side its cassette is on. Defaults "
-            "to the panel's own hinge side when the screen is applied.")
+        ('left', 'Left'), ('right', 'Right'), ('both', 'Both'),
+    ], help="For a zig-zag mesh: the side or sides it folds away to. "
+            "Defaults to the panel's own hinge side when the screen is "
+            "applied.")
     infill_type_id = fields.Many2one(
         'aw.infill.type', string='Infill', ondelete='restrict',
         help="What fills this panel. Empty means glass.")

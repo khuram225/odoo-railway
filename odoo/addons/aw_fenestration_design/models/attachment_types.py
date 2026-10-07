@@ -60,6 +60,7 @@ class AwMeshType(models.Model):
         ('pleated', 'Pleated'),
         ('roller', 'Roller'),
         ('rollup', 'Roll-up'),
+        ('zigzag', 'Zig-zag'),
     ], required=True, default='fixed')
     opening_only = fields.Boolean(
         string='Opening sashes only', default=False,
@@ -92,6 +93,71 @@ class AwMeshType(models.Model):
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Fly screen code must be unique.'),
     ]
+
+    # The retractable types merged into "Zig-zag mesh": the roll-up and
+    # the four pleated ones. xmlids, not codes: a code can be edited.
+    ZIGZAG_XMLID = 'aw_fenestration_design.mesh_type_zigzag'
+    ZIGZAG_MERGED_XMLIDS = (
+        'mesh_type_rollup', 'mesh_type_pleated_l', 'mesh_type_pleated_r',
+        'mesh_type_pleated_dc', 'mesh_type_pleated_ds')
+    ZIGZAG_PARAM = 'aw_fenestration.mesh_zigzag_merged'
+
+    @api.model
+    def _migrate_to_zigzag(self):
+        """Move roll-up and pleated screens onto Zig-zag mesh, ONCE.
+
+        Each panel keeps its side: a roll-up its cassette side (left if
+        it somehow had none), a pleated single the side it pulls to, a
+        pleated double (centre or sides) both. The old types are
+        ARCHIVED, never deleted, so nothing that points at them breaks.
+
+        Zig-zag is available on the union of the old types' systems --
+        which is every system as soon as any one of them was offered
+        everywhere, as the roll-up was.
+
+        A drawing that was current stays current: the screen is drawn
+        the same, so the layout fingerprint is re-taken after the move
+        rather than leaving every affected window flagged "out of date".
+        The bill of materials is not re-run, so no price moves; a BOM
+        line keeps the old screen's name until the window is next saved.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(self.ZIGZAG_PARAM):
+            return 0
+        zigzag = self.env.ref(self.ZIGZAG_XMLID, raise_if_not_found=False)
+        if not zigzag:
+            return 0
+        old = self.env['aw.mesh.type']
+        for xmlid in self.ZIGZAG_MERGED_XMLIDS:
+            old |= self.env.ref('aw_fenestration_design.%s' % xmlid,
+                                raise_if_not_found=False) or old.browse()
+        old = old.with_context(active_test=False)
+
+        if old and all(t.available_series_ids for t in old):
+            zigzag.available_series_ids = old.available_series_ids
+
+        Leaf = self.env['aw.design.leaf']
+        leaves = Leaf.search([('mesh_type_id', 'in', old.ids)])
+        designs = leaves.mapped('row_id.design_id')
+        was_current = designs.filtered('elevation_is_current')
+        for leaf in leaves:
+            mesh = leaf.mesh_type_id
+            if mesh.mechanism == 'pleated':
+                if mesh.pull in ('center', 'sides'):
+                    side = 'both'
+                else:
+                    side = 'right' if mesh.pull == 'right' else 'left'
+            else:
+                side = leaf.mesh_cassette_side or 'left'
+            leaf.write({'mesh_type_id': zigzag.id,
+                        'mesh_cassette_side': side,
+                        'mesh_hinge_side': False})
+        # The fingerprint reads the new type and side, so take it after.
+        for design in was_current:
+            design.elevation_hash = design._layout_fingerprint()
+        old.write({'active': False})
+        param.set_param(self.ZIGZAG_PARAM, '1')
+        return len(leaves)
 
 
 class AwMeshTypeLine(models.Model):

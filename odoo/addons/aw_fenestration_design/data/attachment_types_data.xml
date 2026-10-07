@@ -41,6 +41,18 @@
             <field name="opening_only" eval="True"/>
             <field name="sequence">25</field>
         </record>
+        <!-- Replaces the roll-up and the pleated types (migrated and
+             archived by _migrate_to_zigzag, see below). Same rules as the
+             roll-up: opening sashes only, no lines until the products
+             exist. The side (left / right / both) is chosen per panel. -->
+        <record id="mesh_type_zigzag" model="aw.mesh.type">
+            <field name="code">ZZ-MSH</field>
+            <field name="name">Zig-zag mesh</field>
+            <field name="family_id" ref="layout_family_msh"/>
+            <field name="mechanism">zigzag</field>
+            <field name="opening_only" eval="True"/>
+            <field name="sequence">25</field>
+        </record>
         <record id="mesh_type_pleated_l" model="aw.mesh.type">
             <field name="code">PLT-SGL-L</field>
             <field name="name">Pleated, single, opens left</field>
@@ -136,5 +148,11 @@
             <field name="sequence">20</field>
         </record>
 
+    </data>
+
+    <!-- Outside the noupdate block on purpose: a <function> inside one is
+         skipped on upgrade, and this has to run on the upgrade. -->
+    <data>
+        <function model="aw.mesh.type" name="_migrate_to_zigzag"/>
     </data>
 </odoo>
