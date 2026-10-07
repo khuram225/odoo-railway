@@ -14,6 +14,7 @@ from . import design_preset_wizard
 from . import family
 from . import glass_suggestion
 from . import override
+from . import part_choice
 from . import explosion
 from . import snapshot
 from . import elevation_schedule

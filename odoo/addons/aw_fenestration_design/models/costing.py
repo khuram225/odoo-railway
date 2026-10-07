@@ -132,10 +132,18 @@ class AwDesign(models.Model):
                 # spec line only supplies the thickness.
                 template = line.product_id.product_tmpl_id
                 source = section_lines.get(template.id)
+                # The line's own thickness and finish choice. With no
+                # choice these are exactly what they were: the spec
+                # line's thickness and the window's finish.
+                # (A BOM line carries no position, so a template that is
+                # in no spec line -- an override's -- keeps the window's
+                # finish and the loose thickness it always had.)
                 rate = rates._rate_for(
                     template,
-                    source.thickness_id if source else False,
-                    self.finish_id,
+                    (self._line_thickness(source, template)
+                     if source else False),
+                    (self._line_finish(source) if source
+                     else self.finish_id),
                     on_date)
                 if rate:
                     unit_cost = rate.price

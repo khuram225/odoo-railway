@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Updatable on purpose (no noupdate): a <function> in a noupdate
+         block is skipped on upgrade, and this has to run on the upgrade.
+         One-shot: guarded by a parameter inside. -->
+    <data>
+        <function model="aw.design.part.choice" name="_migrate_thickness_choices"/>
+    </data>
+</odoo>

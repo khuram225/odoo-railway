@@ -218,13 +218,15 @@ class AwDesign(models.Model):
         """
         change = self._overrides_by_key()[0].get(line.position_id.id)
         if change:
-            return change._profile_variant_for(self)
+            return change._profile_variant_for(
+                self, finish=self._line_finish(line))
         # Phase 7e: the DESIGN's finish, full stop. The line has none to
         # fall back to any more, which is the point -- one window, one
         # colour, decided where the window is.
         return self.env['aw.profile.section.line']._variant_for(
-            product_tmpl or line.product_tmpl_id, line.thickness_id,
-            self.finish_id)
+            product_tmpl or line.product_tmpl_id,
+            self._line_thickness(line, product_tmpl),
+            self._line_finish(line))
 
     def _profile_change(self, line):
         """The change replacing this profile line, if any."""
@@ -234,8 +236,9 @@ class AwDesign(models.Model):
         """Why _profile_variant found nothing, in words the reader can
         act on. Asked only when it found nothing."""
         return self.env['aw.profile.section.line']._variant_problem(
-            product_tmpl or line.product_tmpl_id, line.thickness_id,
-            self.finish_id)
+            product_tmpl or line.product_tmpl_id,
+            self._line_thickness(line, product_tmpl),
+            self._line_finish(line))
 
     def _profile_pieces(self, line, context, label, panel_no=0,
                         product_tmpl=None):

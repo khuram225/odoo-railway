@@ -109,7 +109,7 @@ class AwDesignOverride(models.Model):
                     raise ValidationError(_(
                         "A hardware change has to name a product."))
 
-    def _profile_variant_for(self, design):
+    def _profile_variant_for(self, design, finish=None):
         """The variant this override resolves to, in the design's finish.
 
         Same call the spec's own lines make, so a changed profile is
@@ -118,7 +118,7 @@ class AwDesignOverride(models.Model):
         missing.
         """
         self.ensure_one()
-        finish = design.finish_id
+        finish = finish or design.finish_id
         return self.env['aw.profile.section.line']._variant_for(
             self.product_tmpl_id, self.thickness_id, finish)
 

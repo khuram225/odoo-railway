@@ -604,7 +604,16 @@ class AwDesign(models.Model):
         # Picking a spec ends "custom": the two cannot both be true.
         if vals.get('template_id') and 'spec_custom' not in vals:
             vals = dict(vals, spec_custom=False)
+        before = ({d.id: d.template_id.id for d in self}
+                  if 'template_id' in vals else {})
         res = super().write(vals)
+        # A different spec means different lines, so the per-line
+        # thickness the window mirrored belongs to the old one. Only on
+        # a real change: save_layout writes the same template back on
+        # every save, which must not reset anything.
+        for design in self:
+            if design.id in before and before[design.id] != design.template_id.id:
+                design._sync_part_choices(reset=True)
         if any(f in vals for f in self.SALE_LINE_SYNC_FIELDS):
             self._sync_sale_order_line()
         return res
@@ -866,7 +875,8 @@ class AwDesign(models.Model):
             change = by_position.get(position.id)
             template = (change.product_tmpl_id if change
                         else line.product_tmpl_id)
-            thickness = change.thickness_id if change else line.thickness_id
+            thickness = (change.thickness_id if change
+                         else self._line_thickness(line))
             variant = (change._profile_variant_for(self) if change
                        else self._profile_variant(line))
             profiles.append({
