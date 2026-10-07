@@ -421,6 +421,30 @@ class AwDesign(models.Model):
                         line, context, _('transom'),
                         product_tmpl=product))
 
+    def _covered_panel_type_ids(self):
+        """The panel types some section lists."""
+        return set(self.env['aw.spec.section'].search(
+            [('applies_to', '=', 'panel')]).leaf_type_ids.ids)
+
+    def _panel_lines(self, lines, leaf, covered):
+        """The lines of one scope that apply to THIS panel.
+
+        A line in a panel section applies to the panel types that section
+        lists; a line with no section, or in a non-panel section, is
+        decided by its position's scope alone, as it always was. A panel
+        type no section lists (a custom one) keeps the scope behaviour
+        too, so adding a section can never take a panel's parts away.
+        """
+        out = []
+        for line in lines:
+            section = line.spec_section_id
+            if (section and section.applies_to == 'panel'
+                    and leaf.leaf_type_id not in section.leaf_type_ids
+                    and leaf.leaf_type_id.id in covered):
+                continue
+            out.append(line)
+        return out
+
     def _explode_panel(self, leaf, by_scope, context, out, demand):
         """One panel: its frame profiles, glass or infill, mesh, grid."""
         self.ensure_one()
@@ -437,7 +461,8 @@ class AwDesign(models.Model):
             scope = 'panel_fixed'
         demand[scope] = demand.get(scope, 0) + 1
         lock_position = self._lock_bar_position()
-        for line in by_scope.get(scope, []):
+        covered = self._covered_panel_type_ids()
+        for line in self._panel_lines(by_scope.get(scope, []), leaf, covered):
             # The lock bar is in this scope but is not one of the panel's
             # four sides: it sits on ONE edge, decided per panel, and
             # only when the panel is locked. Handled below so it is not
@@ -927,11 +952,12 @@ class AwDesign(models.Model):
                         % ', '.join(heavier.mapped('display_name')))
                 if heavier else '')))
 
-        # Spec 9: sliding and opening panels need different outer
-        # frames, so one frame cannot carry both.
-        mixed = self._mixed_frame_error()
-        if mixed:
-            problems.append(('error', mixed))
+        # A sliding or opening panel needs a section of its own type. A
+        # window may now mix them, but each is built from ITS section, so
+        # a spec with no Sliding panel section cannot make a slider --
+        # said once per panel type, naming the panels. (This replaced
+        # "sliding and opening panels cannot share one frame".)
+        problems.extend(self._missing_panel_section_problems())
 
         # A screen that rolls into a cassette on the sash fits opening
         # sashes only. The configurator does not offer it elsewhere; this
@@ -1035,6 +1061,38 @@ class AwDesign(models.Model):
                 position=position.name,
                 count=count, what=singular if count == 1 else plural)))
         return problems
+
+    def _missing_panel_section_problems(self):
+        """Errors for sliding and opening panels whose type the spec has
+        no section for. Fixed and mesh panels keep their existing
+        per-position warnings: a spec with no bead lines is common."""
+        self.ensure_one()
+        if not (self._spec_profile_lines() | self._added_profile_lines()):
+            return []        # "has no profiles" already says it
+        by_scope = self._section_lines_by_scope()
+        covered = self._covered_panel_type_ids()
+        structural = set(OPENING_LEAF_CODES) | {'SLIDER'}
+        Section = self.env['aw.spec.section']
+        missing = {}
+        for leaf in self._all_panels():
+            code = (leaf.leaf_type_id.code or '').upper()
+            if code not in structural:
+                continue
+            if self._panel_lines(
+                    by_scope.get('panel_opening', []), leaf, covered):
+                continue
+            section = Section.search(
+                [('applies_to', '=', 'panel'),
+                 ('leaf_type_ids', 'in', leaf.leaf_type_id.id)], limit=1)
+            missing.setdefault(
+                section.name or leaf.leaf_type_id.display_name,
+                []).append(str(leaf.panel_no or 0))
+        return [('error', _(
+            "Panel(s) %(panels)s need a '%(section)s' section, and "
+            "'%(spec)s' has none.",
+            panels=', '.join(numbers), section=name,
+            spec=(self.template_id.display_name
+                  or _('this window')))) for name, numbers in missing.items()]
 
     def _all_panels(self):
         """Every real panel, containers skipped."""

@@ -46,6 +46,12 @@
               action="action_aw_window_family"
               sequence="2"/>
 
+    <menuitem id="menu_aw_spec_section"
+              name="Spec Sections"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_spec_section"
+              sequence="4"/>
+
     <menuitem id="menu_aw_profile_position"
               name="Profile Positions"
               parent="menu_aw_fenestration_config"

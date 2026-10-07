@@ -4,6 +4,7 @@ from . import leaf_type
 from . import profile_position
 from . import window_family
 from . import window_series
+from . import spec_section
 from . import profile_section
 from . import section_seed
 from . import hardware_set

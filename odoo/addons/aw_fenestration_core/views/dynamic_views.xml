@@ -31,6 +31,33 @@
         </field>
     </record>
 
+    <!-- ===== aw.spec.section ===== -->
+    <record id="view_aw_spec_section_list" model="ir.ui.view">
+        <field name="name">aw.spec.section.list</field>
+        <field name="model">aw.spec.section</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="applies_to"/>
+                <field name="leaf_type_ids" widget="many2many_tags"
+                       invisible="applies_to != 'panel'"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+    <record id="action_aw_spec_section" model="ir.actions.act_window">
+        <field name="name">Spec Sections</field>
+        <field name="res_model">aw.spec.section</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first Spec Section</p>
+            <p>A specification is read the way a window is described:
+               the Frame, then one section per panel type, then mesh
+               add-ons, then joints. Add your own, for example a Sill.</p>
+        </field>
+    </record>
+
     <!-- ===== aw.profile.position ===== -->
     <record id="view_aw_profile_position_list" model="ir.ui.view">
         <field name="name">aw.profile.position.list</field>

@@ -43,6 +43,10 @@
         <!-- Phase 7d, LAST: every section and spec must exist before
              the lines are re-pointed onto them. -->
         <function model="aw.window.template" name="_migrate_lines_to_specs"/>
+        <!-- Sections, after every spec line exists: seed them, then put
+             each existing line in the one its position and system say. -->
+        <function model="aw.spec.section" name="_seed_spec_sections"/>
+        <function model="aw.spec.section" name="_migrate_line_sections"/>
         <function model="aw.window.template" name="_migrate_deductions_to_specs"/>
         <!-- Phase 7e -->
         <function model="aw.window.template" name="_migrate_system_glass_to_specs"/>

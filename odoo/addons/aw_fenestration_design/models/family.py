@@ -231,22 +231,6 @@ class AwDesign(models.Model):
                     as_dict(leaf), as_dict(after) if after else None)
         return bad
 
-    def _mixed_frame_error(self):
-        """Sliding and opening panels cannot share one frame.
-
-        [revisit] The client is to confirm this. It is an error rather
-        than a warning because the two need different outer frames, so
-        the BOM that would come out of it is not something anyone could
-        cut.
-        """
-        self.ensure_one()
-        roles = self._panel_roles()
-        if 'sliding' in roles and ({'openable', 'tiltturn'} & roles):
-            return _(
-                "This design mixes sliding and opening panels, which "
-                "cannot share one frame. Make them separate windows.")
-        return ''
-
     # ------------------------------------------------------------------
     @api.onchange('family_id')
     def _onchange_family_clears_glass(self):

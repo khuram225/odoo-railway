@@ -45,6 +45,21 @@ class AwProfileSectionLine(models.Model):
     _description = 'Fenestration Profile Section Line'
     _order = 'sequence, id'
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        # A line added to a spec starts in the section its position and
+        # the spec's system say; still editable afterwards.
+        for vals in vals_list:
+            if (vals.get('spec_id') and vals.get('position_id')
+                    and not vals.get('spec_section_id')):
+                section = self.env['aw.spec.section']._section_for(
+                    self.env['aw.profile.position'].browse(
+                        vals['position_id']),
+                    self.env['aw.window.template'].browse(vals['spec_id']))
+                if section:
+                    vals['spec_section_id'] = section.id
+        return super().create(vals_list)
+
     # Phase 7d: a line belongs to a SPECIFICATION now. section_id is
     # kept and no longer required so the migration can re-point existing
     # lines without deleting and recreating them -- that is what keeps a
@@ -59,6 +74,13 @@ class AwProfileSectionLine(models.Model):
         ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
     position_id = fields.Many2one('aw.profile.position', required=True)
+    # Which section of the spec this line is in; the section decides
+    # which panels it applies to. (`section_id` above is the LEGACY
+    # Profile Section, a different thing.) Empty falls back to the
+    # position's scope, which is what every line did before sections.
+    spec_section_id = fields.Many2one(
+        'aw.spec.section', string='Section', ondelete='set null',
+        index=True)
     # Stored so a spec can list its lines group by group with a plain
     # domain. Display only.
     part_group = fields.Selection(

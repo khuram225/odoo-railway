@@ -1,5 +1,7 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_aw_leaf_type_user,aw.leaf.type.user,model_aw_leaf_type,base.group_user,1,0,0,0
+access_aw_spec_section_user,aw.spec.section.user,model_aw_spec_section,base.group_user,1,0,0,0
+access_aw_spec_section_manager,aw.spec.section.manager,model_aw_spec_section,group_fenestration_manager,1,1,1,1
 access_aw_leaf_type_manager,aw.leaf.type.manager,model_aw_leaf_type,group_fenestration_manager,1,1,1,1
 access_aw_profile_position_user,aw.profile.position.user,model_aw_profile_position,base.group_user,1,0,0,0
 access_aw_profile_position_manager,aw.profile.position.manager,model_aw_profile_position,group_fenestration_manager,1,1,1,1
