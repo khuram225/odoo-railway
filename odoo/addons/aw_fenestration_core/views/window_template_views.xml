@@ -108,6 +108,8 @@
                                     <field name="cut_angle" optional="hide"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                             <separator string="Sashes"/>
@@ -136,6 +138,8 @@
                                     <field name="cut_angle" optional="hide"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                             <separator string="Beads"/>
@@ -164,6 +168,8 @@
                                     <field name="cut_angle" optional="hide"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                             <separator string="Dividers"/>
@@ -192,6 +198,8 @@
                                     <field name="cut_angle" optional="hide"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                             <separator string="Interlock &amp; meeting"/>
@@ -220,6 +228,8 @@
                                     <field name="cut_angle" optional="hide"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                             <separator string="Lock"/>
@@ -248,6 +258,8 @@
                                     <field name="cut_angle" optional="hide"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                             <separator string="Fly screen"/>
@@ -276,6 +288,8 @@
                                     <field name="cut_angle" optional="hide"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                             <separator string="Other"/>
@@ -304,6 +318,8 @@
                                     <field name="cut_angle" optional="hide"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
                                 </list>
                             </field>
                         </page>
