@@ -363,8 +363,13 @@ export class DesignConfigurator extends Component {
         if (this.uom === "in") {
             return `${trim(totalIn)} in`;
         }
-        const ft = Math.floor(totalIn / 12);
-        return `${ft} ft ${trim(totalIn - ft * 12)} in`;
+        // Round to 1/16 in FIRST, then split. Splitting first made 304.8
+        // mm (12 x 25.4 is 304.79999999999995 in float) read "0 ft 12 in"
+        // and 1828.8 read "5 ft 12 in": floor() saw 11.999... feet-worth,
+        // round() saw 12.
+        const sixteenths = Math.round(totalIn * 16);
+        const ft = Math.floor(sixteenths / 192);
+        return `${ft} ft ${trim((sixteenths - ft * 192) / 16)} in`;
     }
 
     /** Parse what the user typed back into mm, in whatever unit is active. */
