@@ -169,18 +169,20 @@ class AwDesignBomLine(models.Model):
     @api.depends('length_mm', 'computed_length_mm', 'cut_on_site')
     def _compute_length_texts(self):
         for line in self:
-            line.length_text = ('' if line.cut_on_site
-                                else to_display(line.length_mm))
+            line.length_text = (
+                '' if line.cut_on_site
+                else to_display(line.length_mm, 'soot'))
             line.computed_length_text = (
                 '' if line.cut_on_site
-                else to_display(line.computed_length_mm))
+                else to_display(line.computed_length_mm, 'soot'))
 
     def _inverse_length_text(self):
         for line in self:
             # Typing back what is already shown is not an edit, and must
             # not flag the line manual or move it to the nearest 1/16.
             if (line.length_text or '') == (
-                    '' if line.cut_on_site else to_display(line.length_mm)):
+                    '' if line.cut_on_site
+                    else to_display(line.length_mm, 'soot')):
                 continue
             try:
                 line.length_mm = to_mm(line.length_text)
@@ -189,6 +191,19 @@ class AwDesignBomLine(models.Model):
                     "'%(text)s' cannot be read as a length. Use inches "
                     "(72, 34 1/8), soot (3s, 33-6) or millimetres "
                     "(1829mm).", text=line.length_text))
+
+    @api.onchange('length_text')
+    def _onchange_length_text(self):
+        """Typing inches updates the mm column at once, before the row
+        is saved; typing mm updates the text through its compute. The
+        text is only re-formatted when the cell is committed."""
+        for line in self:
+            try:
+                mm = to_mm(line.length_text)
+            except ValueError:
+                continue
+            if abs(mm - (line.length_mm or 0.0)) > 0.005:
+                line.length_mm = mm
 
     def write(self, vals):
         # Editing a generated piece by hand makes it MANUAL, so the next

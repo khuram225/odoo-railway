@@ -48,6 +48,20 @@ class TestUnits(TransactionCase):
                 (-38.1, "-1 1/2"), (0, "0")):
             self.assertEqual(to_display(mm), text, mm)
 
+    def test_to_display_soot_style(self):
+        for mm, text in (
+                (1209.2, "47-5"), (3647.6, "143-5"), (1179.2, "46-3.5"),
+                (3617.6, "142-3.5"), (3657.6, "144"), (866.8, "34-1"),
+                (857.25, "33-6"), (0, "0"), (12.7, "0-4")):
+            self.assertEqual(to_display(mm, "soot"), text, mm)
+
+    def test_round_trip(self):
+        for style in ("fraction", "soot"):
+            for mm in (1209.2, 1179.2, 866.8, 3657.6, 12.7, 731, 600):
+                back = to_mm(to_display(mm, style))
+                self.assertEqual(round(back / 25.4 * 16),
+                                 round(mm / 25.4 * 16), (style, mm))
+
 
 @tagged('post_install', '-at_install')
 class TestCutRules(TransactionCase):

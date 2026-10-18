@@ -164,7 +164,7 @@
                                 <span t-esc="'%.1f' % line.length_mm"/>
                             </td>
                             <td class="text-end">
-                                <span t-esc="doc._format_length(line.length_mm)"/>
+                                <span t-esc="doc._format_length(line.length_mm, 'soot')"/>
                             </td>
                             <td><span t-esc="line.cut_angle or '—'"/>°</td>
                             <td class="text-end"><span t-esc="line.qty"/></td>

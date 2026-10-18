@@ -214,12 +214,13 @@ class AwDesignLeaf(models.Model):
     @api.depends('width_mm')
     def _compute_width_inch_total(self):
         for rec in self:
-            rec.width_inch_total = to_display(rec.width_mm)
+            rec.width_inch_total = to_display(rec.width_mm, 'soot')
 
     def _inverse_width_inch_total(self):
         for rec in self:
             try:
-                rec.width_mm = edited_mm(rec.width_inch_total, rec.width_mm)
+                rec.width_mm = edited_mm(
+                    rec.width_inch_total, rec.width_mm, 'soot')
             except ValueError:
                 raise UserError(_(
                     "'%(text)s' cannot be read as a length. Use inches "

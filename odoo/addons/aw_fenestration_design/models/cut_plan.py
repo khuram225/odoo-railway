@@ -904,7 +904,10 @@ class AwCutPlanBar(models.Model):
         for bar in self:
             bar.stock_label = '%g ft' % round(
                 bar.stock_mm / MM_PER_FOOT, 2) if bar.stock_mm else ''
-            bar.remainder_label = design._render_length(bar.remainder_mm)
+            # Soot style: these labels end up on the stickers and the
+            # cutting sheet, which the workshop reads.
+            bar.remainder_label = design._render_length(
+                bar.remainder_mm, style='soot')
 
 
 class AwCutPlanCut(models.Model):
@@ -937,4 +940,5 @@ class AwCutPlanCut(models.Model):
     def _compute_length_label(self):
         design = self.env['aw.design']
         for cut in self:
-            cut.length_label = design._render_length(cut.length_mm)
+            cut.length_label = design._render_length(
+                cut.length_mm, style='soot')

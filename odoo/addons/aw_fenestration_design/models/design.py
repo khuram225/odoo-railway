@@ -474,7 +474,7 @@ class AwDesign(models.Model):
     @api.depends('width_mm')
     def _compute_width_inch_total(self):
         for rec in self:
-            rec.width_inch_total = to_display(rec.width_mm)
+            rec.width_inch_total = to_display(rec.width_mm, 'soot')
 
     def _inverse_width_inch_total(self):
         for rec in self:
@@ -496,7 +496,7 @@ class AwDesign(models.Model):
     @api.depends('height_mm')
     def _compute_height_inch_total(self):
         for rec in self:
-            rec.height_inch_total = to_display(rec.height_mm)
+            rec.height_inch_total = to_display(rec.height_mm, 'soot')
 
     def _inverse_height_inch_total(self):
         for rec in self:
@@ -505,10 +505,11 @@ class AwDesign(models.Model):
 
     @staticmethod
     def _mm_from_text(text, current_mm):
-        """A typed length (70 1/2, 33-6, 3s, 1829mm) in millimetres;
-        unreadable text is an error the user can act on."""
+        """A typed length (47-5, 47 5/8, 47.625, 1209mm) in millimetres;
+        unreadable text is an error the user can act on. The form shows
+        soot style, so "untouched" is judged against that."""
         try:
-            return edited_mm(text, current_mm)
+            return edited_mm(text, current_mm, 'soot')
         except ValueError:
             raise UserError(_(
                 "'%(text)s' cannot be read as a length. Use inches "
@@ -528,7 +529,7 @@ class AwDesign(models.Model):
         return ('%.2f' % value).rstrip('0').rstrip('.') or '0'
 
     @api.model
-    def _render_length(self, mm, uom=None, unit=True):
+    def _render_length(self, mm, uom=None, unit=True, style='fraction'):
         """One length in the configured unit, WITHOUT needing a record.
 
         The cutting plan prints lengths too and has no design in hand,
@@ -540,7 +541,7 @@ class AwDesign(models.Model):
         if uom == 'mm':
             text = self._trim(mm)
         else:
-            text = to_display(mm)
+            text = to_display(mm, style)
         return '%s %s' % (text, uom) if unit else text
 
     @api.model
@@ -552,13 +553,13 @@ class AwDesign(models.Model):
             self._render_length(first, uom, unit=False), sep,
             self._render_length(second, uom, unit=False), uom)
 
-    def _format_length(self, mm):
+    def _format_length(self, mm, style='fraction'):
         """One length, rendered in whatever unit the Fenestration setting
         is currently on. Used for the sale line description and the Sale
         Order's Fenestration tab, so both always speak the same unit the
         design form is being edited in."""
         self.ensure_one()
-        return self._render_length(mm, self.length_uom)
+        return self._render_length(mm, self.length_uom, style=style)
 
     @api.depends('width_mm', 'height_mm')
     def _compute_area(self):
