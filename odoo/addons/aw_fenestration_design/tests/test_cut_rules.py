@@ -334,6 +334,30 @@ class TestCutRules(TransactionCase):
             self.assertAlmostEqual(
                 rails[0].length_mm, 857.25 + 3 * 3.175, places=2)
 
+    def test_display_precision_entry_is_not_manual(self):
+        rail = self._pieces(self.p_rail)[0]
+        rail.with_context(aw_bom_generating=True).write({
+            'computed_length_mm': 1209.20, 'length_mm': 1209.20,
+            'is_manual': False})
+        # What the client sends after the user types the displayed value.
+        rail.write({'length_mm': to_mm('47-5')})
+        self.assertFalse(rail.is_manual)
+        self.assertEqual(rail.length_mm, 1209.20)
+        # A real edit beyond half a sixteenth still flags it.
+        rail.write({'length_mm': 1211.0})
+        self.assertTrue(rail.is_manual)
+        self.assertEqual(rail.length_mm, 1211.0)
+
+    def test_design_form_inches_and_mm_follow_each_other(self):
+        design = self.env['aw.design'].new({
+            'window_series_id': self.series.id})
+        design.width_inch_total = '144-4'
+        design._onchange_width_inch_total()
+        self.assertAlmostEqual(design.width_mm, 3670.30, places=2)
+        design.width_mm = 1219.2
+        design._onchange_width_mm()
+        self.assertEqual(design.width_inch_total, '48')
+
     def test_resize_marks_the_cut_list_stale(self):
         self.design.write({'width_mm': 2000.0})
         self.assertTrue(self.design.cut_list_stale)

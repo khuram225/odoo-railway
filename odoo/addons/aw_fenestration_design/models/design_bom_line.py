@@ -6,6 +6,10 @@ from odoo.addons.aw_fenestration_core.models.units import (
     to_display, to_mm,
 )
 
+# Half a sixteenth of an inch, rounded down: a length typed at display
+# precision that lands this close to the computed one IS the computed one.
+MANUAL_TOLERANCE_MM = 0.79
+
 ROLE_SELECTION = [
     ('frame', 'Frame'),
     ('sash', 'Sash'),
@@ -202,8 +206,22 @@ class AwDesignBomLine(models.Model):
                 mm = to_mm(line.length_text)
             except ValueError:
                 continue
+            computed = line._computed_if_close(mm)
+            if computed is not None:
+                mm = computed
             if abs(mm - (line.length_mm or 0.0)) > 0.005:
                 line.length_mm = mm
+
+    def _computed_if_close(self, mm):
+        """The computed length when `mm` is within display precision of
+        it, else None. Only generated pieces have a computed length to
+        compare with; a free-form line has none."""
+        self.ensure_one()
+        if (self.piece_key and not self.is_free_form
+                and abs(mm - (self.computed_length_mm or 0.0))
+                <= MANUAL_TOLERANCE_MM):
+            return self.computed_length_mm
+        return None
 
     def write(self, vals):
         # Editing a generated piece by hand makes it MANUAL, so the next
@@ -213,6 +231,20 @@ class AwDesignBomLine(models.Model):
                 and 'is_manual' not in vals
                 and any(k in vals for k in (
                     'length_mm', 'qty', 'product_id'))):
+            # A length entered at display precision that matches the
+            # computed one is not an edit: store the computed value and
+            # do not flag it.
+            if ('length_mm' in vals and not any(
+                    k in vals for k in ('qty', 'product_id'))):
+                for line in self:
+                    own = dict(vals)
+                    computed = line._computed_if_close(vals['length_mm'])
+                    if computed is not None:
+                        own['length_mm'] = computed
+                    else:
+                        own['is_manual'] = True
+                    super(AwDesignBomLine, line).write(own)
+                return True
             vals = dict(vals, is_manual=True)
         return super().write(vals)
 

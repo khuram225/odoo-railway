@@ -14,6 +14,7 @@ from odoo.addons.aw_fenestration_core.models.formula import (
 )
 
 from .cut_algorithm import max_piece_mm
+from .design_bom_line import MANUAL_TOLERANCE_MM
 from .family import OPENING_LEAF_CODES
 
 # Keys the checks read that are NOT fields on aw.design.bom.line. Kept
@@ -954,6 +955,13 @@ class AwDesign(models.Model):
         fresh = {l.piece_key: l for l in self.bom_line_ids if l.piece_key}
         for key, saved in kept.items():
             line = fresh.get(key)
+            if (line and abs(saved['length_mm'] - line.length_mm)
+                    <= MANUAL_TOLERANCE_MM
+                    and saved['qty'] == line.qty
+                    and saved['product_id'] == line.product_id.id):
+                # Same as the fresh piece at display precision: not a
+                # real edit, so the line goes back to being computed.
+                continue
             if line:
                 line.with_context(aw_bom_generating=True).write({
                     'length_mm': saved['length_mm'], 'qty': saved['qty'],

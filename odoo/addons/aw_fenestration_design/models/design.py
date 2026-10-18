@@ -503,6 +503,38 @@ class AwDesign(models.Model):
             rec.height_mm = rec._mm_from_text(
                 rec.height_inch_total, rec.height_mm)
 
+    # Each pair updates the other as it is typed, before save. The
+    # computed text/mm are only refreshed from each other here; the
+    # inverses still do the saving. An unreadable text is left alone
+    # until save, where the inverse reports it.
+    @api.onchange('width_inch_total')
+    def _onchange_width_inch_total(self):
+        for rec in self:
+            try:
+                rec.width_mm = edited_mm(
+                    rec.width_inch_total, rec.width_mm, 'soot')
+            except ValueError:
+                pass
+
+    @api.onchange('width_mm')
+    def _onchange_width_mm(self):
+        for rec in self:
+            rec.width_inch_total = to_display(rec.width_mm, 'soot')
+
+    @api.onchange('height_inch_total')
+    def _onchange_height_inch_total(self):
+        for rec in self:
+            try:
+                rec.height_mm = edited_mm(
+                    rec.height_inch_total, rec.height_mm, 'soot')
+            except ValueError:
+                pass
+
+    @api.onchange('height_mm')
+    def _onchange_height_mm(self):
+        for rec in self:
+            rec.height_inch_total = to_display(rec.height_mm, 'soot')
+
     @staticmethod
     def _mm_from_text(text, current_mm):
         """A typed length (47-5, 47 5/8, 47.625, 1209mm) in millimetres;
