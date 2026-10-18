@@ -64,6 +64,116 @@ class TestUnits(TransactionCase):
 
 
 @tagged('post_install', '-at_install')
+class TestPanelOpening(TransactionCase):
+    """OW / OH per panel: each edge takes half the frame deduction on the
+    window's outer edge and half the divider body anywhere else."""
+
+    def _make(self, width_in, height_in):
+        env = self.env
+        series = env.ref('aw_fenestration_core.window_series_casement_dg',
+                         raise_if_not_found=False)
+        fixed = env['aw.leaf.type'].search([('code', '=', 'FIXED')], limit=1)
+        glass = env['aw.glass.spec'].search([], limit=1)
+        if not (series and fixed and glass):
+            raise unittest.SkipTest("Seed data is missing")
+        profile = env['product.template'].search([
+            ('categ_id', 'child_of', env.ref(
+                'aw_fenestration_core.product_category_profiles').id)],
+            limit=1)
+        pos_rail = env['aw.profile.position'].create({
+            'name': 'PO Rail', 'scope': 'panel_opening',
+            'is_required': False})
+        pos_h = env['aw.profile.position'].create({
+            'name': 'PO Height', 'scope': 'panel_opening',
+            'is_required': False})
+        template = env['aw.window.template'].create({
+            'name': 'PO spec', 'window_type_id': series.id,
+            'glass_spec_id': glass.id,
+            'frame_deduction_w_mm': 3 * INCH,
+            'frame_deduction_h_mm': 3 * INCH,
+            'divider_body_mm': 1.5 * INCH,
+            'profile_line_ids': [
+                (0, 0, {'position_id': pos_rail.id,
+                        'product_tmpl_id': profile.id,
+                        'length_formula': 'OW + soot(3)',
+                        'qty_formula': '1'}),
+                (0, 0, {'position_id': pos_h.id,
+                        'product_tmpl_id': profile.id,
+                        'length_formula': 'OH', 'qty_formula': '1'}),
+            ]})
+        design = env['aw.design'].create({
+            'name': 'PO', 'qty': 1, 'window_series_id': series.id,
+            'template_id': template.id, 'glass_spec_id': glass.id,
+            'width_mm': width_in * INCH, 'height_mm': height_in * INCH})
+        return design, fixed
+
+    def _row(self, design, height_in, widths_in, fixed, parent_leaf=None):
+        row = self.env['aw.design.row'].create({
+            'design_id': design.id, 'height_mm': height_in * INCH,
+            'parent_leaf_id': parent_leaf.id if parent_leaf else False})
+        return [self.env['aw.design.leaf'].create({
+            'row_id': row.id, 'width_mm': w * INCH,
+            'leaf_type_id': fixed.id}) for w in widths_in]
+
+    def _explode(self, design):
+        design._renumber_panels()
+        design._explode()
+        by_panel = {}
+        for line in design.bom_line_ids.filtered(
+                lambda l: l.kind == 'profile'):
+            kind = 'rail' if 'PO Rail' in (line.label or '') else 'oh'
+            by_panel.setdefault(line.panel_no, {})[kind] = line.length_mm
+        return by_panel
+
+    def _build(self, width_in, height_in, widths_in):
+        design, fixed = self._make(width_in, height_in)
+        self._row(design, height_in, widths_in, fixed)
+        return self._explode(design)
+
+    def test_three_equal_panels(self):
+        got = self._build(144, 144, [48, 48, 48])
+        self.assertAlmostEqual(got[1]['rail'], 1162.05 + 9.525, places=2)
+        self.assertAlmostEqual(got[2]['rail'], 1181.10 + 9.525, places=2)
+        self.assertAlmostEqual(got[3]['rail'], 1162.05 + 9.525, places=2)
+        self.assertAlmostEqual(got[1]['rail'], 1171.575, places=2)
+
+    def test_four_unequal_panels(self):
+        got = self._build(126, 96, [16.25, 46.75, 46.75, 16.25])
+        self.assertAlmostEqual(got[1]['rail'], 355.6 + 9.525, places=2)
+        self.assertAlmostEqual(got[2]['rail'], 1149.35 + 9.525, places=2)
+        self.assertAlmostEqual(got[3]['rail'], 1149.35 + 9.525, places=2)
+        self.assertAlmostEqual(got[4]['rail'], 355.6 + 9.525, places=2)
+
+    def test_nested_split_top_light_over_two_across(self):
+        # One container filling the opening: a top light over two sashes.
+        design, fixed = self._make(72, 96)
+        container = self._row(design, 96, [72], fixed)[0]
+        container.leaf_type_id = False
+        top = self._row(design, 24, [72], fixed, container)[0]
+        low = self._row(design, 72, [36, 36], fixed, container)
+        got = self._explode(design)
+        panel = {leaf.id: leaf.panel_no for leaf in (top, *low)}
+        # Lower sashes: frame on the outside edge and the bottom, divider
+        # on the inside edge and the top.
+        for leaf in low:
+            self.assertAlmostEqual(
+                got[panel[leaf.id]]['rail'], 857.25 + 9.525, places=2)
+            self.assertAlmostEqual(
+                got[panel[leaf.id]]['oh'], (72 - 1.5 - 0.75) * INCH,
+                places=2)
+        # Top light: frame on top and both sides, divider at the bottom.
+        self.assertAlmostEqual(
+            got[panel[top.id]]['rail'], (72 - 3) * INCH + 9.525, places=2)
+        self.assertAlmostEqual(
+            got[panel[top.id]]['oh'], (24 - 1.5 - 0.75) * INCH, places=2)
+
+    def test_single_row_height(self):
+        got = self._build(72, 72, [36, 36])
+        for panel in (1, 2):
+            self.assertAlmostEqual(got[panel]['oh'], 1752.6, places=2)
+
+
+@tagged('post_install', '-at_install')
 class TestCutRules(TransactionCase):
 
     @classmethod
@@ -216,6 +326,13 @@ class TestCutRules(TransactionCase):
         # Lines that still have a piece are not orphans.
         self.assertFalse(design.bom_line_ids.filtered(
             lambda l: l.is_manual and not l.is_orphan))
+
+    def test_two_equal_panels_opening_is_unchanged(self):
+        for panel in (1, 2):
+            rails = self._pieces(self.p_rail).filtered(
+                lambda l: l.panel_no == panel)
+            self.assertAlmostEqual(
+                rails[0].length_mm, 857.25 + 3 * 3.175, places=2)
 
     def test_resize_marks_the_cut_list_stale(self):
         self.design.write({'width_mm': 2000.0})

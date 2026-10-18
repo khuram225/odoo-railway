@@ -363,9 +363,14 @@
                                 </group>
                             </group>
                             <p class="text-muted">
-                                OW = (W - frame deduction W - dividers x
-                                divider body) / panels, OH = H - frame
-                                deduction H. Typed in inches and soot
+                                On a panel, OW = panel width less half of
+                                what is on each side, OH likewise for
+                                height: half the frame deduction on the
+                                window's outer edge, half the divider
+                                body on any other edge. For the frame and
+                                dividers, OW = (W - frame deduction W -
+                                dividers x divider body) / panels and
+                                OH = H - frame deduction H. Typed in inches and soot
                                 (3, 1 1/2, 33-6, 3s) or mm. The panel and
                                 divider counts only apply to a window with
                                 no drawn layout.

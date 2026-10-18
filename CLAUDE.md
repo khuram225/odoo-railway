@@ -1346,9 +1346,16 @@ whose `addons_path` is `addons_print` only has no such route, so it would
 
 ## Known limits
 
-- **`OW` assumes equal panels in the row** (it is the width left after the
-  frame and divider bodies, shared equally). For unequal rows, use `PW`
-  with explicit deductions instead.
+- **`OW` / `OH` on a panel are that panel's own opening**:
+  `OW = PW - left_edge - right_edge`, `OH = PH - top_edge - bottom_edge`.
+  An edge on the window's outer edge deducts half the template's frame
+  deduction (W for left/right, H for top/bottom); any other edge -- a
+  divider between panels, also inside a nested split -- deducts half the
+  divider body. So an end panel and a middle panel of equal width differ.
+  Lines evaluated at window level (frame, dividers, transoms) keep the
+  old meaning: `OW` the equal split of the row, `OH` the height less the
+  frame deduction. **A horizontal divider uses `divider_body` too**;
+  there is no transom-specific body yet.
 
 ## Hard-won lessons
 
