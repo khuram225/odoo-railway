@@ -2,3 +2,4 @@
 from . import test_configurator_roundtrip
 from . import test_sale_confirm
 from . import test_design_save
+from . import test_cut_rules

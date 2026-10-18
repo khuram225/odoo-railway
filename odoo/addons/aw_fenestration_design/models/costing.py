@@ -126,7 +126,11 @@ class AwDesign(models.Model):
         for line in self.bom_line_ids:
             unit_cost, rate_date, note = 0.0, False, ''
 
-            if line.kind == 'profile':
+            if line.kind == 'profile' and line.cut_on_site:
+                # Nothing to measure, so nothing to cost here.
+                line.line_cost = 0.0
+
+            elif line.kind == 'profile':
                 # The BOM line's own template is authoritative -- it is
                 # the profile that will be cut, default or alternate. The
                 # spec line only supplies the thickness.

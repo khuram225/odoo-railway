@@ -181,8 +181,9 @@ class AwCutPlan(models.Model):
         """
         self.ensure_one()
         designs = self.sale_order_id.aw_design_ids
+        # A piece cut on site has no length and no place on a bar.
         return designs.mapped('bom_line_ids').filtered(
-            lambda line: line.kind == 'profile')
+            lambda line: line.kind == 'profile' and not line.cut_on_site)
 
     def _live_fingerprint(self):
         self.ensure_one()

@@ -100,13 +100,44 @@ class AwDesign(models.Model):
     # ------------------------------------------------------------------
     # context building
     # ------------------------------------------------------------------
+    def _opening_constants(self, panels):
+        """OW and OH from the spec's own constants.
+
+        The deductions always come from the spec. The panel and divider
+        counts come from the drawn layout when the window has one --
+        `panels` is the panels across the row being worked on, and there
+        is one divider fewer -- and from the spec's own defaults when it
+        has none yet.
+        """
+        self.ensure_one()
+        spec = self.template_id
+        width, height = self.width_mm or 0.0, self.height_mm or 0.0
+        if self.row_ids:
+            count = max(1, int(panels or 1))
+            dividers = count - 1
+        else:
+            count = max(1, spec.panel_count or 1)
+            dividers = spec.divider_count or 0
+        opening_w = (width - (spec.frame_deduction_w_mm or 0.0)
+                     - dividers * (spec.divider_body_mm or 0.0)) / count
+        return opening_w, height - (spec.frame_deduction_h_mm or 0.0)
+
     def _formula_context(self, panel_w=0.0, panel_h=0.0,
                          container_w=0.0, container_h=0.0,
-                         panels_in_row=1, tracks=1, lock_side_mm=0.0):
+                         panels_in_row=1, tracks=1, lock_side_mm=0.0,
+                         ow_panels=None):
         """The variables a formula may use (spec 6.1). One builder, so a
-        formula means the same thing wherever it is evaluated."""
+        formula means the same thing wherever it is evaluated.
+
+        `ow_panels` is how many panels OW is shared between; it defaults
+        to the panels in the row, and the frame (which has no row of its
+        own) passes the top row's count."""
         self.ensure_one()
+        opening_w, opening_h = self._opening_constants(
+            panels_in_row if ow_panels is None else ow_panels)
         return {
+            'OW': opening_w,
+            'OH': opening_h,
             'W': self.width_mm or 0.0,
             'H': self.height_mm or 0.0,
             'PW': panel_w,
@@ -301,11 +332,16 @@ class AwDesign(models.Model):
         # members cannot share a BOM line and still carry four distinct
         # references (spec B), and the cut list wants them separate
         # anyway -- each one is a cut.
+        cut_on_site = bool(line.cut_on_site)
         for formula, count, edges, source in spec:
-            length = evaluate_formula(formula, context, default=0.0)
+            # A line cut on site has no length to work out; it still
+            # produces its pieces, with a blank length.
+            length = (0.0 if cut_on_site
+                      else evaluate_formula(formula, context, default=0.0))
             # Rendered from the same context the length was evaluated
             # with, so the working out and the result always agree.
-            worked = substitute_formula(formula, context)
+            worked = ('' if cut_on_site
+                      else substitute_formula(formula, context))
             for index in range(count * qty):
                 pieces.append({
                     'kind': 'profile',
@@ -318,6 +354,10 @@ class AwDesign(models.Model):
                     'position_id': position.id,
                     'missing_product': not product,
                     'missing_product_reason': reason,
+                    'template_line_id': (
+                        line.id if isinstance(line.id, int) else False),
+                    'cut_on_site': cut_on_site,
+                    'group_label': line.spec_section_id.name or '',
                     'is_changed': bool(change),
                     'change_note': change.note if change else '',
                     'calc_rule': formula or '',
@@ -767,7 +807,10 @@ class AwDesign(models.Model):
 
     def _explode(self):
         self.ensure_one()
-        self.bom_line_ids.unlink()
+        # Lines edited by hand are remembered and re-applied below;
+        # lines added by hand are simply never regenerated.
+        manual = self._manual_cut_lines()
+        self.bom_line_ids.filtered(lambda l: not l.is_free_form).unlink()
         if not (self.width_mm > 0 and self.height_mm > 0):
             self._run_checks()
             return
@@ -779,7 +822,9 @@ class AwDesign(models.Model):
         # explosion and passed down the walk -- see _record_span.
         spans = {}
 
-        frame_context = self._formula_context()
+        top_row = self.row_ids.sorted(lambda r: (r.sequence, r.id))[:1]
+        frame_context = self._formula_context(
+            ow_panels=len(top_row.leaf_ids) or 1)
         for line in by_scope.get('frame', []):
             out.extend(self._profile_pieces(line, frame_context, _('frame')))
 
@@ -804,6 +849,7 @@ class AwDesign(models.Model):
         others = [v for v in out if v.get('kind') != 'profile']
 
         sequence = 0
+        ordinal = {}
         for unit in range(1, multiplier + 1):
             for index, values in enumerate(profiles, start=1):
                 sequence += 10
@@ -816,6 +862,13 @@ class AwDesign(models.Model):
                     'unit_no': unit,
                     'piece_ref': self._piece_reference(unit, index,
                                                        multiplier),
+                })
+                key = (values.get('template_line_id'),
+                       values.get('panel_no') or 0, unit)
+                ordinal[key] = ordinal.get(key, 0) + 1
+                values.update({
+                    'piece_key': '%s|%s|%s|%s' % (key + (ordinal[key],)),
+                    'computed_length_mm': values.get('length_mm') or 0.0,
                 })
                 self.env['aw.design.bom.line'].create(values)
 
@@ -830,9 +883,51 @@ class AwDesign(models.Model):
             })
             self.env['aw.design.bom.line'].create(values)
 
+        # Re-apply what was edited by hand, BEFORE costing so the cost
+        # follows the edited length.
+        self._apply_manual_cut_lines(manual)
+        # The cut list now matches the window's size again.
+        self.cut_list_stale = False
+
         # Cost before the checks run, so the checks can report on it.
         self._cost_bom_lines()
         self._run_checks(exploded=out, demand=demand, spans=spans)
+
+    def _manual_cut_lines(self):
+        """The generated cut lines somebody edited, keyed by piece, with
+        everything needed to put them back."""
+        self.ensure_one()
+        kept = {}
+        for line in self.bom_line_ids:
+            if (line.is_manual and not line.is_free_form
+                    and line.kind == 'profile' and line.piece_key):
+                kept[line.piece_key] = {
+                    'length_mm': line.length_mm, 'qty': line.qty,
+                    'product_id': line.product_id.id,
+                    'data': line.copy_data()[0],
+                }
+        return kept
+
+    def _apply_manual_cut_lines(self, kept):
+        """Put edited lines back over the regenerated ones. A piece the
+        new layout no longer produces is kept as it was rather than
+        dropped: an edited line is never deleted by a recompute."""
+        self.ensure_one()
+        Line = self.env['aw.design.bom.line'].with_context(
+            aw_bom_generating=True)
+        fresh = {l.piece_key: l for l in self.bom_line_ids if l.piece_key}
+        for key, saved in kept.items():
+            line = fresh.get(key)
+            if line:
+                line.with_context(aw_bom_generating=True).write({
+                    'length_mm': saved['length_mm'], 'qty': saved['qty'],
+                    'product_id': saved['product_id'], 'is_manual': True,
+                    'is_orphan': False,
+                })
+            else:
+                Line.create(dict(
+                    saved['data'], design_id=self.id, is_manual=True,
+                    is_orphan=True))
 
     def _run_checks(self, exploded=None, demand=None, spans=None):
         """Spec 6.6. Warnings are things to look at; errors are things

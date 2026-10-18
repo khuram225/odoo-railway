@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+from odoo.addons.aw_fenestration_core.models.units import (
+    to_display, to_mm,
+)
 
 ROLE_SELECTION = [
     ('frame', 'Frame'),
@@ -118,6 +123,83 @@ class AwDesignBomLine(models.Model):
         help="Rate at time of explosion (PKR/ft or equivalent) — snapshot, "
              "not a live lookup, same reasoning as the earlier decision "
              "that a quote must not silently recost when reopened.")
+
+    # -- the cut list's own bookkeeping -------------------------------
+    template_line_id = fields.Many2one(
+        'aw.profile.section.line', string='Template Line',
+        ondelete='set null',
+        help="The spec line this piece came from. Empty for a line "
+             "added by hand.")
+    piece_key = fields.Char(
+        index=True, copy=True,
+        help="Which piece of which spec line, panel and unit this is. "
+             "How an edited line finds itself again after a recompute.")
+    group_label = fields.Char(
+        string='Group',
+        help="The spec section the piece comes from: Frame, Sliding "
+             "panel, Joints...")
+    cut_on_site = fields.Boolean(
+        string='Cut on site',
+        help="No length is worked out; cut at the job.")
+    computed_length_mm = fields.Float(
+        string='Computed (mm)', readonly=True,
+        help="What the spec's rule gives. Length is this until somebody "
+             "edits it.")
+    is_manual = fields.Boolean(
+        string='Manual', default=False,
+        help="Length, quantity or section was edited by hand. A "
+             "recompute re-applies such a line instead of overwriting it.")
+    is_orphan = fields.Boolean(
+        string='Orphan', default=False, copy=False,
+        help="A line edited by hand whose piece no longer exists after "
+             "the last recompute (a panel was removed, a rule changed). "
+             "It is kept as typed so nothing is lost silently; fix it or "
+             "delete it.")
+    is_free_form = fields.Boolean(
+        string='Free-form', default=False,
+        help="Added by hand, not from the spec. A recompute never "
+             "changes or deletes it.")
+    length_text = fields.Char(
+        string='Length (in)', compute='_compute_length_texts',
+        inverse='_inverse_length_text',
+        help="Inches and soot: 34 1/8, 33-6, 3s, 1829mm. Stored in mm.")
+    computed_length_text = fields.Char(
+        string='Computed (in)', compute='_compute_length_texts')
+
+    @api.depends('length_mm', 'computed_length_mm', 'cut_on_site')
+    def _compute_length_texts(self):
+        for line in self:
+            line.length_text = ('' if line.cut_on_site
+                                else to_display(line.length_mm))
+            line.computed_length_text = (
+                '' if line.cut_on_site
+                else to_display(line.computed_length_mm))
+
+    def _inverse_length_text(self):
+        for line in self:
+            # Typing back what is already shown is not an edit, and must
+            # not flag the line manual or move it to the nearest 1/16.
+            if (line.length_text or '') == (
+                    '' if line.cut_on_site else to_display(line.length_mm)):
+                continue
+            try:
+                line.length_mm = to_mm(line.length_text)
+            except ValueError:
+                raise UserError(_(
+                    "'%(text)s' cannot be read as a length. Use inches "
+                    "(72, 34 1/8), soot (3s, 33-6) or millimetres "
+                    "(1829mm).", text=line.length_text))
+
+    def write(self, vals):
+        # Editing a generated piece by hand makes it MANUAL, so the next
+        # recompute keeps it. The generator itself writes under
+        # `aw_bom_generating` and must not flag anything.
+        if (not self.env.context.get('aw_bom_generating')
+                and 'is_manual' not in vals
+                and any(k in vals for k in (
+                    'length_mm', 'qty', 'product_id'))):
+            vals = dict(vals, is_manual=True)
+        return super().write(vals)
 
     @api.depends('glass_w', 'glass_h', 'qty')
     def _compute_area_sqm(self):
