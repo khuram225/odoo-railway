@@ -107,6 +107,16 @@ def to_mm(text):
     return round(sign * value, 2)
 
 
+def edited_mm(text, current_mm):
+    """What a text field's inverse should store: `current_mm` when the
+    text is just the display of it handed back (the field was not
+    edited), otherwise the parsed text. Without this, saving a form
+    would snap every untouched length to the nearest 1/16 in."""
+    if (text or '').strip() == to_display(current_mm):
+        return current_mm
+    return to_mm(text)
+
+
 def to_display(mm):
     """Millimetres as inches to the nearest 1/16, a reduced ASCII
     fraction: 866.8 -> '34 1/8', 1828.8 -> '72', -38.1 -> '-1 1/2'.

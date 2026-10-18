@@ -180,7 +180,7 @@ class AwDesign(models.Model):
                         'direction': direction(leaf),
                         'size': self._render_pair(
                             leaf.width_mm or 0.0, row.height_mm or 0.0,
-                            self.length_uom, sep=' x '),
+                            self.length_uom),
                         'glass': (leaf.glass_spec_id
                                   or self.glass_spec_id).display_name or '',
                         'mesh': leaf.mesh_type_id.display_name or '',

@@ -4,7 +4,9 @@ import json
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from odoo.addons.aw_fenestration_core.models.units import to_display
+from odoo.addons.aw_fenestration_core.models.units import (
+    edited_mm, to_display,
+)
 
 
 class AwDesign(models.Model):
@@ -68,9 +70,9 @@ class AwDesign(models.Model):
     # pair, and two fields on one model sharing a label is a real
     # ambiguity wherever they are listed by name -- export,
     # filters, a studio field picker.
-    width_inch_total = fields.Float(string='Width (total in)',
+    width_inch_total = fields.Char(string='Width (total in)',
         compute='_compute_width_inch_total', inverse='_inverse_width_inch_total',
-        help="Whole inches plus a fraction, e.g. 102.5 -- the ft/in pair written as one number. Same dimension as the pair beside it.")
+        help="Inches to the nearest 1/16, as shown or typed: 70 1/2, 33-6 (soot), 3s, 1829mm. Same dimension as the pair beside it; mm stays the stored value.")
 
     height_mm = fields.Float(string='Height (mm)', default=0.0, tracking=True)
     height_ft = fields.Integer(string='Height (ft)',
@@ -78,9 +80,9 @@ class AwDesign(models.Model):
     height_in = fields.Float(string='Height (in)',
         compute='_compute_height_ftin', inverse='_inverse_height_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    height_inch_total = fields.Float(string='Height (total in)',
+    height_inch_total = fields.Char(string='Height (total in)',
         compute='_compute_height_inch_total', inverse='_inverse_height_inch_total',
-        help="Whole inches plus a fraction, e.g. 102.5 -- the ft/in pair written as one number. Same dimension as the pair beside it.")
+        help="Inches to the nearest 1/16, as shown or typed: 70 1/2, 33-6 (soot), 3s, 1829mm. Same dimension as the pair beside it; mm stays the stored value.")
 
     # -- master-data links -----------------------------------------------
     # Confirmed against models/window_template.py: window_type_id is still
@@ -472,11 +474,12 @@ class AwDesign(models.Model):
     @api.depends('width_mm')
     def _compute_width_inch_total(self):
         for rec in self:
-            rec.width_inch_total = rec.width_mm / 25.4
+            rec.width_inch_total = to_display(rec.width_mm)
 
     def _inverse_width_inch_total(self):
         for rec in self:
-            rec.width_mm = rec.width_inch_total * 25.4
+            rec.width_mm = rec._mm_from_text(
+                rec.width_inch_total, rec.width_mm)
 
     @api.depends('height_mm')
     def _compute_height_ftin(self):
@@ -493,11 +496,24 @@ class AwDesign(models.Model):
     @api.depends('height_mm')
     def _compute_height_inch_total(self):
         for rec in self:
-            rec.height_inch_total = rec.height_mm / 25.4
+            rec.height_inch_total = to_display(rec.height_mm)
 
     def _inverse_height_inch_total(self):
         for rec in self:
-            rec.height_mm = rec.height_inch_total * 25.4
+            rec.height_mm = rec._mm_from_text(
+                rec.height_inch_total, rec.height_mm)
+
+    @staticmethod
+    def _mm_from_text(text, current_mm):
+        """A typed length (70 1/2, 33-6, 3s, 1829mm) in millimetres;
+        unreadable text is an error the user can act on."""
+        try:
+            return edited_mm(text, current_mm)
+        except ValueError:
+            raise UserError(_(
+                "'%(text)s' cannot be read as a length. Use inches "
+                "(72, 70 1/2), soot (33-6, 3s) or millimetres (1829mm).",
+                text=text))
 
     @api.depends('width_mm', 'height_mm', 'length_uom')
     def _compute_size_display(self):
