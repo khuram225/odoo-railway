@@ -68,7 +68,7 @@ class TestPanelOpening(TransactionCase):
     """OW / OH per panel: each edge takes half the frame deduction on the
     window's outer edge and half the divider body anywhere else."""
 
-    def _build(self, width_in, height_in, widths_in):
+    def _make(self, width_in, height_in):
         env = self.env
         series = env.ref('aw_fenestration_core.window_series_casement_dg',
                          raise_if_not_found=False)
@@ -105,12 +105,17 @@ class TestPanelOpening(TransactionCase):
             'name': 'PO', 'qty': 1, 'window_series_id': series.id,
             'template_id': template.id, 'glass_spec_id': glass.id,
             'width_mm': width_in * INCH, 'height_mm': height_in * INCH})
-        row = env['aw.design.row'].create({
-            'design_id': design.id, 'height_mm': height_in * INCH})
-        for w in widths_in:
-            env['aw.design.leaf'].create({
-                'row_id': row.id, 'width_mm': w * INCH,
-                'leaf_type_id': fixed.id})
+        return design, fixed
+
+    def _row(self, design, height_in, widths_in, fixed, parent_leaf=None):
+        row = self.env['aw.design.row'].create({
+            'design_id': design.id, 'height_mm': height_in * INCH,
+            'parent_leaf_id': parent_leaf.id if parent_leaf else False})
+        return [self.env['aw.design.leaf'].create({
+            'row_id': row.id, 'width_mm': w * INCH,
+            'leaf_type_id': fixed.id}) for w in widths_in]
+
+    def _explode(self, design):
         design._renumber_panels()
         design._explode()
         by_panel = {}
@@ -119,6 +124,11 @@ class TestPanelOpening(TransactionCase):
             kind = 'rail' if 'PO Rail' in (line.label or '') else 'oh'
             by_panel.setdefault(line.panel_no, {})[kind] = line.length_mm
         return by_panel
+
+    def _build(self, width_in, height_in, widths_in):
+        design, fixed = self._make(width_in, height_in)
+        self._row(design, height_in, widths_in, fixed)
+        return self._explode(design)
 
     def test_three_equal_panels(self):
         got = self._build(144, 144, [48, 48, 48])
@@ -133,6 +143,29 @@ class TestPanelOpening(TransactionCase):
         self.assertAlmostEqual(got[2]['rail'], 1149.35 + 9.525, places=2)
         self.assertAlmostEqual(got[3]['rail'], 1149.35 + 9.525, places=2)
         self.assertAlmostEqual(got[4]['rail'], 355.6 + 9.525, places=2)
+
+    def test_nested_split_top_light_over_two_across(self):
+        # One container filling the opening: a top light over two sashes.
+        design, fixed = self._make(72, 96)
+        container = self._row(design, 96, [72], fixed)[0]
+        container.leaf_type_id = False
+        top = self._row(design, 24, [72], fixed, container)[0]
+        low = self._row(design, 72, [36, 36], fixed, container)
+        got = self._explode(design)
+        panel = {leaf.id: leaf.panel_no for leaf in (top, *low)}
+        # Lower sashes: frame on the outside edge and the bottom, divider
+        # on the inside edge and the top.
+        for leaf in low:
+            self.assertAlmostEqual(
+                got[panel[leaf.id]]['rail'], 857.25 + 9.525, places=2)
+            self.assertAlmostEqual(
+                got[panel[leaf.id]]['oh'], (72 - 1.5 - 0.75) * INCH,
+                places=2)
+        # Top light: frame on top and both sides, divider at the bottom.
+        self.assertAlmostEqual(
+            got[panel[top.id]]['rail'], (72 - 3) * INCH + 9.525, places=2)
+        self.assertAlmostEqual(
+            got[panel[top.id]]['oh'], (24 - 1.5 - 0.75) * INCH, places=2)
 
     def test_single_row_height(self):
         got = self._build(72, 72, [36, 36])
