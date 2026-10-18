@@ -1344,6 +1344,12 @@ whose `addons_path` is `addons_print` only has no such route, so it would
 404 and never go healthy. The print service needs its own
 `healthcheckPath` — `/web/health`, or a `pp_*` route of its own.
 
+## Known limits
+
+- **`OW` assumes equal panels in the row** (it is the width left after the
+  frame and divider bodies, shared equally). For unequal rows, use `PW`
+  with explicit deductions instead.
+
 ## Hard-won lessons
 
 - The boot warning "Missing not-null constraint on X.y" does NOT prove

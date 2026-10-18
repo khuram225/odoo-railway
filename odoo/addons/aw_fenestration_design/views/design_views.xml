@@ -236,10 +236,20 @@
                         <page string="Cut list" name="cut_list">
                             <field name="cut_list_stale" invisible="1"/>
                             <div class="alert alert-warning" role="alert"
-                                 invisible="not cut_list_stale">
-                                The window's size changed after this cut
-                                list was made, so it still shows the old
-                                lengths. Press Recompute.
+                                 invisible="not cut_list_stale and not orphan_count">
+                                <div invisible="not cut_list_stale">
+                                    The window's size changed after this cut
+                                    list was made, so it still shows the old
+                                    lengths. Press Recompute.
+                                </div>
+                                <div invisible="not orphan_count">
+                                    <field name="orphan_count" class="oe_inline"
+                                           readonly="1"/>
+                                    manual line(s) no longer match a piece
+                                    in the current layout. They are kept as
+                                    typed and marked Orphan: fix or delete
+                                    them.
+                                </div>
                             </div>
                             <button name="action_generate_cut_list" type="object"
                                     string="Generate cut list" class="btn-primary"
@@ -251,7 +261,8 @@
                             <field name="cut_line_ids"
                                    context="{'default_kind': 'profile', 'default_is_free_form': True, 'default_is_manual': True}">
                                 <list editable="bottom" default_group_by="group_label"
-                                      decoration-warning="is_manual">
+                                      decoration-warning="is_manual"
+                                      decoration-danger="is_orphan">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="kind" column_invisible="1"/>
                                     <field name="is_free_form" column_invisible="1"/>
@@ -265,6 +276,7 @@
                                     <field name="computed_length_text" string="Computed (in)"/>
                                     <field name="length_mm" string="Length (mm)" optional="hide"/>
                                     <field name="is_manual" string="Manual" readonly="1"/>
+                                    <field name="is_orphan" string="Orphan" readonly="1"/>
                                 </list>
                             </field>
                         </page>

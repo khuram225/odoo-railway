@@ -15,11 +15,20 @@ class AwDesign(models.Model):
     cut_line_ids = fields.One2many(
         'aw.design.bom.line', 'design_id', string='Cut List',
         domain=[('kind', '=', 'profile')])
+    orphan_count = fields.Integer(
+        compute='_compute_orphan_count',
+        help="Manual cut lines whose piece no longer exists.")
     cut_list_stale = fields.Boolean(
         string='Cut List Out of Date', default=False, copy=False,
         help="The window's size changed after the cut list was made. "
              "Recompute brings it up to date; until then it still shows "
              "the old lengths.")
+
+    @api.depends('cut_line_ids.is_orphan')
+    def _compute_orphan_count(self):
+        for design in self:
+            design.orphan_count = len(
+                design.cut_line_ids.filtered('is_orphan'))
 
     def write(self, vals):
         stale = self.env['aw.design']

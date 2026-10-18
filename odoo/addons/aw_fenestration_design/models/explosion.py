@@ -922,10 +922,12 @@ class AwDesign(models.Model):
                 line.with_context(aw_bom_generating=True).write({
                     'length_mm': saved['length_mm'], 'qty': saved['qty'],
                     'product_id': saved['product_id'], 'is_manual': True,
+                    'is_orphan': False,
                 })
             else:
                 Line.create(dict(
-                    saved['data'], design_id=self.id, is_manual=True))
+                    saved['data'], design_id=self.id, is_manual=True,
+                    is_orphan=True))
 
     def _run_checks(self, exploded=None, demand=None, spans=None):
         """Spec 6.6. Warnings are things to look at; errors are things

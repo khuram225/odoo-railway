@@ -149,6 +149,12 @@ class AwDesignBomLine(models.Model):
         string='Manual', default=False,
         help="Length, quantity or section was edited by hand. A "
              "recompute re-applies such a line instead of overwriting it.")
+    is_orphan = fields.Boolean(
+        string='Orphan', default=False, copy=False,
+        help="A line edited by hand whose piece no longer exists after "
+             "the last recompute (a panel was removed, a rule changed). "
+             "It is kept as typed so nothing is lost silently; fix it or "
+             "delete it.")
     is_free_form = fields.Boolean(
         string='Free-form', default=False,
         help="Added by hand, not from the spec. A recompute never "

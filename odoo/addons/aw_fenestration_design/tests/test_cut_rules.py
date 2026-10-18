@@ -180,6 +180,22 @@ class TestCutRules(TransactionCase):
             self.assertAlmostEqual(
                 line.length_mm, before[line.piece_key], places=2)
 
+    def test_manual_line_without_a_piece_is_an_orphan(self):
+        design = self.design
+        rail = self._pieces(self.p_rail).filtered(
+            lambda l: l.panel_no == 2)[0]
+        rail.length_mm = 870.0
+        design.row_ids.leaf_ids.filtered(lambda l: l.panel_no == 2).unlink()
+        design.action_recompute_cut_list()
+        orphans = design.bom_line_ids.filtered('is_orphan')
+        self.assertEqual(len(orphans), 1)
+        self.assertEqual(orphans.length_mm, 870.0)
+        self.assertTrue(orphans.is_manual)
+        self.assertEqual(design.orphan_count, 1)
+        # Lines that still have a piece are not orphans.
+        self.assertFalse(design.bom_line_ids.filtered(
+            lambda l: l.is_manual and not l.is_orphan))
+
     def test_resize_marks_the_cut_list_stale(self):
         self.design.write({'width_mm': 2000.0})
         self.assertTrue(self.design.cut_list_stale)
