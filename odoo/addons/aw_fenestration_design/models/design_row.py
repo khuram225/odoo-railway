@@ -79,10 +79,11 @@ class AwDesignRow(models.Model):
     @api.depends('height_mm')
     def _compute_height_ftin(self):
         for rec in self:
-            total_in = rec.height_mm / 25.4
-            ft = int(total_in // 12)
-            rec.height_ft = ft
-            rec.height_in = total_in - ft * 12
+            # 1/16 in first, then split: see aw.design._compute_width_ftin.
+            feet, sixteenths = divmod(
+                int(round(rec.height_mm / 25.4 * 16)), 192)
+            rec.height_ft = feet
+            rec.height_in = sixteenths / 16
 
     def _inverse_height_ftin(self):
         for rec in self:

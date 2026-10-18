@@ -4,6 +4,8 @@ import json
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.aw_fenestration_core.models.units import to_display
+
 
 class AwDesign(models.Model):
     """One configured window/door position — the direct port of the JS
@@ -36,7 +38,6 @@ class AwDesign(models.Model):
     # stored field on a core model that's prefetched on every request is
     # exactly the risk class that took the whole site down once already).
     length_uom = fields.Selection([
-        ('ftin', 'Feet + Inches'),
         ('in', 'Inches'),
         ('mm', 'Millimetres'),
     ], compute='_compute_length_uom', string='Length Unit')
@@ -440,20 +441,29 @@ class AwDesign(models.Model):
             rec.row_count = len(rec.row_ids)
             rec.leaf_count = panels(rec.row_ids)
 
+    @api.model
+    def _effective_uom(self, uom=None):
+        """'in' or 'mm'. The retired 'ftin' reads as 'in', so a database
+        still holding it needs no migration."""
+        uom = uom or self.env['ir.config_parameter'].sudo().get_param(
+            'aw_fenestration.length_uom', 'in')
+        return 'mm' if uom == 'mm' else 'in'
+
     @api.depends()
     def _compute_length_uom(self):
-        value = self.env['ir.config_parameter'].sudo().get_param(
-            'aw_fenestration.length_uom', 'ftin')
+        value = self._effective_uom()
         for rec in self:
             rec.length_uom = value
 
     @api.depends('width_mm')
     def _compute_width_ftin(self):
         for rec in self:
-            total_in = rec.width_mm / 25.4
-            ft = int(total_in // 12)
-            rec.width_ft = ft
-            rec.width_in = total_in - ft * 12
+            # Rounded to 1/16 in BEFORE splitting, so 12 x 25.4 (a hair
+            # under 304.8 in float) is 1 ft 0 in, not 0 ft 12 in.
+            feet, sixteenths = divmod(
+                int(round(rec.width_mm / 25.4 * 16)), 192)
+            rec.width_ft = feet
+            rec.width_in = sixteenths / 16
 
     def _inverse_width_ftin(self):
         for rec in self:
@@ -471,10 +481,10 @@ class AwDesign(models.Model):
     @api.depends('height_mm')
     def _compute_height_ftin(self):
         for rec in self:
-            total_in = rec.height_mm / 25.4
-            ft = int(total_in // 12)
-            rec.height_ft = ft
-            rec.height_in = total_in - ft * 12
+            feet, sixteenths = divmod(
+                int(round(rec.height_mm / 25.4 * 16)), 192)
+            rec.height_ft = feet
+            rec.height_in = sixteenths / 16
 
     def _inverse_height_ftin(self):
         for rec in self:
@@ -492,16 +502,9 @@ class AwDesign(models.Model):
     @api.depends('width_mm', 'height_mm', 'length_uom')
     def _compute_size_display(self):
         for rec in self:
-            if rec.length_uom == 'mm':
-                # One trailing unit reads better when both numbers carry
-                # the same one; ft/in can't do that, each part needs its own.
-                rec.size_display = '%s × %s mm' % (
-                    rec._trim(rec.width_mm), rec._trim(rec.height_mm))
-            else:
-                rec.size_display = '%s × %s' % (
-                    rec._format_length(rec.width_mm),
-                    rec._format_length(rec.height_mm),
-                )
+            # One trailing unit after the pair: "72 × 70 1/2 in".
+            rec.size_display = rec._render_pair(
+                rec.width_mm, rec.height_mm, rec.length_uom)
 
     @staticmethod
     def _trim(value):
@@ -509,7 +512,7 @@ class AwDesign(models.Model):
         return ('%.2f' % value).rstrip('0').rstrip('.') or '0'
 
     @api.model
-    def _render_length(self, mm, uom=None):
+    def _render_length(self, mm, uom=None, unit=True):
         """One length in the configured unit, WITHOUT needing a record.
 
         The cutting plan prints lengths too and has no design in hand,
@@ -517,15 +520,21 @@ class AwDesign(models.Model):
         being copied there -- two copies of a unit conversion is exactly
         the kind of thing that quietly drifts apart.
         """
-        uom = uom or self.env['ir.config_parameter'].sudo().get_param(
-            'aw_fenestration.length_uom', 'ftin')
+        uom = self._effective_uom(uom)
         if uom == 'mm':
-            return '%s mm' % self._trim(mm)
-        total_in = mm / 25.4
-        if uom == 'in':
-            return '%s in' % self._trim(total_in)
-        ft = int(total_in // 12)
-        return '%s ft %s in' % (ft, self._trim(total_in - ft * 12))
+            text = self._trim(mm)
+        else:
+            text = to_display(mm)
+        return '%s %s' % (text, uom) if unit else text
+
+    @api.model
+    def _render_pair(self, first, second, uom=None, sep=' × '):
+        """Two lengths with the unit written ONCE after them:
+        '72 × 70 1/2 in'."""
+        uom = self._effective_uom(uom)
+        return '%s%s%s %s' % (
+            self._render_length(first, uom, unit=False), sep,
+            self._render_length(second, uom, unit=False), uom)
 
     def _format_length(self, mm):
         """One length, rendered in whatever unit the Fenestration setting

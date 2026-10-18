@@ -67,7 +67,7 @@
                             </label>
                             <input type="text" class="form-control form-control-sm"
                                    style="width: 7rem;"
-                                   placeholder="8' 6&quot;"
+                                   placeholder="70 1/2"
                                    t-att-value="formatInchesBox(state.data.header.width_mm)"
                                    t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'in', ev)"/>
@@ -88,7 +88,7 @@
                             </label>
                             <input type="text" class="form-control form-control-sm"
                                    style="width: 7rem;"
-                                   placeholder="8' 6&quot;"
+                                   placeholder="70 1/2"
                                    t-att-value="formatInchesBox(state.data.header.height_mm)"
                                    t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'in', ev)"/>
@@ -800,6 +800,7 @@
 
                         <div t-if="scene" class="text-center text-muted small mt-2 flex-shrink-0">
                             View from inside &#183; triangle points to hinge
+                            &#183; dimensions in <t t-esc="uom === 'mm' ? 'mm' : 'inches'"/>
                         </div>
                     </div>
 
@@ -1602,8 +1603,7 @@
                                             </td>
                                             <td class="text-end text-nowrap">
                                                 <t t-if="grp.kind === 'glass' or grp.kind === 'mesh'">
-                                                    <t t-esc="formatLength(bl.glass_w)"/> &#215;
-                                                    <t t-esc="formatLength(bl.glass_h)"/>
+                                                    <t t-esc="formatPair(bl.glass_w, bl.glass_h)"/>
                                                     <div class="text-muted">
                                                         <t t-esc="bl.area_sqm.toFixed(2)"/> m&#178;
                                                     </div>

@@ -17,7 +17,105 @@ import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
 
 const MM_PER_IN = 25.4;
-const MM_PER_FT = 304.8;
+const MM_PER_SOOT = MM_PER_IN / 8; // 1 soot = 1/8 in
+
+/**
+ * ONE inch display rule for every length a person reads: inches to the
+ * nearest 1/16 as a reduced ASCII fraction -- "72", "70 1/2", "33 5/16",
+ * "-1 1/2", "0". No decimals, no feet, no glyphs. The twin of
+ * aw_fenestration_core's units.to_display, and scripts/check_inch_display.mjs
+ * holds both to the same test vectors.
+ *
+ * Rounded to sixteenths BEFORE splitting, so a value a hair under a
+ * whole inch (12 x 25.4 is 304.79999999999995) reads "12", never
+ * "11 16/16".
+ */
+function formatInches(mm) {
+    const value = Number(mm) || 0;
+    const sign = value < 0 ? "-" : "";
+    const sixteenths = Math.round((Math.abs(value) / MM_PER_IN) * 16);
+    const whole = Math.floor(sixteenths / 16);
+    let num = sixteenths % 16;
+    let den = 16;
+    if (!num) {
+        return `${whole ? sign : ""}${whole}`;
+    }
+    while (num % 2 === 0) {
+        num /= 2;
+        den /= 2;
+    }
+    return whole ? `${sign}${whole} ${num}/${den}` : `${sign}${num}/${den}`;
+}
+
+const INCH_GLYPHS = {
+    "\u00bd": 0.5, "\u00bc": 0.25, "\u00be": 0.75,
+    "\u215b": 0.125, "\u215c": 0.375, "\u215d": 0.625, "\u215e": 0.875,
+};
+
+/** A bare inch quantity: 72, 34.125, "34 1/8", "1/8". NaN if unreadable. */
+function inchQuantity(text) {
+    let rest = String(text).trim();
+    let total = 0;
+    const last = rest.slice(-1);
+    if (INCH_GLYPHS[last]) {
+        total += INCH_GLYPHS[last];
+        rest = rest.slice(0, -1).trim();
+        if (!rest) {
+            return total;
+        }
+    }
+    if (!rest) {
+        return NaN;
+    }
+    for (const part of rest.split(/\s+/)) {
+        const fraction = part.match(/^(\d+)\/(\d+)$/);
+        if (fraction) {
+            total += Number(fraction[1]) / Number(fraction[2]);
+        } else if (/^\d+(\.\d+)?$/.test(part)) {
+            total += Number(part);
+        } else {
+            return NaN;
+        }
+    }
+    return total;
+}
+
+/**
+ * What a person typed, in millimetres, to 0.01 mm. The twin of
+ * units.to_mm: "72", "34.125", "34 1/8", "34-1/8", "33 5/16",
+ * "33-5/16", "33-6" (a dash and a number is SOOT, 1/8 in), "33-6.5",
+ * "3s", "-1 1/2", "+3s", "1829mm". Empty is 0; unreadable is NaN.
+ */
+function parseInches(text) {
+    let raw = String(text ?? "").trim().toLowerCase().replace(/["\u2033]/g, "");
+    if (!raw) {
+        return 0;
+    }
+    let sign = 1;
+    if (raw[0] === "+" || raw[0] === "-") {
+        sign = raw[0] === "-" ? -1 : 1;
+        raw = raw.slice(1).trim();
+    }
+    const number = "\\d+(?:\\.\\d+)?";
+    let mm;
+    if (raw.endsWith("mm")) {
+        const value = raw.slice(0, -2).trim();
+        mm = new RegExp(`^${number}$`).test(value) ? Number(value) : NaN;
+    } else if (new RegExp(`^${number}\\s*s$`).test(raw)) {
+        mm = Number(raw.slice(0, -1).trim()) * MM_PER_SOOT;
+    } else {
+        const dash = raw.match(
+            new RegExp(`^(${number})\\s*-\\s*(\\d+/\\d+|${number})$`));
+        if (dash && dash[2].includes("/")) {
+            mm = inchQuantity(`${dash[1]} ${dash[2]}`) * MM_PER_IN;
+        } else if (dash) {
+            mm = Number(dash[1]) * MM_PER_IN + Number(dash[2]) * MM_PER_SOOT;
+        } else {
+            mm = inchQuantity(raw) * MM_PER_IN;
+        }
+    }
+    return Math.round(sign * mm * 100) / 100;
+}
 
 // Drawing geometry, ported from the prototype's draw() (~783).
 const VIEW_W = 700;
@@ -347,29 +445,30 @@ export class DesignConfigurator extends Component {
     // setting, shown as a read-only label -- there is deliberately no
     // per-screen toggle.
     get uom() {
-        return this.state.data?.length_uom || "ftin";
+        // The retired "ftin" setting reads as inches.
+        return this.state.data?.length_uom === "mm" ? "mm" : "in";
     }
 
     get uomLabel() {
-        return { ftin: _t("ft + in"), in: _t("in"), mm: _t("mm") }[this.uom];
+        return { in: _t("in"), mm: _t("mm") }[this.uom];
     }
 
-    formatLength(mm) {
+    /**
+     * One length. Inches by the one display rule, or millimetres. The
+     * unit word is written unless `withUnit` is false: the canvas
+     * dimension lines and the size inputs are bare numbers, because the
+     * caption and the label already say which.
+     */
+    formatLength(mm, withUnit = true) {
         const trim = (v) => String(Math.round(v * 100) / 100);
-        if (this.uom === "mm") {
-            return `${trim(mm)} mm`;
-        }
-        const totalIn = mm / MM_PER_IN;
-        if (this.uom === "in") {
-            return `${trim(totalIn)} in`;
-        }
-        // Round to 1/16 in FIRST, then split. Splitting first made 304.8
-        // mm (12 x 25.4 is 304.79999999999995 in float) read "0 ft 12 in"
-        // and 1828.8 read "5 ft 12 in": floor() saw 11.999... feet-worth,
-        // round() saw 12.
-        const sixteenths = Math.round(totalIn * 16);
-        const ft = Math.floor(sixteenths / 192);
-        return `${ft} ft ${trim((sixteenths - ft * 192) / 16)} in`;
+        const text = this.uom === "mm" ? trim(mm) : formatInches(mm);
+        return withUnit ? `${text} ${this.uom}` : text;
+    }
+
+    /** Two lengths with the unit written once after them: "72 x 70 1/2 in". */
+    formatPair(first, second) {
+        return `${this.formatLength(first, false)} \u00d7 ${this.formatLength(
+            second, false)} ${this.uom}`;
     }
 
     /** Parse what the user typed back into mm, in whatever unit is active. */
@@ -381,14 +480,7 @@ export class DesignConfigurator extends Component {
         if (this.uom === "mm") {
             return parseFloat(str) || 0;
         }
-        if (this.uom === "in") {
-            return (parseFloat(str) || 0) * MM_PER_IN;
-        }
-        // ftin: "8 6" / "8ft 6in" / "8' 6" / plain "8" -> feet
-        const nums = str.match(/-?\d+(\.\d+)?/g) || [];
-        const ft = parseFloat(nums[0]) || 0;
-        const inch = parseFloat(nums[1]) || 0;
-        return ft * MM_PER_FT + inch * MM_PER_IN;
+        return parseInches(str) || 0;
     }
 
     // -- Series -------------------------------------------------------------
@@ -1501,39 +1593,16 @@ export class DesignConfigurator extends Component {
      * value, so the other box follows.
      */
     formatInchesBox(mm) {
-        if (!mm) {
-            return "";
-        }
-        const trim = (v) => String(Math.round(v * 100) / 100);
-        const totalIn = mm / MM_PER_IN;
-        const ft = Math.floor(totalIn / 12 + 1e-9);
-        const rest = totalIn - ft * 12;
-        if (!ft) {
-            return `${trim(rest)}"`;
-        }
-        return rest < 0.005 ? `${ft}'` : `${ft}' ${trim(rest)}"`;
+        return mm ? formatInches(mm) : "";
     }
 
     formatMmBox(mm) {
         return mm ? String(Math.round(mm * 100) / 100) : "";
     }
 
-    /**
-     * 8' 6" / 8'6 / 8 6 -> feet and inches; 8' -> feet only; a lone
-     * number with no foot mark (102) is total inches.
-     */
+    /** 72, 70 1/2, 33-6 (soot), 3s, 1829mm...: see parseInches. */
     parseInchesBox(text) {
-        const str = String(text || "").trim();
-        const nums = str.match(/-?\d+(\.\d+)?/g) || [];
-        if (!nums.length) {
-            return 0;
-        }
-        const first = parseFloat(nums[0]);
-        const hasFootMark = /['’]|ft|feet|foot/i.test(str);
-        if (nums.length >= 2) {
-            return (first * 12 + parseFloat(nums[1])) * MM_PER_IN;
-        }
-        return (hasFootMark ? first * 12 : first) * MM_PER_IN;
+        return parseInches(text) || 0;
     }
 
     onSizeBoxChange(field, kind, ev) {
@@ -1753,9 +1822,7 @@ export class DesignConfigurator extends Component {
         if (!row) {
             return "";
         }
-        return `${this.formatLength(leaf.width_mm || 0)} \u00d7 ${this.formatLength(
-            row.height_mm || 0
-        )}`;
+        return this.formatPair(leaf.width_mm || 0, row.height_mm || 0);
     }
 
     /**
@@ -2895,7 +2962,7 @@ export class DesignConfigurator extends Component {
                             dy,
                             cx + lw,
                             dy,
-                            this.formatLength(leaf.width_mm || 0),
+                            this.formatLength(leaf.width_mm || 0, false),
                             false
                         )
                     );
@@ -2905,7 +2972,7 @@ export class DesignConfigurator extends Component {
             }
         });
         dims.push(
-            this.dim("W", x0, dy, x0 + w, dy, this.formatLength(W), false)
+            this.dim("W", x0, dy, x0 + w, dy, this.formatLength(W, false), false)
         );
 
         if (rows.length > 1) {
@@ -2926,7 +2993,7 @@ export class DesignConfigurator extends Component {
                         ry2,
                         x0 - 22,
                         ry2 + rh,
-                        this.formatLength(row.height_mm || 0),
+                        this.formatLength(row.height_mm || 0, false),
                         true
                     )
                 );
@@ -2940,7 +3007,7 @@ export class DesignConfigurator extends Component {
                     y0,
                     x0 - 22,
                     y0 + h,
-                    this.formatLength(H),
+                    this.formatLength(H, false),
                     true
                 )
             );
@@ -3910,7 +3977,7 @@ export class DesignConfigurator extends Component {
 
     get selectedPanelWidthText() {
         const leaf = this.selectedPanel;
-        return leaf ? this.formatLength(leaf.width_mm || 0) : "";
+        return leaf ? this.formatLength(leaf.width_mm || 0, false) : "";
     }
 
     get selectedPanelHeightText() {
@@ -3920,7 +3987,7 @@ export class DesignConfigurator extends Component {
         }
         const rows = this.rowsAt(path.slice(0, -1));
         const row = rows[path[path.length - 1][0]];
-        return row ? this.formatLength(row.height_mm || 0) : "";
+        return row ? this.formatLength(row.height_mm || 0, false) : "";
     }
 
     // -- attachments (spec 5.1-5.4) ----------------------------------------

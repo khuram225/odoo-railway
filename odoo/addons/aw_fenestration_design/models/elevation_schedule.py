@@ -9,6 +9,8 @@ import re
 
 from odoo import models
 
+from odoo.addons.aw_fenestration_core.models.units import to_display
+
 PER_PAGE = 6          # three across, two down
 
 
@@ -27,13 +29,10 @@ class AwDesign(models.Model):
     _inherit = 'aw.design'
 
     def _schedule_dimension(self, mm):
-        """'1219.20 mm (4' 0")': millimetres to two decimals, then feet
-        and inches, whatever the unit setting is."""
+        """'1219.20 mm (48 in)': millimetres to two decimals, then
+        inches by the one display rule, whatever the unit setting is."""
         self.ensure_one()
-        total_in = (mm or 0.0) / 25.4
-        feet = int(total_in // 12)
-        return '%.2f mm (%s\' %s")' % (
-            mm or 0.0, feet, self._trim(total_in - feet * 12))
+        return '%.2f mm (%s in)' % (mm or 0.0, to_display(mm))
 
     def _schedule_glass(self):
         """Glass grouped by panel number: '(1) 6+10+8 Clear Tempered;

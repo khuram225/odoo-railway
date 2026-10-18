@@ -196,10 +196,11 @@ class AwDesignLeaf(models.Model):
     @api.depends('width_mm')
     def _compute_width_ftin(self):
         for rec in self:
-            total_in = rec.width_mm / 25.4
-            ft = int(total_in // 12)
-            rec.width_ft = ft
-            rec.width_in = total_in - ft * 12
+            # 1/16 in first, then split: see aw.design._compute_width_ftin.
+            feet, sixteenths = divmod(
+                int(round(rec.width_mm / 25.4 * 16)), 192)
+            rec.width_ft = feet
+            rec.width_in = sixteenths / 16
 
     def _inverse_width_ftin(self):
         for rec in self:
