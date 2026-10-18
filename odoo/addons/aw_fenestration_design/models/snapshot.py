@@ -178,9 +178,9 @@ class AwDesign(models.Model):
                         'panel_no': leaf.panel_no or 0,
                         'type': leaf.leaf_type_id.display_name or '',
                         'direction': direction(leaf),
-                        'size': '%s x %s' % (
-                            self._format_length(leaf.width_mm or 0.0),
-                            self._format_length(row.height_mm or 0.0)),
+                        'size': self._render_pair(
+                            leaf.width_mm or 0.0, row.height_mm or 0.0,
+                            self.length_uom),
                         'glass': (leaf.glass_spec_id
                                   or self.glass_spec_id).display_name or '',
                         'mesh': leaf.mesh_type_id.display_name or '',

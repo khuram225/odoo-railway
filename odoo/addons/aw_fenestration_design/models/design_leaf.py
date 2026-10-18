@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+from odoo.addons.aw_fenestration_core.models.units import (
+    edited_mm, to_display,
+)
 
 
 class AwDesignLeaf(models.Model):
@@ -38,9 +43,9 @@ class AwDesignLeaf(models.Model):
     width_in = fields.Float(string='Width (in)',
         compute='_compute_width_ftin', inverse='_inverse_width_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    width_inch_total = fields.Float(string='Width (total in)',
+    width_inch_total = fields.Char(string='Width (total in)',
         compute='_compute_width_inch_total', inverse='_inverse_width_inch_total',
-        help="Whole inches plus a fraction, e.g. 102.5 -- the ft/in pair written as one number. Same dimension as the pair beside it.")
+        help="Inches to the nearest 1/16, as shown or typed: 70 1/2, 33-6 (soot), 3s, 1829mm. Same dimension as the pair beside it; mm stays the stored value.")
 
     is_auto = fields.Boolean(
         string='Automatic',
@@ -196,10 +201,11 @@ class AwDesignLeaf(models.Model):
     @api.depends('width_mm')
     def _compute_width_ftin(self):
         for rec in self:
-            total_in = rec.width_mm / 25.4
-            ft = int(total_in // 12)
-            rec.width_ft = ft
-            rec.width_in = total_in - ft * 12
+            # 1/16 in first, then split: see aw.design._compute_width_ftin.
+            feet, sixteenths = divmod(
+                int(round(rec.width_mm / 25.4 * 16)), 192)
+            rec.width_ft = feet
+            rec.width_in = sixteenths / 16
 
     def _inverse_width_ftin(self):
         for rec in self:
@@ -208,8 +214,14 @@ class AwDesignLeaf(models.Model):
     @api.depends('width_mm')
     def _compute_width_inch_total(self):
         for rec in self:
-            rec.width_inch_total = rec.width_mm / 25.4
+            rec.width_inch_total = to_display(rec.width_mm)
 
     def _inverse_width_inch_total(self):
         for rec in self:
-            rec.width_mm = rec.width_inch_total * 25.4
+            try:
+                rec.width_mm = edited_mm(rec.width_inch_total, rec.width_mm)
+            except ValueError:
+                raise UserError(_(
+                    "'%(text)s' cannot be read as a length. Use inches "
+                    "(72, 70 1/2), soot (33-6, 3s) or millimetres "
+                    "(1829mm).", text=rec.width_inch_total))

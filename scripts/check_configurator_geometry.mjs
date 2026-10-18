@@ -513,12 +513,12 @@ console.log("\nEXACT PANEL SIZES by typing:");
         panel(600, "FIXED"), panel(600, "FIXED"),
     ] }], 1200, 1500);
 
-    // These mocks are in ft+in, so sizes are typed that way.
+    // Sizes are typed in inches (the old ft+in unit is retired).
     const c2 = mk();
     c2.notification = { add: () => {} };
     c2.selectLeaf([[0, 0]]);
     const target = 2 * 304.8 + 6 * 25.4; // 2 ft 6 in
-    c2.setPanelWidth("2 6");
+    c2.setPanelWidth("30");
     const lv = c2.state.data.rows[0].leaves;
     near(lv[0].width_mm, target, "typed width applied exactly");
     near(lv[0].width_mm + lv[1].width_mm, 1200, "total width unchanged");
@@ -541,11 +541,11 @@ console.log("\nEXACT PANEL SIZES by typing:");
     let warned = 0;
     c4.notification = { add: () => { warned += 1; } };
     c4.selectLeaf([[0, 0]]);
-    c4.setPanelWidth("0 1");           // 1 inch, below the 4in minimum
+    c4.setPanelWidth("1");             // 1 inch, below the 4in minimum
     near(c4.state.data.rows[0].leaves[0].width_mm, 600, "below minimum: refused");
     ok(warned === 1, "and the user was told");
 
-    c4.setPanelWidth("3 10");          // would starve the neighbour
+    c4.setPanelWidth("46");            // would starve the neighbour
     near(c4.state.data.rows[0].leaves[0].width_mm, 600,
          "no room for the neighbour: refused");
     ok(warned === 2, "and told again");
@@ -556,7 +556,7 @@ console.log("\nEXACT PANEL SIZES by typing:");
     let told = 0;
     c5.notification = { add: () => { told += 1; } };
     c5.selectLeaf([[0, 0]]);
-    c5.setPanelWidth("2 0");
+    c5.setPanelWidth("24");
     near(c5.state.data.rows[0].leaves[0].width_mm, 1200, "sole panel unchanged");
     ok(told === 1, "explained rather than silently ignored");
 
@@ -567,7 +567,7 @@ console.log("\nEXACT PANEL SIZES by typing:");
     ], 1200, 1500);
     c6.notification = { add: () => {} };
     c6.selectLeaf([[0, 0]]);
-    c6.setPanelHeight("3 0");          // 914.4mm
+    c6.setPanelHeight("36");           // 914.4mm
     near(c6.state.data.rows[0].height_mm, 914.4, "typed height applied");
     near(c6.state.data.rows[0].height_mm + c6.state.data.rows[1].height_mm, 1500,
          "rows still sum to the design height");

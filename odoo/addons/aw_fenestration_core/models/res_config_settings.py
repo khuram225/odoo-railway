@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo import api, fields, models
 
 
 class ResConfigSettings(models.TransientModel):
@@ -19,10 +19,9 @@ class ResConfigSettings(models.TransientModel):
     # from an existing-but-unconstrained one, which is exactly what made
     # the previous incident's boot log look clean when it wasn't.
     aw_length_uom = fields.Selection([
-        ('ftin', 'Feet + Inches'),
         ('in', 'Inches'),
         ('mm', 'Millimetres'),
-    ], string='Fenestration Length Unit', default='ftin',
+    ], string='Fenestration Length Unit', default='in',
         config_parameter='aw_fenestration.length_uom',
         help="How lengths are entered and displayed throughout Fenestration "
              "Design. Millimetres remain the stored source of truth "
@@ -94,3 +93,13 @@ class ResConfigSettings(models.TransientModel):
         config_parameter='aw_fenestration.offcut_min_mm',
         help="A bar's remainder at least this long is listed as "
              "'return to stock' rather than scrap.")
+
+    @api.model
+    def get_values(self):
+        """A database that still holds the retired 'ftin' reads as inches:
+        the option is gone from the form, and the stored value is left
+        alone (no migration) until somebody saves the settings."""
+        values = super().get_values()
+        if values.get('aw_length_uom') == 'ftin':
+            values['aw_length_uom'] = 'in'
+        return values

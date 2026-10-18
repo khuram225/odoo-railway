@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+from odoo.addons.aw_fenestration_core.models.units import (
+    edited_mm, to_display,
+)
 
 
 class AwDesignRow(models.Model):
@@ -43,9 +48,9 @@ class AwDesignRow(models.Model):
     height_in = fields.Float(string='Height (in)',
         compute='_compute_height_ftin', inverse='_inverse_height_ftin',
         help="Decimals allowed, e.g. 6.5.")
-    height_inch_total = fields.Float(string='Height (total in)',
+    height_inch_total = fields.Char(string='Height (total in)',
         compute='_compute_height_inch_total', inverse='_inverse_height_inch_total',
-        help="Whole inches plus a fraction, e.g. 102.5 -- the ft/in pair written as one number. Same dimension as the pair beside it.")
+        help="Inches to the nearest 1/16, as shown or typed: 70 1/2, 33-6 (soot), 3s, 1829mm. Same dimension as the pair beside it; mm stays the stored value.")
 
     # The transom on this row's BOTTOM boundary. Same rule as the
     # vertical divider on a leaf.
@@ -79,10 +84,11 @@ class AwDesignRow(models.Model):
     @api.depends('height_mm')
     def _compute_height_ftin(self):
         for rec in self:
-            total_in = rec.height_mm / 25.4
-            ft = int(total_in // 12)
-            rec.height_ft = ft
-            rec.height_in = total_in - ft * 12
+            # 1/16 in first, then split: see aw.design._compute_width_ftin.
+            feet, sixteenths = divmod(
+                int(round(rec.height_mm / 25.4 * 16)), 192)
+            rec.height_ft = feet
+            rec.height_in = sixteenths / 16
 
     def _inverse_height_ftin(self):
         for rec in self:
@@ -91,8 +97,14 @@ class AwDesignRow(models.Model):
     @api.depends('height_mm')
     def _compute_height_inch_total(self):
         for rec in self:
-            rec.height_inch_total = rec.height_mm / 25.4
+            rec.height_inch_total = to_display(rec.height_mm)
 
     def _inverse_height_inch_total(self):
         for rec in self:
-            rec.height_mm = rec.height_inch_total * 25.4
+            try:
+                rec.height_mm = edited_mm(rec.height_inch_total, rec.height_mm)
+            except ValueError:
+                raise UserError(_(
+                    "'%(text)s' cannot be read as a length. Use inches "
+                    "(72, 70 1/2), soot (33-6, 3s) or millimetres "
+                    "(1829mm).", text=rec.height_inch_total))

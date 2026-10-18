@@ -27,19 +27,26 @@ class TestUnits(TransactionCase):
     """The helper alone; needs no data."""
 
     def test_to_mm(self):
-        self.assertEqual(to_mm("33-6"), 857.25)          # dash is soot
+        self.assertEqual(to_mm("33-6"), 857.25)          # dash + number is soot
         self.assertAlmostEqual(to_mm("72"), 1828.8, places=2)
+        self.assertAlmostEqual(to_mm("34.125"), 866.78, places=2)
         self.assertAlmostEqual(to_mm("34 1/8"), 866.78, places=2)
-        self.assertAlmostEqual(to_mm("34⅛"), 866.78, places=2)
+        self.assertAlmostEqual(to_mm("34-1/8"), 866.78, places=2)
+        self.assertAlmostEqual(to_mm("33 5/16"), 846.14, places=2)
+        self.assertAlmostEqual(to_mm("33-5/16"), 846.14, places=2)
+        self.assertAlmostEqual(to_mm("33-6.5"), 858.84, places=2)
         self.assertAlmostEqual(to_mm("3s"), 9.53, places=2)
         self.assertAlmostEqual(to_mm("+3s"), 9.53, places=2)
         self.assertAlmostEqual(to_mm("-1 1/2"), -38.1, places=2)
         self.assertEqual(to_mm("1829mm"), 1829.0)
 
     def test_to_display(self):
-        self.assertEqual(to_display(866.8), "34⅛")
-        self.assertEqual(to_display(1790.7), "70½")
-        self.assertEqual(to_display(857.25), "33¾")
+        for mm, text in (
+                (1828.8, "72"), (1790.7, "70 1/2"), (866.8, "34 1/8"),
+                (846.1, "33 5/16"), (304.79999999999995, "12"),
+                (600, "23 5/8"), (1200, "47 1/4"), (731, "28 3/4"),
+                (-38.1, "-1 1/2"), (0, "0")):
+            self.assertEqual(to_display(mm), text, mm)
 
 
 @tagged('post_install', '-at_install')
