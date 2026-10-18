@@ -149,6 +149,12 @@ class AwDesignBomLine(models.Model):
         string='Computed (mm)', readonly=True,
         help="What the spec's rule gives. Length is this until somebody "
              "edits it.")
+    computed_product_id = fields.Many2one(
+        'product.product', string='Computed product', readonly=True,
+        ondelete='set null',
+        help="The product the spec gave this piece at generation. "
+             "Compared with the product in use to tell whether it was "
+             "changed by hand.")
     is_manual = fields.Boolean(
         string='Manual', default=False,
         help="Length, quantity or section was edited by hand. A "
@@ -241,6 +247,16 @@ class AwDesignBomLine(models.Model):
                     computed = line._computed_if_close(vals['length_mm'])
                     if computed is not None:
                         own['length_mm'] = computed
+                        # Back to the computed length: an already manual
+                        # line is a computed one again, unless its qty or
+                        # product was also changed. A line generated
+                        # before computed_product_id existed has none to
+                        # compare with, so it keeps the flag.
+                        if (line.is_manual and line.qty == 1
+                                and line.computed_product_id
+                                and line.product_id
+                                == line.computed_product_id):
+                            own['is_manual'] = False
                     else:
                         own['is_manual'] = True
                     super(AwDesignBomLine, line).write(own)

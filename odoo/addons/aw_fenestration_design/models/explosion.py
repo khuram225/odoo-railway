@@ -906,6 +906,7 @@ class AwDesign(models.Model):
                 values.update({
                     'piece_key': '%s|%s|%s|%s' % (key + (ordinal[key],)),
                     'computed_length_mm': values.get('length_mm') or 0.0,
+                    'computed_product_id': values.get('product_id') or False,
                 })
                 self.env['aw.design.bom.line'].create(values)
 
@@ -941,6 +942,7 @@ class AwDesign(models.Model):
                 kept[line.piece_key] = {
                     'length_mm': line.length_mm, 'qty': line.qty,
                     'product_id': line.product_id.id,
+                    'computed_product_id': line.computed_product_id.id,
                     'data': line.copy_data()[0],
                 }
         return kept
@@ -958,7 +960,8 @@ class AwDesign(models.Model):
             if (line and abs(saved['length_mm'] - line.length_mm)
                     <= MANUAL_TOLERANCE_MM
                     and saved['qty'] == line.qty
-                    and saved['product_id'] == line.product_id.id):
+                    and saved['product_id'] == (
+                        saved['computed_product_id'] or line.product_id.id)):
                 # Same as the fresh piece at display precision: not a
                 # real edit, so the line goes back to being computed.
                 continue
