@@ -21,16 +21,20 @@ const MM_PER_SOOT = MM_PER_IN / 8; // 1 soot = 1/8 in
 
 /**
  * ONE inch display rule for every length a person reads: inches to the
- * nearest 1/16 as a reduced ASCII fraction -- "72", "70 1/2", "33 5/16",
- * "-1 1/2", "0". No decimals, no feet, no glyphs. The twin of
- * aw_fenestration_core's units.to_display, and scripts/check_inch_display.mjs
- * holds both to the same test vectors.
+ * nearest 1/16, no decimals, no feet, no glyphs, in one of two styles.
+ *   "fraction" (reading): a reduced ASCII fraction -- "72", "70 1/2",
+ *      "33 5/16", "-1 1/2", "0".
+ *   "soot" (the workshop): inches, a dash, soot (1/8 in), half a soot
+ *      as .5 -- "47-5", "46-3.5", "34-1", "144". Under an inch the
+ *      zero stays: "0-4".
+ * The twin of aw_fenestration_core's units.to_display, and
+ * scripts/check_inch_display.mjs holds both to the same test vectors.
  *
  * Rounded to sixteenths BEFORE splitting, so a value a hair under a
  * whole inch (12 x 25.4 is 304.79999999999995) reads "12", never
  * "11 16/16".
  */
-function formatInches(mm) {
+function formatInches(mm, style = "fraction") {
     const value = Number(mm) || 0;
     const sign = value < 0 ? "-" : "";
     const sixteenths = Math.round((Math.abs(value) / MM_PER_IN) * 16);
@@ -39,6 +43,10 @@ function formatInches(mm) {
     let den = 16;
     if (!num) {
         return `${whole ? sign : ""}${whole}`;
+    }
+    if (style === "soot") {
+        const soot = num / 2; // a sixteenth is half a soot
+        return `${sign}${whole}-${Number.isInteger(soot) ? soot : soot.toFixed(1)}`;
     }
     while (num % 2 === 0) {
         num /= 2;
@@ -459,9 +467,9 @@ export class DesignConfigurator extends Component {
      * dimension lines and the size inputs are bare numbers, because the
      * caption and the label already say which.
      */
-    formatLength(mm, withUnit = true) {
+    formatLength(mm, withUnit = true, style = "fraction") {
         const trim = (v) => String(Math.round(v * 100) / 100);
-        const text = this.uom === "mm" ? trim(mm) : formatInches(mm);
+        const text = this.uom === "mm" ? trim(mm) : formatInches(mm, style);
         return withUnit ? `${text} ${this.uom}` : text;
     }
 
@@ -1593,7 +1601,8 @@ export class DesignConfigurator extends Component {
      * value, so the other box follows.
      */
     formatInchesBox(mm) {
-        return mm ? formatInches(mm) : "";
+        // Soot style: the workshop types and reads "47-5".
+        return mm ? formatInches(mm, "soot") : "";
     }
 
     formatMmBox(mm) {
@@ -1605,16 +1614,44 @@ export class DesignConfigurator extends Component {
         return parseInches(text) || 0;
     }
 
+    /** The input box of the pair, by dimension and kind ("in" or "mm"). */
+    sizeBox(field, kind) {
+        return document.querySelector(
+            `input[data-aw-size="${field}"][data-aw-kind="${kind}"]`);
+    }
+
+    /**
+     * Typing in either box shows the other's value AT ONCE, without
+     * touching what is being typed: the active box is only re-formatted
+     * when it is committed (blur or Enter), never on a keystroke.
+     */
+    onSizeBoxInput(field, kind, ev) {
+        const text = ev.target.value;
+        const mm = kind === "mm" ? parseFloat(text) : parseInches(text);
+        const other = this.sizeBox(field, kind === "mm" ? "in" : "mm");
+        if (other && Number.isFinite(mm) && mm >= 0) {
+            other.value = kind === "mm"
+                ? this.formatInchesBox(mm) : this.formatMmBox(mm);
+        }
+        this.markDirty();
+    }
+
     onSizeBoxChange(field, kind, ev) {
         const text = ev.target.value;
         const mm = kind === "mm"
             ? parseFloat(text) || 0
             : this.parseInchesBox(text);
         this.applyDimension(field, mm);
-        // Rewrite the box in its normal form: OWL will not, because
+        // Rewrite BOTH boxes in their normal form: OWL will not, because
         // typed junk leaves the bound value unchanged.
-        ev.target.value = kind === "mm"
-            ? this.formatMmBox(mm) : this.formatInchesBox(mm);
+        const inches = this.sizeBox(field, "in");
+        const millimetres = this.sizeBox(field, "mm");
+        if (inches) {
+            inches.value = this.formatInchesBox(mm);
+        }
+        if (millimetres) {
+            millimetres.value = this.formatMmBox(mm);
+        }
     }
 
     onDimensionChange(field, text) {
@@ -3977,7 +4014,7 @@ export class DesignConfigurator extends Component {
 
     get selectedPanelWidthText() {
         const leaf = this.selectedPanel;
-        return leaf ? this.formatLength(leaf.width_mm || 0, false) : "";
+        return leaf ? this.formatLength(leaf.width_mm || 0, false, "soot") : "";
     }
 
     get selectedPanelHeightText() {
@@ -3987,7 +4024,7 @@ export class DesignConfigurator extends Component {
         }
         const rows = this.rowsAt(path.slice(0, -1));
         const row = rows[path[path.length - 1][0]];
-        return row ? this.formatLength(row.height_mm || 0, false) : "";
+        return row ? this.formatLength(row.height_mm || 0, false, "soot") : "";
     }
 
     // -- attachments (spec 5.1-5.4) ----------------------------------------

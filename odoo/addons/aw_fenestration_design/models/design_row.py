@@ -97,12 +97,13 @@ class AwDesignRow(models.Model):
     @api.depends('height_mm')
     def _compute_height_inch_total(self):
         for rec in self:
-            rec.height_inch_total = to_display(rec.height_mm)
+            rec.height_inch_total = to_display(rec.height_mm, 'soot')
 
     def _inverse_height_inch_total(self):
         for rec in self:
             try:
-                rec.height_mm = edited_mm(rec.height_inch_total, rec.height_mm)
+                rec.height_mm = edited_mm(
+                    rec.height_inch_total, rec.height_mm, 'soot')
             except ValueError:
                 raise UserError(_(
                     "'%(text)s' cannot be read as a length. Use inches "

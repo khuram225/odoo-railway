@@ -6,12 +6,23 @@ database stores millimetres and only millimetres -- inches live nowhere
 but on screen.
 
 ONE DISPLAY RULE for every length a person reads: inches, rounded to the
-nearest 1/16, written as a reduced ASCII fraction. No decimals, no feet,
-no Unicode fraction glyphs.
+nearest 1/16. No decimals, no feet, no Unicode fraction glyphs. Two
+styles of the same number:
 
+  style="fraction" (the default) -- a reduced ASCII fraction:
     to_display(1828.8)  -> "72"        to_display(1790.7) -> "70 1/2"
     to_display(866.8)   -> "34 1/8"    to_display(846.1)  -> "33 5/16"
     to_display(-38.1)   -> "-1 1/2"    to_display(0)      -> "0"
+
+  style="soot" -- inches, a dash, then soot (1/8 in); half a soot is .5:
+    to_display(1209.2, "soot") -> "47-5"      (47 5/8 in)
+    to_display(1179.2, "soot") -> "46-3.5"    (46 7/16 in)
+    to_display(866.8,  "soot") -> "34-1"      to_display(3657.6, "soot") -> "144"
+    A length under an inch keeps the leading zero: "0-4", never a bare "4".
+
+The fraction style is for reading (quote text, schedule, drawing); soot is
+for the workshop (cut list, entry boxes, labels). Either way the value is
+rounded to 1/16 in first.
 
 And a forgiving parser for what people type:
 
@@ -107,21 +118,25 @@ def to_mm(text):
     return round(sign * value, 2)
 
 
-def edited_mm(text, current_mm):
+def edited_mm(text, current_mm, style='fraction'):
     """What a text field's inverse should store: `current_mm` when the
     text is just the display of it handed back (the field was not
     edited), otherwise the parsed text. Without this, saving a form
     would snap every untouched length to the nearest 1/16 in."""
-    if (text or '').strip() == to_display(current_mm):
+    if (text or '').strip() == to_display(current_mm, style):
         return current_mm
     return to_mm(text)
 
 
-def to_display(mm):
-    """Millimetres as inches to the nearest 1/16, a reduced ASCII
-    fraction: 866.8 -> '34 1/8', 1828.8 -> '72', -38.1 -> '-1 1/2'.
+def to_display(mm, style='fraction'):
+    """Millimetres as inches to the nearest 1/16.
 
-    Rounded to sixteenths BEFORE splitting into whole and fraction, so a
+    fraction: a reduced ASCII fraction -- 866.8 -> '34 1/8',
+    1828.8 -> '72', -38.1 -> '-1 1/2'.
+    soot:     inches, dash, soot -- 866.8 -> '34-1', 1209.2 -> '47-5',
+    1179.2 -> '46-3.5' (half a soot is .5).
+
+    Rounded to sixteenths BEFORE splitting into whole and remainder, so a
     value a hair under a whole inch (12 x 25.4 is 304.79999999999995 in
     float) reads '12', never '11 16/16'.
     """
@@ -131,6 +146,10 @@ def to_display(mm):
     whole, rest = divmod(sixteenths, 16)
     if not rest:
         return '%s%d' % (sign if whole else '', whole)
+    if style == 'soot':
+        soot = rest / 2               # a sixteenth is half a soot
+        text = '%d' % soot if rest % 2 == 0 else '%.1f' % soot
+        return '%s%d-%s' % (sign, whole, text)
     num, den = rest, 16
     while num % 2 == 0:
         num //= 2

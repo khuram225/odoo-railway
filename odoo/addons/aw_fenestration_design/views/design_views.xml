@@ -274,7 +274,7 @@
                                     <field name="cut_angle" string="Cut ends"/>
                                     <field name="length_text" string="Length (in)"/>
                                     <field name="computed_length_text" string="Computed (in)"/>
-                                    <field name="length_mm" string="Length (mm)" optional="hide"/>
+                                    <field name="length_mm" string="Length (mm)"/>
                                     <field name="is_manual" string="Manual" readonly="1"/>
                                     <field name="is_orphan" string="Orphan" readonly="1"/>
                                 </list>
