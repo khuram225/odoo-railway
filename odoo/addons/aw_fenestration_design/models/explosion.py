@@ -122,6 +122,25 @@ class AwDesign(models.Model):
                      - dividers * (spec.divider_body_mm or 0.0)) / count
         return opening_w, height - (spec.frame_deduction_h_mm or 0.0)
 
+    def _panel_opening(self, panel_w, panel_h, outer):
+        """OW and OH of ONE panel: its width and height less half of
+        whatever sits on each edge. An edge on the window's outer edge
+        takes half the frame deduction; any other edge (a divider, also
+        inside a nested split) takes half the divider body. So an end
+        panel and a middle panel of the same width differ, which the old
+        equal split could not say."""
+        self.ensure_one()
+        spec = self.template_id
+        frame_w = (spec.frame_deduction_w_mm or 0.0) / 2
+        frame_h = (spec.frame_deduction_h_mm or 0.0) / 2
+        body = (spec.divider_body_mm or 0.0) / 2
+        left, right, top, bottom = outer
+        return (
+            panel_w - (frame_w if left else body)
+            - (frame_w if right else body),
+            panel_h - (frame_h if top else body)
+            - (frame_h if bottom else body))
+
     def _formula_context(self, panel_w=0.0, panel_h=0.0,
                          container_w=0.0, container_h=0.0,
                          panels_in_row=1, tracks=1, lock_side_mm=0.0,
@@ -131,7 +150,10 @@ class AwDesign(models.Model):
 
         `ow_panels` is how many panels OW is shared between; it defaults
         to the panels in the row, and the frame (which has no row of its
-        own) passes the top row's count."""
+        own) passes the top row's count.
+
+        OW and OH here are the window-level ones; a panel overrides them
+        with `_panel_opening`."""
         self.ensure_one()
         opening_w, opening_h = self._opening_constants(
             panels_in_row if ow_panels is None else ow_panels)
@@ -404,7 +426,7 @@ class AwDesign(models.Model):
     # the walk
     # ------------------------------------------------------------------
     def _explode_rows(self, rows, by_scope, box_w, box_h, out, demand,
-                      spans):
+                      spans, outer=(True, True, True, True)):
         """Recursive walk: rows, panels, junctions, then into containers.
 
         Mirrors the drawing's own recursion, so a nested split produces
@@ -432,14 +454,28 @@ class AwDesign(models.Model):
                     panels_in_row=panels_in_row,
                     tracks=max(leaves.mapped('track_no') or [1]) or 1)
 
+                # Which edges of this cell are the window's own edge: the
+                # box's, if the cell is first/last in it. Carried down
+                # into a nested split so its panels know too.
+                cell_outer = (
+                    outer[0] and leaf_index == 0,
+                    outer[1] and leaf_index == len(leaves) - 1,
+                    outer[2] and row_index == 0,
+                    outer[3] and row_index == len(rows) - 1)
+
                 if leaf.child_row_ids:
                     # A container is not a panel: no sash, no glass, just
                     # whatever divides it, handled one level down.
                     self._explode_rows(
                         leaf.child_row_ids, by_scope, leaf_w, row_h, out,
-                        demand, spans)
+                        demand, spans, outer=cell_outer)
                 else:
-                    self._explode_panel(leaf, by_scope, context, out, demand)
+                    opening_w, opening_h = self._panel_opening(
+                        leaf_w, row_h, cell_outer)
+                    panel_context = dict(
+                        context, OW=opening_w, OH=opening_h)
+                    self._explode_panel(
+                        leaf, by_scope, panel_context, out, demand)
 
                 # The junction AFTER this panel, if there is a next one.
                 if leaf_index < len(leaves) - 1:
