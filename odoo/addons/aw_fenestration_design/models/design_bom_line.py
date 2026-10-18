@@ -241,6 +241,11 @@ class AwDesignBomLine(models.Model):
                     computed = line._computed_if_close(vals['length_mm'])
                     if computed is not None:
                         own['length_mm'] = computed
+                        # Back to the computed length: an already manual
+                        # line is a computed one again, unless its qty
+                        # was also changed (a generated piece is 1).
+                        if line.is_manual and line.qty == 1:
+                            own['is_manual'] = False
                     else:
                         own['is_manual'] = True
                     super(AwDesignBomLine, line).write(own)

@@ -343,6 +343,13 @@ class TestCutRules(TransactionCase):
         rail.write({'length_mm': to_mm('47-5')})
         self.assertFalse(rail.is_manual)
         self.assertEqual(rail.length_mm, 1209.20)
+        # An already manual line typed back to the computed length is
+        # computed again.
+        rail.write({'length_mm': 1215.0})
+        self.assertTrue(rail.is_manual)
+        rail.write({'length_mm': to_mm('47-5')})
+        self.assertFalse(rail.is_manual)
+        self.assertEqual(rail.length_mm, 1209.20)
         # A real edit beyond half a sixteenth still flags it.
         rail.write({'length_mm': 1211.0})
         self.assertTrue(rail.is_manual)
