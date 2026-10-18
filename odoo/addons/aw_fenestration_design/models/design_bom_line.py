@@ -171,6 +171,11 @@ class AwDesignBomLine(models.Model):
 
     def _inverse_length_text(self):
         for line in self:
+            # Typing back what is already shown is not an edit, and must
+            # not flag the line manual or move it to the nearest 1/16.
+            if (line.length_text or '') == (
+                    '' if line.cut_on_site else to_display(line.length_mm)):
+                continue
             try:
                 line.length_mm = to_mm(line.length_text)
             except ValueError:

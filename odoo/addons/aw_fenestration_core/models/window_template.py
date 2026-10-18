@@ -173,6 +173,11 @@ class AwWindowTemplate(models.Model):
     def _inverse_inch_texts(self):
         for rec in self:
             for text_field, mm_field in self._INCH_FIELDS:
+                # Only what was actually typed: the other two texts are
+                # the stored mm rounded to 1/16 in, and writing those back
+                # would quietly move a value nobody touched.
+                if rec[text_field] == to_display(rec[mm_field]):
+                    continue
                 try:
                     rec[mm_field] = to_mm(rec[text_field])
                 except ValueError:
