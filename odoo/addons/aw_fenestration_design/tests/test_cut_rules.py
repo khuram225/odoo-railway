@@ -368,6 +368,31 @@ class TestCutRules(TransactionCase):
         self.assertIn('72 × 72 in', text)
         self.assertIn(self.template.full_name, text)
 
+    def test_configurator_pieces_and_edit(self):
+        design = self.design
+        pieces = design._bom_payload()['pieces']
+        frame = [p for p in pieces if p['panel_no'] == 0]
+        lengths = [round(p['length_mm'], 1) for p in frame]
+        self.assertEqual(lengths.count(1828.8), 4)
+        self.assertIn(1778.0, [round(p['length_mm'], 1) for p in frame])
+        rail = [p for p in pieces if p['panel_no'] == 1
+                and 'CR Rail' in p['label']][0]
+        self.assertFalse(rail['is_manual'])
+
+        design.set_piece_length(rail['id'], 870.0)
+        line = design.bom_line_ids.filtered(lambda l: l.id == rail['id'])
+        self.assertTrue(line.is_manual)
+        design.recompute_pieces()
+        kept = design.bom_line_ids.filtered(
+            lambda l: l.piece_key == line.piece_key)
+        self.assertEqual(kept.length_mm, 870.0)
+        self.assertTrue(kept.is_manual)
+
+        # Typing the computed length back, at display precision.
+        design.set_piece_length(kept.id, to_mm('34-1'))
+        self.assertFalse(kept.is_manual)
+        self.assertAlmostEqual(kept.length_mm, 866.775, places=2)
+
     def test_resize_marks_the_cut_list_stale(self):
         self.design.write({'width_mm': 2000.0})
         self.assertTrue(self.design.cut_list_stale)

@@ -1453,6 +1453,30 @@ class AwDesign(models.Model):
             **self._pricing_payload(),
         }
 
+    def set_piece_length(self, line_id, length_mm):
+        """A cut line's length typed in the configurator. Writes the
+        same field the form's Cut list tab writes, so the Manual flag and
+        the display-precision tolerance behave identically."""
+        self.ensure_one()
+        line = self.bom_line_ids.filtered(
+            lambda l: l.id == line_id and l.kind == 'profile')
+        if not line:
+            raise UserError(_("That cut line is not on this window."))
+        if line.cut_on_site:
+            raise UserError(_("A line cut on site has no length."))
+        length_mm = float(length_mm or 0.0)
+        if length_mm < 0:
+            raise UserError(_("A length cannot be negative."))
+        line.write({'length_mm': length_mm})
+        return self.get_configurator_data()
+
+    def recompute_pieces(self):
+        """The Recompute button: the existing action, then a fresh
+        payload."""
+        self.ensure_one()
+        self.action_recompute_cut_list()
+        return self.get_configurator_data()
+
     def _bom_payload(self):
         """BOM and checks for the configurator's right-hand column."""
         self.ensure_one()
@@ -1478,6 +1502,25 @@ class AwDesign(models.Model):
             })
         return {
             'bom': groups,
+            # The cut lines for the Panel tab's Pieces block. The same
+            # records as the form's Cut list tab; panel_no 0 is the
+            # frame, the dividers and anything added by hand.
+            'pieces': [{
+                'id': line.id,
+                'panel_no': line.panel_no or 0,
+                'label': line.label or '',
+                'group': line.group_label or '',
+                'qty': line.qty or 0,
+                'cut_angle': line.cut_angle or '',
+                'length_mm': line.length_mm or 0.0,
+                'computed_length_mm': line.computed_length_mm or 0.0,
+                'cut_on_site': bool(line.cut_on_site),
+                'is_manual': bool(line.is_manual),
+                'is_orphan': bool(line.is_orphan),
+            } for line in self.bom_line_ids.filtered(
+                lambda l: l.kind == 'profile')],
+            'cut_list_stale': bool(self.cut_list_stale),
+            'orphan_count': self.orphan_count or 0,
             'checks': [{
                 'level': c.level,
                 'message': c.message,

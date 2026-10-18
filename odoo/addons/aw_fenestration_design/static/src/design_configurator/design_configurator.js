@@ -661,6 +661,100 @@ export class DesignConfigurator extends Component {
      * caused the error. Switching on new results surfaces the problem
      * and still leaves the user in charge afterwards.
      */
+    // -- pieces (Panel tab) ------------------------------------------------
+    /**
+     * The panel number the Pieces block is showing, or 0 for the frame
+     * and dividers. Read off the drawing's own numbering, which is the
+     * server's reading order, so it matches the cut lines' panel_no
+     * once the layout is saved.
+     */
+    get piecesPanelNo() {
+        const entry = this.selectedSceneLeaf;
+        return entry ? entry.panelNo : 0;
+    }
+
+    get piecesScopeLabel() {
+        return this.piecesPanelNo
+            ? `Panel ${this.piecesPanelNo}` : "Frame and dividers";
+    }
+
+    get scopedPieces() {
+        const number = this.piecesPanelNo;
+        return (this.state.data?.pieces || []).filter(
+            (piece) => piece.panel_no === number);
+    }
+
+    get cutListStale() {
+        return !!this.state.data?.cut_list_stale;
+    }
+
+    get orphanCount() {
+        return this.state.data?.orphan_count || 0;
+    }
+
+    /** Soot style, like every length the workshop reads. */
+    pieceText(mm) {
+        return mm ? formatInches(mm, "soot") : "0";
+    }
+
+    pieceMmText(mm) {
+        return String(Math.round((mm || 0) * 100) / 100);
+    }
+
+    showFramePieces() {
+        this.state.selected = null;
+    }
+
+    /** The mm figure follows the box as it is typed. */
+    onPieceInput(piece, ev) {
+        const mm = parseInches(ev.target.value);
+        const target = document.querySelector(
+            `[data-aw-piece-mm="${piece.id}"]`);
+        if (target && Number.isFinite(mm)) {
+            target.textContent = this.pieceMmText(mm);
+        }
+    }
+
+    /** Blur or Enter. Unreadable text puts the old value back. */
+    async onPieceChange(piece, ev) {
+        const box = ev.target;
+        const mm = parseInches(box.value);
+        if (!Number.isFinite(mm) || mm < 0) {
+            box.value = this.pieceText(piece.length_mm);
+            this.notification.add(
+                "That length cannot be read. Use inches (46-2, 46 1/4, 46.25) or mm (1170mm).",
+                { type: "warning" });
+            return;
+        }
+        // The server works on the stored layout, so unsaved edits are
+        // saved first rather than lost.
+        if (this.state.dirty) {
+            await this.save();
+        }
+        this.state.data = await this.orm.call(
+            "aw.design", "set_piece_length", [[this.designId], piece.id, mm]);
+        const fresh = (this.state.data.pieces || []).find(
+            (row) => row.id === piece.id);
+        // Rewrite the box in its normal form: OWL will not, because the
+        // bound value may be unchanged.
+        box.value = this.pieceText(fresh ? fresh.length_mm : mm);
+    }
+
+    onPieceKeydown(ev) {
+        if (ev.key === "Enter") {
+            ev.target.blur();
+        }
+    }
+
+    async recomputePieces() {
+        if (this.state.dirty) {
+            await this.save();
+        }
+        this.state.data = await this.orm.call(
+            "aw.design", "recompute_pieces", [[this.designId]]);
+        this.surfaceCheckErrors();
+    }
+
     surfaceCheckErrors() {
         if (this.checkErrors.length) {
             this.setRightTab("checks");
