@@ -100,13 +100,44 @@ class AwDesign(models.Model):
     # ------------------------------------------------------------------
     # context building
     # ------------------------------------------------------------------
+    def _opening_constants(self, panels):
+        """OW and OH from the spec's own constants.
+
+        The deductions always come from the spec. The panel and divider
+        counts come from the drawn layout when the window has one --
+        `panels` is the panels across the row being worked on, and there
+        is one divider fewer -- and from the spec's own defaults when it
+        has none yet.
+        """
+        self.ensure_one()
+        spec = self.template_id
+        width, height = self.width_mm or 0.0, self.height_mm or 0.0
+        if self.row_ids:
+            count = max(1, int(panels or 1))
+            dividers = count - 1
+        else:
+            count = max(1, spec.panel_count or 1)
+            dividers = spec.divider_count or 0
+        opening_w = (width - (spec.frame_deduction_w_mm or 0.0)
+                     - dividers * (spec.divider_body_mm or 0.0)) / count
+        return opening_w, height - (spec.frame_deduction_h_mm or 0.0)
+
     def _formula_context(self, panel_w=0.0, panel_h=0.0,
                          container_w=0.0, container_h=0.0,
-                         panels_in_row=1, tracks=1, lock_side_mm=0.0):
+                         panels_in_row=1, tracks=1, lock_side_mm=0.0,
+                         ow_panels=None):
         """The variables a formula may use (spec 6.1). One builder, so a
-        formula means the same thing wherever it is evaluated."""
+        formula means the same thing wherever it is evaluated.
+
+        `ow_panels` is how many panels OW is shared between; it defaults
+        to the panels in the row, and the frame (which has no row of its
+        own) passes the top row's count."""
         self.ensure_one()
+        opening_w, opening_h = self._opening_constants(
+            panels_in_row if ow_panels is None else ow_panels)
         return {
+            'OW': opening_w,
+            'OH': opening_h,
             'W': self.width_mm or 0.0,
             'H': self.height_mm or 0.0,
             'PW': panel_w,
@@ -779,7 +810,9 @@ class AwDesign(models.Model):
         # explosion and passed down the walk -- see _record_span.
         spans = {}
 
-        frame_context = self._formula_context()
+        top_row = self.row_ids.sorted(lambda r: (r.sequence, r.id))[:1]
+        frame_context = self._formula_context(
+            ow_panels=len(top_row.leaf_ids) or 1)
         for line in by_scope.get('frame', []):
             out.extend(self._profile_pieces(line, frame_context, _('frame')))
 

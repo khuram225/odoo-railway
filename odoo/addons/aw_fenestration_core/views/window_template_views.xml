@@ -338,6 +338,23 @@
                                 N T, LS (the sash length on a lock side).
                             </p>
                             <group>
+                                <group string="Opening (OW / OH)">
+                                    <field name="panel_count"/>
+                                    <field name="divider_count"/>
+                                    <field name="frame_deduction_w_text"/>
+                                    <field name="frame_deduction_h_text"/>
+                                    <field name="divider_body_text"/>
+                                </group>
+                            </group>
+                            <p class="text-muted">
+                                OW = (W - frame deduction W - dividers x
+                                divider body) / panels, OH = H - frame
+                                deduction H. Typed in inches and soot
+                                (3, 1 1/2, 33-6, 3s) or mm. The panel and
+                                divider counts only apply to a window with
+                                no drawn layout.
+                            </p>
+                            <group>
                                 <group string="Glass, fixed panel">
                                     <field name="glass_fixed_w"/>
                                     <field name="glass_fixed_h"/>

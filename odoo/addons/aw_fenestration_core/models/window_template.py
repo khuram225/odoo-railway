@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 from .formula import validate_formula
+from .units import to_display, to_mm
 
 
 class AwWindowTemplate(models.Model):
@@ -123,6 +124,62 @@ class AwWindowTemplate(models.Model):
     hardware_line_count = fields.Integer(compute='_compute_part_counts')
     design_count = fields.Integer(
         compute='_compute_design_count', string='Used in')
+
+    # -- opening constants: the OW / OH of the formula language -------
+    # Defaults for a window with no drawn layout (the layout wins when
+    # there is one), and the deductions OW and OH are always taken from.
+    # Stored in mm like every length; the *_text fields are how they are
+    # typed and read (inches and soot).
+    panel_count = fields.Integer(
+        default=1,
+        help="Panels across, for a window with no drawn layout yet. "
+             "A drawn layout always wins.")
+    divider_count = fields.Integer(
+        default=0,
+        help="Dividers between those panels, for a window with no drawn "
+             "layout yet.")
+    frame_deduction_w_mm = fields.Float(
+        string='Frame Deduction W (mm)',
+        help="Width lost to the frame, both sides together.")
+    frame_deduction_h_mm = fields.Float(
+        string='Frame Deduction H (mm)',
+        help="Height lost to the frame, top and bottom together.")
+    divider_body_mm = fields.Float(
+        string='Divider Body (mm)',
+        help="Width lost to each divider.")
+    frame_deduction_w_text = fields.Char(
+        string='Frame Deduction W',
+        compute='_compute_inch_texts', inverse='_inverse_inch_texts')
+    frame_deduction_h_text = fields.Char(
+        string='Frame Deduction H',
+        compute='_compute_inch_texts', inverse='_inverse_inch_texts')
+    divider_body_text = fields.Char(
+        string='Divider Body',
+        compute='_compute_inch_texts', inverse='_inverse_inch_texts')
+
+    _INCH_FIELDS = (
+        ('frame_deduction_w_text', 'frame_deduction_w_mm'),
+        ('frame_deduction_h_text', 'frame_deduction_h_mm'),
+        ('divider_body_text', 'divider_body_mm'),
+    )
+
+    @api.depends('frame_deduction_w_mm', 'frame_deduction_h_mm',
+                 'divider_body_mm')
+    def _compute_inch_texts(self):
+        for rec in self:
+            for text_field, mm_field in self._INCH_FIELDS:
+                rec[text_field] = to_display(rec[mm_field])
+
+    def _inverse_inch_texts(self):
+        for rec in self:
+            for text_field, mm_field in self._INCH_FIELDS:
+                try:
+                    rec[mm_field] = to_mm(rec[text_field])
+                except ValueError:
+                    raise UserError(_(
+                        "'%(text)s' cannot be read as a length. Use inches "
+                        "(72, 34 1/8), soot (3s, 33-6) or millimetres "
+                        "(1829mm).", text=rec[text_field]))
 
     # -- 6.4 deductions and limits, moved off the system (phase 7d) ----
     # These describe how a PROFILE SYSTEM's glass sits in its sash, so

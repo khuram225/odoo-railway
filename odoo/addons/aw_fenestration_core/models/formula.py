@@ -28,9 +28,22 @@ VARIABLES = {
     # section's own deduction, and 0.8 of the wrong one is 8mm out on
     # a 1m sash. Zero anywhere a panel has no lock side.
     'LS': 'sash length on the lock side',
+    # The glazing opening, from the spec's own constants (frame
+    # deduction, divider body). Unlike PW/PH, which are the DRAWN cell
+    # measured to the middle of the dividers, these are what is left
+    # between frame leg and divider.
+    'OW': 'opening width (after frame and divider bodies, per panel)',
+    'OH': 'opening height (after the frame)',
 }
 
+# 1 inch = 25.4 mm and 1 soot = 1/8 inch = 3.175 mm, so a workshop rule
+# reads the way it is spoken: H - inch(1.5), OW + soot(3).
+MM_PER_INCH = 25.4
+MM_PER_SOOT = 3.175
+
 FUNCTIONS = {
+    'inch': lambda x: x * MM_PER_INCH,
+    'soot': lambda x: x * MM_PER_SOOT,
     'min': min,
     'max': max,
     'round': round,
