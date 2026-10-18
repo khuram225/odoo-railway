@@ -81,6 +81,11 @@ class AwProfileSectionLine(models.Model):
     spec_section_id = fields.Many2one(
         'aw.spec.section', string='Section', ondelete='set null',
         index=True)
+    cut_on_site = fields.Boolean(
+        string='Cut on site',
+        help="No length is worked out: the line still appears on the "
+             "cut list, with a blank length, and is cut at the job.")
+    note = fields.Char(help="A reminder for whoever reads the cut list.")
     # Stored so a spec can list its lines group by group with a plain
     # domain. Display only.
     part_group = fields.Selection(
