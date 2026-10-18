@@ -332,11 +332,16 @@ class AwDesign(models.Model):
         # members cannot share a BOM line and still carry four distinct
         # references (spec B), and the cut list wants them separate
         # anyway -- each one is a cut.
+        cut_on_site = bool(line.cut_on_site)
         for formula, count, edges, source in spec:
-            length = evaluate_formula(formula, context, default=0.0)
+            # A line cut on site has no length to work out; it still
+            # produces its pieces, with a blank length.
+            length = (0.0 if cut_on_site
+                      else evaluate_formula(formula, context, default=0.0))
             # Rendered from the same context the length was evaluated
             # with, so the working out and the result always agree.
-            worked = substitute_formula(formula, context)
+            worked = ('' if cut_on_site
+                      else substitute_formula(formula, context))
             for index in range(count * qty):
                 pieces.append({
                     'kind': 'profile',
@@ -349,6 +354,10 @@ class AwDesign(models.Model):
                     'position_id': position.id,
                     'missing_product': not product,
                     'missing_product_reason': reason,
+                    'template_line_id': (
+                        line.id if isinstance(line.id, int) else False),
+                    'cut_on_site': cut_on_site,
+                    'group_label': line.spec_section_id.name or '',
                     'is_changed': bool(change),
                     'change_note': change.note if change else '',
                     'calc_rule': formula or '',
@@ -798,7 +807,10 @@ class AwDesign(models.Model):
 
     def _explode(self):
         self.ensure_one()
-        self.bom_line_ids.unlink()
+        # Lines edited by hand are remembered and re-applied below;
+        # lines added by hand are simply never regenerated.
+        manual = self._manual_cut_lines()
+        self.bom_line_ids.filtered(lambda l: not l.is_free_form).unlink()
         if not (self.width_mm > 0 and self.height_mm > 0):
             self._run_checks()
             return
@@ -837,6 +849,7 @@ class AwDesign(models.Model):
         others = [v for v in out if v.get('kind') != 'profile']
 
         sequence = 0
+        ordinal = {}
         for unit in range(1, multiplier + 1):
             for index, values in enumerate(profiles, start=1):
                 sequence += 10
@@ -849,6 +862,13 @@ class AwDesign(models.Model):
                     'unit_no': unit,
                     'piece_ref': self._piece_reference(unit, index,
                                                        multiplier),
+                })
+                key = (values.get('template_line_id'),
+                       values.get('panel_no') or 0, unit)
+                ordinal[key] = ordinal.get(key, 0) + 1
+                values.update({
+                    'piece_key': '%s|%s|%s|%s' % (key + (ordinal[key],)),
+                    'computed_length_mm': values.get('length_mm') or 0.0,
                 })
                 self.env['aw.design.bom.line'].create(values)
 
@@ -863,9 +883,49 @@ class AwDesign(models.Model):
             })
             self.env['aw.design.bom.line'].create(values)
 
+        # Re-apply what was edited by hand, BEFORE costing so the cost
+        # follows the edited length.
+        self._apply_manual_cut_lines(manual)
+        # The cut list now matches the window's size again.
+        self.cut_list_stale = False
+
         # Cost before the checks run, so the checks can report on it.
         self._cost_bom_lines()
         self._run_checks(exploded=out, demand=demand, spans=spans)
+
+    def _manual_cut_lines(self):
+        """The generated cut lines somebody edited, keyed by piece, with
+        everything needed to put them back."""
+        self.ensure_one()
+        kept = {}
+        for line in self.bom_line_ids:
+            if (line.is_manual and not line.is_free_form
+                    and line.kind == 'profile' and line.piece_key):
+                kept[line.piece_key] = {
+                    'length_mm': line.length_mm, 'qty': line.qty,
+                    'product_id': line.product_id.id,
+                    'data': line.copy_data()[0],
+                }
+        return kept
+
+    def _apply_manual_cut_lines(self, kept):
+        """Put edited lines back over the regenerated ones. A piece the
+        new layout no longer produces is kept as it was rather than
+        dropped: an edited line is never deleted by a recompute."""
+        self.ensure_one()
+        Line = self.env['aw.design.bom.line'].with_context(
+            aw_bom_generating=True)
+        fresh = {l.piece_key: l for l in self.bom_line_ids if l.piece_key}
+        for key, saved in kept.items():
+            line = fresh.get(key)
+            if line:
+                line.with_context(aw_bom_generating=True).write({
+                    'length_mm': saved['length_mm'], 'qty': saved['qty'],
+                    'product_id': saved['product_id'], 'is_manual': True,
+                })
+            else:
+                Line.create(dict(
+                    saved['data'], design_id=self.id, is_manual=True))
 
     def _run_checks(self, exploded=None, demand=None, spans=None):
         """Spec 6.6. Warnings are things to look at; errors are things
