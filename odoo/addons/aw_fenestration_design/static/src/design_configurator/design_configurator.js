@@ -696,43 +696,45 @@ export class DesignConfigurator extends Component {
     }
 
     /**
-     * The scoped pieces under their headings. A panel is listed by PART
-     * (Frame, Bead, Lock bar, then Mesh frame / Mesh bead / Mesh cloth
-     * when it carries a mesh); the frame view by SCOPE (Outer frame,
-     * Dividers). Same names and order as the Profiles tab. A heading with
-     * no pieces is not drawn.
+     * The scoped pieces as the same tree the Profiles tab draws: Scope >
+     * Part > Piece, in the same order, with the same names. A panel has
+     * its own scope (Sash, Fixed...) and, with a mesh, a Mesh scope; the
+     * frame view has Outer frame and Dividers. A part with no pieces is
+     * not drawn, so there are no zero counts.
      */
-    get pieceGroups() {
-        const framed = this.piecesPanelNo === 0;
-        const groups = new Map();
+    get pieceTree() {
+        const scopes = new Map();
         for (const piece of this.scopedPieces) {
-            const key = framed ? piece.scope_key : piece.part_key;
-            if (!groups.has(key)) {
-                groups.set(key, {
-                    key,
-                    title: framed ? piece.scope_label : this.pieceGroupTitle(piece),
-                    scope: piece.scope_key,
-                    part: framed ? null : piece.part_key,
+            if (!scopes.has(piece.scope_key)) {
+                scopes.set(piece.scope_key, {
+                    key: piece.scope_key,
+                    title: piece.scope_label,
+                    count: 0,
+                    parts: new Map(),
+                });
+            }
+            const scope = scopes.get(piece.scope_key);
+            if (!scope.parts.has(piece.part_key)) {
+                scope.parts.set(piece.part_key, {
+                    key: piece.part_key,
+                    title: piece.part_label,
                     pieces: [],
                 });
             }
-            groups.get(key).pieces.push(piece);
+            scope.parts.get(piece.part_key).pieces.push(piece);
+            scope.count += 1;
         }
-        const order = framed ? SCOPE_ORDER : PART_ORDER;
-        const rank = (key) => {
+        const rank = (order, key) => {
             const at = order.indexOf(key);
             return at < 0 ? order.length : at;
         };
-        return [...groups.values()].sort((x, y) => rank(x.key) - rank(y.key));
-    }
-
-    /** "Mesh > Frame" for the mesh parts, so they cannot be taken for the
-     * sash's own Frame and Bead; the cloth is just "Mesh". */
-    pieceGroupTitle(piece) {
-        if (piece.scope_key === "mesh" && piece.part_key !== "mesh_cloth") {
-            return `${piece.scope_label} \u203a ${piece.part_label}`;
-        }
-        return piece.part_label;
+        return [...scopes.values()]
+            .sort((x, y) => rank(SCOPE_ORDER, x.key) - rank(SCOPE_ORDER, y.key))
+            .map((scope) => ({
+                ...scope,
+                parts: [...scope.parts.values()].sort(
+                    (x, y) => rank(PART_ORDER, x.key) - rank(PART_ORDER, y.key)),
+            }));
     }
 
     /**
@@ -772,8 +774,12 @@ export class DesignConfigurator extends Component {
     }
 
     /** Remembered per group, expanded until closed (see toggleSection). */
-    pieceGroupKey(group) {
-        return `pc:${group.key}`;
+    pieceScopeKey(scope) {
+        return `pcs:${scope.key}`;
+    }
+
+    piecePartKey(scope, part) {
+        return `pc:${scope.key}:${part.key}`;
     }
 
     /**
@@ -1245,7 +1251,8 @@ export class DesignConfigurator extends Component {
         // one scope (Bead under Sash and under Fixed).
         const [partKey, scopeKey] = String(key).split("|");
         return (this.state.data?.spec_parts?.addable || []).filter(
-            (p) => p.part_key === partKey && p.scope_key === scopeKey);
+            (p) => (partKey === "*" || p.part_key === partKey)
+                && p.scope_key === scopeKey);
     }
 
     get canCreatePosition() {

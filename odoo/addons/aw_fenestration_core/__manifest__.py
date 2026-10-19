@@ -64,6 +64,7 @@ aw_fenestration_stock) that depend on this one.
     ],
     'assets': {
         'web.assets_backend': [
+            'aw_fenestration_core/static/src/**/*.scss',
             'aw_fenestration_core/static/src/**/*.js',
             'aw_fenestration_core/static/src/**/*.xml',
         ],
