@@ -422,6 +422,12 @@ class TestCutRules(TransactionCase):
                          'mesh_bead')
         self.assertEqual(part_of('fly_screen', 'Mesh - All Sides', 'mesh'),
                          'mesh_frame')
+        from odoo.addons.aw_fenestration_core.models.part_structure import (
+            PART_LABELS)
+        self.assertEqual(
+            [PART_LABELS[k] for k in ('mesh_frame', 'mesh_bead', 'mesh_cloth')],
+            ['Frame', 'Bead', 'Mesh'])
+        self.assertEqual(self.design._mesh_cloth_payload(), [])
         for piece in self.design._bom_payload()['pieces']:
             self.assertIn(piece['scope_key'],
                           ('outer', 'dividers', 'sash', 'sliding', 'fixed',

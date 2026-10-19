@@ -1613,6 +1613,29 @@
                                 </t>
                                 </t>
                                 </t>
+                                <!-- The Mesh line, like the glass line under
+                                     a sash: what the panel's Mesh Type
+                                     supplies. Read only; a panel's choice
+                                     is its Mesh Type. -->
+                                <t t-if="ptype.cloth.length and !isCollapsed('prof:' + ptype.key)">
+                                    <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1"
+                                         t-att-data-aw-prof="'part:' + ptype.key + ':mesh_cloth'">
+                                        Mesh
+                                    </div>
+                                    <div t-foreach="ptype.cloth" t-as="cloth" t-key="cloth_index"
+                                         class="small mb-2">
+                                        <b t-esc="cloth.mesh_type"/>
+                                        <span class="text-muted">
+                                            &#183; <t t-esc="panelList(cloth.panels)"/>
+                                        </span>
+                                        <div class="text-muted">
+                                            <t t-if="cloth.products.length">
+                                                <t t-esc="cloth.products.join(', ')"/>
+                                            </t>
+                                            <t t-else="">No product is set on this Mesh Type.</t>
+                                        </div>
+                                    </div>
+                                </t>
                             </t>
 
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
