@@ -90,3 +90,17 @@ class TestPositionCatalog(TransactionCase):
         for name in ('Outer Frame - Top', 'Sash Frame - Top',
                      'Divider - Vertical', 'Mesh Frame - Top'):
             self.assertTrue(by_name[name].is_required, name)
+
+
+@tagged('post_install', '-at_install')
+class TestLengthUnitSetting(TransactionCase):
+
+    def test_stored_ftin_reads_as_inches_and_is_migrated(self):
+        param = self.env['ir.config_parameter'].sudo()
+        param.set_param('aw_fenestration.length_uom', 'ftin')
+        settings = self.env['res.config.settings']
+        self.assertEqual(
+            settings.default_get(['aw_length_uom'])['aw_length_uom'], 'in')
+        self.assertTrue(settings._migrate_length_uom())
+        self.assertEqual(param.get_param('aw_fenestration.length_uom'), 'in')
+        self.assertFalse(settings._migrate_length_uom())
