@@ -310,3 +310,11 @@
     flex: 1 1 auto;
     min-width: 0;
 }
+
+// A size box at rest: looks like the input it becomes on click.
+.o_aw_sizebox {
+    cursor: text;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
