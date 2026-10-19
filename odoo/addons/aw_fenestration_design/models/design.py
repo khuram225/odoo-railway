@@ -503,38 +503,6 @@ class AwDesign(models.Model):
             rec.height_mm = rec._mm_from_text(
                 rec.height_inch_total, rec.height_mm)
 
-    # Each pair updates the other as it is typed, before save. The
-    # computed text/mm are only refreshed from each other here; the
-    # inverses still do the saving. An unreadable text is left alone
-    # until save, where the inverse reports it.
-    @api.onchange('width_inch_total')
-    def _onchange_width_inch_total(self):
-        for rec in self:
-            try:
-                rec.width_mm = edited_mm(
-                    rec.width_inch_total, rec.width_mm, 'soot')
-            except ValueError:
-                pass
-
-    @api.onchange('width_mm')
-    def _onchange_width_mm(self):
-        for rec in self:
-            rec.width_inch_total = to_display(rec.width_mm, 'soot')
-
-    @api.onchange('height_inch_total')
-    def _onchange_height_inch_total(self):
-        for rec in self:
-            try:
-                rec.height_mm = edited_mm(
-                    rec.height_inch_total, rec.height_mm, 'soot')
-            except ValueError:
-                pass
-
-    @api.onchange('height_mm')
-    def _onchange_height_mm(self):
-        for rec in self:
-            rec.height_inch_total = to_display(rec.height_mm, 'soot')
-
     @staticmethod
     def _mm_from_text(text, current_mm):
         """A typed length (47-5, 47 5/8, 47.625, 1209mm) in millimetres;
@@ -726,7 +694,7 @@ class AwDesign(models.Model):
         'name', 'location', 'qty', 'width_mm', 'height_mm',
         'window_series_id', 'glass_spec_id', 'finish_id', 'thickness_id',
         'family_id',
-        'manual_rate', 'template_id',
+        'manual_rate', 'template_id', 'price_structure_id',
     )
 
     # Header fields a save must never blank just because the value was
@@ -744,6 +712,7 @@ class AwDesign(models.Model):
     CONFIGURATOR_PROTECTED_HEADER = (
         'glass_spec_id',
         'finish_id', 'thickness_id', 'manual_rate', 'template_id',
+        'price_structure_id',
     )
 
     def action_open_configurator(self):
@@ -1411,6 +1380,7 @@ class AwDesign(models.Model):
                 # allow-list, so without it here every save round-tripped
                 # a missing key and wiped the price override.
                 'manual_rate': self.manual_rate,
+                'price_structure_id': self.price_structure_id.id,
             },
             'limits': {
                 # So the configurator can refuse an over-long piece the

@@ -224,7 +224,7 @@ const RIGHT_SECTIONS = ["panel", "infill", "mesh", "grid"];
 const RIGHT_TABS = ["panel", "spec", "pricing", "checks"];
 const RIGHT_TAB_LABELS = {
     panel: "Panel",
-    spec: "Spec",
+    spec: "Profiles",
     pricing: "Pricing",
     checks: "Checks",
 };
@@ -1446,6 +1446,12 @@ export class DesignConfigurator extends Component {
      * an absent value means "not sent, leave it alone" and would make
      * the override impossible to clear.
      */
+    async onPriceStructureChange(ev) {
+        const id = parseInt(ev.target.value, 10) || false;
+        this.onHeaderChange("price_structure_id", id);
+        await this.refreshPricingPreview();
+    }
+
     async onManualRateChange(ev) {
         const text = (ev.target.value || "").trim();
         const value = text === "" ? 0 : parseFloat(text);
@@ -1463,12 +1469,17 @@ export class DesignConfigurator extends Component {
      */
     async refreshPricingPreview() {
         const header = this.state.data.header;
-        const { manual_rate: rate, finish_id: finish } = header;
+        const {
+            manual_rate: rate,
+            finish_id: finish,
+            price_structure_id: structure,
+        } = header;
         const pricing = await this.orm.call(
             "aw.design", "preview_pricing",
-            [[this.designId], rate || 0, finish || false]);
+            [[this.designId], rate || 0, finish || false, structure || false]);
         if (this.state.data.pricing
-            && header.manual_rate === rate && header.finish_id === finish) {
+            && header.manual_rate === rate && header.finish_id === finish
+            && header.price_structure_id === structure) {
             this.state.data.pricing = pricing;
         }
     }

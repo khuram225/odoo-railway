@@ -1262,6 +1262,21 @@
 
                             <div class="mb-2">
                                 <label class="form-label small text-muted mb-0">
+                                    Price Structure
+                                </label>
+                                <select class="form-select form-select-sm"
+                                        t-on-change="onPriceStructureChange">
+                                    <t t-foreach="pricing.structure_options" t-as="opt" t-key="opt.id">
+                                        <option t-att-value="opt.id"
+                                                t-att-selected="opt.id === state.data.header.price_structure_id">
+                                            <t t-esc="opt.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label small text-muted mb-0">
                                     Manual rate (per sqft)
                                 </label>
                                 <input type="number" step="any" min="0"

@@ -363,16 +363,6 @@ class TestCutRules(TransactionCase):
         self.assertTrue(rail.is_manual)
         self.assertEqual(rail.length_mm, 1211.0)
 
-    def test_design_form_inches_and_mm_follow_each_other(self):
-        design = self.env['aw.design'].new({
-            'window_series_id': self.series.id})
-        design.width_inch_total = '144-4'
-        design._onchange_width_inch_total()
-        self.assertAlmostEqual(design.width_mm, 3670.30, places=2)
-        design.width_mm = 1219.2
-        design._onchange_width_mm()
-        self.assertEqual(design.width_inch_total, '48')
-
     def test_sale_line_description_reads_the_size(self):
         text = self.design._prepare_sale_line_description()
         self.assertIn('72 × 72 in', text)

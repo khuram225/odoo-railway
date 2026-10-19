@@ -278,6 +278,10 @@ class AwDesign(models.Model):
                 'margin_pct': self.margin_pct,
                 'min_margin_pct': self._min_margin_pct(),
                 'manual_rate': self.manual_rate,
+                'structure_id': self.price_structure_id.id,
+                'structure_options': [
+                    {'id': s.id, 'name': s.display_name}
+                    for s in self.env['aw.price.structure'].search([])],
                 'manual_in_use': bool(self.manual_rate),
                 'calculated_price': calculated,
                 'calculated_per_sqft': (
@@ -307,7 +311,8 @@ class AwDesign(models.Model):
             },
         }
 
-    def preview_pricing(self, manual_rate, finish_id=False):
+    def preview_pricing(self, manual_rate, finish_id=False,
+                        structure_id=False):
         """The Pricing tab as it would read with `manual_rate` and, when
         given, a different `finish_id`, WITHOUT saving anything.
 
@@ -318,10 +323,19 @@ class AwDesign(models.Model):
         numbers are read out before it does). Works from the STORED
         layout: panels edited but not yet saved are not part of it."""
         self.ensure_one()
-        if finish_id and finish_id != self.finish_id.id:
+        finish_changed = bool(finish_id) and finish_id != self.finish_id.id
+        structure_changed = (
+            bool(structure_id) and structure_id != self.price_structure_id.id)
+        if finish_changed or structure_changed:
             with closing(self.env.cr.savepoint()):
-                self.write({'finish_id': finish_id})
-                self._explode()
+                changes = {}
+                if finish_changed:
+                    changes['finish_id'] = finish_id
+                if structure_changed:
+                    changes['price_structure_id'] = structure_id
+                self.write(changes)
+                if finish_changed:
+                    self._explode()
                 return self._preview_pricing_values(manual_rate)
         return self._preview_pricing_values(manual_rate)
 
