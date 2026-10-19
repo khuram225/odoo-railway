@@ -789,8 +789,21 @@ export class DesignConfigurator extends Component {
      *              inside it still places the caret to edit mid-value.
      * Tab never produces a mousedown or a click, so it behaves as it did.
      */
+    /** TEMPORARY: one console line per step, to find where the selection
+     * is lost. Remove with the debug branch. */
+    debugSelection(step, box) {
+        const active = document.activeElement;
+        console.log(
+            `[aw-select] ${step}: active=${active?.tagName}`
+            + `${active === box ? " (this box)" : " (NOT this box)"}`
+            + ` id=${box?.dataset?.awSize || box?.className || ""}`
+            + ` range=${box?.selectionStart}-${box?.selectionEnd}`
+            + ` len=${box?.value?.length}`);
+    }
+
     selectOnMouseDown(ev) {
         const box = ev?.target;
+        this.debugSelection("mousedown", box);
         if (!box || !box.select || document.activeElement === box) {
             return;
         }
@@ -798,6 +811,7 @@ export class DesignConfigurator extends Component {
         this.justEntered = box;
         box.focus();
         box.select();
+        this.debugSelection("mousedown after select", box);
     }
 
     selectOnFocus(ev) {
@@ -806,16 +820,20 @@ export class DesignConfigurator extends Component {
             return;
         }
         this.justEntered = box;
+        this.debugSelection("focus", box);
         box.select();
         window.requestAnimationFrame?.(() => {
+            this.debugSelection("focus next frame (before)", box);
             if (document.activeElement === box) {
                 box.select();
             }
+            this.debugSelection("focus next frame (after)", box);
         });
     }
 
     selectOnClick(ev) {
         const box = ev?.target;
+        this.debugSelection("click", box);
         if (!box || !box.select) {
             return;
         }
