@@ -777,25 +777,52 @@ export class DesignConfigurator extends Component {
     }
 
     /**
-     * Select the whole value when a box is entered. On a mouse click or
-     * a tap the caret is placed AFTER the focus event, which undoes the
-     * selection -- so the next mouseup is swallowed once. Tab never
-     * produces a mouseup, so its behaviour is exactly what it was.
+     * Select the whole value when a size box is entered. Three handlers,
+     * because Chrome places the caret on a mouse click AFTER the focus
+     * event and undoes a selection made there:
+     *   mousedown  a box that is not focused yet: stop the default (which
+     *              is what places the caret), focus it, select it all;
+     *   focus      select all again on the next frame, for Tab and for a
+     *              tap, which focus without a usable mousedown;
+     *   click      if that left nothing selected, select all -- but only
+     *              for the click that entered the box, so a second click
+     *              inside it still places the caret to edit mid-value.
+     * Tab never produces a mousedown or a click, so it behaves as it did.
      */
-    selectAll(ev) {
+    selectOnMouseDown(ev) {
+        const box = ev?.target;
+        if (!box || !box.select || document.activeElement === box) {
+            return;
+        }
+        ev.preventDefault();
+        this.justEntered = box;
+        box.focus();
+        box.select();
+    }
+
+    selectOnFocus(ev) {
         const box = ev?.target;
         if (!box || !box.select) {
             return;
         }
+        this.justEntered = box;
         box.select();
-        this.selectPending = box;
+        window.requestAnimationFrame?.(() => {
+            if (document.activeElement === box) {
+                box.select();
+            }
+        });
     }
 
-    keepSelection(ev) {
-        if (this.selectPending && this.selectPending === ev?.target) {
-            ev.preventDefault();
+    selectOnClick(ev) {
+        const box = ev?.target;
+        if (!box || !box.select) {
+            return;
         }
-        this.selectPending = null;
+        if (this.justEntered === box && box.selectionStart === box.selectionEnd) {
+            box.select();
+        }
+        this.justEntered = null;
     }
 
     showFramePieces() {
