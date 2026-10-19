@@ -31,7 +31,7 @@ class SaleOrder(models.Model):
         lines = partner._display_address(without_company=True).split('\n')
         return ', '.join(part.strip() for part in lines if part.strip())
     aw_default_family_id = fields.Many2one(
-        'aw.window.family', string='Default Glazing Family',
+        'aw.window.family', string='Default Family',
         ondelete='restrict',
         help="What every new window on this quote starts as. The "
              "profile system follows from the panels drawn.")

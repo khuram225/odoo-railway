@@ -876,7 +876,7 @@ console.log("\nRIGHT-HAND TABS:");
     const c = make([{ height_mm: 3000, is_auto: false,
                       leaves: [panel(2400, "FIXED")] }], 2400, 3000);
     c.state.rightTab = "panel";
-    ok(c.rightTabs.map((t) => t.key).join(",") === "panel,spec,bom,checks",
+    ok(c.rightTabs.map((t) => t.key).join(",") === "panel,spec,checks",
        "Pricing is not offered on a design that has none");
     ok(c.activeRightTab === "panel", "panel is the active tab");
 
@@ -898,11 +898,11 @@ console.log("\nRIGHT-HAND TABS:");
 
     // Opens itself on new results, and ONLY then -- a tab that forced
     // itself open every render would take the column hostage.
-    c.state.rightTab = "bom";
+    c.state.rightTab = "spec";
     c.surfaceCheckErrors();
     ok(c.activeRightTab === "checks", "an error brings Checks to the front");
-    c.setRightTab("bom");
-    ok(c.activeRightTab === "bom",
+    c.setRightTab("spec");
+    ok(c.activeRightTab === "spec",
        "the user can still look away from a standing error");
 }
 

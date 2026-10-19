@@ -42,7 +42,7 @@ PARAM = 'aw_fenestration.line_sections_migrated'
 
 class AwSpecSection(models.Model):
     _name = 'aw.spec.section'
-    _description = 'Specification Section'
+    _description = 'Series Section'
     _order = 'sequence, id'
 
     name = fields.Char(required=True)

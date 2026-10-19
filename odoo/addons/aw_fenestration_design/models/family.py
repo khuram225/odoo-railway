@@ -43,7 +43,7 @@ class AwDesign(models.Model):
         return list(OPENING_LEAF_CODES)
 
     family_id = fields.Many2one(
-        'aw.window.family', string='Glazing Family', tracking=True,
+        'aw.window.family', string='Family', tracking=True,
         ondelete='restrict', index=True,
         help="Chosen up front. The profile system is worked out from "
              "the panels you draw.")

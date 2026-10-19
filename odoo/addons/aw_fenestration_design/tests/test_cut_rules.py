@@ -373,6 +373,11 @@ class TestCutRules(TransactionCase):
         design._onchange_width_mm()
         self.assertEqual(design.width_inch_total, '48')
 
+    def test_sale_line_description_reads_the_size(self):
+        text = self.design._prepare_sale_line_description()
+        self.assertIn('72 × 72 in', text)
+        self.assertIn(self.template.full_name, text)
+
     def test_resize_marks_the_cut_list_stale(self):
         self.design.write({'width_mm': 2000.0})
         self.assertTrue(self.design.cut_list_stale)

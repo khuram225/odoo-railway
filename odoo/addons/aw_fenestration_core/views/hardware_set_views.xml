@@ -14,7 +14,7 @@
         <field name="model">aw.hardware.set</field>
         <field name="arch" type="xml">
             <list create="false" delete="false">
-                <field name="window_type_id" string="Window System"/>
+                <field name="window_type_id" string="Type"/>
                 <field name="name"/>
             </list>
         </field>
@@ -28,12 +28,12 @@
                 <sheet>
                     <div class="alert alert-info" role="status">
                         The hardware that was here now belongs to the
-                        <b>Specification</b> built from this set, under
-                        Window Systems.
+                        <b>Series</b> built from this set, under
+                        Types.
                     </div>
                     <group>
                         <group>
-                            <field name="window_type_id" string="Window System"/>
+                            <field name="window_type_id" string="Type"/>
                             <field name="name"/>
                         </group>
                     </group>
@@ -52,9 +52,9 @@
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No Hardware Sets</p>
-            <p>Hardware Sets were replaced by Specifications, which own their own
+            <p>Hardware Sets were replaced by Series, which own their own
                hardware lines. These records are kept only for the reports and for
-               the legacy link on a Specification.</p>
+               the legacy link on a Series.</p>
         </field>
     </record>
 

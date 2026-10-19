@@ -96,7 +96,7 @@ class AwDesign(models.Model):
     # xmlid, and renaming a field for a label is not worth a migration.
     # Everything the user reads says "Specification" / "Spec".
     template_id = fields.Many2one(
-        'aw.window.template', string='Specification', tracking=True,
+        'aw.window.template', string='Series', tracking=True,
         ondelete='set null',
         domain="[('window_type_id', '=', window_series_id)]",
         help="The spec this window is built to: its Profile Section, "
@@ -607,14 +607,26 @@ class AwDesign(models.Model):
     # how core handles the same shape -- repair.repair.write() calls
     # _update_sale_order_line_price() to push onto its own sale_line_id
     # after super(), rather than relying on any onchange.
+    # The description names the size, the family, the type and the
+    # series, so any of them changing regenerates it. The ft/in and
+    # total-inch fields are listed too: they write width_mm/height_mm
+    # through their inverses, and the sync has to run once ALL of that
+    # has landed, not between the two dimensions.
     SALE_LINE_SYNC_FIELDS = (
-        'name', 'location', 'window_series_id', 'width_mm', 'height_mm',
+        'name', 'location', 'family_id', 'window_series_id', 'template_id',
+        'width_mm', 'height_mm', 'width_ft', 'width_in', 'width_inch_total',
+        'height_ft', 'height_in', 'height_inch_total',
         'qty', 'manual_rate', 'sale_order_line_id',
     )
 
     def _prepare_sale_line_description(self):
         self.ensure_one()
-        parts = [self.name or '', self.location or '', self.size_display or '']
+        # Rendered from the dimensions themselves rather than read from
+        # size_display, which is a non-stored compute and can still hold
+        # the value from before this write.
+        size = self._render_pair(
+            self.width_mm, self.height_mm, self.length_uom)
+        parts = [self.name or '', self.location or '', size]
         # The FULL path, because a sale order line has no family or
         # system on screen beside it: "Double Glaze - Openable - RE"
         # rather than a bare "RE", which would mean nothing on a quote.
@@ -1490,6 +1502,9 @@ class AwDesign(models.Model):
                 'area_sqm': line.area_sqm or 0.0,
                 'is_changed': line.is_changed,
                 'change_note': line.change_note or '',
+                'group': line.group_label or '',
+                'unit_cost': line.unit_cost or 0.0,
+                'line_cost': line.line_cost or 0.0,
             })
         return {
             'bom': groups,

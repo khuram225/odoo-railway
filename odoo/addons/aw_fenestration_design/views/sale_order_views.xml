@@ -39,8 +39,8 @@
                         <list>
                             <field name="name"/>
                             <field name="location"/>
-                            <field name="family_id" string="Glazing"/>
-                            <field name="window_series_id" string="Frame"
+                            <field name="family_id" string="Family"/>
+                            <field name="window_series_id" string="Type"
                                    optional="hide"/>
                             <field name="size_display"/>
                             <field name="qty"/>
@@ -64,6 +64,12 @@
                         </list>
                     </field>
                 </page>
+            </xpath>
+
+            <!-- The line's description is regenerated from the window,
+                 so typing over it would be lost on the next save. -->
+            <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="attributes">
+                <attribute name="readonly">aw_design_ids</attribute>
             </xpath>
 
             <xpath expr="//field[@name='order_line']/list/field[@name='name']" position="after">

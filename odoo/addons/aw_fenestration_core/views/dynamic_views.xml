@@ -47,7 +47,7 @@
         </field>
     </record>
     <record id="action_aw_spec_section" model="ir.actions.act_window">
-        <field name="name">Spec Sections</field>
+        <field name="name">Series Sections</field>
         <field name="res_model">aw.spec.section</field>
         <field name="view_mode">list</field>
         <field name="help" type="html">

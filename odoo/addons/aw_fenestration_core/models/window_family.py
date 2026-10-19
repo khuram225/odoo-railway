@@ -23,7 +23,7 @@ SEEDED_FAMILIES = (
 class AwWindowFamily(models.Model):
     _name = 'aw.window.family'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'Fenestration Glazing Family'
+    _description = 'Fenestration Family'
     _order = 'sequence, name'
 
     name = fields.Char(required=True, tracking=True)
