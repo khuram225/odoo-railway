@@ -406,6 +406,27 @@ class TestCutRules(TransactionCase):
             self.assertIn('part_group', piece)
             self.assertTrue(piece['short_label'])
 
+    def test_scope_and_part_structure(self):
+        from odoo.addons.aw_fenestration_core.models.part_structure import (
+            part_of, scope_of)
+        self.assertEqual(scope_of('frame'), 'outer')
+        self.assertEqual(scope_of('panel_opening', 'openable'), 'sash')
+        self.assertEqual(scope_of('panel_opening', 'sliding'), 'sliding')
+        self.assertEqual(scope_of('junction_meeting'), 'dividers')
+        self.assertEqual(scope_of('mesh_attachment'), 'mesh')
+        self.assertEqual(scope_of(False), 'other')
+        self.assertEqual(part_of('sashes', 'Palay - Top', 'sash'), 'frame')
+        self.assertEqual(part_of('beads', 'Palay Bead - Top', 'sash'), 'bead')
+        self.assertEqual(part_of('lock', 'Lock Bar', 'sash'), 'lock')
+        self.assertEqual(part_of('fly_screen', 'Mesh Bead - Top', 'mesh'),
+                         'mesh_bead')
+        self.assertEqual(part_of('fly_screen', 'Mesh - All Sides', 'mesh'),
+                         'mesh_frame')
+        for piece in self.design._bom_payload()['pieces']:
+            self.assertIn(piece['scope_key'],
+                          ('outer', 'dividers', 'sash', 'sliding', 'fixed',
+                           'mesh', 'other'))
+
     def test_resize_marks_the_cut_list_stale(self):
         self.design.write({'width_mm': 2000.0})
         self.assertTrue(self.design.cut_list_stale)

@@ -221,6 +221,17 @@ const STORE_RIGHT_TAB = "aw_cfg_right_tab";
 const RIGHT_SECTIONS = ["panel", "infill", "mesh", "grid"];
 
 /** Right-hand tabs, in the order they appear. */
+/**
+ * Scope > Part, in the order every screen lists them. The twin of
+ * aw_fenestration_core's part_structure.py -- the SERVER decides which
+ * scope and part a position or piece is in; this only orders them.
+ */
+const SCOPE_ORDER = ["outer", "dividers", "sash", "sliding", "fixed", "mesh", "other"];
+const PART_ORDER = [
+    "frame", "bead", "lock", "interlock", "divider",
+    "mesh_frame", "mesh_bead", "mesh_cloth", "other",
+];
+
 const RIGHT_TABS = ["panel", "spec", "pricing", "checks"];
 const RIGHT_TAB_LABELS = {
     panel: "Panel",
@@ -685,35 +696,53 @@ export class DesignConfigurator extends Component {
     }
 
     /**
-     * The scoped pieces under their part headings. A panel reads Frame
-     * (the sash profiles), Bead, Lock bar, then whatever else it has; the
-     * frame view reads Outer frame, Dividers, then the rest. A heading
-     * with no pieces is dropped.
+     * The scoped pieces under their headings. A panel is listed by PART
+     * (Frame, Bead, Lock bar, then Mesh frame / Mesh bead / Mesh cloth
+     * when it carries a mesh); the frame view by SCOPE (Outer frame,
+     * Dividers). Same names and order as the Profiles tab. A heading with
+     * no pieces is not drawn.
      */
     get pieceGroups() {
         const framed = this.piecesPanelNo === 0;
-        const order = framed
-            ? ["outer_frame", "dividers"] : ["sashes", "beads", "lock"];
-        const titles = framed
-            ? {}
-            : { sashes: _t("Frame"), beads: _t("Bead"), lock: _t("Lock bar") };
         const groups = new Map();
         for (const piece of this.scopedPieces) {
-            const key = piece.part_group || "other";
+            const key = framed ? piece.scope_key : piece.part_key;
             if (!groups.has(key)) {
                 groups.set(key, {
                     key,
-                    title: titles[key] || piece.part_label || _t("Other"),
+                    title: framed ? piece.scope_label : piece.part_label,
+                    scope: piece.scope_key,
+                    part: framed ? null : piece.part_key,
                     pieces: [],
                 });
             }
             groups.get(key).pieces.push(piece);
         }
+        const order = framed ? SCOPE_ORDER : PART_ORDER;
         const rank = (key) => {
             const at = order.indexOf(key);
             return at < 0 ? order.length : at;
         };
-        return [...groups.values()].sort((a, b) => rank(a.key) - rank(b.key));
+        return [...groups.values()].sort((x, y) => rank(x.key) - rank(y.key));
+    }
+
+    /**
+     * From a Pieces heading to the same place in the Profiles tab: open
+     * the tab, open the scope and the part, and bring it into view.
+     */
+    showInProfiles(scope, part) {
+        this.setRightTab("spec");
+        const next = { ...this.state.collapsed, [`prof:${scope}`]: false };
+        if (part) {
+            next[`profp:${scope}:${part}`] = false;
+        }
+        this.state.collapsed = next;
+        saveCollapsed(next);
+        const target = part ? `part:${scope}:${part}` : `scope:${scope}`;
+        setTimeout(() => {
+            document.querySelector(`[data-aw-prof="${target}"]`)
+                ?.scrollIntoView({ block: "nearest" });
+        }, 50);
     }
 
     get cutListStale() {
@@ -1056,94 +1085,89 @@ export class DesignConfigurator extends Component {
         return this.state.data?.spec_parts?.profiles || [];
     }
 
+    /** Panels of the drawn layout by scope: { sash: [1, 3], fixed: [2] }. */
+    get panelsByScope() {
+        const role = this.state.data?.spec_parts?.system_role;
+        const byScope = {};
+        const add = (scope, no) => {
+            (byScope[scope] ||= []).push(no);
+        };
+        for (const entry of this.scene?.leaves || []) {
+            const leaf = this.leafAt(entry.path);
+            if (!leaf) {
+                continue;
+            }
+            if (leaf.leaf_type_code === "FIXED") {
+                add("fixed", entry.panelNo);
+            } else if (leaf.leaf_type_code === "MESH") {
+                add("mesh", entry.panelNo);
+            } else {
+                add(role === "sliding" ? "sliding" : "sash", entry.panelNo);
+            }
+            // A panel carrying a mesh add-on is a Mesh panel too.
+            if (leaf.mesh_type_id && leaf.leaf_type_code !== "MESH") {
+                add("mesh", entry.panelNo);
+            }
+        }
+        return byScope;
+    }
+
     /**
-     * The profile rows under their part headings, in the order the
-     * server sends them (the position's own group order), with a row's
-     * group falling back to "other". A heading with no rows is dropped
-     * rather than drawn over nothing.
+     * The Profiles tab by Scope, then Part -- not by panel number. Outer
+     * frame is always there, Dividers once the window has more than one
+     * panel, and Sash / Sliding / Fixed / Mesh only when the window has
+     * such a panel; the header names them, "Sash (P1, P3)". Rows (and the
+     * positions that could still be added) are listed under their part.
      */
-    get profileGroups() {
+    get profileScopes() {
         const parts = this.state.data?.spec_parts || {};
         const rows = parts.profiles || [];
-        return (parts.groups || [])
-            .map((group) => ({
-                ...group,
-                rows: rows.filter(
-                    (row) => (row.part_group || "other") === group.key),
-            }))
-            .filter((group) => group.rows.length || group.key !== "other"
-                    || this.addablePositions("other").length);
-    }
-
-    /**
-     * The panel types in the window, read off the drawn panels: a Fixed
-     * panel, a Mesh panel, anything else is a sash. Containers are not
-     * panels and are walked through.
-     */
-    get panelTypesPresent() {
-        const present = new Set();
-        const walk = (rows) => {
-            for (const row of rows || []) {
-                for (const leaf of row.leaves || []) {
-                    if (leaf.rows && leaf.rows.length) {
-                        walk(leaf.rows);
-                    } else if (leaf.leaf_type_code === "FIXED") {
-                        present.add("fixed");
-                    } else if (leaf.leaf_type_code === "MESH") {
-                        present.add("mesh");
-                    } else {
-                        present.add("sashes");
-                    }
-                }
+        const addable = parts.addable || [];
+        const panels = this.panelsByScope;
+        const count = (this.scene?.leaves || []).length;
+        const present = (scope) => {
+            if (scope === "outer") {
+                return true;
             }
+            if (scope === "dividers") {
+                return count > 1;
+            }
+            if (scope === "other") {
+                return rows.some((row) => row.scope_key === "other");
+            }
+            return !!panels[scope];
         };
-        walk(this.state.data?.rows);
-        return present;
-    }
-
-    /**
-     * The Profiles tab by panel type -- not by panel number. Outer frame
-     * (frame and dividers) is always there; Sashes, Fixed panels and
-     * Mesh panels only when the window has one. Inside each, the rows
-     * are listed under their part headings exactly as before.
-     */
-    get profileTypeGroups() {
-        const present = this.panelTypesPresent;
-        const wanted = [
-            { key: "outer", title: _t("Outer frame"), always: true },
-            { key: "sashes", title: _t("Sashes") },
-            { key: "fixed", title: _t("Fixed panels") },
-            { key: "mesh", title: _t("Mesh panels") },
-        ].filter((type) => type.always || present.has(type.key));
-        return wanted.map((type) => {
-            const sections = this.profileGroups
-                .map((group) => ({
-                    ...group,
-                    rows: group.rows.filter(
-                        (row) => this.profileType(row.scope) === type.key),
-                }))
-                .filter((group) => group.rows.length);
+        return SCOPE_ORDER.filter(present).map((scope) => {
+            const sectionKeys = new Set([
+                ...rows.filter((r) => r.scope_key === scope).map((r) => r.part_key),
+                ...addable.filter((p) => p.scope_key === scope).map((p) => p.part_key),
+            ]);
+            const sections = PART_ORDER.filter((key) => sectionKeys.has(key))
+                .map((key) => {
+                    const sample = rows.find(
+                        (r) => r.scope_key === scope && r.part_key === key)
+                        || addable.find(
+                            (p) => p.scope_key === scope && p.part_key === key);
+                    return {
+                        key,
+                        label: sample.part_label,
+                        rows: rows.filter(
+                            (r) => r.scope_key === scope && r.part_key === key),
+                    };
+                });
+            const label = rows.find((r) => r.scope_key === scope)?.scope_label
+                || addable.find((p) => p.scope_key === scope)?.scope_label
+                || { outer: "Outer frame", dividers: "Dividers", sash: "Sash",
+                     sliding: "Sliding", fixed: "Fixed", mesh: "Mesh",
+                     other: "No scope" }[scope];
+            const nos = panels[scope];
             return {
-                ...type,
+                key: scope,
+                title: nos ? `${label} (${nos.map((n) => "P" + n).join(", ")})` : label,
                 sections,
-                count: sections.reduce((sum, g) => sum + g.rows.length, 0),
+                count: sections.reduce((sum, sec) => sum + sec.rows.length, 0),
             };
-        }).filter((type) => type.sections.length);
-    }
-
-    /** Which panel type a position's scope belongs to. */
-    profileType(scope) {
-        switch (scope) {
-            case "panel_opening":
-                return "sashes";
-            case "panel_fixed":
-                return "fixed";
-            case "panel_mesh":
-            case "mesh_attachment":
-                return "mesh";
-            default:
-                return "outer";
-        }
+        }).filter((scope) => scope.sections.length);
     }
 
     /** The finish a profile row is shown in: its own, else the window's. */
@@ -1156,12 +1180,11 @@ export class DesignConfigurator extends Component {
     // -- add component --------------------------------------------------
     /** Positions the window could take in this group, from the server. */
     addablePositions(key) {
-        // "group" alone, or "group|type" on the Profiles tab, where the
-        // same part heading can appear under more than one panel type.
-        const [groupKey, typeKey] = String(key).split("|");
+        // "part|scope": the same part heading can appear under more than
+        // one scope (Bead under Sash and under Fixed).
+        const [partKey, scopeKey] = String(key).split("|");
         return (this.state.data?.spec_parts?.addable || []).filter(
-            (p) => p.part_group === groupKey
-                && (!typeKey || this.profileType(p.scope) === typeKey));
+            (p) => p.part_key === partKey && p.scope_key === scopeKey);
     }
 
     get canCreatePosition() {

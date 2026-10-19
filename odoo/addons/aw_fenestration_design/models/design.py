@@ -4,6 +4,9 @@ import json
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.aw_fenestration_core.models.part_structure import (
+    PART_LABELS, SCOPE_LABELS, part_of, scope_of, side_of,
+)
 from odoo.addons.aw_fenestration_core.models.units import (
     edited_mm, to_display,
 )
@@ -929,9 +932,10 @@ class AwDesign(models.Model):
                 'position_id': position.id,
                 'position_name': position.display_name,
                 'scope': position.scope or '',
-                # Display only: which heading the Spec tab lists it
-                # under, and what it shows beside the picture.
+                # Display only: where the Profiles tab lists it (Scope >
+                # Part) and what it shows beside the picture.
                 'part_group': position.part_group or 'other',
+                **self._position_keys(position),
                 'thickness_options': [
                     {'id': t.id, 'name': t.name}
                     for t in self._thickness_options(template)],
@@ -981,6 +985,7 @@ class AwDesign(models.Model):
         groups = list(self.env['aw.profile.position']._fields[
             'part_group'].selection) + [('other', _('Other'))]
         return {
+            'system_role': self.window_series_id.system_role or '',
             'profiles': profiles,
             'hardware': hardware,
             'groups': [{'key': k, 'label': l} for k, l in groups],
@@ -1004,6 +1009,7 @@ class AwDesign(models.Model):
             'id': p.id, 'name': p.display_name,
             'part_group': p.part_group or 'other',
             'scope': p.scope or '',
+            **self._position_keys(p),
         } for p in positions]
     @staticmethod
     def _length_rule_text(line):
@@ -1456,48 +1462,52 @@ class AwDesign(models.Model):
             **self._pricing_payload(),
         }
 
-    @api.model
-    def _piece_part(self, line):
-        """Which part of the window a cut line belongs to, and the short
-        name it carries inside that part. Display only.
+    def _position_keys(self, position):
+        """Scope and part of a position, with their names. One answer for
+        the Profiles tab, the Pieces block and the template form
+        (part_structure.py). A position with no scope is 'other'."""
+        self.ensure_one()
+        scope = scope_of(position.scope, self.window_series_id.system_role)
+        part = part_of(position.part_group, position.name, scope)
+        return {
+            'scope_key': scope, 'scope_label': SCOPE_LABELS[scope],
+            'part_key': part, 'part_label': PART_LABELS[part],
+        }
 
-        The part is the position's part group; the short name is the
-        side ("Top", "Bottom", "Side", "Side") for a position with an
-        edge, else the position's own name. A line with no position
-        (added by hand) is "other" and keeps its label."""
+    def _piece_part(self, line):
+        """Where a cut line sits in Scope > Part, and the short name it
+        carries inside its part: the side ("Top", "Bottom", "Side",
+        "Side") for a position with an edge, else the position's own
+        name. The mesh cloth is a mesh line, not a profile. A line with
+        no position (added by hand) is "other" and keeps its label."""
+        self.ensure_one()
+        if line.kind == 'mesh':
+            return {
+                'scope_key': 'mesh', 'scope_label': SCOPE_LABELS['mesh'],
+                'part_key': 'mesh_cloth',
+                'part_label': PART_LABELS['mesh_cloth'],
+                'short_label': PART_LABELS['mesh_cloth'],
+            }
         position = line.template_line_id.position_id
-        groups = dict(self.env['aw.profile.position']._fields[
-            'part_group'].selection)
         if not position:
-            return {'part_group': 'other', 'part_label': _('Other'),
-                    'short_label': line.label or ''}
-        group = position.part_group or 'other'
+            return {
+                'scope_key': 'other', 'scope_label': SCOPE_LABELS['other'],
+                'part_key': 'other', 'part_label': PART_LABELS['other'],
+                'short_label': line.label or '',
+            }
         try:
             ordinal = int((line.piece_key or '').split('|')[-1])
         except ValueError:
             ordinal = 1
-        return {
-            'part_group': group,
-            'part_label': groups.get(group) or _('Other'),
-            'short_label': (self._piece_side(position.edge, ordinal)
-                            or position.name or line.label or ''),
-        }
+        keys = self._position_keys(position)
+        keys['short_label'] = (
+            side_of(position.edge, ordinal) or position.name
+            or line.label or '')
+        return keys
 
     @staticmethod
     def _piece_side(edge, ordinal):
-        """The side a piece sits on. Pieces of one line are numbered in
-        the order the engine makes them: for 'all' the two horizontal
-        ones first, then the two verticals."""
-        if edge == 'top':
-            return _('Top')
-        if edge == 'bottom':
-            return _('Bottom')
-        if edge == 'sides':
-            return _('Side')
-        if edge == 'all':
-            return (_('Top'), _('Bottom'), _('Side'), _('Side'))[
-                min(max(ordinal, 1), 4) - 1]
-        return ''
+        return side_of(edge, ordinal)
 
     def set_piece_length(self, line_id, length_mm):
         """A cut line's length typed in the configurator. Writes the
@@ -1564,8 +1574,16 @@ class AwDesign(models.Model):
                 'cut_on_site': bool(line.cut_on_site),
                 'is_manual': bool(line.is_manual),
                 'is_orphan': bool(line.is_orphan),
+                # Only a profile has a length to edit; the mesh cloth is
+                # shown with its size.
+                'editable': line.kind == 'profile',
+                'size_text': (
+                    self._render_pair(line.glass_w, line.glass_h,
+                                      self.length_uom)
+                    if line.kind == 'mesh' else ''),
             } for line in self.bom_line_ids.filtered(
-                lambda l: l.kind == 'profile')],
+                lambda l: l.kind in ('profile', 'mesh')
+                and (l.kind == 'profile' or l.panel_no))],
             'cut_list_stale': bool(self.cut_list_stale),
             'orphan_count': self.orphan_count or 0,
             'checks': [{
