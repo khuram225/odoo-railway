@@ -986,6 +986,7 @@ class AwDesign(models.Model):
             'part_group'].selection) + [('other', _('Other'))]
         return {
             'system_role': self.window_series_id.system_role or '',
+            'mesh_cloth': self._mesh_cloth_payload(),
             'profiles': profiles,
             'hardware': hardware,
             'groups': [{'key': k, 'label': l} for k, l in groups],
@@ -1461,6 +1462,25 @@ class AwDesign(models.Model):
             **self._bom_payload(),
             **self._pricing_payload(),
         }
+
+    def _mesh_cloth_payload(self):
+        """The Mesh line of the Profiles tab: for each Mesh Type fitted to
+        a panel, which panels use it and the products it supplies. Read
+        only -- the choice a panel makes is its Mesh Type; there is no
+        per-panel cloth override."""
+        self.ensure_one()
+        leaves = self.env['aw.design.leaf'].search([
+            ('row_id.design_id', '=', self.id),
+            ('mesh_type_id', '!=', False),
+            ('child_row_ids', '=', False)])
+        by_type = {}
+        for leaf in leaves.sorted('panel_no'):
+            by_type.setdefault(leaf.mesh_type_id, []).append(leaf.panel_no)
+        return [{
+            'mesh_type': mesh.display_name,
+            'panels': panels,
+            'products': mesh.line_ids.product_id.mapped('display_name'),
+        } for mesh, panels in by_type.items()]
 
     def _position_keys(self, position):
         """Scope and part of a position, with their names. One answer for

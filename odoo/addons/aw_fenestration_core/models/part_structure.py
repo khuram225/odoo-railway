@@ -9,7 +9,7 @@ changes a length, a quantity or a price.
   Scope  where on the window a profile applies: Outer frame, Dividers,
          Sash (or Sliding, for a sliding system), Fixed, Mesh.
   Part   what it is within that scope: Frame, Bead, Lock bar, Interlock,
-         Divider, Mesh frame, Mesh bead, Mesh cloth.
+         Divider; and in the Mesh scope Frame, Bead and Mesh (the cloth).
   Piece  Top, Bottom, Side, or the position's name when it has no edge.
 """
 
@@ -29,9 +29,11 @@ PARTS = [
     ('lock', 'Lock bar'),
     ('interlock', 'Interlock'),
     ('divider', 'Divider'),
-    ('mesh_frame', 'Mesh frame'),
-    ('mesh_bead', 'Mesh bead'),
-    ('mesh_cloth', 'Mesh cloth'),
+    # Inside the Mesh scope the header already says Mesh, so the parts
+    # read the same as a sash's: Frame, Bead, and the cloth itself.
+    ('mesh_frame', 'Frame'),
+    ('mesh_bead', 'Bead'),
+    ('mesh_cloth', 'Mesh'),
     ('other', 'Other'),
 ]
 

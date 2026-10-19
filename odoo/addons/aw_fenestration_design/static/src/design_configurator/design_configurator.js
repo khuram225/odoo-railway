@@ -710,7 +710,7 @@ export class DesignConfigurator extends Component {
             if (!groups.has(key)) {
                 groups.set(key, {
                     key,
-                    title: framed ? piece.scope_label : piece.part_label,
+                    title: framed ? piece.scope_label : this.pieceGroupTitle(piece),
                     scope: piece.scope_key,
                     part: framed ? null : piece.part_key,
                     pieces: [],
@@ -724,6 +724,15 @@ export class DesignConfigurator extends Component {
             return at < 0 ? order.length : at;
         };
         return [...groups.values()].sort((x, y) => rank(x.key) - rank(y.key));
+    }
+
+    /** "Mesh > Frame" for the mesh parts, so they cannot be taken for the
+     * sash's own Frame and Bead; the cloth is just "Mesh". */
+    pieceGroupTitle(piece) {
+        if (piece.scope_key === "mesh" && piece.part_key !== "mesh_cloth") {
+            return `${piece.scope_label} \u203a ${piece.part_label}`;
+        }
+        return piece.part_label;
     }
 
     /**
@@ -1161,13 +1170,20 @@ export class DesignConfigurator extends Component {
                      sliding: "Sliding", fixed: "Fixed", mesh: "Mesh",
                      other: "No scope" }[scope];
             const nos = panels[scope];
+            const cloth = scope === "mesh" ? (parts.mesh_cloth || []) : [];
             return {
                 key: scope,
+                cloth,
                 title: nos ? `${label} (${nos.map((n) => "P" + n).join(", ")})` : label,
                 sections,
                 count: sections.reduce((sum, sec) => sum + sec.rows.length, 0),
             };
-        }).filter((scope) => scope.sections.length);
+        }).filter((scope) => scope.sections.length || scope.cloth.length);
+    }
+
+    /** "P1, P3" for the Mesh line. */
+    panelList(numbers) {
+        return (numbers || []).map((n) => `P${n}`).join(", ");
     }
 
     /** The finish a profile row is shown in: its own, else the window's. */

@@ -289,7 +289,7 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Mesh › Mesh frame"/>
+                            <separator string="Mesh › Frame"/>
                             <field name="profile_line_s_mesh_frame_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
@@ -318,7 +318,7 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Mesh › Mesh bead"/>
+                            <separator string="Mesh › Bead"/>
                             <field name="profile_line_s_mesh_bead_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
