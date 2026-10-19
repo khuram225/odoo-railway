@@ -16,7 +16,7 @@
         <field name="arch" type="xml">
             <list>
                 <field name="sequence" widget="handle"/>
-                <field name="window_type_id" string="Window System"/>
+                <field name="window_type_id" string="Type"/>
                 <field name="name"/>
                 <field name="is_default" widget="boolean_toggle"/>
                 <field name="profile_line_count" string="Profiles"/>
@@ -53,7 +53,7 @@
                         <page string="General" name="general">
                             <group>
                                 <group>
-                                    <field name="window_type_id" string="Window System"/>
+                                    <field name="window_type_id" string="Type"/>
                                     <field name="code"/>
                                     <field name="is_default"/>
                                     <field name="sequence"/>
@@ -440,13 +440,13 @@
         <field name="arch" type="xml">
             <search>
                 <field name="name"/>
-                <field name="window_type_id" string="Window System"/>
+                <field name="window_type_id" string="Type"/>
                 <filter name="filter_default" string="Default"
                         domain="[('is_default', '=', True)]"/>
                 <filter name="filter_archived" string="Archived"
                         domain="[('active', '=', False)]"/>
                 <group>
-                    <filter name="group_system" string="Window System"
+                    <filter name="group_system" string="Type"
                             context="{'group_by': 'window_type_id'}"/>
                 </group>
             </search>
@@ -454,13 +454,13 @@
     </record>
 
     <record id="action_aw_window_template" model="ir.actions.act_window">
-        <field name="name">Specifications</field>
+        <field name="name">Series</field>
         <field name="res_model">aw.window.template</field>
         <field name="view_mode">list,form</field>
         <field name="search_view_id" ref="view_aw_window_template_search"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first Specification</p>
-            <p>A Spec says what a window in one Window System is made of: its
+            <p class="o_view_nocontent_smiling_face">Create your first Series</p>
+            <p>A Spec says what a window in one Type is made of: its
                profile lines, its hardware lines, its glass, optionally a default
                finish, and how much smaller than each panel the glass and mesh are
                cut. A design starts from its system's default spec, and anything

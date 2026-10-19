@@ -27,7 +27,7 @@
                              actually starts from. The profile system
                              below follows from the panels drawn. -->
                         <div>
-                            <label class="form-label small text-muted mb-0">Glazing</label>
+                            <label class="form-label small text-muted mb-0">Family</label>
                             <select class="form-select form-select-sm"
                                     t-on-change="onFamilyChange">
                                 <option value="">Choose...</option>
@@ -112,7 +112,7 @@
                                    t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'mm', ev)"/>
                         </div>
                         <div t-if="frameRoles.length">
-                            <label class="form-label small text-muted mb-0">Frame type</label>
+                            <label class="form-label small text-muted mb-0">Type</label>
                             <select class="form-select form-select-sm"
                                     t-on-change="(ev) => this.onFrameRoleChange(ev)">
                                 <option value="" t-att-selected="!frameRole">Auto</option>
@@ -124,12 +124,12 @@
                                 </t>
                             </select>
                         </div>
-                        <!-- Derived, not chosen: a label unless more
-                             than one system could carry this layout. -->
-                        <div>
-                            <label class="form-label small text-muted mb-0">Frame</label>
-                            <select t-if="showSystemPicker"
-                                    class="form-select form-select-sm"
+                        <!-- Derived, not chosen, so no label is shown.
+                             Only when more than one system could carry
+                             this layout is there a real choice to offer. -->
+                        <div t-if="showSystemPicker">
+                            <label class="form-label small text-muted mb-0">System</label>
+                            <select class="form-select form-select-sm"
                                     t-on-change="onSystemChange">
                                 <t t-foreach="systemOptions" t-as="opt" t-key="opt.id">
                                     <option t-att-value="opt.id"
@@ -138,13 +138,9 @@
                                     </option>
                                 </t>
                             </select>
-                            <div t-else="" class="form-control form-control-sm bg-view border-0 text-truncate"
-                                 t-att-title="systemLabelFull">
-                                <t t-esc="systemLabel or '—'"/>
-                            </div>
                         </div>
                         <div>
-                            <label class="form-label small text-muted mb-0">Spec</label>
+                            <label class="form-label small text-muted mb-0">Series</label>
                             <select t-if="showSpecSelect"
                                     class="form-select form-select-sm"
                                     t-on-change="onSpecChange">
@@ -221,6 +217,10 @@
                             <button class="btn btn-sm btn-secondary" t-on-click="openForm">
                                 Form
                             </button>
+                            <button class="btn btn-sm btn-secondary" t-on-click="printShopDrawing"
+                                    title="Print the shop drawing for this window">
+                                Shop Drawing
+                            </button>
                             <button class="btn btn-sm btn-primary" t-on-click="save"
                                     t-att-disabled="!state.dirty">
                                 Save
@@ -256,38 +256,6 @@
                                  filter over groupings nobody shops by;
                                  what sits here now is the two things
                                  that start a layout from nothing. -->
-                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
-                                Grid
-                            </div>
-                            <div class="d-flex align-items-center gap-1 mb-2 flex-wrap">
-                                <select class="form-select form-select-sm"
-                                        style="width: 4rem;"
-                                        t-on-change="(ev) => this.setGridCols(ev.target.value)">
-                                    <t t-foreach="gridChoices" t-as="n" t-key="n">
-                                        <option t-att-value="n"
-                                                t-att-selected="n === state.gridCols">
-                                            <t t-esc="n"/>
-                                        </option>
-                                    </t>
-                                </select>
-                                <span class="small text-muted">&#215;</span>
-                                <select class="form-select form-select-sm"
-                                        style="width: 4rem;"
-                                        t-on-change="(ev) => this.setGridRows(ev.target.value)">
-                                    <t t-foreach="gridChoices" t-as="n" t-key="n">
-                                        <option t-att-value="n"
-                                                t-att-selected="n === state.gridRows">
-                                            <t t-esc="n"/>
-                                        </option>
-                                    </t>
-                                </select>
-                                <button class="btn btn-sm btn-outline-primary"
-                                        title="Replace the layout with an equal grid of Fixed panels"
-                                        t-on-click="applyGridFromState">
-                                    Apply
-                                </button>
-                            </div>
-
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
                                 Add to the frame
                             </div>
@@ -1006,7 +974,7 @@
                                     </label>
                                 </div>
 
-                                <div class="small text-muted mb-1">Leaf type</div>
+                                <div class="small text-muted mb-1">Sash type</div>
                                 <div t-if="!state.data.leaf_types.length" class="small text-warning mb-2">
                                     <b><t t-esc="state.data.header.window_series_name"/></b>
                                     has no leaf types configured, so none can be
@@ -1294,6 +1262,21 @@
 
                             <div class="mb-2">
                                 <label class="form-label small text-muted mb-0">
+                                    Price Structure
+                                </label>
+                                <select class="form-select form-select-sm"
+                                        t-on-change="onPriceStructureChange">
+                                    <t t-foreach="pricing.structure_options" t-as="opt" t-key="opt.id">
+                                        <option t-att-value="opt.id"
+                                                t-att-selected="opt.id === state.data.header.price_structure_id">
+                                            <t t-esc="opt.name"/>
+                                        </option>
+                                    </t>
+                                </select>
+                            </div>
+
+                            <div class="mb-2">
+                                <label class="form-label small text-muted mb-0">
                                     Manual rate (per sqft)
                                 </label>
                                 <input type="number" step="any" min="0"
@@ -1315,6 +1298,49 @@
                                     — below it, Checks shows a warning.
                                 </t>
                             </div>
+
+                            <!-- Cost breakdown: every line the cost is
+                                 built from. Replaces the BOM tab and the
+                                 form's Bill of Materials. Read only. -->
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mt-3 mb-2 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                 t-on-click="toggleCosts">
+                                <i t-att-class="costsOpen ? 'fa fa-chevron-down' : 'fa fa-chevron-right'"/>
+                                <span>Cost breakdown</span>
+                            </div>
+                            <t t-if="costsOpen">
+                                <div t-if="bomIsEmpty" class="small text-muted">
+                                    Save the design to generate its lines.
+                                </div>
+                                <t t-foreach="bomGroups" t-as="grp" t-key="grp.kind">
+                                    <div class="small fw-bold mt-2"><t t-esc="grp.title"/></div>
+                                    <table class="table table-sm o_aw_bom_table mb-2">
+                                        <tbody>
+                                            <tr t-foreach="grp.lines" t-as="bl" t-key="bl.id">
+                                                <td>
+                                                    <div><t t-esc="bl.label"/></div>
+                                                    <div class="text-muted small">
+                                                        <t t-if="bl.product"><t t-esc="bl.product"/></t>
+                                                        <t t-if="bl.group"> · <t t-esc="bl.group"/></t>
+                                                    </div>
+                                                </td>
+                                                <td class="text-end text-nowrap small">
+                                                    &#215;<t t-esc="bl.qty"/>
+                                                    <div t-if="grp.kind === 'profile'" class="text-muted">
+                                                        <t t-esc="costLengthText(bl.length_mm)"/>
+                                                    </div>
+                                                </td>
+                                                <td class="text-end text-nowrap small">
+                                                    <t t-esc="costText(bl.line_cost)"/>
+                                                    <div class="text-muted"><t t-esc="costText(bl.unit_cost)"/> ea</div>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </t>
+                                <div t-if="!bomIsEmpty" class="small fw-bold text-end">
+                                    Total <t t-esc="costText(costBreakdownTotal)"/>
+                                </div>
+                            </t>
                         </div>
 
                         <!-- Checks (spec 6.6). Regenerated on every save,
@@ -1355,27 +1381,6 @@
                                  spec now, so offering them here was
                                  offering a choice that could contradict
                                  it. -->
-                            <div class="mb-2">
-                                <label class="form-label small text-muted mb-0">Spec</label>
-                                <select t-if="showSpecSelect"
-                                        class="form-select form-select-sm"
-                                        t-on-change="onSpecChange">
-                                    <t t-foreach="specOptions" t-as="opt" t-key="opt.id">
-                                        <option t-att-value="opt.id"
-                                                t-att-selected="opt.id === state.data.header.template_id">
-                                            <t t-esc="opt.name"/>
-                                        </option>
-                                    </t>
-                                    <option value="custom"
-                                            t-att-selected="state.data.header.spec_custom">
-                                        Custom (start empty)
-                                    </option>
-                                </select>
-                                <div t-else="" class="form-control form-control-sm bg-view border-0 text-truncate"
-                                     t-att-title="specName">
-                                    <t t-esc="specName or '\u2014'"/>
-                                </div>
-                            </div>
                             <div t-if="!specProfiles.length" class="small text-muted mb-3">
                                 <t t-if="state.data.header.spec_custom">
                                     Custom window: nothing yet. Add its
@@ -1500,12 +1505,6 @@
                                             t-on-click="() => this.addComponent(group)">
                                         Add component
                                     </button>
-                                    <button t-if="canCreatePosition"
-                                            class="btn btn-sm btn-link text-nowrap px-1"
-                                            title="Create a position when none of these fits"
-                                            t-on-click="() => this.newPosition(group)">
-                                        New position
-                                    </button>
                                 </div>
                             </t>
 
@@ -1589,48 +1588,6 @@
                         </div>
 
                         <!-- Bill of materials (spec 6.5). -->
-                        <div t-if="activeRightTab === 'bom'"
-                             class="overflow-auto p-3 flex-grow-1"
-                             style="min-height: 0;">
-                            <div t-if="bomIsEmpty" class="small text-muted">
-                                Save the design to generate its BOM.
-                            </div>
-                            <t t-foreach="bomGroups" t-as="grp" t-key="grp.kind">
-                                <div class="small fw-bold mt-2"><t t-esc="grp.title"/></div>
-                                <table class="table table-sm o_aw_bom_table mb-2">
-                                    <tbody>
-                                        <tr t-foreach="grp.lines" t-as="bl" t-key="bl.id">
-                                            <td>
-                                                <div><t t-esc="bl.product or bl.label"/></div>
-                                                <div class="text-muted" t-if="bl.product">
-                                                    <t t-esc="bl.label"/>
-                                                </div>
-                                                <div t-if="bl.is_changed"
-                                                     class="small text-warning">
-                                                    changed for this window<t t-if="bl.change_note">:
-                                                    <t t-esc="bl.change_note"/></t>
-                                                </div>
-                                            </td>
-                                            <td class="text-end text-nowrap">
-                                                <t t-if="grp.kind === 'glass' or grp.kind === 'mesh'">
-                                                    <t t-esc="formatPair(bl.glass_w, bl.glass_h)"/>
-                                                    <div class="text-muted">
-                                                        <t t-esc="bl.area_sqm.toFixed(2)"/> m&#178;
-                                                    </div>
-                                                </t>
-                                                <t t-elif="grp.kind === 'profile'">
-                                                    <t t-esc="formatLength(bl.length_mm)"/>
-                                                    <div class="text-muted" t-if="bl.cut_angle">
-                                                        <t t-esc="bl.cut_angle"/>&#176;
-                                                    </div>
-                                                </t>
-                                            </td>
-                                            <td class="text-end">&#215;<t t-esc="bl.qty"/></td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </t>
-                        </div>
                     </div>
                 </div>
 

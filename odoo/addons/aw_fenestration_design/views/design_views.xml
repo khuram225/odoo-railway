@@ -93,23 +93,17 @@
         <field name="name">aw.design.form</field>
         <field name="model">aw.design</field>
         <field name="arch" type="xml">
-            <form>
+            <form edit="false">
                 <header>
                     <button name="action_open_configurator" type="object"
                             string="Open Configurator" class="btn-primary"/>
-                    <button name="action_save_as_preset" type="object"
-                            string="Save as Preset"/>
-                    <button name="action_duplicate_position" type="object"
-                            string="Duplicate Window"
-                            invisible="not sale_order_line_id"/>
-                    <button name="action_explode" type="object"
-                            string="Explode BOM"/>
                     <button name="action_print_shop_drawing" type="object"
                             string="Shop Drawing"/>
                 </header>
                 <sheet>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
                             invisible="active"/>
+                    <field name="elevation_is_current" invisible="1"/>
                     <div class="alert alert-warning mb-2" role="status"
                          invisible="elevation_is_current">
                         The stored drawing does not match this layout.
@@ -118,6 +112,7 @@
                     </div>
                     <div class="oe_button_box" name="button_box">
                         <button type="action" name="%(action_aw_design_row)d"
+                                groups="base.group_no_one"
                                 class="oe_stat_button" icon="fa-bars"
                                 context="{'default_design_id': id, 'search_default_design_id': id}">
                             <field name="row_count" widget="statinfo" string="Rows"/>
@@ -128,22 +123,13 @@
                             <field name="name"/>
                             <field name="location"/>
                             <field name="qty"/>
-                            <field name="family_id"/>
-                            <!-- Phase 7d: NOT an entry field. It follows
-                                 from the glazing family and the panels
-                                 drawn, via _resolve_system(), and from the
-                                 spec. Shown because the BOM, the rates and
-                                 both reports are built against it. -->
-                            <field name="window_series_id" string="Window System"
+                            <field name="family_id" string="Family"/>
+                            <!-- NOT an entry field: it follows from the
+                                 family and the panels drawn, via
+                                 _resolve_system(). Shown as Type. -->
+                            <field name="window_series_id" string="Type"
                                    readonly="1"/>
-                            <field name="template_id"/>
-                            <!-- Both follow the Specification now and are
-                                 readonly. Kept on the form because the shop
-                                 drawing names them and because it answers
-                                 "which section was this built to?" without
-                                 opening the spec. -->
-                            <field name="profile_section_id" optional="hide"/>
-                            <field name="hardware_set_id" optional="hide"/>
+                            <field name="template_id" string="Series"/>
                         </group>
                         <group>
                             <field name="length_uom" invisible="1"/>
@@ -170,14 +156,19 @@
 
                             <field name="area_sqm" readonly="1"/>
                             <field name="area_sqft" readonly="1"/>
+                            <label for="check_error_count" string="Checks"/>
+                            <div class="o_row">
+                                <field name="check_error_count"/>
+                                <span>errors</span>
+                                <field name="check_warning_count"/>
+                                <span>warnings</span>
+                            </div>
                         </group>
                     </group>
                     <group>
                         <group string="Glazing / Finish">
                             <field name="glass_spec_id"/>
                             <field name="finish_id"/>
-                            <field name="thickness_id" groups="base.group_no_one"
-                                   help="Not used by the BOM: each profile's thickness comes from its Profile Section line. Kept for developers only."/>
                         </group>
                         <group string="Quote">
                             <field name="sale_order_line_id"/>
@@ -185,7 +176,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Rows" name="rows">
+                        <page string="Rows" name="rows" groups="base.group_no_one">
                             <field name="row_ids">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
@@ -200,36 +191,6 @@
                                     <field name="height_mm" readonly="length_uom != 'mm'"/>
                                     <field name="is_auto"/>
                                     <field name="leaf_count" readonly="1"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="Bill of Materials" name="bom">
-                            <field name="bom_line_ids" readonly="1">
-                                <list default_group_by="kind">
-                                    <field name="sequence" column_invisible="1"/>
-                                    <field name="kind"/>
-                                    <field name="piece_ref" string="Ref"/>
-                                    <field name="unit_no" string="Unit" optional="hide"/>
-                                    <field name="panel_no" string="Panel"/>
-                                    <field name="label"/>
-                                    <field name="product_id"/>
-                                    <field name="length_mm" string="Length (mm)"/>
-                                    <field name="cut_angle" string="Angle"/>
-                                    <field name="glass_w" string="W (mm)"/>
-                                    <field name="glass_h" string="H (mm)"/>
-                                    <field name="area_sqm" string="Area (m2)"/>
-                                    <field name="qty"/>
-                                    <field name="unit_cost" string="Unit Cost"/>
-                                    <field name="line_cost" string="Cost"/>
-                                    <field name="rate_date" optional="hide"/>
-                                    <field name="cost_note" string="No cost because"/>
-                                    <field name="is_changed" string="Changed"/>
-                                    <field name="change_note" optional="hide"/>
-                                    <field name="calc_rule" optional="hide"/>
-                                    <field name="calc_source" optional="hide"/>
-                                    <field name="calc_worked" optional="hide"/>
-                                    <field name="calc_rule_h" optional="hide"/>
-                                    <field name="calc_worked_h" optional="hide"/>
                                 </list>
                             </field>
                         </page>
@@ -258,9 +219,8 @@
                                     string="Recompute" class="btn-secondary"
                                     invisible="not cut_line_ids"
                                     title="Refreshes every line from the spec. A line edited by hand keeps what was typed, and a line added by hand is never touched."/>
-                            <field name="cut_line_ids"
-                                   context="{'default_kind': 'profile', 'default_is_free_form': True, 'default_is_manual': True}">
-                                <list editable="bottom" default_group_by="group_label"
+                            <field name="cut_line_ids" readonly="1">
+                                <list default_group_by="group_label"
                                       decoration-warning="is_manual"
                                       decoration-danger="is_orphan">
                                     <field name="sequence" column_invisible="1"/>
@@ -281,8 +241,8 @@
                             </field>
                         </page>
                         <page string="Changes for this window" name="changes">
-                            <field name="override_ids">
-                                <list editable="bottom">
+                            <field name="override_ids" readonly="1">
+                                <list create="false" delete="false">
                                     <field name="kind"/>
                                     <field name="position_id"
                                            readonly="kind != 'profile'"/>
@@ -300,47 +260,6 @@
                                 </list>
                             </field>
                         </page>
-                        <page string="Checks" name="checks">
-                            <field name="check_line_ids" readonly="1">
-                                <list decoration-danger="level == 'error'"
-                                      decoration-warning="level == 'warning'">
-                                    <field name="level"/>
-                                    <field name="message"/>
-                                </list>
-                            </field>
-                        </page>
-                        <page string="Pricing" name="pricing">
-                            <group>
-                                <group string="Structure">
-                                    <field name="price_structure_id"/>
-                                    <field name="manual_rate"/>
-                                    <field name="currency_id" invisible="1"/>
-                                    <field name="uncosted_line_count" invisible="1"/>
-                                </group>
-                                <group string="Result">
-                                    <field name="cost_total" widget="monetary"/>
-                                    <field name="basic_value" widget="monetary"/>
-                                    <field name="price_total" widget="monetary"/>
-                                    <field name="price_per_sqft" widget="monetary"/>
-                                    <field name="margin_pct"/>
-                                </group>
-                            </group>
-                            <div class="alert alert-warning" role="status"
-                                 invisible="uncosted_line_count == 0">
-                                <field name="uncosted_line_count" nolabel="1"
-                                       class="oe_inline"/>
-                                BOM line(s) have no cost, so this price is
-                                incomplete. See the Checks tab.
-                            </div>
-                        </page>
-                        <page string="Elevation" name="elevation">
-                            <group>
-                                <field name="elevation_date" readonly="1"/>
-                                <field name="elevation_is_current" readonly="1"/>
-                            </group>
-                            <field name="elevation_png" widget="image"
-                                   readonly="1" options="{'size': [800, 600]}"/>
-                        </page>
                     </notebook>
                     <field name="active" invisible="1"/>
                 </sheet>
@@ -357,8 +276,8 @@
                 <field name="name"/>
                 <field name="location"/>
                 <field name="qty"/>
-                <field name="family_id" string="Glazing"/>
-                <field name="window_series_id" string="Frame"
+                <field name="family_id" string="Family"/>
+                <field name="window_series_id" string="Type"
                        optional="hide"/>
                 <!-- One preformatted column rather than a unit-switching pair:
                      this list has no parent record for column_invisible to

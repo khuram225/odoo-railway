@@ -22,7 +22,7 @@ class AwWindowTemplate(models.Model):
     """
     _name = 'aw.window.template'
     _inherit = ['mail.thread', 'mail.activity.mixin']
-    _description = 'Fenestration Specification'
+    _description = 'Fenestration Series'
     _order = 'window_type_id, sequence, name'
 
     name = fields.Char(required=True, tracking=True)

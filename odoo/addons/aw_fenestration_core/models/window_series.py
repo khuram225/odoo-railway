@@ -77,7 +77,7 @@ class AwWindowSeries(models.Model):
     # because renaming it would break every stored reference and the
     # whole BOM chain for the sake of a label.
     family_id = fields.Many2one(
-        'aw.window.family', string='Glazing Family', tracking=True,
+        'aw.window.family', string='Family', tracking=True,
         ondelete='restrict', index=True)
     system_role = fields.Selection([
         ('sliding', 'Sliding'),
@@ -168,7 +168,7 @@ class AwWindowSeries(models.Model):
         'aw.hardware.set', 'window_type_id', string='Hardware Sets')
     template_ids = fields.One2many(
         'aw.window.template', 'window_type_id',
-        string='Specifications')
+        string='Series')
 
     profile_section_count = fields.Integer(compute='_compute_counts')
     hardware_set_count = fields.Integer(compute='_compute_counts')

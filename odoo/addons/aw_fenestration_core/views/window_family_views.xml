@@ -50,7 +50,7 @@
         <field name="res_model">aw.window.family</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create a Glazing Family</p>
+            <p class="o_view_nocontent_smiling_face">Create a Family</p>
             <p>The layer a quote starts from: Double Glaze, Single Glaze,
                Curtain Wall. Which profile system carries a design is
                worked out from the panels drawn in it.</p>

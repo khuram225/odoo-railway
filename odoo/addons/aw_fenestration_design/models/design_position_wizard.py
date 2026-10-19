@@ -31,7 +31,7 @@ class AwDesignPositionWizard(models.TransientModel):
     order_id = fields.Many2one(
         'sale.order', required=True, ondelete='cascade')
     family_id = fields.Many2one(
-        'aw.window.family', string='Glazing Family', required=True,
+        'aw.window.family', string='Family', required=True,
         ondelete='restrict',
         help="The profile system is worked out from the panels you "
              "draw, so this is the only thing to decide up front.")
@@ -48,7 +48,7 @@ class AwDesignPositionWizard(models.TransientModel):
     # Not stored: it is a lookup from family + role, and storing it
     # would be a second place for the same answer to live.
     window_system_id = fields.Many2one(
-        'aw.window.series', string='Window System',
+        'aw.window.series', string='Type',
         compute='_compute_window_system_id')
     # store=True is load-bearing, not habit. A non-stored editable
     # compute is recomputed on the next request, so the spec picked by
@@ -56,7 +56,7 @@ class AwDesignPositionWizard(models.TransientModel):
     # system's default the moment Confirm ran. A transient model has a
     # real table, so storing it keeps the choice.
     template_id = fields.Many2one(
-        'aw.window.template', string='Spec',
+        'aw.window.template', string='Series',
         compute='_compute_template_id', readonly=False, store=True,
         domain="[('window_type_id', '=', window_system_id)]",
         help="Defaults to that system's default specification.")

@@ -25,7 +25,7 @@
                 <field name="family_id"/>
                 <field name="system_role"/>
                 <field name="leaf_type_ids" widget="many2many_tags"/>
-                <field name="template_count" string="Specifications"/>
+                <field name="template_count" string="Series"/>
             </list>
         </field>
     </record>
@@ -86,7 +86,7 @@
                 <filter name="filter_archived" string="Archived"
                         domain="[('active', '=', False)]"/>
                 <group>
-                    <filter name="group_family" string="Glazing Family"
+                    <filter name="group_family" string="Family"
                             context="{'group_by': 'family_id'}"/>
                     <filter name="group_role" string="Role"
                             context="{'group_by': 'system_role'}"/>
@@ -113,7 +113,7 @@
                         <button type="object" name="action_view_templates"
                                 class="oe_stat_button" icon="fa-th-large">
                             <field name="template_count" widget="statinfo"
-                                   string="Specifications"/>
+                                   string="Series"/>
                         </button>
                     </div>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
@@ -136,7 +136,7 @@
                         </group>
                     </group>
                     <notebook>
-                        <page string="Specifications" name="specs">
+                        <page string="Series" name="specs">
                             <p class="text-muted">
                                 What a window in this system is made of. A
                                 spec owns its own profile and hardware
@@ -163,15 +163,15 @@
     </record>
 
     <record id="action_aw_window_series" model="ir.actions.act_window">
-        <field name="name">Window Systems</field>
+        <field name="name">Types</field>
         <field name="res_model">aw.window.series</field>
         <field name="view_mode">kanban,list,form</field>
         <field name="search_view_id" ref="view_aw_window_series_search"/>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">Create your first Window System</p>
-            <p>A Window System is a profile system — Double Glaze Sliding, Single
+            <p class="o_view_nocontent_smiling_face">Create your first Type</p>
+            <p>A Type is a profile system — Double Glaze Sliding, Single
                Glaze Fix, Curtain Wall Fix, Tilt &amp; Turn, Casement, etc. It says
-               which panel types it can host; its Specifications say what a window
+               which panel types it can host; its Series say what a window
                built in it is actually made of.</p>
         </field>
     </record>

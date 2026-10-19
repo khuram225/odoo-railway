@@ -221,11 +221,10 @@ const STORE_RIGHT_TAB = "aw_cfg_right_tab";
 const RIGHT_SECTIONS = ["panel", "infill", "mesh", "grid"];
 
 /** Right-hand tabs, in the order they appear. */
-const RIGHT_TABS = ["panel", "spec", "bom", "pricing", "checks"];
+const RIGHT_TABS = ["panel", "spec", "pricing", "checks"];
 const RIGHT_TAB_LABELS = {
     panel: "Panel",
-    spec: "Spec",
-    bom: "BOM",
+    spec: "Profiles",
     pricing: "Pricing",
     checks: "Checks",
 };
@@ -1260,7 +1259,7 @@ export class DesignConfigurator extends Component {
         this.state.data = data;
         this.state.specName = "";
         this.notification.add(
-            _t("Saved to Window Systems > %(system)s > Specifications: %(name)s",
+            _t("Saved to Types > %(system)s > Series: %(name)s",
                { system: saved.system, name: saved.name }),
             {
                 type: "success",
@@ -1447,6 +1446,12 @@ export class DesignConfigurator extends Component {
      * an absent value means "not sent, leave it alone" and would make
      * the override impossible to clear.
      */
+    async onPriceStructureChange(ev) {
+        const id = parseInt(ev.target.value, 10) || false;
+        this.onHeaderChange("price_structure_id", id);
+        await this.refreshPricingPreview();
+    }
+
     async onManualRateChange(ev) {
         const text = (ev.target.value || "").trim();
         const value = text === "" ? 0 : parseFloat(text);
@@ -1464,12 +1469,17 @@ export class DesignConfigurator extends Component {
      */
     async refreshPricingPreview() {
         const header = this.state.data.header;
-        const { manual_rate: rate, finish_id: finish } = header;
+        const {
+            manual_rate: rate,
+            finish_id: finish,
+            price_structure_id: structure,
+        } = header;
         const pricing = await this.orm.call(
             "aw.design", "preview_pricing",
-            [[this.designId], rate || 0, finish || false]);
+            [[this.designId], rate || 0, finish || false, structure || false]);
         if (this.state.data.pricing
-            && header.manual_rate === rate && header.finish_id === finish) {
+            && header.manual_rate === rate && header.finish_id === finish
+            && header.price_structure_id === structure) {
             this.state.data.pricing = pricing;
         }
     }
@@ -4678,6 +4688,40 @@ export class DesignConfigurator extends Component {
         // is worse than no toast at all.
         this.surfaceCheckErrors();
         this.notification.add(_t("Design saved."), { type: "success" });
+    }
+
+    /** The existing shop drawing report, for this window. */
+    async printShopDrawing() {
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const action = await this.orm.call(
+            "aw.design", "action_print_shop_drawing", [[this.designId]]);
+        await this.action.doAction(action);
+    }
+
+    /** Cost breakdown (Pricing tab): collapsed until asked for. */
+    get costsOpen() {
+        return !!this.state.collapsed.costs_open;
+    }
+
+    toggleCosts() {
+        this.toggleSection("costs_open");
+    }
+
+    get costBreakdownTotal() {
+        return this.bomGroups.reduce(
+            (sum, grp) => sum + grp.lines.reduce(
+                (inner, line) => inner + (line.line_cost || 0), 0), 0);
+    }
+
+    /** Soot style, like every length the workshop reads. */
+    costLengthText(mm) {
+        return mm ? formatInches(mm, "soot") : "0";
+    }
+
+    costText(value) {
+        return (Number(value) || 0).toFixed(2);
     }
 
     openForm() {

@@ -22,7 +22,7 @@
               web_icon="aw_fenestration_core,static/description/icon.png"/>
 
     <menuitem id="menu_aw_window_series"
-              name="Window Systems"
+              name="Types"
               parent="menu_aw_fenestration_root"
               action="action_aw_window_series"
               sequence="10"/>
@@ -47,7 +47,7 @@
               sequence="2"/>
 
     <menuitem id="menu_aw_spec_section"
-              name="Spec Sections"
+              name="Series Sections"
               parent="menu_aw_fenestration_config"
               action="action_aw_spec_section"
               sequence="4"/>

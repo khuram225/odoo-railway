@@ -39,6 +39,7 @@ const TARGETS = [
             canvasW: 900,
             canvasH: 600,
             libraryOpen: true,
+            collapsed: {},
             selected: null,
             selectedDivider: null,
             toolbar: { show: false, left: 0, top: 0 },
