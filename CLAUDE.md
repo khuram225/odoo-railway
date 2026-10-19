@@ -456,6 +456,11 @@ and an action record defined *after* the view that references it via
 `%(xmlid)d` in the same file (that substitution resolves eagerly at parse
 time — see the load-order note above).
 
+## Process
+
+Merging to main deploys and upgrades aw_fenestration_core and
+aw_fenestration_design; never run Upgrade from the Apps menu.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
