@@ -70,7 +70,7 @@
                                    placeholder="70 1/2"
                                    data-aw-size="width_mm" data-aw-kind="in"
                                    t-att-value="formatInchesBox(state.data.header.width_mm)"
-                                   t-on-focus="selectAll" t-on-mouseup="keepSelection"
+                                   t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
                                    t-on-input="(ev) => this.onSizeBoxInput('width_mm', 'in', ev)"
                                    t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'in', ev)"/>
                         </div>
@@ -82,7 +82,7 @@
                                    style="width: 6rem;"
                                    data-aw-size="width_mm" data-aw-kind="mm"
                                    t-att-value="formatMmBox(state.data.header.width_mm)"
-                                   t-on-focus="selectAll" t-on-mouseup="keepSelection"
+                                   t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
                                    t-on-input="(ev) => this.onSizeBoxInput('width_mm', 'mm', ev)"
                                    t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'mm', ev)"/>
                         </div>
@@ -95,7 +95,7 @@
                                    placeholder="70 1/2"
                                    data-aw-size="height_mm" data-aw-kind="in"
                                    t-att-value="formatInchesBox(state.data.header.height_mm)"
-                                   t-on-focus="selectAll" t-on-mouseup="keepSelection"
+                                   t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
                                    t-on-input="(ev) => this.onSizeBoxInput('height_mm', 'in', ev)"
                                    t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'in', ev)"/>
                         </div>
@@ -107,7 +107,7 @@
                                    style="width: 6rem;"
                                    data-aw-size="height_mm" data-aw-kind="mm"
                                    t-att-value="formatMmBox(state.data.header.height_mm)"
-                                   t-on-focus="selectAll" t-on-mouseup="keepSelection"
+                                   t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
                                    t-on-input="(ev) => this.onSizeBoxInput('height_mm', 'mm', ev)"
                                    t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'mm', ev)"/>
                         </div>
@@ -885,7 +885,7 @@
                                         </label>
                                         <input type="text" class="form-control form-control-sm"
                                                t-att-value="selectedPanelWidthText"
-                                               t-on-focus="selectAll" t-on-mouseup="keepSelection"
+                                               t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
                                                t-on-change="(ev) => this.setPanelWidth(ev.target.value)"/>
                                     </div>
                                     <div class="col-6">
@@ -894,7 +894,7 @@
                                         </label>
                                         <input type="text" class="form-control form-control-sm"
                                                t-att-value="selectedPanelHeightText"
-                                               t-on-focus="selectAll" t-on-mouseup="keepSelection"
+                                               t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
                                                t-on-change="(ev) => this.setPanelHeight(ev.target.value)"/>
                                     </div>
                                 </div>
@@ -1250,7 +1250,7 @@
                                                 <input type="text" inputmode="text"
                                                        class="form-control o_aw_touch_input"
                                                        t-att-value="pieceText(piece.length_mm)"
-                                                       t-on-focus="selectAll" t-on-mouseup="keepSelection"
+                                                       t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
                                                        t-on-input="(ev) => this.onPieceInput(piece, ev)"
                                                        t-on-change="(ev) => this.onPieceChange(piece, ev)"
                                                        t-on-keydown="onPieceKeydown"/>
