@@ -70,7 +70,7 @@
                                    placeholder="70 1/2"
                                    data-aw-size="width_mm" data-aw-kind="in"
                                    t-att-value="formatInchesBox(state.data.header.width_mm)"
-                                   t-on-focus="(ev) => ev.target.select()"
+                                   t-on-focus="selectAll" t-on-mouseup="keepSelection"
                                    t-on-input="(ev) => this.onSizeBoxInput('width_mm', 'in', ev)"
                                    t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'in', ev)"/>
                         </div>
@@ -82,7 +82,7 @@
                                    style="width: 6rem;"
                                    data-aw-size="width_mm" data-aw-kind="mm"
                                    t-att-value="formatMmBox(state.data.header.width_mm)"
-                                   t-on-focus="(ev) => ev.target.select()"
+                                   t-on-focus="selectAll" t-on-mouseup="keepSelection"
                                    t-on-input="(ev) => this.onSizeBoxInput('width_mm', 'mm', ev)"
                                    t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'mm', ev)"/>
                         </div>
@@ -95,7 +95,7 @@
                                    placeholder="70 1/2"
                                    data-aw-size="height_mm" data-aw-kind="in"
                                    t-att-value="formatInchesBox(state.data.header.height_mm)"
-                                   t-on-focus="(ev) => ev.target.select()"
+                                   t-on-focus="selectAll" t-on-mouseup="keepSelection"
                                    t-on-input="(ev) => this.onSizeBoxInput('height_mm', 'in', ev)"
                                    t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'in', ev)"/>
                         </div>
@@ -107,7 +107,7 @@
                                    style="width: 6rem;"
                                    data-aw-size="height_mm" data-aw-kind="mm"
                                    t-att-value="formatMmBox(state.data.header.height_mm)"
-                                   t-on-focus="(ev) => ev.target.select()"
+                                   t-on-focus="selectAll" t-on-mouseup="keepSelection"
                                    t-on-input="(ev) => this.onSizeBoxInput('height_mm', 'mm', ev)"
                                    t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'mm', ev)"/>
                         </div>
@@ -216,6 +216,11 @@
                             </button>
                             <button class="btn btn-sm btn-secondary" t-on-click="openForm">
                                 Form
+                            </button>
+                            <button t-if="state.data.header.sale_order_id"
+                                    class="btn btn-sm btn-secondary" t-on-click="openQuotation"
+                                    title="Open the quotation this window is on">
+                                Quotation
                             </button>
                             <button class="btn btn-sm btn-secondary" t-on-click="printShopDrawing"
                                     title="Print the shop drawing for this window">
@@ -880,7 +885,7 @@
                                         </label>
                                         <input type="text" class="form-control form-control-sm"
                                                t-att-value="selectedPanelWidthText"
-                                               t-on-focus="(ev) => ev.target.select()"
+                                               t-on-focus="selectAll" t-on-mouseup="keepSelection"
                                                t-on-change="(ev) => this.setPanelWidth(ev.target.value)"/>
                                     </div>
                                     <div class="col-6">
@@ -889,7 +894,7 @@
                                         </label>
                                         <input type="text" class="form-control form-control-sm"
                                                t-att-value="selectedPanelHeightText"
-                                               t-on-focus="(ev) => ev.target.select()"
+                                               t-on-focus="selectAll" t-on-mouseup="keepSelection"
                                                t-on-change="(ev) => this.setPanelHeight(ev.target.value)"/>
                                     </div>
                                 </div>
@@ -1207,40 +1212,49 @@
                                     No cut lines here. Generate the cut list from the form,
                                     or press Recompute.
                                 </div>
-                                <div t-foreach="scopedPieces" t-as="piece" t-key="piece.id"
+                                <t t-foreach="pieceGroups" t-as="pgroup" t-key="pgroup.key">
+                                    <div class="d-flex align-items-center gap-1 mt-2 mb-1 small fw-bold o_aw_cfg_sec"
+                                         t-on-click="() => this.toggleSection(this.pieceGroupKey(pgroup))">
+                                        <i t-att-class="sectionIcon(pieceGroupKey(pgroup))"/>
+                                        <span><t t-esc="pgroup.title"/></span>
+                                        <span class="badge text-bg-light border"><t t-esc="pgroup.pieces.length"/></span>
+                                    </div>
+                                    <t t-if="!isCollapsed(pieceGroupKey(pgroup))">
+                                        <div t-foreach="pgroup.pieces" t-as="piece" t-key="piece.id"
                                      class="o_aw_piece border rounded p-2 mb-2">
-                                    <div class="d-flex align-items-center justify-content-between gap-1">
-                                        <span class="small fw-bold text-truncate" t-att-title="piece.label">
-                                            <t t-esc="piece.label"/>
-                                        </span>
-                                        <span class="d-flex gap-1 flex-shrink-0">
-                                            <span t-if="piece.is_manual" class="badge text-bg-warning">Manual</span>
-                                            <span t-if="piece.is_orphan" class="badge text-bg-danger">Orphan</span>
-                                        </span>
-                                    </div>
-                                    <div class="small text-muted">
-                                        <t t-if="piece.group"><t t-esc="piece.group"/> · </t>
-                                        <t t-esc="piece.qty"/> pc<t t-if="piece.cut_angle"> · <t t-esc="piece.cut_angle"/>° ends</t>
-                                    </div>
-                                    <t t-if="piece.cut_on_site">
-                                        <div class="small text-muted">Cut on site</div>
-                                    </t>
-                                    <t t-else="">
-                                        <div class="d-flex align-items-center gap-2 mt-1">
-                                            <input type="text" inputmode="text"
-                                                   class="form-control o_aw_touch_input"
-                                                   t-att-value="pieceText(piece.length_mm)"
-                                                   t-on-focus="(ev) => ev.target.select()"
-                                                   t-on-input="(ev) => this.onPieceInput(piece, ev)"
-                                                   t-on-change="(ev) => this.onPieceChange(piece, ev)"
-                                                   t-on-keydown="onPieceKeydown"/>
-                                            <div class="small text-muted text-nowrap">
-                                                <div>was <t t-esc="pieceText(piece.computed_length_mm)"/></div>
-                                                <div><span t-att-data-aw-piece-mm="piece.id" t-esc="pieceMmText(piece.length_mm)"/> mm</div>
-                                            </div>
+                                        <div class="d-flex align-items-center justify-content-between gap-1">
+                                            <span class="small fw-bold text-truncate" t-att-title="piece.label">
+                                                <t t-esc="piece.short_label or piece.label"/>
+                                            </span>
+                                            <span class="d-flex gap-1 flex-shrink-0">
+                                                <span t-if="piece.is_manual" class="badge text-bg-warning">Manual</span>
+                                                <span t-if="piece.is_orphan" class="badge text-bg-danger">Orphan</span>
+                                            </span>
                                         </div>
+                                        <div class="small text-muted">
+                                            <t t-esc="piece.qty"/> pc<t t-if="piece.cut_angle"> · <t t-esc="piece.cut_angle"/>° ends</t>
+                                        </div>
+                                        <t t-if="piece.cut_on_site">
+                                            <div class="small text-muted">Cut on site</div>
+                                        </t>
+                                        <t t-else="">
+                                            <div class="d-flex align-items-center gap-2 mt-1">
+                                                <input type="text" inputmode="text"
+                                                       class="form-control o_aw_touch_input"
+                                                       t-att-value="pieceText(piece.length_mm)"
+                                                       t-on-focus="selectAll" t-on-mouseup="keepSelection"
+                                                       t-on-input="(ev) => this.onPieceInput(piece, ev)"
+                                                       t-on-change="(ev) => this.onPieceChange(piece, ev)"
+                                                       t-on-keydown="onPieceKeydown"/>
+                                                <div class="small text-muted text-nowrap">
+                                                    <div>was <t t-esc="pieceText(piece.computed_length_mm)"/></div>
+                                                    <div><span t-att-data-aw-piece-mm="piece.id" t-esc="pieceMmText(piece.length_mm)"/> mm</div>
+                                                </div>
+                                            </div>
+                                        </t>
+                                    </div>
                                     </t>
-                                </div>
+                                </t>
                             </div>
                         </div>
 
@@ -1478,7 +1492,16 @@
                                     Apply
                                 </button>
                             </div>
-                            <t t-foreach="profileGroups" t-as="group" t-key="group.key">
+                            <t t-foreach="profileTypeGroups" t-as="ptype" t-key="ptype.key">
+                                <div class="d-flex align-items-center gap-1 mt-2 mb-2 fw-bold o_aw_cfg_sec"
+                                     t-on-click="() => this.toggleSection('prof:' + ptype.key)">
+                                    <i t-att-class="sectionIcon('prof:' + ptype.key)"/>
+                                    <span><t t-esc="ptype.title"/></span>
+                                    <span class="badge text-bg-light border"><t t-esc="ptype.count"/></span>
+                                </div>
+                                <t t-if="!isCollapsed('prof:' + ptype.key)">
+                                <t t-foreach="ptype.sections" t-as="group" t-key="group.key">
+                                <t t-set="akey" t-value="group.key + '|' + ptype.key"/>
                                 <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
                                     <t t-esc="group.label"/>
                                 </div>
@@ -1497,11 +1520,8 @@
                                             <td>
                                                 <div class="small">
                                                     <b t-esc="row.code or row.product_name"/>
-                                                    <span class="text-muted">
-                                                        &#183; <t t-esc="row.thickness_name"/>
-                                                        <t t-if="row.section_dims">
-                                                            &#183; <t t-esc="row.section_dims"/> mm
-                                                        </t>
+                                                    <span class="text-muted" t-if="partFinishName(row)">
+                                                        &#183; <t t-esc="partFinishName(row)"/>
                                                     </span>
                                                 </div>
                                                 <div class="small text-muted">
@@ -1560,22 +1580,24 @@
                                     </tbody>
                                 </table>
                                 <div class="d-flex gap-1 align-items-center mb-3">
-                                    <select t-if="addablePositions(group.key).length"
+                                    <select t-if="addablePositions(akey).length"
                                             class="form-select form-select-sm"
-                                            t-on-change="(ev) => this.onAddPosChange(group.key, ev)">
-                                        <option t-foreach="addablePositions(group.key)" t-as="pos"
+                                            t-on-change="(ev) => this.onAddPosChange(akey, ev)">
+                                        <option t-foreach="addablePositions(akey)" t-as="pos"
                                                 t-key="pos.id" t-att-value="pos.id"
-                                                t-att-selected="pos.id === addPosition(group.key)">
+                                                t-att-selected="pos.id === addPosition(akey)">
                                             <t t-esc="pos.name"/>
                                         </option>
                                     </select>
-                                    <button t-if="addablePositions(group.key).length"
+                                    <button t-if="addablePositions(akey).length"
                                             class="btn btn-sm btn-outline-secondary text-nowrap"
                                             title="Add a profile to this window for the chosen position"
-                                            t-on-click="() => this.addComponent(group)">
+                                            t-on-click="() => this.addComponent({ key: akey })">
                                         Add component
                                     </button>
                                 </div>
+                                </t>
+                                </t>
                             </t>
 
                             <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">

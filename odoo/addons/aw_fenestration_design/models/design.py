@@ -1003,6 +1003,7 @@ class AwDesign(models.Model):
         return [{
             'id': p.id, 'name': p.display_name,
             'part_group': p.part_group or 'other',
+            'scope': p.scope or '',
         } for p in positions]
     @staticmethod
     def _length_rule_text(line):
@@ -1381,6 +1382,8 @@ class AwDesign(models.Model):
                 # a missing key and wiped the price override.
                 'manual_rate': self.manual_rate,
                 'price_structure_id': self.price_structure_id.id,
+                # For the Quotation button; not writable from here.
+                'sale_order_id': self.sale_order_id.id,
             },
             'limits': {
                 # So the configurator can refuse an over-long piece the
@@ -1453,6 +1456,49 @@ class AwDesign(models.Model):
             **self._pricing_payload(),
         }
 
+    @api.model
+    def _piece_part(self, line):
+        """Which part of the window a cut line belongs to, and the short
+        name it carries inside that part. Display only.
+
+        The part is the position's part group; the short name is the
+        side ("Top", "Bottom", "Side", "Side") for a position with an
+        edge, else the position's own name. A line with no position
+        (added by hand) is "other" and keeps its label."""
+        position = line.template_line_id.position_id
+        groups = dict(self.env['aw.profile.position']._fields[
+            'part_group'].selection)
+        if not position:
+            return {'part_group': 'other', 'part_label': _('Other'),
+                    'short_label': line.label or ''}
+        group = position.part_group or 'other'
+        try:
+            ordinal = int((line.piece_key or '').split('|')[-1])
+        except ValueError:
+            ordinal = 1
+        return {
+            'part_group': group,
+            'part_label': groups.get(group) or _('Other'),
+            'short_label': (self._piece_side(position.edge, ordinal)
+                            or position.name or line.label or ''),
+        }
+
+    @staticmethod
+    def _piece_side(edge, ordinal):
+        """The side a piece sits on. Pieces of one line are numbered in
+        the order the engine makes them: for 'all' the two horizontal
+        ones first, then the two verticals."""
+        if edge == 'top':
+            return _('Top')
+        if edge == 'bottom':
+            return _('Bottom')
+        if edge == 'sides':
+            return _('Side')
+        if edge == 'all':
+            return (_('Top'), _('Bottom'), _('Side'), _('Side'))[
+                min(max(ordinal, 1), 4) - 1]
+        return ''
+
     def set_piece_length(self, line_id, length_mm):
         """A cut line's length typed in the configurator. Writes the
         same field the form's Cut list tab writes, so the Manual flag and
@@ -1509,6 +1555,7 @@ class AwDesign(models.Model):
                 'id': line.id,
                 'panel_no': line.panel_no or 0,
                 'label': line.label or '',
+                **self._piece_part(line),
                 'group': line.group_label or '',
                 'qty': line.qty or 0,
                 'cut_angle': line.cut_angle or '',

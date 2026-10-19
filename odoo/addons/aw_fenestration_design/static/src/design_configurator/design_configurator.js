@@ -684,6 +684,38 @@ export class DesignConfigurator extends Component {
             (piece) => piece.panel_no === number);
     }
 
+    /**
+     * The scoped pieces under their part headings. A panel reads Frame
+     * (the sash profiles), Bead, Lock bar, then whatever else it has; the
+     * frame view reads Outer frame, Dividers, then the rest. A heading
+     * with no pieces is dropped.
+     */
+    get pieceGroups() {
+        const framed = this.piecesPanelNo === 0;
+        const order = framed
+            ? ["outer_frame", "dividers"] : ["sashes", "beads", "lock"];
+        const titles = framed
+            ? {}
+            : { sashes: _t("Frame"), beads: _t("Bead"), lock: _t("Lock bar") };
+        const groups = new Map();
+        for (const piece of this.scopedPieces) {
+            const key = piece.part_group || "other";
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    key,
+                    title: titles[key] || piece.part_label || _t("Other"),
+                    pieces: [],
+                });
+            }
+            groups.get(key).pieces.push(piece);
+        }
+        const rank = (key) => {
+            const at = order.indexOf(key);
+            return at < 0 ? order.length : at;
+        };
+        return [...groups.values()].sort((a, b) => rank(a.key) - rank(b.key));
+    }
+
     get cutListStale() {
         return !!this.state.data?.cut_list_stale;
     }
@@ -699,6 +731,33 @@ export class DesignConfigurator extends Component {
 
     pieceMmText(mm) {
         return String(Math.round((mm || 0) * 100) / 100);
+    }
+
+    /** Remembered per group, expanded until closed (see toggleSection). */
+    pieceGroupKey(group) {
+        return `pc:${group.key}`;
+    }
+
+    /**
+     * Select the whole value when a box is entered. On a mouse click or
+     * a tap the caret is placed AFTER the focus event, which undoes the
+     * selection -- so the next mouseup is swallowed once. Tab never
+     * produces a mouseup, so its behaviour is exactly what it was.
+     */
+    selectAll(ev) {
+        const box = ev?.target;
+        if (!box || !box.select) {
+            return;
+        }
+        box.select();
+        this.selectPending = box;
+    }
+
+    keepSelection(ev) {
+        if (this.selectPending && this.selectPending === ev?.target) {
+            ev.preventDefault();
+        }
+        this.selectPending = null;
     }
 
     showFramePieces() {
@@ -1016,11 +1075,93 @@ export class DesignConfigurator extends Component {
                     || this.addablePositions("other").length);
     }
 
+    /**
+     * The panel types in the window, read off the drawn panels: a Fixed
+     * panel, a Mesh panel, anything else is a sash. Containers are not
+     * panels and are walked through.
+     */
+    get panelTypesPresent() {
+        const present = new Set();
+        const walk = (rows) => {
+            for (const row of rows || []) {
+                for (const leaf of row.leaves || []) {
+                    if (leaf.rows && leaf.rows.length) {
+                        walk(leaf.rows);
+                    } else if (leaf.leaf_type_code === "FIXED") {
+                        present.add("fixed");
+                    } else if (leaf.leaf_type_code === "MESH") {
+                        present.add("mesh");
+                    } else {
+                        present.add("sashes");
+                    }
+                }
+            }
+        };
+        walk(this.state.data?.rows);
+        return present;
+    }
+
+    /**
+     * The Profiles tab by panel type -- not by panel number. Outer frame
+     * (frame and dividers) is always there; Sashes, Fixed panels and
+     * Mesh panels only when the window has one. Inside each, the rows
+     * are listed under their part headings exactly as before.
+     */
+    get profileTypeGroups() {
+        const present = this.panelTypesPresent;
+        const wanted = [
+            { key: "outer", title: _t("Outer frame"), always: true },
+            { key: "sashes", title: _t("Sashes") },
+            { key: "fixed", title: _t("Fixed panels") },
+            { key: "mesh", title: _t("Mesh panels") },
+        ].filter((type) => type.always || present.has(type.key));
+        return wanted.map((type) => {
+            const sections = this.profileGroups
+                .map((group) => ({
+                    ...group,
+                    rows: group.rows.filter(
+                        (row) => this.profileType(row.scope) === type.key),
+                }))
+                .filter((group) => group.rows.length);
+            return {
+                ...type,
+                sections,
+                count: sections.reduce((sum, g) => sum + g.rows.length, 0),
+            };
+        }).filter((type) => type.sections.length);
+    }
+
+    /** Which panel type a position's scope belongs to. */
+    profileType(scope) {
+        switch (scope) {
+            case "panel_opening":
+                return "sashes";
+            case "panel_fixed":
+                return "fixed";
+            case "panel_mesh":
+            case "mesh_attachment":
+                return "mesh";
+            default:
+                return "outer";
+        }
+    }
+
+    /** The finish a profile row is shown in: its own, else the window's. */
+    partFinishName(row) {
+        const own = (row.finish_options || []).find(
+            (option) => option.id === row.finish_id);
+        return own ? own.name : (this.currentFinish.name || "");
+    }
+
     // -- add component --------------------------------------------------
     /** Positions the window could take in this group, from the server. */
-    addablePositions(groupKey) {
+    addablePositions(key) {
+        // "group" alone, or "group|type" on the Profiles tab, where the
+        // same part heading can appear under more than one panel type.
+        const [groupKey, typeKey] = String(key).split("|");
         return (this.state.data?.spec_parts?.addable || []).filter(
-            (p) => p.part_group === groupKey);
+            (p) => p.part_group === groupKey
+                && (!typeKey || this.profileType(p.scope) === typeKey));
     }
 
     get canCreatePosition() {
@@ -4782,6 +4923,24 @@ export class DesignConfigurator extends Component {
         // is worse than no toast at all.
         this.surfaceCheckErrors();
         this.notification.add(_t("Design saved."), { type: "success" });
+    }
+
+    /** The sale order this window is quoted on. Saves first, like Form. */
+    async openQuotation() {
+        const orderId = this.state.data?.header?.sale_order_id;
+        if (!orderId) {
+            return;
+        }
+        if (this.state.dirty) {
+            await this.save();
+        }
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "sale.order",
+            res_id: orderId,
+            view_mode: "form",
+            views: [[false, "form"]],
+        });
     }
 
     /** The existing shop drawing report, for this window. */
