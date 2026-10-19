@@ -207,7 +207,7 @@ class AwProfileSection(models.Model):
         for section in self._sections_by_seed_name():
             specs = Spec.search([('profile_section_id', '=', section.id)])
             existing = (section.line_ids | specs.profile_line_ids).filtered(
-                lambda l, p=position: l.position_id == p)
+                lambda l, p=position: l.position_id == p and l.is_used)
             if existing:
                 continue
             template = self._find_profile_template('RE-13')
@@ -234,6 +234,13 @@ class AwProfileSection(models.Model):
             # Where the lines live now: the spec once migrated, the
             # section before that. Exactly one owner either way.
             for spec in specs or [None]:
+                # A catalog row for it may already exist, unused: switch
+                # that on rather than make a second line for the position.
+                unused = spec.profile_line_ids.filtered(
+                    lambda l, p=position: l.position_id == p) if spec else None
+                if unused:
+                    unused.write(dict(values, is_used=True))
+                    continue
                 self.env['aw.profile.section.line'].create(dict(
                     values,
                     spec_id=spec.id if spec else False,

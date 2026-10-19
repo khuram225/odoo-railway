@@ -295,7 +295,11 @@ class AwDesign(models.Model):
         dropped, this is the one method that changes.
         """
         self.ensure_one()
-        return self.template_id.profile_line_ids
+        # USED lines only: every catalog position has a line on every
+        # spec, and an unused one is a row for the form to grey out, not
+        # a part of the window. This is the filter the configurator's
+        # Profiles tab reads through as well.
+        return self.template_id.profile_line_ids.filtered('is_used')
 
     def _spec_hardware_lines(self):
         """This window's hardware lines: the spec's own."""
@@ -1189,7 +1193,7 @@ class AwDesign(models.Model):
                 glass_spec_id=self.glass_spec_id.id,
                 is_default=False,
                 notes=_("Saved from custom window %s.", self.name or '')))
-        for line in spec.profile_line_ids:
+        for line in spec.profile_line_ids.filtered('is_used'):
             change = by_position.get(line.position_id.id)
             if change:
                 line.write({
@@ -1199,16 +1203,26 @@ class AwDesign(models.Model):
         # Components added to this window become lines of the new spec;
         # the copy above only carries what the old spec had.
         Line = self.env['aw.profile.section.line']
+        used_positions = spec.profile_line_ids.filtered('is_used').position_id
         for change in self.override_ids.filtered(
                 lambda o: o.kind == 'profile' and o.is_added
-                and o.position_id not in spec.profile_line_ids.position_id):
-            Line.create({
-                'spec_id': spec.id,
-                'position_id': change.position_id.id,
+                and o.position_id not in used_positions):
+            values = {
                 'product_tmpl_id': change.product_tmpl_id.id,
                 'thickness_id': change.thickness_id.id,
-                'sequence': change.position_id.sequence or 10,
-            })
+                'is_used': True,
+            }
+            # The catalog already has a row for the position, unused:
+            # switch it on (one line per position per spec).
+            unused = spec.profile_line_ids.filtered(
+                lambda l, p=change.position_id: l.position_id == p)[:1]
+            if unused:
+                unused.write(values)
+            else:
+                Line.create(dict(
+                    values, spec_id=spec.id,
+                    position_id=change.position_id.id,
+                    sequence=change.position_id.sequence or 10))
         for original, copied in zip(
                 source_hardware,
                 spec.hardware_line_ids.sorted(

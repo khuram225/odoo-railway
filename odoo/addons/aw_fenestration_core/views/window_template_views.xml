@@ -33,6 +33,9 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <button type="object" name="action_copy_from_series"
+                            string="Copy from series" class="btn-secondary"
+                            invisible="not id or profile_line_count"/>
                     <button type="object" name="action_duplicate_spec"
                             string="Duplicate spec" class="btn-secondary"
                             invisible="not id"
@@ -85,13 +88,14 @@
                             <field name="system_role" invisible="1"/>
                             <separator string="Outer frame › Frame"/>
                             <field name="profile_line_s_outer_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -103,9 +107,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -114,13 +118,14 @@
                             </field>
                             <separator string="Dividers › Divider"/>
                             <field name="profile_line_s_divider_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -132,9 +137,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -143,13 +148,14 @@
                             </field>
                             <separator string="Dividers › Interlock"/>
                             <field name="profile_line_s_interlock_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -161,9 +167,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -173,13 +179,14 @@
                             <separator string="Sash › Frame" invisible="system_role == 'sliding'"/>
                             <separator string="Sliding › Frame" invisible="system_role != 'sliding'"/>
                             <field name="profile_line_s_sash_frame_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -191,9 +198,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -203,13 +210,14 @@
                             <separator string="Sash › Bead" invisible="system_role == 'sliding'"/>
                             <separator string="Sliding › Bead" invisible="system_role != 'sliding'"/>
                             <field name="profile_line_s_sash_bead_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -221,9 +229,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -233,13 +241,14 @@
                             <separator string="Sash › Lock bar" invisible="system_role == 'sliding'"/>
                             <separator string="Sliding › Lock bar" invisible="system_role != 'sliding'"/>
                             <field name="profile_line_s_sash_lock_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -251,9 +260,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -262,13 +271,14 @@
                             </field>
                             <separator string="Fixed › Bead"/>
                             <field name="profile_line_s_fixed_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -280,9 +290,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -291,13 +301,14 @@
                             </field>
                             <separator string="Mesh › Frame"/>
                             <field name="profile_line_s_mesh_frame_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -309,9 +320,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -320,13 +331,14 @@
                             </field>
                             <separator string="Mesh › Bead"/>
                             <field name="profile_line_s_mesh_bead_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -338,9 +350,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -349,13 +361,14 @@
                             </field>
                             <separator string="No scope (the engine ignores these)"/>
                             <field name="profile_line_s_other_ids" nolabel="1">
-                                <list editable="bottom">
+                                <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
+                                    <field name="is_used" string="Used" widget="boolean_toggle"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
                                     <field name="position_id"/>
-                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
                                          in. Which one a window uses is its
@@ -367,9 +380,9 @@
                                     <field name="alternate_product_ids"
                                            widget="many2many_tags"
                                            optional="hide"/>
-                                    <field name="length_formula" optional="hide"/>
-                                    <field name="length_formula_h" optional="hide"/>
-                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="length_formula" optional="show"/>
+                                    <field name="length_formula_h" optional="show"/>
+                                    <field name="cut_angle" optional="show"/>
                                     <field name="qty_formula" optional="hide"/>
                                     <field name="is_optional" optional="hide"/>
                                     <field name="cut_on_site" optional="show"/>
@@ -523,4 +536,27 @@
         </field>
     </record>
 
+    <record id="view_aw_template_copy_wizard_form" model="ir.ui.view">
+        <field name="name">aw.window.template.copy.wizard.form</field>
+        <field name="model">aw.window.template.copy.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Copy from series">
+                <p class="text-muted">
+                    A one-time copy of another series' mapping: profiles,
+                    sections, length rules and cut ends. Nothing stays
+                    linked afterwards. Thickness and finish are chosen
+                    per window and are not copied.
+                </p>
+                <group>
+                    <field name="target_id"/>
+                    <field name="source_id"/>
+                </group>
+                <footer>
+                    <button type="object" name="action_copy"
+                            string="Copy" class="btn-primary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
 </odoo>

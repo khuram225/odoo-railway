@@ -74,6 +74,17 @@ class AwProfileSectionLine(models.Model):
         ondelete='cascade', index=True)
     sequence = fields.Integer(default=10)
     position_id = fields.Many2one('aw.profile.position', required=True)
+    # The series mapping over ONE catalog of positions. Every catalog
+    # position has a line on every spec; an unused one is a row the form
+    # shows greyed and the engine never sees, so enabling a part on a
+    # series is ticking a row and choosing a profile. Everything that
+    # reads a window's parts goes through aw.design._spec_profile_lines(),
+    # which filters on this.
+    is_used = fields.Boolean(
+        string='Used', default=True,
+        help="Untick to leave this position out of the series. The row "
+             "stays so it can be switched on again; the explosion, the "
+             "checks and the configurator never see it.")
     # Which section of the spec this line is in; the section decides
     # which panels it applies to. (`section_id` above is the LEGACY
     # Profile Section, a different thing.) Empty falls back to the
@@ -91,8 +102,10 @@ class AwProfileSectionLine(models.Model):
     part_group = fields.Selection(
         related='position_id.part_group', store=True, readonly=True)
 
+    # Not required: an unused catalog row has no profile yet. A USED
+    # line must have one (_check_used_has_product).
     product_tmpl_id = fields.Many2one(
-        'product.template', required=True, ondelete='restrict',
+        'product.template', ondelete='restrict',
         domain=lambda self: [(
             'categ_id', 'child_of',
             self.env.ref('aw_fenestration_core.product_category_profiles').id,
@@ -204,6 +217,17 @@ class AwProfileSectionLine(models.Model):
                     spec=line.spec_id.display_name,
                     position=line.position_id.display_name))
 
+    @api.constrains('is_used', 'product_tmpl_id')
+    def _check_used_has_product(self):
+        for line in self:
+            if line.is_used and not line.product_tmpl_id:
+                raise ValidationError(_(
+                    "%(position)s is used by '%(spec)s' but has no profile. "
+                    "Choose one, or untick Used.",
+                    position=line.position_id.display_name,
+                    spec=(line.spec_id.display_name
+                          or line.section_id.display_name or '')))
+
     @api.constrains('product_tmpl_id', 'alternate_product_ids')
     def _check_default_not_an_alternate(self):
         """The default is always offered, so listing it again would
@@ -244,6 +268,9 @@ class AwProfileSectionLine(models.Model):
 
     @api.onchange('product_tmpl_id')
     def _onchange_product_tmpl_id(self):
+        # Choosing a profile for an unused row is choosing to use it.
+        if self.product_tmpl_id and not self.is_used:
+            self.is_used = True
         # thickness_id's domain only restricts NEW picks -- it doesn't
         # retroactively clear an already-set value that no longer belongs
         # to the newly chosen template's own attribute lines. Left stale,

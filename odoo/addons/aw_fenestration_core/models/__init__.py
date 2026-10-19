@@ -10,6 +10,7 @@ from . import section_seed
 from . import hardware_set
 from . import glass_spec
 from . import window_template
+from . import template_copy_wizard
 from . import spec_migration
 from . import alternates_migration
 from . import finish_migration

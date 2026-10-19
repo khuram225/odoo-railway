@@ -5,6 +5,7 @@ from . import design_leaf
 from . import design_bom_line
 from . import window_series
 from . import attachment_types
+from . import re_mesh_seed
 from . import panel_option
 from . import layout_family
 from . import layout_preset
