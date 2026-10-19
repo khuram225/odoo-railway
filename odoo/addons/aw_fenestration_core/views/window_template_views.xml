@@ -82,15 +82,15 @@
                                 its own and the BOM resolves every
                                 profile's variant from it.
                             </p>
-                            <separator string="Outer frame"/>
-                            <field name="profile_line_outer_frame_ids" nolabel="1">
+                            <field name="system_role" invisible="1"/>
+                            <separator string="Outer frame › Frame"/>
+                            <field name="profile_line_s_outer_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"
-                                           domain="[('part_group', '=', 'outer_frame')]"/>
+                                    <field name="position_id"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -112,15 +112,14 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Sashes"/>
-                            <field name="profile_line_sashes_ids" nolabel="1">
+                            <separator string="Dividers › Divider"/>
+                            <field name="profile_line_s_divider_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"
-                                           domain="[('part_group', '=', 'sashes')]"/>
+                                    <field name="position_id"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -142,15 +141,14 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Beads"/>
-                            <field name="profile_line_beads_ids" nolabel="1">
+                            <separator string="Dividers › Interlock"/>
+                            <field name="profile_line_s_interlock_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"
-                                           domain="[('part_group', '=', 'beads')]"/>
+                                    <field name="position_id"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -172,15 +170,15 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Dividers"/>
-                            <field name="profile_line_dividers_ids" nolabel="1">
+                            <separator string="Sash › Frame" invisible="system_role == 'sliding'"/>
+                            <separator string="Sliding › Frame" invisible="system_role != 'sliding'"/>
+                            <field name="profile_line_s_sash_frame_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"
-                                           domain="[('part_group', '=', 'dividers')]"/>
+                                    <field name="position_id"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -202,15 +200,15 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Interlock &amp; meeting"/>
-                            <field name="profile_line_interlock_meeting_ids" nolabel="1">
+                            <separator string="Sash › Bead" invisible="system_role == 'sliding'"/>
+                            <separator string="Sliding › Bead" invisible="system_role != 'sliding'"/>
+                            <field name="profile_line_s_sash_bead_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"
-                                           domain="[('part_group', '=', 'interlock_meeting')]"/>
+                                    <field name="position_id"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -232,15 +230,15 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Lock"/>
-                            <field name="profile_line_lock_ids" nolabel="1">
+                            <separator string="Sash › Lock bar" invisible="system_role == 'sliding'"/>
+                            <separator string="Sliding › Lock bar" invisible="system_role != 'sliding'"/>
+                            <field name="profile_line_s_sash_lock_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"
-                                           domain="[('part_group', '=', 'lock')]"/>
+                                    <field name="position_id"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -262,15 +260,14 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Fly screen"/>
-                            <field name="profile_line_fly_screen_ids" nolabel="1">
+                            <separator string="Fixed › Bead"/>
+                            <field name="profile_line_s_fixed_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"
-                                           domain="[('part_group', '=', 'fly_screen')]"/>
+                                    <field name="position_id"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -292,15 +289,72 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Other"/>
-                            <field name="profile_line_other_ids" nolabel="1">
+                            <separator string="Mesh › Mesh frame"/>
+                            <field name="profile_line_s_mesh_frame_ids" nolabel="1">
                                 <list editable="bottom">
                                     <field name="sequence" column_invisible="1"/>
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"
-                                           domain="[('part_group', '=', False)]"/>
+                                    <field name="position_id"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
+                                    <field name="thickness_attribute_value_ids"
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="Mesh › Mesh bead"/>
+                            <field name="profile_line_s_mesh_bead_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"/>
+                                    <field name="product_tmpl_id" string="Profile"/>
+                                    <field name="section_dims"/>
+                                    <!-- Every thickness the profile is sold
+                                         in. Which one a window uses is its
+                                         own choice, made in the configurator. -->
+                                    <field name="thickness_attribute_value_ids"
+                                           string="Thicknesses"
+                                           widget="many2many_tags"
+                                           readonly="1"/>
+                                    <field name="alternate_product_ids"
+                                           widget="many2many_tags"
+                                           optional="hide"/>
+                                    <field name="length_formula" optional="hide"/>
+                                    <field name="length_formula_h" optional="hide"/>
+                                    <field name="cut_angle" optional="hide"/>
+                                    <field name="qty_formula" optional="hide"/>
+                                    <field name="is_optional" optional="hide"/>
+                                    <field name="cut_on_site" optional="show"/>
+                                    <field name="note" optional="hide"/>
+                                </list>
+                            </field>
+                            <separator string="No scope (the engine ignores these)"/>
+                            <field name="profile_line_s_other_ids" nolabel="1">
+                                <list editable="bottom">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="picture_tmpl_id" string="Picture"
+                                           widget="image" nolabel="1"
+                                           options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
+                                    <field name="position_id"/>
                                     <field name="product_tmpl_id" string="Profile"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold

@@ -1218,6 +1218,11 @@
                                         <i t-att-class="sectionIcon(pieceGroupKey(pgroup))"/>
                                         <span><t t-esc="pgroup.title"/></span>
                                         <span class="badge text-bg-light border"><t t-esc="pgroup.pieces.length"/></span>
+                                        <button class="btn btn-sm btn-link p-0 ms-auto small"
+                                                title="Show this in the Profiles tab"
+                                                t-on-click.stop="() => this.showInProfiles(pgroup.scope, pgroup.part)">
+                                            Profiles <i class="fa fa-arrow-right"/>
+                                        </button>
                                     </div>
                                     <t t-if="!isCollapsed(pieceGroupKey(pgroup))">
                                         <div t-foreach="pgroup.pieces" t-as="piece" t-key="piece.id"
@@ -1234,7 +1239,10 @@
                                         <div class="small text-muted">
                                             <t t-esc="piece.qty"/> pc<t t-if="piece.cut_angle"> · <t t-esc="piece.cut_angle"/>° ends</t>
                                         </div>
-                                        <t t-if="piece.cut_on_site">
+                                        <t t-if="!piece.editable">
+                                            <div class="small text-muted"><t t-esc="piece.size_text"/></div>
+                                        </t>
+                                        <t t-elif="piece.cut_on_site">
                                             <div class="small text-muted">Cut on site</div>
                                         </t>
                                         <t t-else="">
@@ -1492,8 +1500,9 @@
                                     Apply
                                 </button>
                             </div>
-                            <t t-foreach="profileTypeGroups" t-as="ptype" t-key="ptype.key">
+                            <t t-foreach="profileScopes" t-as="ptype" t-key="ptype.key">
                                 <div class="d-flex align-items-center gap-1 mt-2 mb-2 fw-bold o_aw_cfg_sec"
+                                     t-att-data-aw-prof="'scope:' + ptype.key"
                                      t-on-click="() => this.toggleSection('prof:' + ptype.key)">
                                     <i t-att-class="sectionIcon('prof:' + ptype.key)"/>
                                     <span><t t-esc="ptype.title"/></span>
@@ -1502,9 +1511,14 @@
                                 <t t-if="!isCollapsed('prof:' + ptype.key)">
                                 <t t-foreach="ptype.sections" t-as="group" t-key="group.key">
                                 <t t-set="akey" t-value="group.key + '|' + ptype.key"/>
-                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">
-                                    <t t-esc="group.label"/>
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                     t-att-data-aw-prof="'part:' + ptype.key + ':' + group.key"
+                                     t-on-click="() => this.toggleSection('profp:' + ptype.key + ':' + group.key)">
+                                    <i t-att-class="sectionIcon('profp:' + ptype.key + ':' + group.key)"/>
+                                    <span><t t-esc="group.label"/></span>
+                                    <span class="badge text-bg-light border"><t t-esc="group.rows.length"/></span>
                                 </div>
+                                <t t-if="!isCollapsed('profp:' + ptype.key + ':' + group.key)">
                                 <table t-if="group.rows.length" class="table table-sm o_aw_spec_table mb-1">
                                     <tbody>
                                         <tr t-foreach="group.rows" t-as="row"
@@ -1596,6 +1610,7 @@
                                         Add component
                                     </button>
                                 </div>
+                                </t>
                                 </t>
                                 </t>
                             </t>

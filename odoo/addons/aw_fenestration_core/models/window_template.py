@@ -120,6 +120,52 @@ class AwWindowTemplate(models.Model):
         'aw.profile.section.line', 'spec_id', string='Other',
         domain=[('part_group', '=', False)], copy=False)
 
+    # Scope -> Part, for the form (views only, like the ones above): the
+    # same names and order as the configurator's Profiles tab. See
+    # part_structure.py. Copy is False for the same reason.
+    system_role = fields.Selection(
+        related='window_type_id.system_role', readonly=True)
+    profile_line_s_outer_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Outer frame',
+        domain=[('position_id.scope', '=', 'frame')], copy=False)
+    profile_line_s_divider_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Dividers',
+        domain=[('position_id.scope', 'in', ('junction_mullion', 'transom'))],
+        copy=False)
+    profile_line_s_interlock_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Interlock',
+        domain=[('position_id.scope', 'in',
+                 ('junction_meeting', 'junction_interlock'))], copy=False)
+    profile_line_s_sash_frame_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Sash frame',
+        domain=[('position_id.scope', '=', 'panel_opening'),
+                ('part_group', 'not in', ('beads', 'lock'))], copy=False)
+    profile_line_s_sash_bead_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Sash bead',
+        domain=[('position_id.scope', '=', 'panel_opening'),
+                ('part_group', '=', 'beads')], copy=False)
+    profile_line_s_sash_lock_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Sash lock bar',
+        domain=[('position_id.scope', '=', 'panel_opening'),
+                ('part_group', '=', 'lock')], copy=False)
+    profile_line_s_fixed_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Fixed bead',
+        domain=[('position_id.scope', '=', 'panel_fixed')], copy=False)
+    profile_line_s_mesh_frame_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Mesh frame',
+        domain=['|', ('position_id.scope', '=', 'panel_mesh'),
+                '&', ('position_id.scope', '=', 'mesh_attachment'),
+                '&', ('position_id.name', 'not ilike', 'bead'),
+                ('part_group', '!=', 'beads')], copy=False)
+    profile_line_s_mesh_bead_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='Mesh bead',
+        domain=[('position_id.scope', '=', 'mesh_attachment'), '|',
+                ('position_id.name', 'ilike', 'bead'),
+                ('part_group', '=', 'beads')], copy=False)
+    profile_line_s_other_ids = fields.One2many(
+        'aw.profile.section.line', 'spec_id', string='No scope',
+        domain=[('position_id.scope', '=', False)], copy=False)
+
     profile_line_count = fields.Integer(compute='_compute_part_counts')
     hardware_line_count = fields.Integer(compute='_compute_part_counts')
     design_count = fields.Integer(
