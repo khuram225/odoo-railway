@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 from .formula import validate_formula
+
+_logger = logging.getLogger(__name__)
 
 
 # The window parts a spec is read by, in the order they are shown.
@@ -116,6 +120,27 @@ class AwProfilePosition(models.Model):
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Profile Position code must be unique.'),
     ]
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        positions = super().create(vals_list)
+        if not self.pool._init:
+            positions._sync_catalog()
+        return positions
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'scope' in vals and not self.pool._init:
+            self._sync_catalog()
+        return res
+
+    def _sync_catalog(self):
+        """A position that has a scope is in the catalog: every series
+        gets a row for it, unused until someone maps it."""
+        positions = self.filtered('scope')
+        if positions:
+            self.env['aw.window.template'].with_context(
+                active_test=False).search([])._sync_catalog_lines(positions)
 
     @api.constrains('default_length', 'default_length_h', 'default_qty')
     def _check_formulas(self):
@@ -253,6 +278,72 @@ class AwProfilePosition(models.Model):
         return adopted
 
     @api.model
+    def _seed_catalog(self):
+        """Make the positions the one catalog, ONCE per database (rename,
+        add the mesh parts, drop the stray, set which are required).
+
+        Renames are by xmlid and only while the name is still the seeded
+        one. Nothing is merged: every scope + part + edge already exists
+        once. The unscoped "Palay - Hight" is dropped with its spec lines
+        (the engine ignored it), unless something else still points at it.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(CATALOG_PARAM):
+            return {}
+        data = self.env['ir.model.data'].sudo()
+        report = {'renamed': 0, 'added': 0, 'dropped': 0}
+        for xmlid, (old, new) in CATALOG_RENAMES.items():
+            position = self.env.ref(
+                'aw_fenestration_core.%s' % xmlid, raise_if_not_found=False)
+            if position and position.name == old:
+                position.name = new
+                report['renamed'] += 1
+
+        for xmlid, name, sequence, edge, length, required in \
+                MESH_ADDON_POSITIONS:
+            position = self.with_context(active_test=False).search(
+                [('name', '=ilike', name)], limit=1)
+            if not position:
+                position = self.create({
+                    'name': name, 'sequence': sequence,
+                    'scope': 'mesh_attachment', 'part_group': 'fly_screen',
+                    'edge': edge, 'default_length': length,
+                    'default_angle': '45', 'is_required': required})
+                report['added'] += 1
+            if not data.search([('module', '=', 'aw_fenestration_core'),
+                                ('name', '=', xmlid)]):
+                data.create({
+                    'module': 'aw_fenestration_core', 'name': xmlid,
+                    'model': 'aw.profile.position', 'res_id': position.id,
+                    'noupdate': True})
+
+        stray = self.with_context(active_test=False).search(
+            [('name', '=ilike', 'Palay - Hight'), ('scope', '=', False)])
+        for position in stray:
+            lines = self.env['aw.profile.section.line'].with_context(
+                active_test=False).search([('position_id', '=', position.id)])
+            try:
+                with self.env.cr.savepoint():
+                    lines.unlink()
+                    position.unlink()
+                report['dropped'] += 1
+            except Exception as error:   # still referenced: leave it
+                _logger.warning(
+                    "aw_fenestration_core: could not drop '%s': %s",
+                    position.name, error)
+
+        for required, xmlids in REQUIRED_CATALOG.items():
+            for xmlid in xmlids:
+                position = self.env.ref(
+                    'aw_fenestration_core.%s' % xmlid,
+                    raise_if_not_found=False)
+                if position:
+                    position.is_required = required
+        param.set_param(CATALOG_PARAM, '1')
+        _logger.info("aw_fenestration_core: position catalog: %s", report)
+        return report
+
+    @api.model
     def _seed_required_flags(self):
         """Mark the optional positions, once per database.
 
@@ -280,6 +371,56 @@ class AwProfilePosition(models.Model):
 
 
 REQUIRED_SEEDED_PARAM = 'aw_fenestration.position_required_seeded'
+CATALOG_PARAM = 'aw_fenestration.position_catalog_seeded'
+
+# xmlid -> (name it was seeded with, English catalog name). A position is
+# renamed only if it still carries the old seeded name, so a name somebody
+# chose is never overwritten. Names stay UNIQUE; the short label shown on a
+# piece is the side only (see part_structure.side_of).
+CATALOG_RENAMES = {
+    'pos_frame_sides': ('Outer Frame - Sides', 'Outer Frame - Side'),
+    'pos_palay_top': ('Palay - Top', 'Sash Frame - Top'),
+    'pos_palay_bottom': ('Palay - Bottom', 'Sash Frame - Bottom'),
+    'pos_palay_sides': ('Palay - Sides', 'Sash Frame - Side'),
+    'pos_palay_bead_top': ('Palay Bead - Top', 'Sash Bead - Top'),
+    'pos_palay_bead_bottom': ('Palay Bead - Bottom', 'Sash Bead - Bottom'),
+    'pos_palay_bead_sides': ('Palay Bead - Sides', 'Sash Bead - Side'),
+    'pos_bead_sides': ('Fixed Bead - Sides', 'Fixed Bead - Side'),
+    'pos_mesh_all': ('Mesh - All Sides', 'Mesh Panel Frame - All Sides'),
+    'pos_lock_bar': ('Lock Bar', 'Sash Lock Bar'),
+}
+
+# The mesh add-on parts, which the catalog did not have. xmlid, name,
+# sequence, edge, length formula, required. Frame is required once a mesh
+# is fitted; the bead is optional (a mesh frame often has none).
+MESH_ADDON_POSITIONS = (
+    ('pos_mesh_frame_top', 'Mesh Frame - Top', 80, 'top', 'PW - 10', True),
+    ('pos_mesh_frame_bottom', 'Mesh Frame - Bottom', 82, 'bottom', 'PW - 10', True),
+    ('pos_mesh_frame_sides', 'Mesh Frame - Side', 84, 'sides', 'PH - 10', True),
+    ('pos_mesh_bead_top', 'Mesh Bead - Top', 86, 'top', 'PW - 40', False),
+    ('pos_mesh_bead_bottom', 'Mesh Bead - Bottom', 88, 'bottom', 'PW - 40', False),
+    ('pos_mesh_bead_sides', 'Mesh Bead - Side', 90, 'sides', 'PH - 40', False),
+)
+
+# Required means: a window that needs this scope and whose series has no
+# used line for it is warned. The checks only look at scopes the layout
+# actually demands, so dividers warn only with more than one panel and
+# the mesh parts only when a mesh is fitted.
+REQUIRED_CATALOG = {
+    True: (
+        'pos_frame_top', 'pos_frame_bottom', 'pos_frame_sides',
+        'pos_palay_top', 'pos_palay_bottom', 'pos_palay_sides',
+        'pos_palay_bead_top', 'pos_palay_bead_bottom', 'pos_palay_bead_sides',
+        'pos_bead_top', 'pos_bead_bottom', 'pos_bead_sides',
+        'pos_divider_vertical', 'pos_divider_horizontal',
+        'pos_interlock', 'pos_meeting_stile', 'pos_mesh_all',
+        'pos_mesh_frame_top', 'pos_mesh_frame_bottom', 'pos_mesh_frame_sides',
+    ),
+    False: (
+        'pos_lock_bar',
+        'pos_mesh_bead_top', 'pos_mesh_bead_bottom', 'pos_mesh_bead_sides',
+    ),
+}
 
 # xmlid, name, sequence, edge, length formula. Same deductions as Fixed
 # Bead: it is the same bead doing the same job, in a sash rather than a

@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from .formula import validate_formula
 from .units import to_display, to_mm
+
+_logger = logging.getLogger(__name__)
 
 
 class AwWindowTemplate(models.Model):
@@ -321,10 +325,11 @@ class AwWindowTemplate(models.Model):
             ]
             spec.full_name = ' \u2013 '.join(part for part in parts if part)
 
-    @api.depends('profile_line_ids', 'hardware_line_ids')
+    @api.depends('profile_line_ids.is_used', 'hardware_line_ids')
     def _compute_part_counts(self):
         for rec in self:
-            rec.profile_line_count = len(rec.profile_line_ids)
+            rec.profile_line_count = len(
+                rec.profile_line_ids.filtered('is_used'))
             rec.hardware_line_count = len(rec.hardware_line_ids)
 
     def _compute_design_count(self):
@@ -358,6 +363,62 @@ class AwWindowTemplate(models.Model):
                     raise ValidationError(_(
                         "%(label)s on '%(name)s': %(problem)s",
                         label=label, name=rec.name, problem=problem))
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        specs = super().create(vals_list)
+        # Not while modules load: the migrations that run then re-point
+        # existing lines onto a spec and would clash with the catalog
+        # rows made here. The data function that ends the load makes them.
+        if not self.pool._init:
+            specs._sync_catalog_lines()
+        return specs
+
+    def _sync_catalog_lines(self, positions=None):
+        """Give every spec a line for every catalog position, UNUSED where
+        the series does not map it. Idempotent: it only adds the rows that
+        are missing, so a mapped line is never touched."""
+        Position = self.env['aw.profile.position'].with_context(
+            active_test=False)
+        Line = self.env['aw.profile.section.line'].with_context(
+            active_test=False)
+        positions = positions or Position.search([('scope', '!=', False)])
+        added = 0
+        for spec in self.with_context(active_test=False):
+            have = set(Line.search([('spec_id', '=', spec.id)]).position_id.ids)
+            vals = [{
+                'spec_id': spec.id, 'position_id': position.id,
+                'is_used': False, 'sequence': position.sequence or 10,
+            } for position in positions if position.id not in have]
+            if vals:
+                Line.create(vals)
+                added += len(vals)
+        return added
+
+    @api.model
+    def _sync_all_catalog_lines(self):
+        """The data function: every spec, after every migration."""
+        specs = self.with_context(active_test=False).search([])
+        before = self.env['aw.profile.section.line'].with_context(
+            active_test=False).search_count([('spec_id', '!=', False)])
+        added = specs._sync_catalog_lines()
+        _logger.info(
+            "aw_fenestration_core: catalog sync: %s spec(s), %s line(s) "
+            "before, %s unused row(s) added", len(specs), before, added)
+        return added
+
+    def action_copy_from_series(self):
+        """One-time copy of another series' mapping onto an empty one."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Copy from series'),
+            'res_model': 'aw.window.template.copy.wizard',
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'new',
+            'context': {'default_target_id': self.id},
+        }
 
     def action_duplicate_spec(self):
         """Copy this spec, its lines and its deductions.

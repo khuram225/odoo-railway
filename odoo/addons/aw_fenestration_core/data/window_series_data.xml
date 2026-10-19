@@ -55,5 +55,11 @@
         <function model="aw.price.structure" name="_seed_default_structure"/>
         <function model="aw.profile.rate" name="_backfill_date_to"/>
         <function model="product.attribute" name="_seed_finish_colours"/>
+        <!-- The position catalog, LAST: rename and add positions, then
+             give every spec a row for every position (unused where it
+             is not mapped). After every migration above, which re-point
+             lines and would clash with these rows. -->
+        <function model="aw.profile.position" name="_seed_catalog"/>
+        <function model="aw.window.template" name="_sync_all_catalog_lines"/>
     </data>
 </odoo>
