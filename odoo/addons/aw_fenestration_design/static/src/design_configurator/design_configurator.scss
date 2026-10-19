@@ -297,3 +297,16 @@
     z-index: 1100;
     pointer-events: none;
 }
+
+// Pieces block: the supervisor edits these on a tablet.
+.o_aw_touch {
+    min-height: 44px;
+    padding: 0 14px;
+}
+
+.o_aw_touch_input {
+    min-height: 44px;
+    font-size: 1.1rem;
+    flex: 1 1 auto;
+    min-width: 0;
+}

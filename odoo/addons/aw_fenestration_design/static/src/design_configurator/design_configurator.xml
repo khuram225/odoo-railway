@@ -1172,6 +1172,76 @@
                                 </t>
                             </t>
                             </t>
+
+                            <!-- Pieces: the cut lines of the selected
+                                 panel (or of the frame and dividers),
+                                 the same records as the form's Cut list
+                                 tab. Touch-sized controls: this is used
+                                 on a tablet. -->
+                            <div class="o_aw_pieces mt-3 pt-2 border-top">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <div class="small text-muted text-uppercase fw-bold">
+                                        Pieces: <t t-esc="piecesScopeLabel"/>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        <button t-if="selectionMode !== 'none'"
+                                                class="btn btn-outline-secondary o_aw_touch"
+                                                t-on-click="showFramePieces">Frame</button>
+                                        <button class="btn btn-outline-primary o_aw_touch"
+                                                t-on-click="recomputePieces">Recompute</button>
+                                    </div>
+                                </div>
+                                <div t-if="cutListStale" class="alert alert-warning small py-1 px-2 mb-2">
+                                    The window's size changed after this cut list was
+                                    made, so it still shows the old lengths. Press Recompute.
+                                </div>
+                                <div t-if="orphanCount" class="alert alert-warning small py-1 px-2 mb-2">
+                                    <t t-esc="orphanCount"/> manual line(s) no longer match a
+                                    piece in the current layout. They are kept as typed and
+                                    marked Orphan: fix or delete them.
+                                </div>
+                                <div t-if="state.dirty" class="small text-muted mb-2">
+                                    The layout has unsaved changes; editing a piece saves it first.
+                                </div>
+                                <div t-if="!scopedPieces.length" class="small text-muted">
+                                    No cut lines here. Generate the cut list from the form,
+                                    or press Recompute.
+                                </div>
+                                <div t-foreach="scopedPieces" t-as="piece" t-key="piece.id"
+                                     class="o_aw_piece border rounded p-2 mb-2">
+                                    <div class="d-flex align-items-center justify-content-between gap-1">
+                                        <span class="small fw-bold text-truncate" t-att-title="piece.label">
+                                            <t t-esc="piece.label"/>
+                                        </span>
+                                        <span class="d-flex gap-1 flex-shrink-0">
+                                            <span t-if="piece.is_manual" class="badge text-bg-warning">Manual</span>
+                                            <span t-if="piece.is_orphan" class="badge text-bg-danger">Orphan</span>
+                                        </span>
+                                    </div>
+                                    <div class="small text-muted">
+                                        <t t-if="piece.group"><t t-esc="piece.group"/> · </t>
+                                        <t t-esc="piece.qty"/> pc<t t-if="piece.cut_angle"> · <t t-esc="piece.cut_angle"/>° ends</t>
+                                    </div>
+                                    <t t-if="piece.cut_on_site">
+                                        <div class="small text-muted">Cut on site</div>
+                                    </t>
+                                    <t t-else="">
+                                        <div class="d-flex align-items-center gap-2 mt-1">
+                                            <input type="text" inputmode="text"
+                                                   class="form-control o_aw_touch_input"
+                                                   t-att-value="pieceText(piece.length_mm)"
+                                                   t-on-focus="(ev) => ev.target.select()"
+                                                   t-on-input="(ev) => this.onPieceInput(piece, ev)"
+                                                   t-on-change="(ev) => this.onPieceChange(piece, ev)"
+                                                   t-on-keydown="onPieceKeydown"/>
+                                            <div class="small text-muted text-nowrap">
+                                                <div>was <t t-esc="pieceText(piece.computed_length_mm)"/></div>
+                                                <div><span t-att-data-aw-piece-mm="piece.id" t-esc="pieceMmText(piece.length_mm)"/> mm</div>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Pricing (spec 8). INTERNAL ONLY: none of this
