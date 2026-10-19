@@ -93,7 +93,7 @@
         <field name="name">aw.design.form</field>
         <field name="model">aw.design</field>
         <field name="arch" type="xml">
-            <form edit="false">
+            <form>
                 <header>
                     <button name="action_open_configurator" type="object"
                             string="Open Configurator" class="btn-primary"/>
@@ -120,39 +120,39 @@
                     </div>
                     <group>
                         <group>
-                            <field name="name"/>
-                            <field name="location"/>
-                            <field name="qty"/>
-                            <field name="family_id" string="Family"/>
+                            <field name="name" readonly="1"/>
+                            <field name="location" readonly="1"/>
+                            <field name="qty" readonly="1"/>
+                            <field name="family_id" string="Family" readonly="1"/>
                             <!-- NOT an entry field: it follows from the
                                  family and the panels drawn, via
                                  _resolve_system(). Shown as Type. -->
                             <field name="window_series_id" string="Type"
                                    readonly="1"/>
-                            <field name="template_id" string="Series"/>
+                            <field name="template_id" string="Series" readonly="1"/>
                         </group>
                         <group>
                             <field name="length_uom" invisible="1"/>
 
                             <label for="width_ft" string="Width" invisible="length_uom != 'ftin'"/>
                             <div class="o_row" invisible="length_uom != 'ftin'">
-                                <field name="width_ft"/>
+                                <field name="width_ft" readonly="1"/>
                                 <span>ft</span>
-                                <field name="width_in"/>
+                                <field name="width_in" readonly="1"/>
                                 <span>in</span>
                             </div>
-                            <field name="width_inch_total" string="Width (in)" invisible="length_uom == 'ftin'"/>
-                            <field name="width_mm"/>
+                            <field name="width_inch_total" string="Width (in)" invisible="length_uom == 'ftin'" readonly="1"/>
+                            <field name="width_mm" readonly="1"/>
 
                             <label for="height_ft" string="Height" invisible="length_uom != 'ftin'"/>
                             <div class="o_row" invisible="length_uom != 'ftin'">
-                                <field name="height_ft"/>
+                                <field name="height_ft" readonly="1"/>
                                 <span>ft</span>
-                                <field name="height_in"/>
+                                <field name="height_in" readonly="1"/>
                                 <span>in</span>
                             </div>
-                            <field name="height_inch_total" string="Height (in)" invisible="length_uom == 'ftin'"/>
-                            <field name="height_mm"/>
+                            <field name="height_inch_total" string="Height (in)" invisible="length_uom == 'ftin'" readonly="1"/>
+                            <field name="height_mm" readonly="1"/>
 
                             <field name="area_sqm" readonly="1"/>
                             <field name="area_sqft" readonly="1"/>
@@ -167,17 +167,17 @@
                     </group>
                     <group>
                         <group string="Glazing / Finish">
-                            <field name="glass_spec_id"/>
-                            <field name="finish_id"/>
+                            <field name="glass_spec_id" readonly="1"/>
+                            <field name="finish_id" readonly="1"/>
                         </group>
                         <group string="Quote">
-                            <field name="sale_order_line_id"/>
+                            <field name="sale_order_line_id" readonly="1"/>
                             <field name="sale_order_id" readonly="1"/>
                         </group>
                     </group>
                     <notebook>
                         <page string="Rows" name="rows" groups="base.group_no_one">
-                            <field name="row_ids">
+                            <field name="row_ids" readonly="1">
                                 <list editable="bottom">
                                     <field name="sequence" widget="handle"/>
                                     <!-- Same as the leaves list: length_uom
@@ -219,8 +219,9 @@
                                     string="Recompute" class="btn-secondary"
                                     invisible="not cut_line_ids"
                                     title="Refreshes every line from the spec. A line edited by hand keeps what was typed, and a line added by hand is never touched."/>
-                            <field name="cut_line_ids" readonly="1">
-                                <list default_group_by="group_label"
+                            <field name="cut_line_ids">
+                                <list editable="bottom" create="false" delete="false"
+                                      default_group_by="group_label"
                                       decoration-warning="is_manual"
                                       decoration-danger="is_orphan">
                                     <field name="sequence" column_invisible="1"/>
@@ -228,12 +229,12 @@
                                     <field name="is_free_form" column_invisible="1"/>
                                     <field name="cut_on_site" column_invisible="1"/>
                                     <field name="group_label" string="Group" readonly="1"/>
-                                    <field name="label" readonly="not is_free_form"/>
-                                    <field name="product_id" string="Section"/>
-                                    <field name="qty"/>
-                                    <field name="cut_angle" string="Cut ends"/>
+                                    <field name="label" readonly="1"/>
+                                    <field name="product_id" string="Section" readonly="1"/>
+                                    <field name="qty" readonly="1"/>
+                                    <field name="cut_angle" string="Cut ends" readonly="1"/>
                                     <field name="length_text" string="Length (in)"/>
-                                    <field name="computed_length_text" string="Computed (in)"/>
+                                    <field name="computed_length_text" string="Computed (in)" readonly="1"/>
                                     <field name="length_mm" string="Length (mm)"/>
                                     <field name="is_manual" string="Manual" readonly="1"/>
                                     <field name="is_orphan" string="Orphan" readonly="1"/>
