@@ -96,10 +96,30 @@ class ResConfigSettings(models.TransientModel):
 
     @api.model
     def get_values(self):
-        """A database that still holds the retired 'ftin' reads as inches:
-        the option is gone from the form, and the stored value is left
-        alone (no migration) until somebody saves the settings."""
+        """A stored 'ftin' (the retired option) reads as inches."""
         values = super().get_values()
         if values.get('aw_length_uom') == 'ftin':
             values['aw_length_uom'] = 'in'
         return values
+
+    @api.model
+    def default_get(self, fields):
+        """The same mapping where it actually matters. A field backed by
+        config_parameter is filled in by default_get, NOT by get_values()
+        (the base get_values returns nothing), so the override above never
+        saw the stored value and opening Settings failed with "Wrong
+        value for res.config.settings.aw_length_uom: 'ftin'"."""
+        res = super().default_get(fields)
+        if res.get('aw_length_uom') == 'ftin':
+            res['aw_length_uom'] = 'in'
+        return res
+
+    @api.model
+    def _migrate_length_uom(self):
+        """Rewrite a stored 'ftin' to 'in'. Idempotent, so it runs on
+        every upgrade and does nothing once the value is clean."""
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param('aw_fenestration.length_uom') == 'ftin':
+            param.set_param('aw_fenestration.length_uom', 'in')
+            return True
+        return False
