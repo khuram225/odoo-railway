@@ -410,14 +410,17 @@ REQUIRED_CATALOG = {
     True: (
         'pos_frame_top', 'pos_frame_bottom', 'pos_frame_sides',
         'pos_palay_top', 'pos_palay_bottom', 'pos_palay_sides',
-        'pos_palay_bead_top', 'pos_palay_bead_bottom', 'pos_palay_bead_sides',
-        'pos_bead_top', 'pos_bead_bottom', 'pos_bead_sides',
         'pos_divider_vertical', 'pos_divider_horizontal',
         'pos_interlock', 'pos_meeting_stile', 'pos_mesh_all',
         'pos_mesh_frame_top', 'pos_mesh_frame_bottom', 'pos_mesh_frame_sides',
     ),
+    # Beads are optional: a sliding sash or a fixed light often has the
+    # glazing channel built in, and warning on every such window teaches
+    # people to ignore the warnings.
     False: (
         'pos_lock_bar',
+        'pos_palay_bead_top', 'pos_palay_bead_bottom', 'pos_palay_bead_sides',
+        'pos_bead_top', 'pos_bead_bottom', 'pos_bead_sides',
         'pos_mesh_bead_top', 'pos_mesh_bead_bottom', 'pos_mesh_bead_sides',
     ),
 }

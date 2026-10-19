@@ -81,3 +81,12 @@ class TestPositionCatalog(TransactionCase):
             self.env['aw.window.template.copy.wizard'].create({
                 'target_id': self.spec.id,
                 'source_id': source.id}).action_copy()
+
+    def test_beads_are_optional_frames_are_required(self):
+        by_name = {p.name: p for p in self.positions}
+        for name, position in by_name.items():
+            if 'Bead' in name or name == 'Sash Lock Bar':
+                self.assertFalse(position.is_required, name)
+        for name in ('Outer Frame - Top', 'Sash Frame - Top',
+                     'Divider - Vertical', 'Mesh Frame - Top'):
+            self.assertTrue(by_name[name].is_required, name)
