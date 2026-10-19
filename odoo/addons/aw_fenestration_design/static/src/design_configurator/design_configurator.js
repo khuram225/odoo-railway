@@ -233,6 +233,13 @@ const PART_ORDER = [
     "mesh_frame", "mesh_bead", "mesh_cloth", "other",
 ];
 
+/**
+ * Keys of the tree groups (Pieces scope and part, Profiles scope and
+ * part, Hardware). They start COLLAPSED; once a user has opened or closed
+ * one, what is stored for it wins. Every other section starts expanded.
+ */
+const COLLAPSED_BY_DEFAULT = ["pcs:", "pc:", "prof:", "profp:"];
+
 const RIGHT_TABS = ["panel", "spec", "pricing", "checks"];
 const RIGHT_TAB_LABELS = {
     panel: "Panel",
@@ -583,7 +590,12 @@ export class DesignConfigurator extends Component {
      * different way -- see surfaceCheckErrors().
      */
     isCollapsed(key) {
-        return !!this.state.collapsed[key];
+        const stored = this.state.collapsed?.[key];
+        if (stored === undefined
+                && COLLAPSED_BY_DEFAULT.some((prefix) => key.startsWith(prefix))) {
+            return true;
+        }
+        return !!stored;
     }
 
     sectionIcon(key) {
@@ -591,9 +603,11 @@ export class DesignConfigurator extends Component {
     }
 
     toggleSection(key) {
+        // Through isCollapsed, so the first click on a group that starts
+        // collapsed opens it instead of "collapsing" it again.
         this.state.collapsed = {
             ...this.state.collapsed,
-            [key]: !this.state.collapsed[key],
+            [key]: !this.isCollapsed(key),
         };
         saveCollapsed(this.state.collapsed);
     }

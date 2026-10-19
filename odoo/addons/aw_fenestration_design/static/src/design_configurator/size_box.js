@@ -33,10 +33,16 @@ export class SizeBox extends Component {
     setup() {
         this.state = useState({ editing: false, initial: "" });
         this.input = useRef("input");
+        // What is typed, read from the input itself. Used only for the
+        // paired display and for the commit; never written back.
+        this.draft = "";
         useEffect(
             (editing) => {
                 const el = this.input.el;
                 if (editing && el) {
+                    // The ONE write: the value the box is mounted with.
+                    el.value = this.state.initial;
+                    this.draft = this.state.initial;
                     el.focus();
                     el.select();
                 }
@@ -54,7 +60,8 @@ export class SizeBox extends Component {
     }
 
     onInput(ev) {
-        this.props.onInput?.(ev.target.value);
+        this.draft = ev.target.value;
+        this.props.onInput?.(this.draft);
     }
 
     commit() {
@@ -62,7 +69,7 @@ export class SizeBox extends Component {
         if (!this.state.editing) {
             return;
         }
-        const text = this.input.el ? this.input.el.value : this.state.initial;
+        const text = this.draft;
         this.state.editing = false;
         if (text === this.state.initial) {
             this.props.onCancel?.();

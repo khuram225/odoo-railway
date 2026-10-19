@@ -389,6 +389,80 @@ for (const target of TARGETS) {
     }
 }
 
+// ---------------------------------------------------------------------
+// Phase 3: the size box's editing input is uncontrolled.
+//
+// A bound value is written back whenever OWL renders the component, and a
+// render while the box is focused put the stored value over what was being
+// typed. This holds the component to: the value is written ONCE, when the
+// input mounts, and typing, reading the draft and committing never write it.
+{
+    console.log("\nSIZE BOX: typing after mount does not write the value");
+    const base = "odoo/addons/aw_fenestration_design/static/src/design_configurator/";
+    const xml = readFileSync(base + "size_box.xml", "utf8");
+    const input = (xml.match(/<input[\s\S]*?\/>/) || [""])[0];
+    const bound = /t-att-value|t-model|\svalue=/.test(input);
+    console.log(`  ${bound ? "FAIL" : "ok  "} the editing <input> binds no value`);
+    if (bound) {
+        failures++;
+    }
+
+    let effect = null;
+    const holder = { el: null };
+    const prelude = `
+const Component = class {};
+const useState = (o) => o;
+const useRef = () => globalThis.__sbHolder;
+const useEffect = (fn) => { globalThis.__sbEffect = fn; };
+`;
+    globalThis.__sbHolder = holder;
+    const src = readFileSync(base + "size_box.js", "utf8").replace(
+        /^\s*import\s[\s\S]*?from\s*["'][^"']+["'];?\s*$/gm, "");
+    const tmp = join(dir, "size_box.mjs");
+    writeFileSync(tmp, prelude + src, "utf8");
+    const { SizeBox } = await import(pathToFileURL(tmp).href);
+
+    const committed = [];
+    const box = new SizeBox();
+    box.props = {
+        value: "144",
+        onInput: () => {},
+        onCommit: (text) => committed.push(text),
+    };
+    box.setup();
+
+    let current = "";
+    let writes = 0;
+    const el = {
+        get value() { return current; },
+        set value(v) { writes += 1; current = v; },
+        focus() {},
+        select() {},
+    };
+    holder.el = el;
+    box.start();                       // switches to the editing input
+    globalThis.__sbEffect(true);       // OWL's mount: the one allowed write
+    const mounted = writes;
+    // The user types; the browser, not the component, changes the value.
+    for (const typed of ["1", "14", "144-", "144-4"]) {
+        current = typed;
+        box.onInput({ target: el });
+    }
+    box.commit();
+    const checks = [
+        [mounted === 1, `value written once on mount (${mounted})`],
+        [writes === 1, `no write while typing or committing (${writes} in all)`],
+        [committed.length === 1 && committed[0] === "144-4",
+            `commits what was typed ("${committed[0]}")`],
+    ];
+    for (const [pass, message] of checks) {
+        console.log(`  ${pass ? "ok  " : "FAIL"} ${message}`);
+        if (!pass) {
+            failures++;
+        }
+    }
+}
+
 if (failures) {
     console.log(`\n${failures} getter failure(s).`);
     process.exit(1);

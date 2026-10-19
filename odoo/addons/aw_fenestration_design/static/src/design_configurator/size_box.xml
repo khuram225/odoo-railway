@@ -1,12 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <templates xml:space="preserve">
 
+    <!-- The editing input is UNCONTROLLED on purpose: no t-att-value, no
+         t-model. OWL writes a bound value back whenever the component
+         renders, and a render while the box is focused (the paired
+         box updating, the dirty flag) put the stored value back over what
+         was being typed: the first keystroke was lost and the caret
+         jumped to the end. The value is set once, when the input mounts
+         (size_box.js), and never again while it is focused. -->
     <t t-name="aw_fenestration_design.SizeBox">
         <input t-if="state.editing" t-ref="input" type="text"
                t-att-class="props.class" t-att-style="props.style"
                t-att-inputmode="props.inputmode"
                t-att-data-aw-size="props.size" t-att-data-aw-kind="props.kind"
-               t-att-value="state.initial"
                t-on-input="onInput" t-on-blur="commit" t-on-keydown="onKeydown"/>
         <div t-else="" tabindex="0" role="textbox"
              t-att-class="(props.class || '') + ' o_aw_sizebox'"
