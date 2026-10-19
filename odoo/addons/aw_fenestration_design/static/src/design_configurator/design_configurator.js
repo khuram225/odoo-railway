@@ -15,6 +15,7 @@ import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_d
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
+import { SizeBox } from "./size_box";
 
 const MM_PER_IN = 25.4;
 const MM_PER_SOOT = MM_PER_IN / 8; // 1 soot = 1/8 in
@@ -299,6 +300,7 @@ function saveRightTab(key) {
 
 export class DesignConfigurator extends Component {
     static template = "aw_fenestration_design.DesignConfigurator";
+    static components = { SizeBox };
     static props = { ...standardActionServiceProps };
 
     setup() {
@@ -350,6 +352,9 @@ export class DesignConfigurator extends Component {
             gridCols: 2,
             gridRows: 2,
             libraryOpen: true,
+            // The other box of a Width/Height pair, shown live while one
+            // is being typed into: { field, source, text }.
+            sizeDraft: null,
             familyFilter: null, // family id, or null for "All"
             builderOpen: false,
             builder: { panels: 2, tracks: 2, mesh: false, roles: [] },
@@ -782,80 +787,13 @@ export class DesignConfigurator extends Component {
         return `pc:${scope.key}:${part.key}`;
     }
 
-    /**
-     * Select the whole value when a size box is entered. Three handlers,
-     * because Chrome places the caret on a mouse click AFTER the focus
-     * event and undoes a selection made there:
-     *   mousedown  a box that is not focused yet: stop the default (which
-     *              is what places the caret), focus it, select it all;
-     *   focus      select all again on the next frame, for Tab and for a
-     *              tap, which focus without a usable mousedown;
-     *   click      if that left nothing selected, select all -- but only
-     *              for the click that entered the box, so a second click
-     *              inside it still places the caret to edit mid-value.
-     * Tab never produces a mousedown or a click, so it behaves as it did.
-     */
-    /** TEMPORARY: one console line per step, to find where the selection
-     * is lost. Remove with the debug branch. */
-    debugSelection(step, box) {
-        const active = document.activeElement;
-        console.log(
-            `[aw-select] ${step}: active=${active?.tagName}`
-            + `${active === box ? " (this box)" : " (NOT this box)"}`
-            + ` id=${box?.dataset?.awSize || box?.className || ""}`
-            + ` range=${box?.selectionStart}-${box?.selectionEnd}`
-            + ` len=${box?.value?.length}`);
-    }
-
-    selectOnMouseDown(ev) {
-        const box = ev?.target;
-        this.debugSelection("mousedown", box);
-        if (!box || !box.select || document.activeElement === box) {
-            return;
-        }
-        ev.preventDefault();
-        this.justEntered = box;
-        box.focus();
-        box.select();
-        this.debugSelection("mousedown after select", box);
-    }
-
-    selectOnFocus(ev) {
-        const box = ev?.target;
-        if (!box || !box.select) {
-            return;
-        }
-        this.justEntered = box;
-        this.debugSelection("focus", box);
-        box.select();
-        window.requestAnimationFrame?.(() => {
-            this.debugSelection("focus next frame (before)", box);
-            if (document.activeElement === box) {
-                box.select();
-            }
-            this.debugSelection("focus next frame (after)", box);
-        });
-    }
-
-    selectOnClick(ev) {
-        const box = ev?.target;
-        this.debugSelection("click", box);
-        if (!box || !box.select) {
-            return;
-        }
-        if (this.justEntered === box && box.selectionStart === box.selectionEnd) {
-            box.select();
-        }
-        this.justEntered = null;
-    }
-
     showFramePieces() {
         this.state.selected = null;
     }
 
     /** The mm figure follows the box as it is typed. */
-    onPieceInput(piece, ev) {
-        const mm = parseInches(ev.target.value);
+    onPieceInput(piece, text) {
+        const mm = parseInches(text);
         const target = document.querySelector(
             `[data-aw-piece-mm="${piece.id}"]`);
         if (target && Number.isFinite(mm)) {
@@ -863,12 +801,10 @@ export class DesignConfigurator extends Component {
         }
     }
 
-    /** Blur or Enter. Unreadable text puts the old value back. */
-    async onPieceChange(piece, ev) {
-        const box = ev.target;
-        const mm = parseInches(box.value);
+    /** A length typed in a Pieces box, committed on blur or Enter. */
+    async commitPiece(piece, text) {
+        const mm = parseInches(text);
         if (!Number.isFinite(mm) || mm < 0) {
-            box.value = this.pieceText(piece.length_mm);
             this.notification.add(
                 "That length cannot be read. Use inches (46-2, 46 1/4, 46.25) or mm (1170mm).",
                 { type: "warning" });
@@ -881,17 +817,6 @@ export class DesignConfigurator extends Component {
         }
         this.state.data = await this.orm.call(
             "aw.design", "set_piece_length", [[this.designId], piece.id, mm]);
-        const fresh = (this.state.data.pieces || []).find(
-            (row) => row.id === piece.id);
-        // Rewrite the box in its normal form: OWL will not, because the
-        // bound value may be unchanged.
-        box.value = this.pieceText(fresh ? fresh.length_mm : mm);
-    }
-
-    onPieceKeydown(ev) {
-        if (ev.key === "Enter") {
-            ev.target.blur();
-        }
     }
 
     async recomputePieces() {
@@ -1950,44 +1875,45 @@ export class DesignConfigurator extends Component {
         return parseInches(text) || 0;
     }
 
-    /** The input box of the pair, by dimension and kind ("in" or "mm"). */
-    sizeBox(field, kind) {
-        return document.querySelector(
-            `input[data-aw-size="${field}"][data-aw-kind="${kind}"]`);
+    /**
+     * What a Width/Height box shows: while the OTHER box of the pair is
+     * being typed into, that box's figure converted live; otherwise the
+     * stored value.
+     */
+    sizeBoxValue(field, kind) {
+        const draft = this.state.sizeDraft;
+        if (draft && draft.field === field && draft.source !== kind) {
+            return draft.text;
+        }
+        const mm = this.state.data?.header?.[field];
+        return kind === "mm" ? this.formatMmBox(mm) : this.formatInchesBox(mm);
     }
 
-    /**
-     * Typing in either box shows the other's value AT ONCE, without
-     * touching what is being typed: the active box is only re-formatted
-     * when it is committed (blur or Enter), never on a keystroke.
-     */
-    onSizeBoxInput(field, kind, ev) {
-        const text = ev.target.value;
+    /** Typing in either box shows the other's value at once. */
+    onSizeBoxInput(field, kind, text) {
         const mm = kind === "mm" ? parseFloat(text) : parseInches(text);
-        const other = this.sizeBox(field, kind === "mm" ? "in" : "mm");
-        if (other && Number.isFinite(mm) && mm >= 0) {
-            other.value = kind === "mm"
-                ? this.formatInchesBox(mm) : this.formatMmBox(mm);
+        if (Number.isFinite(mm) && mm >= 0) {
+            this.state.sizeDraft = {
+                field,
+                source: kind,
+                text: kind === "mm"
+                    ? this.formatInchesBox(mm) : this.formatMmBox(mm),
+            };
         }
         this.markDirty();
     }
 
-    onSizeBoxChange(field, kind, ev) {
-        const text = ev.target.value;
+    /** Blur or Enter: store the value; both boxes re-render from it. */
+    commitSizeBox(field, kind, text) {
+        this.state.sizeDraft = null;
         const mm = kind === "mm"
             ? parseFloat(text) || 0
             : this.parseInchesBox(text);
         this.applyDimension(field, mm);
-        // Rewrite BOTH boxes in their normal form: OWL will not, because
-        // typed junk leaves the bound value unchanged.
-        const inches = this.sizeBox(field, "in");
-        const millimetres = this.sizeBox(field, "mm");
-        if (inches) {
-            inches.value = this.formatInchesBox(mm);
-        }
-        if (millimetres) {
-            millimetres.value = this.formatMmBox(mm);
-        }
+    }
+
+    cancelSizeBox() {
+        this.state.sizeDraft = null;
     }
 
     onDimensionChange(field, text) {

@@ -165,6 +165,7 @@ const document = {
 };
 const Component = class {};
 const useState = (o) => o;
+const SizeBox = class {};
 const useRef = () => ({ el: null });
 const onWillStart = () => {};
 const onMounted = () => {};

@@ -10,6 +10,7 @@ const SRC =
 const STUBS = `
 const Component = class {};
 const useState = (o) => o;
+const SizeBox = class {};
 const useRef = () => ({ el: null });
 const onWillStart = () => {};
 const onMounted = () => {};

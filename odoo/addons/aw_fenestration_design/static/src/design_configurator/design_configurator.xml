@@ -65,51 +65,55 @@
                             <label class="form-label small text-muted mb-0">
                                 Width (in)
                             </label>
-                            <input type="text" class="form-control form-control-sm"
-                                   style="width: 7rem;"
-                                   placeholder="70 1/2"
-                                   data-aw-size="width_mm" data-aw-kind="in"
-                                   t-att-value="formatInchesBox(state.data.header.width_mm)"
-                                   t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
-                                   t-on-input="(ev) => this.onSizeBoxInput('width_mm', 'in', ev)"
-                                   t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'in', ev)"/>
+                            <SizeBox class="'form-control form-control-sm'"
+                                      style="'width: 7rem;'"
+                                      placeholder="'70 1/2'"
+                                      inputmode="'text'"
+                                      size="'width_mm'" kind="'in'"
+                                      value="sizeBoxValue('width_mm', 'in')"
+                                      onInput="(text) => this.onSizeBoxInput('width_mm', 'in', text)"
+                                      onCommit="(text) => this.commitSizeBox('width_mm', 'in', text)"
+                                      onCancel="() => this.cancelSizeBox()"/>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">
                                 Width (mm)
                             </label>
-                            <input type="text" inputmode="decimal" class="form-control form-control-sm"
-                                   style="width: 6rem;"
-                                   data-aw-size="width_mm" data-aw-kind="mm"
-                                   t-att-value="formatMmBox(state.data.header.width_mm)"
-                                   t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
-                                   t-on-input="(ev) => this.onSizeBoxInput('width_mm', 'mm', ev)"
-                                   t-on-change="(ev) => this.onSizeBoxChange('width_mm', 'mm', ev)"/>
+                            <SizeBox class="'form-control form-control-sm'"
+                                      style="'width: 6rem;'"
+                                      inputmode="'decimal'"
+                                      size="'width_mm'" kind="'mm'"
+                                      value="sizeBoxValue('width_mm', 'mm')"
+                                      onInput="(text) => this.onSizeBoxInput('width_mm', 'mm', text)"
+                                      onCommit="(text) => this.commitSizeBox('width_mm', 'mm', text)"
+                                      onCancel="() => this.cancelSizeBox()"/>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">
                                 Height (in)
                             </label>
-                            <input type="text" class="form-control form-control-sm"
-                                   style="width: 7rem;"
-                                   placeholder="70 1/2"
-                                   data-aw-size="height_mm" data-aw-kind="in"
-                                   t-att-value="formatInchesBox(state.data.header.height_mm)"
-                                   t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
-                                   t-on-input="(ev) => this.onSizeBoxInput('height_mm', 'in', ev)"
-                                   t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'in', ev)"/>
+                            <SizeBox class="'form-control form-control-sm'"
+                                      style="'width: 7rem;'"
+                                      placeholder="'70 1/2'"
+                                      inputmode="'text'"
+                                      size="'height_mm'" kind="'in'"
+                                      value="sizeBoxValue('height_mm', 'in')"
+                                      onInput="(text) => this.onSizeBoxInput('height_mm', 'in', text)"
+                                      onCommit="(text) => this.commitSizeBox('height_mm', 'in', text)"
+                                      onCancel="() => this.cancelSizeBox()"/>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">
                                 Height (mm)
                             </label>
-                            <input type="text" inputmode="decimal" class="form-control form-control-sm"
-                                   style="width: 6rem;"
-                                   data-aw-size="height_mm" data-aw-kind="mm"
-                                   t-att-value="formatMmBox(state.data.header.height_mm)"
-                                   t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
-                                   t-on-input="(ev) => this.onSizeBoxInput('height_mm', 'mm', ev)"
-                                   t-on-change="(ev) => this.onSizeBoxChange('height_mm', 'mm', ev)"/>
+                            <SizeBox class="'form-control form-control-sm'"
+                                      style="'width: 6rem;'"
+                                      inputmode="'decimal'"
+                                      size="'height_mm'" kind="'mm'"
+                                      value="sizeBoxValue('height_mm', 'mm')"
+                                      onInput="(text) => this.onSizeBoxInput('height_mm', 'mm', text)"
+                                      onCommit="(text) => this.commitSizeBox('height_mm', 'mm', text)"
+                                      onCancel="() => this.cancelSizeBox()"/>
                         </div>
                         <div t-if="frameRoles.length">
                             <label class="form-label small text-muted mb-0">Type</label>
@@ -883,19 +887,17 @@
                                         <label class="form-label small text-muted mb-0">
                                             Width (<t t-esc="uomLabel"/>)
                                         </label>
-                                        <input type="text" class="form-control form-control-sm"
-                                               t-att-value="selectedPanelWidthText"
-                                               t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
-                                               t-on-change="(ev) => this.setPanelWidth(ev.target.value)"/>
+                                        <SizeBox class="'form-control form-control-sm'"
+                                                 value="selectedPanelWidthText"
+                                                 onCommit="(text) => this.setPanelWidth(text)"/>
                                     </div>
                                     <div class="col-6">
                                         <label class="form-label small text-muted mb-0">
                                             Height (<t t-esc="uomLabel"/>)
                                         </label>
-                                        <input type="text" class="form-control form-control-sm"
-                                               t-att-value="selectedPanelHeightText"
-                                               t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
-                                               t-on-change="(ev) => this.setPanelHeight(ev.target.value)"/>
+                                        <SizeBox class="'form-control form-control-sm'"
+                                                 value="selectedPanelHeightText"
+                                                 onCommit="(text) => this.setPanelHeight(text)"/>
                                     </div>
                                 </div>
 
@@ -1253,14 +1255,11 @@
                                                         <span class="ms-auto small text-muted">Cut on site</span>
                                                     </t>
                                                     <t t-else="">
-                                                        <input type="text" inputmode="text"
-                                                               class="form-control o_aw_touch_input ms-auto"
-                                                               style="max-width: 9rem;"
-                                                               t-att-value="pieceText(piece.length_mm)"
-                                                               t-on-mousedown="selectOnMouseDown" t-on-focus="selectOnFocus" t-on-click="selectOnClick"
-                                                               t-on-input="(ev) => this.onPieceInput(piece, ev)"
-                                                               t-on-change="(ev) => this.onPieceChange(piece, ev)"
-                                                               t-on-keydown="onPieceKeydown"/>
+                                                        <SizeBox class="'form-control o_aw_touch_input ms-auto'"
+                                                           style="'max-width: 9rem;'"
+                                                           value="pieceText(piece.length_mm)"
+                                                           onInput="(text) => this.onPieceInput(piece, text)"
+                                                           onCommit="(text) => this.commitPiece(piece, text)"/>
                                                     </t>
                                                     <div class="o_aw_tree_rule">
                                                         <t t-esc="piece.qty"/> pc<t t-if="piece.cut_angle"> · <t t-esc="piece.cut_angle"/>° ends</t>
