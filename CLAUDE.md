@@ -53,6 +53,19 @@ the real `odoo.conf` rather than reading it, because `dbfilter`'s value
 is `^print$` and reasoning about which of those characters survive two
 layers of shell quoting is how this sort of code goes wrong quietly.
 
+**Module upgrade on deploy.** `entrypoint.sh` runs, as the `odoo` user and
+before the server starts, `odoo -c /etc/odoo/odoo.conf -d $ODOO_DB_NAME
+-u aw_fenestration_core,aw_fenestration_design --stop-after-init`, then
+logs `upgrade: done; versions: ...` read from `ir_module_module`.
+`ODOO_UPGRADE_MODULES` overrides the list and **set empty skips it**: the
+print service must set it empty, since its addons path has no `aw_*`
+modules. If the update exits non-zero the entrypoint exits 1 and the
+server never starts, so the healthcheck never passes and Railway keeps
+the previous deployment serving. The restart policy (`ON_FAILURE`, up to
+10) re-runs the update each time, which is harmless: it is idempotent.
+The update can fail part way, and modules commit as they go, so the old
+deployment may then be serving a partly upgraded database; fix forward.
+
 Print's own domain context is in
 `odoo/addons/addons_print/CLAUDE.md`.
 
@@ -442,6 +455,11 @@ knowing the pattern, since it'll happen again: a stat button using
 and an action record defined *after* the view that references it via
 `%(xmlid)d` in the same file (that substitution resolves eagerly at parse
 time — see the load-order note above).
+
+## Process
+
+Merging to main deploys and upgrades aw_fenestration_core and
+aw_fenestration_design; never run Upgrade from the Apps menu.
 
 ## Static checks
 
@@ -1302,10 +1320,14 @@ Core's `/web/health` was the healthcheck before and never loads the
 registry at all — at most it pings the Postgres *server* — which is why a
 completely broken deploy once reported healthy.
 
-**Why the deep probe must NOT be the healthcheck.** Railway keeps the old
-container until the new one reports healthy, and the Upgrade is run FROM
-the new one. A healthcheck demanding upgraded columns therefore deadlocks
-every schema-changing release: the new container cannot go healthy until
+**Why the deep probe must NOT be the healthcheck.** (Written when the
+Upgrade was run by hand from the new container; the upgrade now runs in
+the entrypoint before the server starts, so that deadlock no longer
+arises on the deploy path. The split stays, because the registry probe is
+the one that is safe whatever state the schema is in.) Railway keeps the
+old container until the new one reports healthy, and the Upgrade used to
+be run FROM the new one. A healthcheck demanding upgraded columns
+therefore deadlocked every schema-changing release: the new container cannot go healthy until
 it is upgraded, and cannot be upgraded until it is healthy. Since this
 repo's whole history is new stored fields awaiting an Upgrade, that is
 most releases. The boot job asserts the split by **dropping
@@ -1361,13 +1383,15 @@ whose `addons_path` is `addons_print` only has no such route, so it would
 
 - The boot warning "Missing not-null constraint on X.y" does NOT prove
   column y exists — it fires for missing columns too.
-- A normal deploy does not create columns for new fields; only
-  Upgrade/-u does. Never add a stored field to a core model read on
-  every request (res.company, res.users) — a single request before
-  Upgrade takes the whole site down. Use ir.config_parameter for
-  settings.
-- A plain deploy also doesn't load XML (views, menus, data) — always
-  Upgrade after deploying view changes.
+- **Merge to main deploys and upgrades; never run Upgrade from the Apps
+  menu.** `entrypoint.sh` runs `odoo -u aw_fenestration_core,
+  aw_fenestration_design --stop-after-init` before the server starts (see
+  "Module upgrade on deploy"), so code and schema change together. A bare
+  boot never creates columns or loads XML, which is why that step exists.
+- Still never add a stored field to a core model read on every request
+  (res.company, res.users): the old container serves against the NEW
+  schema's absence until the new one is healthy. Use ir.config_parameter
+  for settings.
 - `column_invisible` in a list is evaluated **once for the whole list,
   against the parent record/context — never per row**. It therefore
   cannot reference the row's own fields: doing so raises OwlError
