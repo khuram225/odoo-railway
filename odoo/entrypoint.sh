@@ -159,6 +159,38 @@ echo "boot: uid=$(id -u) dropping to odoo (uid $(id -u odoo)); config rendered a
 # user's home in the Debian package.
 export HOME=/var/lib/odoo
 
+# --- Module upgrade ------------------------------------------------------------
+#
+# Code and schema have to change together. A plain boot never runs the DDL for
+# a new stored field (only -u / -i does), so a deploy that is not followed
+# straight away by an upgrade serves new code against the old schema -- which
+# has taken the site down twice. So the upgrade is part of the start, BEFORE
+# the server: merge to main deploys AND upgrades; nobody uses the Apps menu.
+#
+# ODOO_UPGRADE_MODULES overrides the list; set it EMPTY to skip (the print
+# service, whose addons path has no aw_* modules, must do that). The default is
+# the aluminum pair, in the order Odoo resolves anyway (-u follows depends).
+#
+# If the update fails, so does the container: exit 1 here means the server
+# never starts, the healthcheck never passes, and Railway keeps serving the
+# previous deployment. Nothing below this block runs.
+UPGRADE_MODULES=${ODOO_UPGRADE_MODULES-aw_fenestration_core,aw_fenestration_design}
+if [ -n "$UPGRADE_MODULES" ]; then
+    upgrade_db=${ODOO_DB_NAME:-odoo}
+    echo "upgrade: odoo -u $UPGRADE_MODULES -d $upgrade_db --stop-after-init"
+    if ! setpriv --reuid=odoo --regid=odoo --init-groups /entrypoint.sh odoo             -c /etc/odoo/odoo.conf -d "$upgrade_db" -u "$UPGRADE_MODULES"             --stop-after-init; then
+        echo "FATAL: module upgrade failed; not starting the server." >&2
+        echo "       The previous deployment keeps serving." >&2
+        exit 1
+    fi
+    # One line, so a deploy log says what is now installed. Informational:
+    # a failure to read it never blocks the start.
+    in_list=$(printf '%s' "$UPGRADE_MODULES" | sed "s/,/','/g")
+    versions=$(setpriv --reuid=odoo --regid=odoo --init-groups         psql -d "$upgrade_db" -tAF ' ' -c         "SELECT name || '=' || COALESCE(latest_version, 'none') FROM ir_module_module WHERE name IN ('$in_list') ORDER BY name"         2>/dev/null | tr '
+' ' ') || versions=""
+    echo "upgrade: done; versions: ${versions:-unavailable}"
+fi
+
 # Hand off to the upstream entrypoint, which waits for PostgreSQL and then
 # execs `odoo`. It reads ODOO_RC=/etc/odoo/odoo.conf from the base image.
 exec setpriv --reuid=odoo --regid=odoo --init-groups /entrypoint.sh odoo
