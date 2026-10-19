@@ -1,0 +1,131 @@
+// The Scope > Part > Position tree, ONE look in three places: the
+// configurator's Profiles tab, its Pieces block, and the specification
+// form. Odoo's own colour variables only; no new palette.
+//
+//   scope     full-width light grey band, bold 15px
+//   part      indented 24px, 12px caps, lighter band
+//   row       indented 48px, white, zebra-tinted within a part
+//
+// The chevron is a fixed 24px column and the count is right-aligned, so
+// chevrons, titles, counts and indents line up down the whole tree.
+// Rows are at least 44px: this is used on a tablet.
+
+.o_aw_tree {
+    --aw-tree-band: var(--bs-gray-200, #e9ecef);
+    --aw-tree-band-light: var(--bs-gray-100, #f8f9fa);
+    --aw-tree-line: var(--bs-border-color, #dee2e6);
+    --aw-tree-hairline: var(--bs-border-color-translucent, rgba(0, 0, 0, 0.12));
+    --aw-tree-zebra: rgba(var(--bs-emphasis-color-rgb, 0, 0, 0), 0.035);
+    --aw-tree-step: 24px;
+}
+
+.o_aw_tree_scope,
+.o_aw_tree_part {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding-right: 8px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.o_aw_tree_scope {
+    margin-top: 8px;                  // space between scope groups
+    background: var(--aw-tree-band);
+    border-bottom: 1px solid var(--aw-tree-line);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.o_aw_tree > .o_aw_tree_scope:first-child {
+    margin-top: 0;
+}
+
+.o_aw_tree_part {
+    padding-left: var(--aw-tree-step);
+    background: var(--aw-tree-band-light);
+    border-bottom: 1px solid var(--aw-tree-hairline);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.o_aw_tree_chev {
+    flex: 0 0 var(--aw-tree-step);
+    width: var(--aw-tree-step);
+    text-align: center;
+    font-size: 11px;
+}
+
+.o_aw_tree_title {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.o_aw_tree_count {
+    flex: 0 0 auto;
+    margin-left: auto;
+    min-width: 28px;
+    text-align: right;
+}
+
+.o_aw_tree_link {
+    flex: 0 0 auto;
+    margin-left: 8px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+}
+
+.o_aw_tree_rows > .o_aw_tree_row {
+    border-bottom: 1px solid var(--aw-tree-hairline);
+}
+
+.o_aw_tree_row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    min-height: 44px;
+    padding: 4px 8px 4px calc(var(--aw-tree-step) * 2);
+    background: var(--bs-body-bg, #fff);
+}
+
+// Alternate position rows within a part, like a pivot table.
+.o_aw_tree_rows > .o_aw_tree_row:nth-child(even) {
+    background: linear-gradient(var(--aw-tree-zebra), var(--aw-tree-zebra)),
+        var(--bs-body-bg, #fff);
+}
+
+// The length rule (or the quantity and ends): its own line, muted.
+.o_aw_tree_rule {
+    flex: 1 0 100%;
+    font-size: 12px;
+    color: var(--bs-secondary-color, #6c757d);
+}
+
+.o_aw_tree_row .btn {
+    min-height: 32px;
+}
+
+// Rows that are not in use. In the specification form they stay, greyed,
+// because that is where they are switched on.
+.o_aw_tree_muted {
+    opacity: 0.55;
+}
+
+// A list inside the specification form's tree: the same indent, row height
+// and zebra as the position rows above.
+.o_aw_tree_listwrap {
+    padding-left: calc(var(--aw-tree-step) * 2);
+    border-bottom: 1px solid var(--aw-tree-hairline);
+
+    .o_data_row {
+        min-height: 44px;
+    }
+
+    .o_data_row:nth-child(even) {
+        background: var(--aw-tree-zebra);
+    }
+}

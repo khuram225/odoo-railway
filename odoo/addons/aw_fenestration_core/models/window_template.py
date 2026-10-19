@@ -170,6 +170,22 @@ class AwWindowTemplate(models.Model):
         'aw.profile.section.line', 'spec_id', string='No scope',
         domain=[('position_id.scope', '=', False)], copy=False)
 
+    # Used lines per part and per scope, for the counts on the tree.
+    # Display only, not stored.
+    n_outer = fields.Integer(compute='_compute_tree_counts')
+    n_dividers = fields.Integer(compute='_compute_tree_counts')
+    n_divider = fields.Integer(compute='_compute_tree_counts')
+    n_interlock = fields.Integer(compute='_compute_tree_counts')
+    n_sash = fields.Integer(compute='_compute_tree_counts')
+    n_sash_frame = fields.Integer(compute='_compute_tree_counts')
+    n_sash_bead = fields.Integer(compute='_compute_tree_counts')
+    n_sash_lock = fields.Integer(compute='_compute_tree_counts')
+    n_fixed = fields.Integer(compute='_compute_tree_counts')
+    n_mesh = fields.Integer(compute='_compute_tree_counts')
+    n_mesh_frame = fields.Integer(compute='_compute_tree_counts')
+    n_mesh_bead = fields.Integer(compute='_compute_tree_counts')
+    n_other = fields.Integer(compute='_compute_tree_counts')
+
     profile_line_count = fields.Integer(compute='_compute_part_counts')
     hardware_line_count = fields.Integer(compute='_compute_part_counts')
     design_count = fields.Integer(
@@ -324,6 +340,35 @@ class AwWindowTemplate(models.Model):
                 spec.name or '',
             ]
             spec.full_name = ' \u2013 '.join(part for part in parts if part)
+
+    @api.depends('profile_line_s_outer_ids.is_used',
+                 'profile_line_s_divider_ids.is_used',
+                 'profile_line_s_interlock_ids.is_used',
+                 'profile_line_s_sash_frame_ids.is_used',
+                 'profile_line_s_sash_bead_ids.is_used',
+                 'profile_line_s_sash_lock_ids.is_used',
+                 'profile_line_s_fixed_ids.is_used',
+                 'profile_line_s_mesh_frame_ids.is_used',
+                 'profile_line_s_mesh_bead_ids.is_used',
+                 'profile_line_s_other_ids.is_used')
+    def _compute_tree_counts(self):
+        for rec in self:
+            def used(lines):
+                return len(lines.filtered('is_used'))
+            rec.n_outer = used(rec.profile_line_s_outer_ids)
+            rec.n_divider = used(rec.profile_line_s_divider_ids)
+            rec.n_interlock = used(rec.profile_line_s_interlock_ids)
+            rec.n_dividers = rec.n_divider + rec.n_interlock
+            rec.n_sash_frame = used(rec.profile_line_s_sash_frame_ids)
+            rec.n_sash_bead = used(rec.profile_line_s_sash_bead_ids)
+            rec.n_sash_lock = used(rec.profile_line_s_sash_lock_ids)
+            rec.n_sash = (
+                rec.n_sash_frame + rec.n_sash_bead + rec.n_sash_lock)
+            rec.n_fixed = used(rec.profile_line_s_fixed_ids)
+            rec.n_mesh_frame = used(rec.profile_line_s_mesh_frame_ids)
+            rec.n_mesh_bead = used(rec.profile_line_s_mesh_bead_ids)
+            rec.n_mesh = rec.n_mesh_frame + rec.n_mesh_bead
+            rec.n_other = used(rec.profile_line_s_other_ids)
 
     @api.depends('profile_line_ids.is_used', 'hardware_line_ids')
     def _compute_part_counts(self):

@@ -86,7 +86,23 @@
                                 profile's variant from it.
                             </p>
                             <field name="system_role" invisible="1"/>
-                            <separator string="Outer frame › Frame"/>
+                            <div class="o_aw_tree">
+                            <div class="o_aw_tree_scope">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Outer frame</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_outer" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_outer == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Frame</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_outer" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_outer != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Frame</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_outer" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_outer_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -94,7 +110,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', '=', 'frame')]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -116,7 +133,23 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Dividers › Divider"/>
+                            </div>
+                            <div class="o_aw_tree_scope">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Dividers</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_dividers" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_divider == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Divider</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_divider" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_divider != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Divider</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_divider" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_divider_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -124,7 +157,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', 'in', ('junction_mullion', 'transom'))]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -146,7 +180,18 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Dividers › Interlock"/>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_interlock == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Interlock</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_interlock" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_interlock != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Interlock</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_interlock" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_interlock_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -154,7 +199,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', 'in', ('junction_meeting', 'junction_interlock'))]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -176,8 +222,28 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Sash › Frame" invisible="system_role == 'sliding'"/>
-                            <separator string="Sliding › Frame" invisible="system_role != 'sliding'"/>
+                            </div>
+                            <div class="o_aw_tree_scope" invisible="system_role == 'sliding'">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Sash</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_sash" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_scope" invisible="system_role != 'sliding'">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Sliding</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_sash" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_sash_frame == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Frame</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_sash_frame" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_sash_frame != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Frame</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_sash_frame" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_sash_frame_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -185,7 +251,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', '=', 'panel_opening'), ('part_group', 'not in', ('beads', 'lock'))]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -207,8 +274,18 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Sash › Bead" invisible="system_role == 'sliding'"/>
-                            <separator string="Sliding › Bead" invisible="system_role != 'sliding'"/>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_sash_bead == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Bead</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_sash_bead" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_sash_bead != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Bead</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_sash_bead" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_sash_bead_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -216,7 +293,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', '=', 'panel_opening'), ('part_group', '=', 'beads')]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -238,8 +316,18 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Sash › Lock bar" invisible="system_role == 'sliding'"/>
-                            <separator string="Sliding › Lock bar" invisible="system_role != 'sliding'"/>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_sash_lock == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Lock bar</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_sash_lock" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_sash_lock != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Lock bar</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_sash_lock" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_sash_lock_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -247,7 +335,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', '=', 'panel_opening'), ('part_group', '=', 'lock')]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -269,7 +358,23 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Fixed › Bead"/>
+                            </div>
+                            <div class="o_aw_tree_scope">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Fixed</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_fixed" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_fixed == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Bead</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_fixed" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_fixed != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Bead</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_fixed" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_fixed_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -277,7 +382,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', '=', 'panel_fixed')]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -299,7 +405,23 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Mesh › Frame"/>
+                            </div>
+                            <div class="o_aw_tree_scope">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Mesh</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_mesh" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_mesh_frame == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Frame</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_mesh_frame" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_mesh_frame != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Frame</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_mesh_frame" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_mesh_frame_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -307,7 +429,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', 'in', ('panel_mesh', 'mesh_attachment'))]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -329,7 +452,18 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="Mesh › Bead"/>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_mesh_bead == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Bead</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_mesh_bead" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_mesh_bead != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Bead</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_mesh_bead" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_mesh_bead_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -337,7 +471,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', '=', 'mesh_attachment')]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -359,7 +494,23 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
-                            <separator string="No scope (the engine ignores these)"/>
+                            </div>
+                            <div class="o_aw_tree_scope">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">No scope (the engine ignores these)</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_other" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part" invisible="n_other == 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Unmapped</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_other" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_part o_aw_tree_muted" invisible="n_other != 0">
+                                <span class="o_aw_tree_chev"/>
+                                <span class="o_aw_tree_title">Unmapped</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><field name="n_other" nolabel="1" readonly="1"/></span>
+                            </div>
+                            <div class="o_aw_tree_listwrap">
                             <field name="profile_line_s_other_ids" nolabel="1">
                                 <list editable="bottom" decoration-muted="not is_used">
                                     <field name="sequence" column_invisible="1"/>
@@ -367,7 +518,8 @@
                                     <field name="picture_tmpl_id" string="Picture"
                                            widget="image" nolabel="1"
                                            options="{'size': [48, 48], 'preview_image': 'image_512', 'zoom': true, 'zoom_delay': 200}"/>
-                                    <field name="position_id"/>
+                                    <field name="position_id" domain="[('scope', '=', False)]"/>
+                                    <field name="spec_section_id" string="Section"/>
                                     <field name="product_tmpl_id" string="Profile" required="is_used"/>
                                     <field name="section_dims"/>
                                     <!-- Every thickness the profile is sold
@@ -389,6 +541,8 @@
                                     <field name="note" optional="hide"/>
                                 </list>
                             </field>
+                            </div>
+                            </div>
                         </page>
 
                         <page string="Hardware" name="hardware">
