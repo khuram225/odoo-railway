@@ -393,6 +393,19 @@ class TestCutRules(TransactionCase):
         self.assertFalse(kept.is_manual)
         self.assertAlmostEqual(kept.length_mm, 866.775, places=2)
 
+    def test_piece_sides_and_parts(self):
+        side = self.env['aw.design']._piece_side
+        self.assertEqual(
+            [side('all', n) for n in (1, 2, 3, 4)],
+            ['Top', 'Bottom', 'Side', 'Side'])
+        self.assertEqual(side('sides', 2), 'Side')
+        self.assertEqual(side(False, 1), '')
+        pieces = self.design._bom_payload()['pieces']
+        self.assertTrue(pieces)
+        for piece in pieces:
+            self.assertIn('part_group', piece)
+            self.assertTrue(piece['short_label'])
+
     def test_resize_marks_the_cut_list_stale(self):
         self.design.write({'width_mm': 2000.0})
         self.assertTrue(self.design.cut_list_stale)
