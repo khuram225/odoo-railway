@@ -80,7 +80,6 @@
                         </group>
                         <group>
                             <field name="layout_id" readonly="1"/>
-                            <field name="columns_legend" readonly="1"/>
                             <field name="line_count"/>
                             <field name="unmatched_count"/>
                         </group>
@@ -100,30 +99,10 @@
                                     class="btn-secondary"/>
                         </group>
                     </group>
-                    <field name="line_ids" readonly="state != 'draft'">
-                        <list editable="bottom" decoration-danger="problem"
-                              decoration-warning="result and result != 'Applied'">
-                            <field name="sequence" widget="handle"/>
-                            <field name="state" column_invisible="1"/>
-                            <field name="code"/>
-                            <field name="thickness_text"/>
-                            <field name="series"/>
-                        <field name="rate_1" string="Rate 1"/>
-                        <field name="rate_2" string="Rate 2"/>
-                        <field name="rate_3" string="Rate 3"/>
-                        <field name="rate_4" string="Rate 4"/>
-                        <field name="rate_5" string="Rate 5"/>
-                        <field name="rate_6" string="Rate 6"/>
-                        <field name="rate_7" string="Rate 7"/>
-                        <field name="rate_8" string="Rate 8"/>
-                        <field name="rate_9" string="Rate 9" optional="hide"/>
-                        <field name="rate_10" string="Rate 10" optional="hide"/>
-                            <field name="product_tmpl_id"/>
-                            <field name="thickness_id"/>
-                            <field name="problem"/>
-                            <field name="result"/>
-                        </list>
-                    </field>
+                    <!-- The lines, as a grid whose rate columns are the
+                         vendor layout's own. Read only once applied. -->
+                    <field name="grid_meta" widget="aw_rate_grid" nolabel="1"
+                           colspan="2"/>
                 </sheet>
                 <chatter/>
             </form>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="aw_fenestration_core.RateGrid">
+        <div class="o_aw_rate_grid" t-ref="root" t-on-paste="onPaste">
+            <div t-if="!listId" class="text-muted p-2">
+                Save the list first, then add rows or paste them.
+            </div>
+            <div t-elif="!meta.has_layout" class="alert alert-warning m-2">
+                This vendor has no rate sheet layout yet. Describe its
+                columns under Vendor Layouts, then reopen the list.
+            </div>
+            <t t-else="">
+                <div t-if="!columns.length" class="alert alert-warning m-2">
+                    This layout has no rate columns.
+                </div>
+                <div class="o_aw_rate_grid_scroll">
+                    <table class="table table-sm o_aw_rate_grid_table mb-1">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Thickness</th>
+                                <th>Series</th>
+                                <th t-foreach="columns" t-as="col" t-key="col.index"
+                                    class="text-end"
+                                    t-att-class="col.mapped ? '' : 'text-muted'">
+                                    <div t-esc="col.header"/>
+                                    <div class="small fw-normal">
+                                        <t t-if="col.mapped" t-esc="col.finish"/>
+                                        <t t-else="">no finish</t>
+                                    </div>
+                                </th>
+                                <th>Profile</th>
+                                <th>Status</th>
+                                <th/>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="state.lines" t-as="line" t-key="line.id"
+                                t-att-class="line.problem ? 'table-danger' : ''">
+                                <td>
+                                    <input type="text" class="form-control form-control-sm"
+                                           t-att-value="line.code"
+                                           t-att-readonly="readonly or undefined"
+                                           t-att-data-row="line_index" data-col="code"
+                                           t-on-change="(ev) => this.saveText(line, 'code', ev.target.value)"
+                                           t-on-keydown="onKey"/>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm"
+                                           t-att-value="line.thickness_text"
+                                           t-att-readonly="readonly or undefined"
+                                           t-att-data-row="line_index" data-col="thickness"
+                                           t-on-change="(ev) => this.saveText(line, 'thickness_text', ev.target.value)"
+                                           t-on-keydown="onKey"/>
+                                </td>
+                                <td>
+                                    <input type="text" class="form-control form-control-sm"
+                                           t-att-value="line.series"
+                                           t-att-readonly="readonly or undefined"
+                                           t-att-data-row="line_index" data-col="series"
+                                           t-on-change="(ev) => this.saveText(line, 'series', ev.target.value)"
+                                           t-on-keydown="onKey"/>
+                                </td>
+                                <td t-foreach="columns" t-as="col" t-key="col.index">
+                                    <input type="text" inputmode="decimal"
+                                           class="form-control form-control-sm text-end"
+                                           t-att-value="cell(line, col)"
+                                           t-att-readonly="(readonly or !col.mapped) or undefined"
+                                           t-att-data-row="line_index"
+                                           t-att-data-col="'rate' + col.index"
+                                           t-on-change="(ev) => this.saveRate(line, col, ev.target.value)"
+                                           t-on-keydown="onKey"/>
+                                </td>
+                                <td>
+                                    <span t-if="line.product_tmpl_id" t-esc="productName(line)"/>
+                                    <button t-elif="!readonly" type="button"
+                                            class="btn btn-link btn-sm text-danger p-0"
+                                            t-on-click="() => this.pickProduct(line)">
+                                        pick the profile
+                                    </button>
+                                    <span t-else="" class="text-danger">no profile</span>
+                                </td>
+                                <td class="small" t-esc="statusText(line)"/>
+                                <td>
+                                    <button t-if="!readonly" type="button"
+                                            class="btn btn-link btn-sm text-muted p-0"
+                                            title="Remove this row"
+                                            t-on-click="() => this.removeLine(line)">
+                                        &#215;
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <button t-if="!readonly" type="button"
+                        class="btn btn-secondary btn-sm m-1"
+                        t-on-click="addLine">Add line</button>
+            </t>
+        </div>
+    </t>
+
+</templates>
