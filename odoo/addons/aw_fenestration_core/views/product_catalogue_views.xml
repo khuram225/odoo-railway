@@ -55,7 +55,7 @@
                                 <field name="date_to"
                                        string="Effective to"
                                        optional="hide"/>
-                                <field name="vendor_id" optional="hide"/>
+                                <field name="vendor_id"/>
                                 <field name="variant_exists"/>
                             </list>
                         </field>
@@ -111,28 +111,28 @@
         <field name="model">product.product</field>
         <field name="inherit_id" ref="product.product_normal_form_view"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
-                <page string="Fenestration" name="aw_fenestration_variant"
-                      invisible="not aw_rate_per_ft and not aw_rate_date">
-                    <group string="Current rate">
-                        <field name="aw_thickness_name"/>
-                        <field name="aw_finish_name"/>
-                        <field name="aw_rate_per_ft" string="PKR / ft"/>
-                        <field name="aw_rate_date" string="Effective from"/>
-                        <field name="aw_cost_from_rate"
-                               string="Cost / m from rate"/>
-                        <field name="aw_cost_method"
-                               string="Costing method"/>
-                        <field name="aw_has_rate" invisible="1"/>
-                        <field name="aw_cost_sync_allowed" invisible="1"/>
-                        <div class="text-muted" colspan="2"
-                             invisible="aw_cost_sync_allowed">
-                            Cost is not written from the rate here: under
-                            AVCO and FIFO it belongs to stock valuation.
-                            The figure above is for reference.
-                        </div>
-                    </group>
-                </page>
+            <!-- ONE Fenestration tab. The template's page is inherited
+                 into this form, so the variant's own figures go into
+                 that page instead of a second tab of the same name. -->
+            <xpath expr="//page[@name='aw_fenestration']" position="attributes">
+                <attribute name="invisible">not aw_catalogue_code and not aw_catalogue_page and not aw_rate_per_ft and not aw_rate_date</attribute>
+            </xpath>
+            <xpath expr="//page[@name='aw_fenestration']" position="inside">
+                <group string="This variant">
+                    <field name="aw_thickness_name"/>
+                    <field name="aw_finish_name"/>
+                    <field name="aw_rate_per_ft" string="PKR / ft"/>
+                    <field name="aw_rate_date" string="Effective from"/>
+                    <field name="aw_cost_from_rate"
+                           string="Cost / ft from rate"/>
+                    <field name="aw_has_rate" invisible="1"/>
+                    <div class="text-muted" colspan="2"
+                         invisible="aw_cost_sync_allowed">
+                        Cost is not written from the rate here: under
+                        AVCO and FIFO it belongs to stock valuation.
+                        The figure above is for reference.
+                    </div>
+                </group>
             </xpath>
         </field>
     </record>

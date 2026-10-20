@@ -33,9 +33,6 @@ PARAM_BUDGET = 'aw_fenestration.solve_budget_s'
 # Precut label sheet. Defined in models/res_config_settings.py, which
 # also owns the A4 sheet constants.
 from .res_config_settings import SHEET_H, SHEET_W  # noqa: E402
-from odoo.addons.aw_fenestration_core.models.product_rate import (  # noqa: E402
-    FEET_PER_METRE,
-)
 
 LABEL_P = 'aw_fenestration.label_'
 
@@ -384,7 +381,7 @@ class AwCutPlan(models.Model):
             template, thickness, finish, on_date, vendor)
         if rate:
             return rate.price, rate.date_from
-        return (product.standard_price or 0.0) / FEET_PER_METRE, False
+        return product.standard_price or 0.0, False
 
     def action_print_cutting_sheet(self):
         return self.env.ref(

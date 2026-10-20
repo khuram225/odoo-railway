@@ -11,12 +11,17 @@ quietly wrong the morning after. `standard_price` is the stored one,
 and it is only ever written deliberately -- by the import, by the
 button, or when a variant is first created.
 """
+import logging
+
 from odoo import _, api, fields, models
 from odoo.tools import float_compare
 
-# Stock UoM for profiles is the metre; rates are quoted per running
-# foot. Exact by definition: 1 m = 1 / 0.3048 ft.
-FEET_PER_METRE = 3.280839895013123
+from .variant_codes import variant_reference
+
+_logger = logging.getLogger(__name__)
+
+# Profiles are stocked, costed and bought in FEET, the unit the vendor
+# rates are quoted in, so a rate and a cost are the same number.
 
 
 class ProductProduct(models.Model):
@@ -48,6 +53,35 @@ class ProductProduct(models.Model):
                     finish = value.name
             variant.aw_thickness_name = thickness
             variant.aw_finish_name = finish
+
+    def _aw_fill_reference(self):
+        """code-thickness-finish, only where empty and only when every
+        value has an abbreviation in the table. True when it was set."""
+        self.ensure_one()
+        if self.default_code:
+            return False
+        thickness, finish = self._aw_attribute_values()
+        reference, _missing = variant_reference(
+            self.product_tmpl_id.name, thickness.name, finish.name)
+        if not reference:
+            return False
+        self.default_code = reference
+        return True
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        variants = super().create(vals_list)
+        category = self.env.ref(
+            'aw_fenestration_core.product_category_profiles',
+            raise_if_not_found=False)
+        if category and not self.pool._init:
+            for variant in variants.filtered(
+                    lambda v: v.categ_id.parent_path
+                    and category.parent_path
+                    and v.categ_id.parent_path.startswith(
+                        category.parent_path)):
+                variant._aw_fill_reference()
+        return variants
 
     def _aw_attribute_values(self):
         """The plain attribute values behind this variant's combination.
@@ -85,12 +119,11 @@ class ProductProduct(models.Model):
             variant.aw_rate_per_ft = rate.price if rate else 0.0
             variant.aw_rate_date = rate.date_from if rate else False
             variant.aw_has_rate = bool(rate)
-            variant.aw_cost_from_rate = (
-                rate.price * FEET_PER_METRE) if rate else 0.0
+            variant.aw_cost_from_rate = rate.price if rate else 0.0
 
     # ------------------------------------------------------------------
     aw_cost_from_rate = fields.Float(
-        string='Cost / m from rate', compute='_compute_aw_rate',
+        string='Cost / ft from rate', compute='_compute_aw_rate',
         digits='Product Price',
         help="What the cost would be if written from the current rate. "
              "Shown even when the costing method forbids writing it.")
@@ -120,7 +153,7 @@ class ProductProduct(models.Model):
             variant.aw_cost_sync_allowed = method == 'standard'
 
     def _aw_sync_cost_from_rate(self):
-        """Write standard_price from the rate, per metre.
+        """Write standard_price from the rate, per foot.
 
         Returns (updated, blocked). Two things are deliberately never
         written:
@@ -139,7 +172,7 @@ class ProductProduct(models.Model):
             if not variant.aw_cost_sync_allowed:
                 blocked |= variant
                 continue
-            cost = variant.aw_rate_per_ft * FEET_PER_METRE
+            cost = variant.aw_rate_per_ft
             if float_compare(variant.standard_price, cost,
                              precision_digits=4) != 0:
                 variant.standard_price = cost
@@ -270,3 +303,152 @@ class ProductTemplate(models.Model):
         """
         return self.mapped(
             'product_variant_ids').action_aw_update_costs_from_rates()
+
+    # ------------------------------------------------------------------
+    # one-shot data cleanup: duplicate attribute lines, unit, cost, refs
+    # ------------------------------------------------------------------
+    def _register_hook(self):
+        """After every module has loaded; savepoint, and logged rather
+        than raised, because this also runs on every ordinary start."""
+        super()._register_hook()
+        try:
+            with self.env.cr.savepoint():
+                self._aw_variant_data_cleanup()
+        except Exception:
+            _logger.exception("aw_fenestration_core: variant cleanup failed")
+
+    def _aw_profile_templates(self):
+        category = self.env.ref(
+            'aw_fenestration_core.product_category_profiles',
+            raise_if_not_found=False)
+        if not category:
+            return self.browse()
+        return self.with_context(active_test=False).search(
+            [('categ_id', 'child_of', category.id)])
+
+    @api.model
+    def _aw_variant_data_cleanup(self):
+        """Merge duplicate attribute lines, move profiles to feet, bring
+        costs in line with the rates, fill internal references. Each step
+        is its own one-shot parameter so a failure in one does not repeat
+        or block the others."""
+        param = self.env['ir.config_parameter'].sudo()
+        report = {}
+        if not param.get_param('aw_fenestration.attr_lines_merged'):
+            report['merge'] = self._aw_merge_duplicate_attribute_lines()
+            param.set_param('aw_fenestration.attr_lines_merged', '1')
+        if not param.get_param('aw_fenestration.profiles_in_feet'):
+            report['feet'] = self._aw_move_profiles_to_feet()
+            param.set_param('aw_fenestration.profiles_in_feet', '1')
+        if not param.get_param('aw_fenestration.profile_costs_synced_ft'):
+            report['costs'] = self._aw_sync_all_profile_costs()
+            param.set_param('aw_fenestration.profile_costs_synced_ft', '1')
+        if not param.get_param('aw_fenestration.variant_refs_filled'):
+            report['refs'] = self._aw_fill_variant_references()
+            param.set_param('aw_fenestration.variant_refs_filled', '1')
+        if report:
+            param.set_param('aw_fenestration.variant_cleanup_report',
+                            repr(report))
+            _logger.info("aw_fenestration_core: variant cleanup: %s", report)
+        return report
+
+    @api.model
+    def _aw_merge_duplicate_attribute_lines(self):
+        """One line per attribute per template, variants untouched.
+
+        The lowest-id line is kept. A variant that pointed at a surplus
+        line's value now points at the kept line's matching value (it
+        already did, in the cases seen, since variants were made against
+        every duplicate), then the surplus lines go. Variant ids do not
+        change, so rates, BOM lines and aliases keep their target.
+        """
+        cr = self.env.cr
+        cr.execute("""
+            SELECT product_tmpl_id, attribute_id, array_agg(id ORDER BY id)
+              FROM product_template_attribute_line WHERE active
+             GROUP BY 1, 2 HAVING count(*) > 1""")
+        groups = cr.fetchall()
+        Line = self.env['product.template.attribute.line']
+        Variant = self.env['product.product'].with_context(active_test=False)
+        removed = rewritten = 0
+        templates = self.browse()
+        for template_id, _attribute_id, ids in groups:
+            keep, dups = ids[0], ids[1:]
+            kept = Line.browse(keep)
+            surplus = Line.browse(dups)
+            # values the surplus lines had that the kept one lacks
+            missing = surplus.value_ids - kept.value_ids
+            if missing:
+                kept.write({'value_ids': [(4, v.id) for v in missing]})
+            self.env.flush_all()
+            cr.execute("""
+                INSERT INTO product_variant_combination
+                       (product_product_id, product_template_attribute_value_id)
+                SELECT c.product_product_id, k.id
+                  FROM product_variant_combination c
+                  JOIN product_template_attribute_value d
+                    ON d.id = c.product_template_attribute_value_id
+                  JOIN product_template_attribute_value k
+                    ON k.attribute_line_id = %s
+                   AND k.product_attribute_value_id = d.product_attribute_value_id
+                 WHERE d.attribute_line_id = ANY(%s)
+                ON CONFLICT DO NOTHING""", (keep, dups))
+            cr.execute("""
+                DELETE FROM product_variant_combination
+                 WHERE product_template_attribute_value_id IN (
+                       SELECT id FROM product_template_attribute_value
+                        WHERE attribute_line_id = ANY(%s))""", (dups,))
+            rewritten += cr.rowcount
+            self.env.invalidate_all()
+            variants = Variant.search([('product_tmpl_id', '=', template_id)])
+            variants._compute_combination_indices()
+            self.env.flush_all()
+            surplus.unlink()
+            removed += len(dups)
+            templates |= self.browse(template_id)
+        return {'groups': len(groups), 'lines_removed': removed,
+                'combination_rows_removed': rewritten,
+                'templates': templates.mapped('name')}
+
+    @api.model
+    def _aw_move_profiles_to_feet(self):
+        """Profiles are bought and costed per running foot: the foot UoM
+        (archived by default) is switched on and set on every profile.
+        There is no purchase UoM on a product template in this version;
+        that lives on a vendor pricelist line, which is not used here."""
+        foot = self.env.ref('uom.product_uom_foot')
+        if not foot.active:
+            foot.sudo().active = True
+        templates = self._aw_profile_templates().filtered(
+            lambda t: t.uom_id != foot)
+        if templates:
+            templates.write({'uom_id': foot.id})
+        return {'templates_moved': len(templates)}
+
+    @api.model
+    def _aw_sync_all_profile_costs(self):
+        """Cost per foot = the series' default vendor's rate per foot, for
+        every profile variant that exists and has a rate."""
+        variants = self._aw_profile_templates().product_variant_ids
+        variants.invalidate_recordset()
+        updated, blocked = variants._aw_sync_cost_from_rate()
+        no_rate = variants.filtered(lambda v: not v.aw_has_rate)
+        return {'variants': len(variants), 'updated': len(updated),
+                'blocked': len(blocked), 'without_rate': len(no_rate)}
+
+    @api.model
+    def _aw_fill_variant_references(self):
+        """code-thickness-finish where a variant has no reference."""
+        done, unmapped = 0, {}
+        variants = self._aw_profile_templates().product_variant_ids.filtered(
+            lambda v: not v.default_code)
+        for variant in variants:
+            if variant._aw_fill_reference():
+                done += 1
+            else:
+                thickness, finish = variant._aw_attribute_values()
+                reference, missing = variant_reference(
+                    variant.product_tmpl_id.name, thickness.name, finish.name)
+                for name in missing:
+                    unmapped[name] = unmapped.get(name, 0) + 1
+        return {'filled': done, 'values_not_in_table': unmapped}

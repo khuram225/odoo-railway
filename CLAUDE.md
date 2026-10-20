@@ -461,6 +461,11 @@ time — see the load-order note above).
 Merging to main deploys and upgrades aw_fenestration_core and
 aw_fenestration_design; never run Upgrade from the Apps menu.
 
+Never reinstall (`-i`) core or design on production; upgrade (`-u`) only.
+The data files are `noupdate`, and a reinstall re-applies them: it
+recreated the Chawla products and, through their `(0, 0)` attribute-line
+commands, added a second set of lines to the five that survived.
+
 ## Vendor rates
 
 `aw.profile.rate` is the vendor price line: one row per profile, thickness,
