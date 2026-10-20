@@ -461,6 +461,30 @@ time — see the load-order note above).
 Merging to main deploys and upgrades aw_fenestration_core and
 aw_fenestration_design; never run Upgrade from the Apps menu.
 
+## Vendor rates
+
+`aw.profile.rate` is the vendor price line: one row per profile, thickness,
+finish and **vendor**, with `vendor_series`, `date_from` and a `date_to`
+the validity chain keeps (vendor is part of the chain key). **`_rate_for`
+and `_rate_lookup` take a vendor and return only that vendor's rows**; no
+vendor means no rate. `_rate_lookup` also says which fallback it used
+(`exact`, `thickness`, `template`), and costing puts that in the line's
+cost note so a wrong-finish rate is never silent. With no rate from the
+vendor, costing uses the variant's cost field and the note names the vendor
+and the variant.
+
+Whose rates: the order's `aw_profile_vendor_id`, defaulting from the first
+window's series (`aw.window.template.default_vendor_id`). Before vendors
+every rate had none, so `_seed_vendors` assigned them to a "Chawla" partner
+(`aw_fenestration.legacy_rate_vendor_id`) and made it every series' default,
+which keeps costs identical. A rate row saved with no vendor is ignored.
+
+Entry is a rate list (`aw.vendor.rate.list`): rows pasted in the vendor's
+sheet layout (`aw.vendor.layout`, set once), typed, or prefilled from the
+current rates of a series. Apply writes ordinary rate rows; unmatched rows
+are never applied. "No variant" means the profile does not offer that
+thickness or finish, not that the dynamic variant is not made yet.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

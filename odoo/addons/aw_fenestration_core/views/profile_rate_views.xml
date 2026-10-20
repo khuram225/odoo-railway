@@ -18,6 +18,7 @@
                 <field name="price"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="vendor_id"/>
+                <field name="vendor_series" optional="hide"/>
                 <field name="date_end" optional="hide"/>
                 <field name="source_note" optional="hide"/>
             </list>

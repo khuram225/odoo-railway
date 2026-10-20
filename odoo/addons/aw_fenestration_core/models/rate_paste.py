@@ -1,0 +1,88 @@
+# -*- coding: utf-8 -*-
+"""Reading a vendor's rate sheet from pasted text.
+
+Odoo-free, like formula.py, so a test can hold it to the real thing.
+
+A vendor's sheet is a row per profile and thickness: a code, a thickness,
+a series, then one rate per finish. The columns are described once per
+vendor (aw.vendor.layout); this turns pasted rows into
+{code, thickness, series, rates} using that description.
+"""
+import re
+
+KINDS = ('code', 'thickness', 'series', 'finish', 'skip')
+
+
+def normalise_code(code):
+    """Case, spaces, hyphens and underscores do not distinguish a vendor
+    code: "D35" is "D-35". Suffix words are kept ("D-35 M.F" stays a
+    different profile from "D-35")."""
+    return re.sub(r'[\s\-_]+', '', (code or '').upper())
+
+
+def normalise_text(text):
+    return re.sub(r'\s+', '', (text or '').upper())
+
+
+def parse_number(cell):
+    """A rate from a cell: "1,234.5" -> 1234.5; blank or text -> None."""
+    cell = (cell or '').strip().replace(',', '')
+    if not cell:
+        return None
+    try:
+        return float(cell)
+    except ValueError:
+        return None
+
+
+def split_row(line, kinds):
+    """The cells of one pasted row, padded to the layout.
+
+    Tab-separated is what a spreadsheet gives. A row typed with spaces is
+    also accepted; there, a blank Series cell leaves one token fewer than
+    there are columns, and the blank is put back where the layout says
+    the series column is.
+    """
+    width = len(kinds)
+    if '\t' in line:
+        cells = line.split('\t')
+    else:
+        cells = re.split(r'\s{2,}', line.strip())
+        if len(cells) != width:
+            cells = line.split()
+        if len(cells) == width - 1 and 'series' in kinds:
+            cells.insert(kinds.index('series'), '')
+    cells = [cell.strip() for cell in cells]
+    return (cells + [''] * width)[:width]
+
+
+def parse_paste(text, kinds):
+    """Rows from pasted text.
+
+    `kinds` is the layout's column kinds in order, e.g.
+    ['code', 'thickness', 'series', 'finish', 'finish', ...]. Returns a
+    list of {code, thickness, series, rates}, `rates` being one number or
+    None per finish column. A header row (no number under any finish
+    column) is skipped, and a blank Series takes the row above's.
+    """
+    rows = []
+    series = ''
+    finish_at = [i for i, kind in enumerate(kinds) if kind == 'finish']
+    for line in (text or '').splitlines():
+        if not line.strip():
+            continue
+        cells = split_row(line, kinds)
+        rates = [parse_number(cells[i]) for i in finish_at]
+        if not any(rate is not None for rate in rates):
+            continue            # the header, or a row with no rates
+        pick = lambda kind: next(
+            (cells[i] for i, k in enumerate(kinds) if k == kind), '')
+        row_series = pick('series') or series
+        series = row_series
+        rows.append({
+            'code': pick('code'),
+            'thickness': pick('thickness'),
+            'series': row_series,
+            'rates': rates,
+        })
+    return rows

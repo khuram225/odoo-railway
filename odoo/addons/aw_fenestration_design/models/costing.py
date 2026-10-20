@@ -29,6 +29,10 @@ MIN_MARGIN_PARAM = 'aw_fenestration.min_margin_pct'
 DEFAULT_MIN_MARGIN = 20.0
 MM_PER_FOOT = 304.8
 
+from odoo.addons.aw_fenestration_core.models.product_rate import (  # noqa: E402
+    FEET_PER_METRE,
+)
+
 
 class AwDesignBomLine(models.Model):
     _inherit = 'aw.design.bom.line'
@@ -101,6 +105,79 @@ class AwDesign(models.Model):
             return fields.Date.to_date(order.date_order)
         return fields.Date.context_today(self)
 
+    def _costing_vendor(self):
+        """Whose rates this window's profiles are costed at: the order's
+        profile vendor, else its series' default, else the vendor every
+        rate belonged to before vendors existed."""
+        self.ensure_one()
+        return (self.sale_order_id.aw_profile_vendor_id
+                or self.template_id.default_vendor_id
+                or self.env['aw.profile.rate']._legacy_vendor())
+
+    def _profile_rate_keys(self):
+        """(line, template, thickness, finish) for each costed profile
+        line: the same resolution the costing uses, in one place so the
+        by-vendor comparison cannot disagree with it."""
+        self.ensure_one()
+        section_lines = {}
+        for source in (self._spec_profile_lines()
+                       | self._added_profile_lines()):
+            for template in source._profile_choices():
+                section_lines.setdefault(template.id, source)
+        keys = []
+        for line in self.bom_line_ids:
+            if line.kind != 'profile' or line.cut_on_site:
+                continue
+            template = line.product_id.product_tmpl_id
+            source = section_lines.get(template.id)
+            keys.append((
+                line, template,
+                self._line_thickness(source, template) if source else False,
+                self._line_finish(source) if source else self.finish_id))
+        return keys
+
+    def _profile_cost_by_vendor(self):
+        """This window's profile cost at each vendor's rates in force,
+        for comparison. Only vendors that have any rate; "n of m variants
+        priced" says how complete each figure is, and "rates as of" the
+        newest effective date it used."""
+        self.ensure_one()
+        on_date = self._costing_date()
+        rates = self.env['aw.profile.rate']
+        order_vendor = self._costing_vendor()
+        keys = self._profile_rate_keys()
+        out = []
+        self.env.cr.execute(
+            "SELECT DISTINCT vendor_id FROM aw_profile_rate "
+            "WHERE vendor_id IS NOT NULL AND active")
+        for (vendor_id,) in self.env.cr.fetchall():
+            vendor = self.env['res.partner'].browse(vendor_id)
+            total, as_of = 0.0, False
+            variants, priced = set(), set()
+            for line, template, thickness, finish in keys:
+                variant = (template.id, thickness.id if thickness else 0,
+                           finish.id if finish else 0)
+                variants.add(variant)
+                rate, _level = rates._rate_lookup(
+                    template, thickness, finish, on_date, vendor)
+                if not rate:
+                    continue
+                priced.add(variant)
+                total += ((line.length_mm or 0.0) / MM_PER_FOOT
+                          * rate.price * (line.qty or 0))
+                if not as_of or rate.date_from > as_of:
+                    as_of = rate.date_from
+            out.append({
+                'id': vendor.id,
+                'name': vendor.display_name,
+                'total': total,
+                'priced': len(priced),
+                'variants': len(variants),
+                'as_of': as_of.isoformat() if as_of else '',
+                'is_order_vendor': vendor == order_vendor,
+            })
+        return sorted(out, key=lambda v: (not v['is_order_vendor'], v['name']))
+
     def _cost_bom_lines(self):
         """Attach cost to every BOM line, after explosion.
 
@@ -112,6 +189,7 @@ class AwDesign(models.Model):
         self.ensure_one()
         on_date = self._costing_date()
         rates = self.env['aw.profile.rate']
+        vendor = self._costing_vendor()
         # Keyed by TEMPLATE, not by the line's variant: phase 7e took
         # the variant off the line, and keying by template also finally
         # covers a divider built from one of the line's ALTERNATES --
@@ -142,22 +220,51 @@ class AwDesign(models.Model):
                 # (A BOM line carries no position, so a template that is
                 # in no spec line -- an override's -- keeps the window's
                 # finish and the loose thickness it always had.)
-                rate = rates._rate_for(
+                rate, level = rates._rate_lookup(
                     template,
                     (self._line_thickness(source, template)
                      if source else False),
                     (self._line_finish(source) if source
                      else self.finish_id),
-                    on_date)
+                    on_date, vendor)
+                variant = line.product_id.display_name or template.display_name
                 if rate:
                     unit_cost = rate.price
                     rate_date = rate.date_from
                     line.line_cost = (
                         (line.length_mm or 0.0) / MM_PER_FOOT
                         * rate.price * (line.qty or 0))
+                    # A fallback is a rate for something else: never silent.
+                    if level == 'thickness':
+                        note = _(
+                            "%(vendor)s has no rate for this finish on "
+                            "%(variant)s; its rate for the thickness in any "
+                            "finish is used.",
+                            vendor=vendor.display_name, variant=variant)
+                    elif level == 'template':
+                        note = _(
+                            "%(vendor)s has no rate for this thickness or "
+                            "finish on %(variant)s; its rate for the profile "
+                            "in any thickness and finish is used.",
+                            vendor=vendor.display_name, variant=variant)
                 else:
-                    note = _("No rate for this profile on %s") % on_date
-                    line.line_cost = 0.0
+                    # No rate from this vendor: the variant's cost field
+                    # (per metre) stands in, and the check says so.
+                    per_ft = (line.product_id.standard_price or 0.0) \
+                        / FEET_PER_METRE
+                    unit_cost = per_ft
+                    line.line_cost = (
+                        (line.length_mm or 0.0) / MM_PER_FOOT
+                        * per_ft * (line.qty or 0))
+                    note = (_(
+                        "No %(vendor)s rate for %(variant)s on %(date)s; "
+                        "the cost field is used.",
+                        vendor=vendor.display_name or _('profile'),
+                        variant=variant, date=on_date) if per_ft else _(
+                        "No %(vendor)s rate for %(variant)s on %(date)s, "
+                        "and no cost field either.",
+                        vendor=vendor.display_name or _('profile'),
+                        variant=variant, date=on_date))
 
             elif line.kind == 'glass':
                 unit_cost = line.product_id.standard_price or 0.0
@@ -296,6 +403,7 @@ class AwDesign(models.Model):
                      'unit': line.unit}
                     for line in self.price_structure_id.line_ids
                 ],
+                'by_vendor': self._profile_cost_by_vendor(),
                 'by_kind': [
                     {'kind': kind,
                      'cost': sum(

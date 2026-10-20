@@ -170,6 +170,11 @@ class AwWindowTemplate(models.Model):
         'aw.profile.section.line', 'spec_id', string='No scope',
         domain=[('position_id.scope', '=', False)], copy=False)
 
+    default_vendor_id = fields.Many2one(
+        'res.partner', string='Default vendor', tracking=True,
+        help="Whose rates this series is costed at unless the order says "
+             "otherwise.")
+
     # Used lines per part and per scope, for the counts on the tree.
     # Display only, not stored.
     n_outer = fields.Integer(compute='_compute_tree_counts')
@@ -439,6 +444,39 @@ class AwWindowTemplate(models.Model):
                 Line.create(vals)
                 added += len(vals)
         return added
+
+    @api.model
+    def _seed_vendors(self):
+        """Rates were never scoped by vendor, so all of them belong to
+        one list: Chawla's. Make that explicit, ONCE: a Chawla partner, the
+        rates assigned to it, and every series defaulting to it. Costing
+        then reads exactly the rates it read before."""
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param('aw_fenestration.legacy_rate_vendor_id'):
+            return False
+        Rate = self.env['aw.profile.rate'].with_context(active_test=False)
+        if not Rate.search_count([('vendor_id', '=', False)]):
+            return False
+        partner = self.env['res.partner'].search(
+            [('name', '=ilike', 'Chawla')], limit=1)
+        if not partner:
+            partner = self.env['res.partner'].create({
+                'name': 'Chawla', 'is_company': True})
+        # One statement: the vendor is part of the validity chain key, but
+        # every row is moving to the same vendor, so no chain changes and
+        # there is nothing for the write override to rebuild.
+        self.env.cr.execute(
+            "UPDATE aw_profile_rate SET vendor_id = %s "
+            "WHERE vendor_id IS NULL", (partner.id,))
+        Rate.invalidate_model(['vendor_id'])
+        self.with_context(active_test=False).search(
+            [('default_vendor_id', '=', False)]).write(
+                {'default_vendor_id': partner.id})
+        param.set_param('aw_fenestration.legacy_rate_vendor_id', partner.id)
+        _logger.info(
+            "aw_fenestration_core: rates assigned to vendor '%s'",
+            partner.name)
+        return True
 
     @api.model
     def _sync_all_catalog_lines(self):

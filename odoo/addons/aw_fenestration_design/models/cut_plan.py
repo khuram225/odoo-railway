@@ -33,6 +33,9 @@ PARAM_BUDGET = 'aw_fenestration.solve_budget_s'
 # Precut label sheet. Defined in models/res_config_settings.py, which
 # also owns the A4 sheet constants.
 from .res_config_settings import SHEET_H, SHEET_W  # noqa: E402
+from odoo.addons.aw_fenestration_core.models.product_rate import (  # noqa: E402
+    FEET_PER_METRE,
+)
 
 LABEL_P = 'aw_fenestration.label_'
 
@@ -244,7 +247,7 @@ class AwCutPlan(models.Model):
         reused = 0
         for product_id, entry in pooled.items():
             product = entry['product']
-            rate = self._rate_for_product(product)
+            rate, rate_date = self._rate_for_product(product)
             fingerprint = self._group_fingerprint(
                 entry['pieces'], settings, rate)
 
@@ -254,6 +257,7 @@ class AwCutPlan(models.Model):
             if (previous and previous.piece_fingerprint == fingerprint
                     and previous.bar_ids):
                 reused += 1
+                previous.rate_date = rate_date or False
                 methods.add(previous.solve_method or 'exact')
                 gap_feet += previous.gap_feet or 0.0
                 all_proven = all_proven and previous.proven_optimal
@@ -272,6 +276,7 @@ class AwCutPlan(models.Model):
                 'plan_id': self.id,
                 'product_id': product.id,
                 'rate_per_ft': rate,
+                'rate_date': rate_date or False,
                 'piece_fingerprint': fingerprint,
                 'chosen_key': result['chosen_key'] or '',
                 'override_key': overrides.get(product_id, ''),
@@ -354,15 +359,19 @@ class AwCutPlan(models.Model):
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
     def _rate_for_product(self, product):
-        """Per-foot rate for a variant, on the quote's order date.
+        """(per-foot rate, its effective date) for a variant, on the
+        quote's order date and at the order's profile vendor.
 
-        Same lookup the costing uses, so a bar-feet cost and a BOM cost
+        Same lookup the costing uses -- including the cost-field stand-in
+        when the vendor has no rate -- so a bar-feet cost and a BOM cost
         can never disagree about the price of the same profile.
         """
         self.ensure_one()
         design = self.sale_order_id.aw_design_ids[:1]
         on_date = design._costing_date() if design \
             else fields.Date.context_today(self)
+        vendor = design._costing_vendor() if design \
+            else self.env['aw.profile.rate']._legacy_vendor()
         template = product.product_tmpl_id
         thickness = finish = self.env['product.attribute.value']
         for value in product.product_template_variant_value_ids:
@@ -372,8 +381,10 @@ class AwCutPlan(models.Model):
             elif attribute == 'Finish':
                 finish = value.product_attribute_value_id
         rate = self.env['aw.profile.rate']._rate_for(
-            template, thickness, finish, on_date)
-        return rate.price if rate else 0.0
+            template, thickness, finish, on_date, vendor)
+        if rate:
+            return rate.price, rate.date_from
+        return (product.standard_price or 0.0) / FEET_PER_METRE, False
 
     def action_print_cutting_sheet(self):
         return self.env.ref(
@@ -606,6 +617,11 @@ class AwCutPlanGroup(models.Model):
         'product.product', required=True, ondelete='restrict',
         string='Profile')
     rate_per_ft = fields.Float(string='Rate / ft')
+    rate_date = fields.Date(
+        string='Rate of',
+        help="The effective date of the rate above, so a cost can be "
+             "traced to the list it came from. Empty when the cost field "
+             "stood in for a missing rate.")
 
     piece_fingerprint = fields.Char(
         readonly=True,

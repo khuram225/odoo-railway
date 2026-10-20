@@ -80,6 +80,18 @@
               action="action_aw_profile_rate"
               sequence="50"/>
 
+    <menuitem id="menu_aw_vendor_rate_list"
+              name="Rate Lists"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_vendor_rate_list"
+              sequence="52"/>
+
+    <menuitem id="menu_aw_vendor_layout"
+              name="Vendor Layouts"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_vendor_layout"
+              sequence="53"/>
+
     <menuitem id="menu_aw_profile_rate_import"
               name="Import Price List"
               parent="menu_aw_fenestration_config"

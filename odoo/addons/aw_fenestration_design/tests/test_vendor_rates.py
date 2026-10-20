@@ -1,0 +1,173 @@
+# -*- coding: utf-8 -*-
+"""Vendor rate lists: pasting, matching, applying, and costing at one
+vendor's rates only."""
+from datetime import date
+
+from odoo.addons.aw_fenestration_core.models.rate_paste import (
+    normalise_code, parse_paste)
+from odoo.tests import TransactionCase, tagged
+
+KINDS = ['code', 'thickness', 'series'] + ['finish'] * 7
+
+
+@tagged('post_install', '-at_install')
+class TestRatePaste(TransactionCase):
+    """The parser alone."""
+
+    def test_codes_ignore_case_spaces_and_hyphens(self):
+        self.assertEqual(normalise_code('D35'), normalise_code('d-35'))
+        self.assertEqual(normalise_code(' D 35 '), 'D35')
+        # suffix words stay: a different profile
+        self.assertNotEqual(
+            normalise_code('D-35 M.F'), normalise_code('D-35'))
+
+    def test_a_typed_row_with_a_blank_series(self):
+        rows = parse_paste('B-6  NOR  136 147 137 137 153 147 171', KINDS)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['code'], 'B-6')
+        self.assertEqual(rows[0]['thickness'], 'NOR')
+        self.assertEqual(
+            rows[0]['rates'],
+            [136.0, 147.0, 137.0, 137.0, 153.0, 147.0, 171.0])
+
+    def test_tab_rows_header_skipped_and_series_carried_down(self):
+        text = (
+            'SEC.NO.\tThickness\tSeries\tDULL\tBRO\tH.23\tRAL P.C\tBLACK'
+            '\tSHARA\tWOOD\n'
+            'D-35\tNOR\tDG.SERIES\t100\t110\t\t\t\t\t\n'
+            'D-36\tNOR\t\t101\t111\t\t\t\t\t')
+        rows = parse_paste(text, KINDS)
+        self.assertEqual([r['code'] for r in rows], ['D-35', 'D-36'])
+        self.assertEqual(rows[1]['series'], 'DG.SERIES')
+        self.assertEqual(rows[0]['rates'][:3], [100.0, 110.0, None])
+
+
+@tagged('post_install', '-at_install')
+class TestVendorRateLists(TransactionCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        cls.premium = env['res.partner'].create({'name': 'Premium (test)'})
+        cls.other = env['res.partner'].create({'name': 'Other (test)'})
+        finish_attr = env.ref('aw_fenestration_core.aw_attribute_finish')
+        thick_attr = env.ref('aw_fenestration_core.aw_attribute_thickness')
+        cls.finishes = finish_attr.value_ids[:3]
+        cls.standard = env.ref(
+            'aw_fenestration_core.aw_attr_val_thickness_standard')
+        cls.product = env['product.template'].create({
+            'name': 'B-6', 'default_code': 'B-6',
+            'categ_id': env.ref(
+                'aw_fenestration_core.product_category_profiles').id,
+            'attribute_line_ids': [
+                (0, 0, {'attribute_id': thick_attr.id,
+                        'value_ids': [(6, 0, cls.standard.ids)]}),
+                (0, 0, {'attribute_id': finish_attr.id,
+                        'value_ids': [(6, 0, cls.finishes.ids)]}),
+            ]})
+        columns = [
+            (0, 0, {'sequence': 10, 'kind': 'code', 'header': 'SEC.NO.'}),
+            (0, 0, {'sequence': 20, 'kind': 'thickness'}),
+            (0, 0, {'sequence': 30, 'kind': 'series'})]
+        for index, finish in enumerate(cls.finishes):
+            columns.append((0, 0, {
+                'sequence': 40 + index, 'kind': 'finish',
+                'header': finish.name, 'finish_id': finish.id}))
+        cls.layout = env['aw.vendor.layout'].create({
+            'vendor_id': cls.premium.id, 'column_ids': columns,
+            'thickness_alias_ids': [(0, 0, {
+                'alias': 'NOR', 'thickness_id': cls.standard.id})]})
+
+    def _list(self, day, text):
+        rate_list = self.env['aw.vendor.rate.list'].create({
+            'vendor_id': self.premium.id, 'date': day, 'paste_text': text})
+        rate_list.action_parse_paste()
+        return rate_list
+
+    def _rates(self, vendor=None):
+        return self.env['aw.profile.rate'].search([
+            ('product_tmpl_id', '=', self.product.id),
+            ('vendor_id', '=', (vendor or self.premium).id)])
+
+    def test_paste_matches_and_applies_one_rate_per_finish(self):
+        rate_list = self._list(date(2026, 4, 3), 'B-6  NOR  136 147 137')
+        line = rate_list.line_ids
+        self.assertEqual(line.product_tmpl_id, self.product)
+        self.assertEqual(line.thickness_id, self.standard)
+        self.assertFalse(line.problem)
+        rate_list.action_apply()
+        rates = self._rates()
+        self.assertEqual(len(rates), 3)
+        self.assertEqual(set(rates.mapped('date_from')), {date(2026, 4, 3)})
+        self.assertEqual(sorted(rates.mapped('price')), [136.0, 137.0, 147.0])
+        self.assertEqual(rate_list.state, 'applied')
+
+    def test_a_newer_list_closes_the_old_line_the_day_before(self):
+        self._list(date(2026, 4, 3), 'B-6  NOR  136 147 137').action_apply()
+        # only the first finish changes; empty cells create nothing
+        self._list(date(2026, 10, 20), 'B-6  NOR  140 0 0').action_apply()
+        natural = self.finishes[0]
+        rates = self._rates().filtered(lambda r: r.finish_id == natural)
+        old = rates.filtered(lambda r: r.date_from == date(2026, 4, 3))
+        self.assertEqual(old.date_to, date(2026, 10, 19))
+        look = self.env['aw.profile.rate']._rate_for
+        self.assertEqual(look(self.product, self.standard, natural,
+                              date(2026, 10, 10), self.premium).price, 136.0)
+        self.assertEqual(look(self.product, self.standard, natural,
+                              date(2026, 10, 25), self.premium).price, 140.0)
+        # the other finishes were not touched
+        self.assertEqual(len(self._rates()), 4)
+
+    def test_another_vendors_rows_are_never_returned(self):
+        self._list(date(2026, 4, 3), 'B-6  NOR  136 147 137').action_apply()
+        rate, level = self.env['aw.profile.rate']._rate_lookup(
+            self.product, self.standard, self.finishes[0],
+            date(2026, 5, 1), self.other)
+        self.assertFalse(rate)
+        self.assertFalse(self.env['aw.profile.rate']._rate_for(
+            self.product, self.standard, self.finishes[0],
+            date(2026, 5, 1), self.env['res.partner']))
+
+    def test_the_fallback_level_is_reported(self):
+        Rate = self.env['aw.profile.rate']
+        Rate.create({
+            'product_tmpl_id': self.product.id, 'vendor_id': self.premium.id,
+            'thickness_id': self.standard.id, 'finish_id': False,
+            'price': 99.0, 'date_from': date(2026, 1, 1)})
+        rate, level = Rate._rate_lookup(
+            self.product, self.standard, self.finishes[0],
+            date(2026, 5, 1), self.premium)
+        self.assertEqual((rate.price, level), (99.0, 'thickness'))
+
+    def test_an_unmatched_row_is_not_applied_and_the_pick_is_remembered(self):
+        rate_list = self._list(date(2026, 4, 3), 'ZZ-9  NOR  1 2 3')
+        self.assertTrue(rate_list.line_ids.problem)
+        rate_list.action_apply()
+        self.assertFalse(self.env['aw.profile.rate'].search_count(
+            [('vendor_id', '=', self.premium.id),
+             ('source_note', '=', rate_list.name),
+             ('price', 'in', (1.0, 2.0, 3.0))]))
+        # pick the product once; the alias is saved and used next time
+        second = self._list(date(2026, 5, 1), 'ZZ-9  NOR  1 2 3')
+        second.line_ids.product_tmpl_id = self.product
+        self.assertTrue(self.env['aw.vendor.alias'].search_count([
+            ('vendor_id', '=', self.premium.id), ('code_norm', '=', 'ZZ9')]))
+        third = self._list(date(2026, 6, 1), 'zz 9  NOR  1 2 3')
+        self.assertEqual(third.line_ids.product_tmpl_id, self.product)
+
+    def test_fill_from_current_rates_prefills_the_series(self):
+        first = self.env['aw.vendor.rate.list'].create({
+            'vendor_id': self.premium.id, 'date': date(2026, 4, 3),
+            'paste_text': 'B-6\tNOR\tDG.SERIES\t136\t147\t137'})
+        first.action_parse_paste()
+        first.action_apply()
+        again = self.env['aw.vendor.rate.list'].create({
+            'vendor_id': self.premium.id, 'date': date(2026, 11, 1),
+            'fill_series': 'DG.SERIES'})
+        again.action_fill_from_current()
+        self.assertEqual(len(again.line_ids), 1)
+        line = again.line_ids
+        self.assertEqual(
+            sorted([line.rate_1, line.rate_2, line.rate_3]),
+            [136.0, 137.0, 147.0])
