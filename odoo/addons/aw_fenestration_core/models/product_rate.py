@@ -37,6 +37,11 @@ class ProductProduct(models.Model):
         help="Effective date of the rate above, so an unexpected cost "
              "can be traced to the list it came from.")
     aw_has_rate = fields.Boolean(compute='_compute_aw_rate')
+    aw_rate_basis = fields.Char(
+        string='Rate basis', compute='_compute_aw_rate',
+        help="Which match the rate came from: this exact thickness and "
+             "finish, the thickness in any finish, or the profile in any "
+             "thickness and finish. Empty when there is no rate.")
     aw_thickness_name = fields.Char(
         string='Thickness', compute='_compute_aw_attribute_names')
     aw_finish_name = fields.Char(
@@ -107,6 +112,9 @@ class ProductProduct(models.Model):
         today = fields.Date.context_today(self)
         rates = self.env['aw.profile.rate']
         vendors = {}
+        thickness_attr = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness',
+            raise_if_not_found=False)
         for variant in self:
             thickness, finish = variant._aw_attribute_values()
             template = variant.product_tmpl_id
@@ -114,8 +122,23 @@ class ProductProduct(models.Model):
             # fields (and its cost field) follow.
             if template.id not in vendors:
                 vendors[template.id] = template._aw_default_vendor()
-            rate = rates._rate_for(
+            # Costing's own rule for a profile with no thickness chosen:
+            # one sold in exactly one thickness has nothing to choose, so
+            # that is its thickness. A variant made without a thickness
+            # value then finds the rate costing finds.
+            if not thickness and thickness_attr:
+                offered = self.env['aw.profile.section.line']._template_values(
+                    template, thickness_attr)
+                if len(offered) == 1:
+                    thickness = offered
+            # The same lookup costing uses, fallbacks included.
+            rate, level = rates._rate_lookup(
                 template, thickness, finish, today, vendors[template.id])
+            variant.aw_rate_basis = {
+                'exact': _('exact thickness and finish'),
+                'thickness': _('thickness only, any finish'),
+                'template': _('profile, any thickness and finish'),
+            }.get(level, '')
             variant.aw_rate_per_ft = rate.price if rate else 0.0
             variant.aw_rate_date = rate.date_from if rate else False
             variant.aw_has_rate = bool(rate)
@@ -343,6 +366,10 @@ class ProductTemplate(models.Model):
         if not param.get_param('aw_fenestration.profile_costs_synced_ft'):
             report['costs'] = self._aw_sync_all_profile_costs()
             param.set_param('aw_fenestration.profile_costs_synced_ft', '1')
+        if not param.get_param('aw_fenestration.profile_costs_synced_fallback'):
+            report['costs_fallback'] = self._aw_sync_all_profile_costs()
+            param.set_param(
+                'aw_fenestration.profile_costs_synced_fallback', '1')
         if not param.get_param('aw_fenestration.variant_refs_filled'):
             report['refs'] = self._aw_fill_variant_references()
             param.set_param('aw_fenestration.variant_refs_filled', '1')
@@ -428,13 +455,21 @@ class ProductTemplate(models.Model):
     @api.model
     def _aw_sync_all_profile_costs(self):
         """Cost per foot = the series' default vendor's rate per foot, for
-        every profile variant that exists and has a rate."""
+        every profile variant that exists and has a rate (fallbacks
+        included, as in costing)."""
         variants = self._aw_profile_templates().product_variant_ids
+        had_no_cost = variants.filtered(lambda v: not v.standard_price)
         variants.invalidate_recordset()
         updated, blocked = variants._aw_sync_cost_from_rate()
         no_rate = variants.filtered(lambda v: not v.aw_has_rate)
         return {'variants': len(variants), 'updated': len(updated),
-                'blocked': len(blocked), 'without_rate': len(no_rate)}
+                'blocked': len(blocked), 'without_rate': len(no_rate),
+                'had_no_cost': len(had_no_cost),
+                'now_costed': len(had_no_cost.filtered('standard_price')),
+                'by_basis': {
+                    basis: len(variants.filtered(
+                        lambda v, b=basis: v.aw_rate_basis == b))
+                    for basis in set(variants.mapped('aw_rate_basis'))}}
 
     @api.model
     def _aw_fill_variant_references(self):
