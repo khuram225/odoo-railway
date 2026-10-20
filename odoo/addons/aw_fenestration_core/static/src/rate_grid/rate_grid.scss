@@ -1,0 +1,25 @@
+// The rate list grid: columns come from the vendor's layout, so there can
+// be several and the table scrolls sideways rather than squeezing them.
+.o_aw_rate_grid_scroll {
+    overflow-x: auto;
+}
+
+.o_aw_rate_grid_table {
+    th {
+        white-space: nowrap;
+        vertical-align: bottom;
+    }
+
+    td {
+        vertical-align: middle;
+    }
+
+    input.form-control {
+        min-width: 4.5rem;
+        min-height: 36px;
+    }
+
+    input[readonly] {
+        background: var(--bs-gray-100, #f8f9fa);
+    }
+}

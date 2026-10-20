@@ -340,6 +340,9 @@ class AwVendorRateList(models.Model):
     layout_id = fields.Many2one(
         'aw.vendor.layout', compute='_compute_layout')
     columns_legend = fields.Char(compute='_compute_layout')
+    # What the grid on the form draws: one entry per rate column of the
+    # layout, in order, read each time the list is opened. Display only.
+    grid_meta = fields.Json(compute='_compute_grid_meta')
     line_count = fields.Integer(compute='_compute_counts')
     unmatched_count = fields.Integer(compute='_compute_counts')
 
@@ -365,6 +368,26 @@ class AwVendorRateList(models.Model):
                         column.finish_id.name or _('no finish set'))
                     for index, column in enumerate(columns, start=1)
                 ) or _('This layout has no rate columns')
+
+    @api.depends('vendor_id')
+    def _compute_grid_meta(self):
+        category = self.env.ref(
+            'aw_fenestration_core.product_category_profiles',
+            raise_if_not_found=False)
+        for rec in self:
+            layout = self.env['aw.vendor.layout'].search(
+                [('vendor_id', '=', rec.vendor_id.id)], limit=1)
+            rec.grid_meta = {
+                'has_layout': bool(layout),
+                'profile_category_id': category.id if category else False,
+                'columns': [{
+                    'index': index,
+                    'header': column.header or column.finish_id.name or '',
+                    'finish': column.finish_id.name or '',
+                    'mapped': bool(column.finish_id),
+                } for index, column in enumerate(
+                    layout._finish_columns(), start=1)] if layout else [],
+            }
 
     @api.depends('line_ids.product_tmpl_id', 'line_ids.problem')
     def _compute_counts(self):
