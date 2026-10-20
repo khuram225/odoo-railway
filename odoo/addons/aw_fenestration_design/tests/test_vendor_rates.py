@@ -42,6 +42,24 @@ class TestRatePaste(TransactionCase):
         self.assertEqual(rows[0]['rates'][:3], [100.0, 110.0, None])
 
 
+    def test_excel_rows_with_an_empty_series_and_crlf(self):
+        text = (
+            'B-6\tNOR\t\t136\t147\t137\t137\t153\t147\t171\r\n'
+            'D-10\tNOR\t\t514\t552\t516\t516\t578\t552\t645\r\n'
+            'D-10\t1.6MM\t\t647\t694\t649\t649\t727\t694\t811\r\n')
+        rows = parse_paste(text, KINDS)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual([r['thickness'] for r in rows],
+                         ['NOR', 'NOR', '1.6MM'])
+        self.assertEqual(rows[2]['rates'][0], 647.0)
+        # nothing shifted into the series column
+        self.assertEqual([r['series'] for r in rows], ['', '', ''])
+
+    def test_numbers_with_commas_and_quotes(self):
+        rows = parse_paste('A-1\tNOR\t\t"1,136"\t147\t\t\t\t\t', KINDS)
+        self.assertEqual(rows[0]['rates'][:3], [1136.0, 147.0, None])
+
+
 @tagged('post_install', '-at_install')
 class TestVendorRateLists(TransactionCase):
 
@@ -192,3 +210,45 @@ class TestPremiumSeed(TransactionCase):
                 any(a.startswith('NOR') for a in report['thickness_set']))
         # a second run does nothing
         self.assertIsNone(Layout._seed_premium_layout())
+
+
+@tagged('post_install', '-at_install')
+class TestLayoutWithoutRateColumns(TransactionCase):
+
+    def test_the_error_says_the_layout_has_no_rate_columns(self):
+        vendor = self.env['res.partner'].create({'name': 'No rates (test)'})
+        self.env['aw.vendor.layout'].create({
+            'vendor_id': vendor.id, 'column_ids': [
+                (0, 0, {'sequence': 10, 'kind': 'code', 'header': 'Section #'}),
+                (0, 0, {'sequence': 20, 'kind': 'thickness'}),
+                (0, 0, {'sequence': 30, 'kind': 'series'})]})
+        rate_list = self.env['aw.vendor.rate.list'].create({
+            'vendor_id': vendor.id,
+            'paste_text': 'B-6\tNOR\t\t136\t147'})
+        self.assertIn('no rate columns', rate_list.columns_legend)
+        with self.assertRaises(Exception) as caught:
+            rate_list.action_parse_paste()
+        self.assertIn('no rate columns', str(caught.exception))
+        self.assertIn('Section #', str(caught.exception))
+
+    def test_a_rate_column_without_a_finish_is_read_but_not_applied(self):
+        vendor = self.env['res.partner'].create({'name': 'Half mapped (test)'})
+        finish = self.env.ref(
+            'aw_fenestration_core.aw_attribute_finish').value_ids[0]
+        layout = self.env['aw.vendor.layout'].create({
+            'vendor_id': vendor.id, 'column_ids': [
+                (0, 0, {'sequence': 10, 'kind': 'code'}),
+                (0, 0, {'sequence': 20, 'kind': 'thickness'}),
+                (0, 0, {'sequence': 30, 'kind': 'series'}),
+                (0, 0, {'sequence': 40, 'kind': 'finish', 'header': 'DULL',
+                        'finish_id': finish.id}),
+                (0, 0, {'sequence': 50, 'kind': 'finish', 'header': 'BRO'})]})
+        rate_list = self.env['aw.vendor.rate.list'].create({
+            'vendor_id': vendor.id,
+            'paste_text': 'ZZ-1\tNOR\t\t100\t110'})
+        rate_list.action_parse_paste()
+        line = rate_list.line_ids
+        self.assertEqual((line.rate_1, line.rate_2), (100.0, 110.0))
+        self.assertIn('BRO', rate_list.columns_legend)
+        self.assertIn('no finish set', rate_list.columns_legend)
+        self.assertEqual(len(layout._finish_columns()), 2)
