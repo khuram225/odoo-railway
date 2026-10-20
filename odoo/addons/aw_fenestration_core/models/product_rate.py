@@ -72,10 +72,16 @@ class ProductProduct(models.Model):
     def _compute_aw_rate(self):
         today = fields.Date.context_today(self)
         rates = self.env['aw.profile.rate']
+        vendors = {}
         for variant in self:
             thickness, finish = variant._aw_attribute_values()
+            template = variant.product_tmpl_id
+            # The series' default vendor: what the variant's own rate
+            # fields (and its cost field) follow.
+            if template.id not in vendors:
+                vendors[template.id] = template._aw_default_vendor()
             rate = rates._rate_for(
-                variant.product_tmpl_id, thickness, finish, today)
+                template, thickness, finish, today, vendors[template.id])
             variant.aw_rate_per_ft = rate.price if rate else 0.0
             variant.aw_rate_date = rate.date_from if rate else False
             variant.aw_has_rate = bool(rate)
@@ -176,6 +182,20 @@ class ProductProduct(models.Model):
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
+
+    def _aw_default_vendor(self):
+        """The default vendor of the first series whose mapping uses this
+        profile, else the vendor every rate belonged to before vendors
+        (so a profile in no series still shows its rate)."""
+        self.ensure_one()
+        lines = self.env['aw.profile.section.line'].search([
+            ('is_used', '=', True), ('spec_id', '!=', False),
+            '|', ('product_tmpl_id', '=', self.id),
+            ('alternate_product_ids', 'in', self.id)], order='spec_id')
+        for line in lines:
+            if line.spec_id.default_vendor_id:
+                return line.spec_id.default_vendor_id
+        return self.env['aw.profile.rate']._legacy_vendor()
 
     aw_current_rate_ids = fields.One2many(
         'aw.profile.rate', compute='_compute_aw_current_rate_ids',

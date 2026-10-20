@@ -1,0 +1,508 @@
+# -*- coding: utf-8 -*-
+"""Multi-vendor rate lists with paste-in entry.
+
+A vendor's sheet layout is described once (aw.vendor.layout). A rate list
+(aw.vendor.rate.list) is one entry of that vendor's prices: paste rows,
+type them, or prefill them from the rates in force. Applying it writes
+ordinary aw.profile.rate rows -- vendor, finish, thickness, price per
+foot, valid from the list's date -- and the existing validity chain
+closes whatever each one replaces.
+"""
+import logging
+
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError, ValidationError
+
+from .rate_paste import normalise_code, normalise_text, parse_paste
+
+_logger = logging.getLogger(__name__)
+
+MAX_FINISH_COLUMNS = 10
+LEGACY_VENDOR_PARAM = 'aw_fenestration.legacy_rate_vendor_id'
+
+
+class AwVendorLayout(models.Model):
+    """How one vendor's rate sheet is laid out, set once."""
+    _name = 'aw.vendor.layout'
+    _description = 'Vendor Rate Sheet Layout'
+    _rec_name = 'vendor_id'
+
+    vendor_id = fields.Many2one(
+        'res.partner', string='Vendor', required=True, index=True)
+    column_ids = fields.One2many(
+        'aw.vendor.layout.column', 'layout_id', string='Columns', copy=True)
+    thickness_alias_ids = fields.One2many(
+        'aw.vendor.thickness.alias', 'layout_id', string='Thickness aliases',
+        copy=True)
+    note = fields.Char()
+
+    @api.constrains('vendor_id')
+    def _check_one_layout(self):
+        for layout in self:
+            if self.search_count([('vendor_id', '=', layout.vendor_id.id),
+                                  ('id', '!=', layout.id)]):
+                raise ValidationError(_(
+                    "%s already has a layout.", layout.vendor_id.display_name))
+
+    @api.constrains('column_ids')
+    def _check_columns(self):
+        for layout in self:
+            kinds = layout.column_ids.mapped('kind')
+            if kinds.count('code') != 1:
+                raise ValidationError(_(
+                    "A layout needs exactly one Code column."))
+            if kinds.count('finish') > MAX_FINISH_COLUMNS:
+                raise ValidationError(_(
+                    "At most %s rate columns.", MAX_FINISH_COLUMNS))
+
+    def _kinds(self):
+        self.ensure_one()
+        return self.column_ids.sorted('sequence').mapped('kind')
+
+    def _finish_columns(self):
+        """The rate columns, in order."""
+        self.ensure_one()
+        return self.column_ids.sorted('sequence').filtered(
+            lambda c: c.kind == 'finish')
+
+
+class AwVendorLayoutColumn(models.Model):
+    _name = 'aw.vendor.layout.column'
+    _description = 'Vendor Rate Sheet Column'
+    _order = 'sequence, id'
+
+    layout_id = fields.Many2one(
+        'aw.vendor.layout', required=True, ondelete='cascade', index=True)
+    sequence = fields.Integer(default=10)
+    kind = fields.Selection([
+        ('code', 'Code'),
+        ('thickness', 'Thickness'),
+        ('series', 'Series'),
+        ('finish', 'Rate for a finish'),
+        ('skip', 'Ignore'),
+    ], required=True, default='finish')
+    header = fields.Char(
+        help="What the vendor calls the column, e.g. DULL or SEC.NO.")
+    finish_id = fields.Many2one(
+        'product.attribute.value', string='Our finish',
+        domain=lambda self: [(
+            'attribute_id', '=',
+            self.env.ref('aw_fenestration_core.aw_attribute_finish').id)])
+
+    @api.constrains('kind', 'finish_id')
+    def _check_finish(self):
+        for column in self:
+            if column.kind == 'finish' and not column.finish_id:
+                raise ValidationError(_(
+                    "Column '%s' is a rate column, so it needs one of our "
+                    "finishes.", column.header or ''))
+
+
+class AwVendorThicknessAlias(models.Model):
+    _name = 'aw.vendor.thickness.alias'
+    _description = 'Vendor Thickness Alias'
+
+    layout_id = fields.Many2one(
+        'aw.vendor.layout', required=True, ondelete='cascade', index=True)
+    alias = fields.Char(required=True, help='e.g. NOR or 1.6MM')
+    thickness_id = fields.Many2one(
+        'product.attribute.value', string='Our thickness', required=True,
+        domain=lambda self: [(
+            'attribute_id', '=',
+            self.env.ref('aw_fenestration_core.aw_attribute_thickness').id)])
+
+
+class AwVendorAlias(models.Model):
+    """A vendor's code (and thickness) mapped to one of our profiles,
+    saved the first time somebody picks the product for an unmatched row."""
+    _name = 'aw.vendor.alias'
+    _description = 'Vendor Profile Alias'
+
+    vendor_id = fields.Many2one(
+        'res.partner', required=True, index=True, ondelete='cascade')
+    code_norm = fields.Char(
+        string='Vendor code (normalised)', required=True, index=True)
+    thickness_text = fields.Char(
+        help="Normalised thickness text this applies to; empty applies to "
+             "every thickness.")
+    product_tmpl_id = fields.Many2one(
+        'product.template', string='Profile', required=True,
+        ondelete='cascade')
+    thickness_id = fields.Many2one(
+        'product.attribute.value', string='Thickness',
+        help="Optional: also fixes the thickness value.")
+
+
+class AwVendorRateList(models.Model):
+    _name = 'aw.vendor.rate.list'
+    _description = 'Vendor Rate List'
+    _inherit = ['mail.thread']
+    _order = 'date desc, id desc'
+
+    name = fields.Char(compute='_compute_name', store=True)
+    vendor_id = fields.Many2one(
+        'res.partner', string='Vendor', required=True, tracking=True,
+        index=True)
+    date = fields.Date(
+        string='Effective date', required=True, tracking=True,
+        default=fields.Date.context_today)
+    note = fields.Char()
+    state = fields.Selection([
+        ('draft', 'Draft'), ('applied', 'Applied'),
+    ], default='draft', required=True, tracking=True)
+    line_ids = fields.One2many(
+        'aw.vendor.rate.list.line', 'list_id', string='Lines')
+    paste_text = fields.Text(
+        help="Rows copied from the vendor's sheet, tab separated, with or "
+             "without the header row.")
+    fill_series = fields.Char(
+        string='Series',
+        help="The vendor's series name, for Fill from current rates.")
+    layout_id = fields.Many2one(
+        'aw.vendor.layout', compute='_compute_layout')
+    columns_legend = fields.Char(compute='_compute_layout')
+    line_count = fields.Integer(compute='_compute_counts')
+    unmatched_count = fields.Integer(compute='_compute_counts')
+
+    @api.depends('vendor_id', 'date')
+    def _compute_name(self):
+        for rec in self:
+            rec.name = '%s - %s' % (
+                rec.vendor_id.display_name or '', rec.date or '')
+
+    @api.depends('vendor_id')
+    def _compute_layout(self):
+        for rec in self:
+            layout = self.env['aw.vendor.layout'].search(
+                [('vendor_id', '=', rec.vendor_id.id)], limit=1)
+            rec.layout_id = layout
+            rec.columns_legend = ' | '.join(
+                '%s = %s (%s)' % (
+                    index, column.header or column.finish_id.name,
+                    column.finish_id.name)
+                for index, column in enumerate(
+                    layout._finish_columns(), start=1)) if layout else ''
+
+    @api.depends('line_ids.product_tmpl_id', 'line_ids.problem')
+    def _compute_counts(self):
+        for rec in self:
+            rec.line_count = len(rec.line_ids)
+            rec.unmatched_count = len(rec.line_ids.filtered('problem'))
+
+    def _require_layout(self):
+        self.ensure_one()
+        if not self.layout_id:
+            raise UserError(_(
+                "%s has no rate sheet layout yet. Describe its columns "
+                "under Vendor Layouts first.", self.vendor_id.display_name))
+        return self.layout_id
+
+    # ------------------------------------------------------------ entry 1
+    def action_parse_paste(self):
+        """Paste box -> lines, in the vendor's layout."""
+        self.ensure_one()
+        if self.state != 'draft':
+            raise UserError(_("An applied list is read only."))
+        layout = self._require_layout()
+        rows = parse_paste(self.paste_text, layout._kinds())
+        if not rows:
+            raise UserError(_("No rows with rates were found in the paste."))
+        count = len(layout._finish_columns())
+        start = (self.line_ids[-1:].sequence or 0) + 10 if self.line_ids else 10
+        self.env['aw.vendor.rate.list.line'].create([dict(
+            list_id=self.id, sequence=start + 10 * index,
+            code=row['code'], thickness_text=row['thickness'],
+            series=row['series'],
+            **{'rate_%s' % (i + 1): (rate or 0.0)
+               for i, rate in enumerate(row['rates'][:count])})
+            for index, row in enumerate(rows)])
+        self.paste_text = False
+        return True
+
+    # ------------------------------------------------------------ entry 3
+    def action_fill_from_current(self):
+        """Prefill rows with this vendor's rates in force today for a
+        series, so only the changed numbers are typed over."""
+        self.ensure_one()
+        if self.state != 'draft':
+            raise UserError(_("An applied list is read only."))
+        layout = self._require_layout()
+        if not self.fill_series:
+            raise UserError(_("Enter the series to fill first."))
+        today = fields.Date.context_today(self)
+        rates = self.env['aw.profile.rate'].search([
+            ('vendor_id', '=', self.vendor_id.id),
+            ('vendor_series', '=ilike', self.fill_series),
+            ('date_from', '<=', today),
+            '|', ('date_to', '=', False), ('date_to', '>=', today)])
+        if not rates:
+            raise UserError(_(
+                "%(vendor)s has no current rates for series '%(series)s'.",
+                vendor=self.vendor_id.display_name, series=self.fill_series))
+        finish_columns = layout._finish_columns()
+        by_row = {}
+        for rate in rates:
+            by_row.setdefault(
+                (rate.product_tmpl_id, rate.thickness_id), []).append(rate)
+        thickness_names = {
+            alias.thickness_id.id: alias.alias
+            for alias in layout.thickness_alias_ids}
+        start = (self.line_ids[-1:].sequence or 0) if self.line_ids else 0
+        vals = []
+        for index, ((template, thickness), group) in enumerate(
+                sorted(by_row.items(), key=lambda kv: (
+                    kv[0][0].display_name, kv[0][1].id or 0)), start=1):
+            values = {
+                'list_id': self.id, 'sequence': start + 10 * index,
+                'code': template.default_code or template.name,
+                'thickness_text': thickness_names.get(
+                    thickness.id, thickness.name or ''),
+                'series': self.fill_series,
+                'product_tmpl_id': template.id,
+                'thickness_id': thickness.id,
+                'match_source': 'direct',
+            }
+            for i, column in enumerate(finish_columns, start=1):
+                hit = next((r for r in group
+                            if r.finish_id == column.finish_id), None)
+                values['rate_%s' % i] = hit.price if hit else 0.0
+            vals.append(values)
+        self.env['aw.vendor.rate.list.line'].with_context(
+            aw_no_alias=True).create(vals)
+        return True
+
+    # -------------------------------------------------------------- apply
+    def action_rematch(self):
+        self.line_ids._auto_match(force=True)
+        return True
+
+    def action_apply(self):
+        """Write the rates. Unmatched rows are never applied."""
+        self.ensure_one()
+        if self.state != 'draft':
+            raise UserError(_("This list is already applied."))
+        layout = self._require_layout()
+        finish_columns = layout._finish_columns()
+        Rate = self.env['aw.profile.rate']
+        written = skipped = 0
+        affected = self.env['product.template']
+        for line in self.line_ids.sorted('sequence'):
+            if line.problem:
+                line.result = _("Not applied: %s", line.problem)
+                skipped += 1
+                continue
+            offered_thickness = self.env['aw.profile.section.line'] \
+                ._template_values(
+                    line.product_tmpl_id,
+                    self.env.ref('aw_fenestration_core.aw_attribute_thickness'))
+            offered_finish = self.env['aw.profile.section.line'] \
+                ._template_values(
+                    line.product_tmpl_id,
+                    self.env.ref('aw_fenestration_core.aw_attribute_finish'))
+            notes = []
+            for index, column in enumerate(finish_columns, start=1):
+                price = line['rate_%s' % index]
+                if not price:
+                    continue            # empty cells create nothing
+                if (line.thickness_id
+                        and line.thickness_id not in offered_thickness) or (
+                        column.finish_id not in offered_finish):
+                    notes.append(_("no variant: %s",
+                                   column.finish_id.name))
+                    continue
+                key = [
+                    ('product_tmpl_id', '=', line.product_tmpl_id.id),
+                    ('thickness_id', '=', line.thickness_id.id or False),
+                    ('finish_id', '=', column.finish_id.id),
+                    ('vendor_id', '=', self.vendor_id.id),
+                    ('date_from', '=', self.date)]
+                existing = Rate.search(key, limit=1)
+                values = {
+                    'price': price, 'vendor_series': line.series,
+                    'source_note': self.name}
+                if existing:
+                    existing.write(values)
+                else:
+                    Rate.create(dict(
+                        values,
+                        product_tmpl_id=line.product_tmpl_id.id,
+                        thickness_id=line.thickness_id.id or False,
+                        finish_id=column.finish_id.id,
+                        vendor_id=self.vendor_id.id,
+                        date_from=self.date))
+                written += 1
+                affected |= line.product_tmpl_id
+            line.result = '; '.join(notes) if notes else _("Applied")
+        self.state = 'applied'
+        self._follow_variant_costs(affected)
+        self.message_post(body=_(
+            "Applied: %(written)s rate(s) written, %(skipped)s row(s) "
+            "not applied.", written=written, skipped=skipped))
+        return True
+
+    def _follow_variant_costs(self, templates):
+        """A variant's cost field follows its series' default vendor, so
+        stock valuation stays sensible. Only for profiles whose default
+        vendor is the one just applied."""
+        variants = self.env['product.product']
+        for template in templates:
+            if template._aw_default_vendor() == self.vendor_id:
+                variants |= template.product_variant_ids
+        if variants:
+            variants.invalidate_recordset()
+            variants._aw_sync_cost_from_rate()
+
+
+class AwVendorRateListLine(models.Model):
+    _name = 'aw.vendor.rate.list.line'
+    _description = 'Vendor Rate List Line'
+    _order = 'sequence, id'
+
+    list_id = fields.Many2one(
+        'aw.vendor.rate.list', required=True, ondelete='cascade', index=True)
+    sequence = fields.Integer(default=10)
+    state = fields.Selection(related='list_id.state')
+    vendor_id = fields.Many2one(related='list_id.vendor_id')
+    code = fields.Char(required=True)
+    code_norm = fields.Char(compute='_compute_norms', store=True)
+    thickness_text = fields.Char(string='Thickness')
+    thickness_norm = fields.Char(compute='_compute_norms', store=True)
+    series = fields.Char()
+    rate_1 = fields.Float(digits='Product Price')
+    rate_2 = fields.Float(digits='Product Price')
+    rate_3 = fields.Float(digits='Product Price')
+    rate_4 = fields.Float(digits='Product Price')
+    rate_5 = fields.Float(digits='Product Price')
+    rate_6 = fields.Float(digits='Product Price')
+    rate_7 = fields.Float(digits='Product Price')
+    rate_8 = fields.Float(digits='Product Price')
+    rate_9 = fields.Float(digits='Product Price')
+    rate_10 = fields.Float(digits='Product Price')
+    product_tmpl_id = fields.Many2one(
+        'product.template', string='Matched profile',
+        domain=lambda self: [(
+            'categ_id', 'child_of',
+            self.env.ref('aw_fenestration_core.product_category_profiles').id)])
+    thickness_id = fields.Many2one(
+        'product.attribute.value', string='Our thickness')
+    match_source = fields.Selection([
+        ('none', 'Not matched'), ('direct', 'By code'),
+        ('alias', 'By alias'), ('manual', 'Chosen')], default='none')
+    problem = fields.Char(
+        compute='_compute_problem', store=True,
+        help="Why this row cannot be applied. Empty means ready.")
+    result = fields.Char(readonly=True)
+
+    @api.depends('code', 'thickness_text')
+    def _compute_norms(self):
+        for line in self:
+            line.code_norm = normalise_code(line.code)
+            line.thickness_norm = normalise_text(line.thickness_text)
+
+    @api.depends('product_tmpl_id', 'thickness_id', 'thickness_text')
+    def _compute_problem(self):
+        for line in self:
+            if not line.product_tmpl_id:
+                line.problem = _("No profile matches '%s'", line.code or '')
+            elif line.thickness_text and not line.thickness_id:
+                line.problem = _(
+                    "Thickness '%s' is not one of ours; add an alias",
+                    line.thickness_text)
+            else:
+                line.problem = False
+
+    # --------------------------------------------------------------- match
+    def _auto_match(self, force=False):
+        """Product by alias then by code; thickness by the vendor's alias
+        or by name. A row somebody chose by hand is left alone unless
+        forced."""
+        Template = self.env['product.template']
+        profiles = Template.search([(
+            'categ_id', 'child_of',
+            self.env.ref('aw_fenestration_core.product_category_profiles').id)])
+        by_code = {}
+        for template in profiles:
+            for key in (template.default_code, template.name):
+                if key:
+                    by_code.setdefault(normalise_code(key), set()).add(
+                        template.id)
+        thickness_attr = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness')
+        for line in self.with_context(aw_auto_match=True):
+            layout = line.list_id.layout_id
+            vendor = line.list_id.vendor_id
+            if line.match_source == 'manual' and not force:
+                pass
+            else:
+                alias = self.env['aw.vendor.alias'].search([
+                    ('vendor_id', '=', vendor.id),
+                    ('code_norm', '=', line.code_norm),
+                    ('thickness_text', 'in', [line.thickness_norm, False, ''])
+                ], order='thickness_text desc', limit=1)
+                if alias:
+                    line.product_tmpl_id = alias.product_tmpl_id
+                    line.match_source = 'alias'
+                    if alias.thickness_id:
+                        line.thickness_id = alias.thickness_id
+                else:
+                    ids = by_code.get(line.code_norm, set())
+                    if len(ids) == 1:
+                        line.product_tmpl_id = Template.browse(next(iter(ids)))
+                        line.match_source = 'direct'
+                    else:
+                        line.product_tmpl_id = False
+                        line.match_source = 'none'
+            if line.thickness_text and not (
+                    line.match_source == 'alias' and line.thickness_id):
+                wanted = line.thickness_norm
+                found = layout.thickness_alias_ids.filtered(
+                    lambda a: normalise_text(a.alias) == wanted)[:1]
+                if found:
+                    line.thickness_id = found.thickness_id
+                else:
+                    line.thickness_id = thickness_attr.value_ids.filtered(
+                        lambda v: normalise_text(v.name) == wanted)[:1]
+            elif not line.thickness_text:
+                line.thickness_id = False
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        lines = super().create(vals_list)
+        pending = lines.filtered(
+            lambda l: l.match_source == 'none' and not l.product_tmpl_id)
+        if pending:
+            pending._auto_match()
+        return lines
+
+    def write(self, vals):
+        manual = ('product_tmpl_id' in vals
+                  and not self.env.context.get('aw_auto_match'))
+        if manual and not self.env.context.get('aw_no_alias'):
+            vals = dict(vals, match_source='manual')
+        result = super().write(vals)
+        if manual and vals.get('product_tmpl_id') \
+                and not self.env.context.get('aw_no_alias'):
+            for line in self:
+                line._save_alias()
+        if ('code' in vals or 'thickness_text' in vals) and not manual \
+                and not self.env.context.get('aw_auto_match'):
+            self._auto_match()
+        return result
+
+    def _save_alias(self):
+        """The product was picked by hand: remember it, once."""
+        self.ensure_one()
+        Alias = self.env['aw.vendor.alias']
+        key = [('vendor_id', '=', self.vendor_id.id),
+               ('code_norm', '=', self.code_norm),
+               ('thickness_text', '=', self.thickness_norm or False)]
+        found = Alias.search(key, limit=1)
+        values = {'product_tmpl_id': self.product_tmpl_id.id}
+        if found:
+            found.write(values)
+        else:
+            Alias.create(dict(
+                values, vendor_id=self.vendor_id.id,
+                code_norm=self.code_norm,
+                thickness_text=self.thickness_norm or False))
+        self.with_context(aw_auto_match=True)._auto_match()

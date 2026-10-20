@@ -29,3 +29,15 @@ access_aw_profile_rate_import_manager,aw.profile.rate.import.manager,model_aw_pr
 access_aw_catalogue_import_manager,aw.catalogue.import.manager,model_aw_catalogue_import,group_fenestration_manager,1,1,1,1
 access_aw_window_family_user,aw.window.family.user,model_aw_window_family,base.group_user,1,0,0,0
 access_aw_window_family_manager,aw.window.family.manager,model_aw_window_family,group_fenestration_manager,1,1,1,1
+access_aw_vendor_layout_user,aw.vendor.layout.user,model_aw_vendor_layout,base.group_user,1,0,0,0
+access_aw_vendor_layout_manager,aw.vendor.layout.manager,model_aw_vendor_layout,group_fenestration_manager,1,1,1,1
+access_aw_vendor_layout_column_user,aw.vendor.layout_column.user,model_aw_vendor_layout_column,base.group_user,1,0,0,0
+access_aw_vendor_layout_column_manager,aw.vendor.layout_column.manager,model_aw_vendor_layout_column,group_fenestration_manager,1,1,1,1
+access_aw_vendor_thickness_alias_user,aw.vendor.thickness_alias.user,model_aw_vendor_thickness_alias,base.group_user,1,0,0,0
+access_aw_vendor_thickness_alias_manager,aw.vendor.thickness_alias.manager,model_aw_vendor_thickness_alias,group_fenestration_manager,1,1,1,1
+access_aw_vendor_alias_user,aw.vendor.alias.user,model_aw_vendor_alias,base.group_user,1,0,0,0
+access_aw_vendor_alias_manager,aw.vendor.alias.manager,model_aw_vendor_alias,group_fenestration_manager,1,1,1,1
+access_aw_vendor_rate_list_user,aw.vendor.rate_list.user,model_aw_vendor_rate_list,base.group_user,1,0,0,0
+access_aw_vendor_rate_list_manager,aw.vendor.rate_list.manager,model_aw_vendor_rate_list,group_fenestration_manager,1,1,1,1
+access_aw_vendor_rate_list_line_user,aw.vendor.rate_list_line.user,model_aw_vendor_rate_list_line,base.group_user,1,0,0,0
+access_aw_vendor_rate_list_line_manager,aw.vendor.rate_list_line.manager,model_aw_vendor_rate_list_line,group_fenestration_manager,1,1,1,1

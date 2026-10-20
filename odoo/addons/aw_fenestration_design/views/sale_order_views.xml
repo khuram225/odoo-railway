@@ -28,6 +28,10 @@
                         <field name="aw_default_finish_id"
                                readonly="state not in ('draft', 'sent')"/>
                         <field name="aw_default_series_id" invisible="1"/>
+                        <!-- Whose rates the profiles are costed at. From the
+                             first window's series; change it here. -->
+                        <field name="aw_profile_vendor_id"
+                               readonly="state not in ('draft', 'sent')"/>
                     </group>
                     <button name="action_add_position" type="object"
                             string="Add Window" class="btn-primary"

@@ -1363,6 +1363,34 @@
                                 </tbody>
                             </table>
 
+                            <!-- Profile cost by vendor: this window's profiles
+                                 at each vendor's rates in force. The order's
+                                 vendor is the one in use. -->
+                            <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1 mt-3">
+                                Profile cost by vendor
+                            </div>
+                            <div t-if="!(pricing.by_vendor || []).length" class="small text-muted mb-2">
+                                No vendor has any rates yet.
+                            </div>
+                            <table t-else="" class="table table-sm mb-2">
+                                <tbody>
+                                    <tr t-foreach="pricing.by_vendor" t-as="vend" t-key="vend.id"
+                                        t-att-class="vend.is_order_vendor ? 'table-primary' : ''">
+                                        <td>
+                                            <b t-esc="vend.name"/>
+                                            <span t-if="vend.is_order_vendor" class="badge text-bg-primary ms-1">this order</span>
+                                            <div class="small text-muted">
+                                                <t t-esc="vend.priced"/> of <t t-esc="vend.variants"/> variants priced
+                                                &#183; rates as of <t t-esc="vend.as_of || '—'"/>
+                                            </div>
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <t t-esc="formatMoney(vend.total)"/>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
                             <div class="mb-2">
                                 <label class="form-label small text-muted mb-0">
                                     Price Structure

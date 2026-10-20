@@ -126,6 +126,11 @@ class AwProfileRate(models.Model):
     ], compute='_compute_status')
 
     vendor_id = fields.Many2one('res.partner', string='Vendor', index=True)
+    vendor_series = fields.Char(
+        index=True,
+        help="The vendor's own name for the series this rate was listed "
+             "under (e.g. DG.SERIES), kept so Fill from current rates can "
+             "find the rows again.")
     source_note = fields.Char(
         help="Which file this row came from, so a price can always be "
              "traced back to the list it was quoted on.")
@@ -295,37 +300,56 @@ class AwProfileRate(models.Model):
                 rate.status = 'current'
 
     @api.model
-    def _rate_for(self, product_tmpl, thickness, finish, on_date):
-        """The rate in force on `on_date`, most specific match first.
+    def _legacy_vendor(self):
+        """The vendor every rate belonged to before rates were scoped by
+        vendor (the Chawla list). Empty on a database that never had one."""
+        value = self.env['ir.config_parameter'].sudo().get_param(
+            'aw_fenestration.legacy_rate_vendor_id')
+        return self.env['res.partner'].browse(
+            int(value)).exists() if value else self.env['res.partner']
 
-        Falls back from (thickness + finish) to thickness-only to
-        template-only, because a vendor list often prices a profile the
-        same in every finish and the melt records that as one row with
-        no finish. Returns an empty recordset when nothing matches, and
-        the caller reports that -- never a silent zero, which would put
-        a free window on a quote.
+    @api.model
+    def _rate_lookup(self, product_tmpl, thickness, finish, on_date, vendor):
+        """(rate, level) for ONE vendor's rows, most specific match first.
+
+        `level` says which fallback was used so the cost note can name it
+        and a wrong-finish rate is never silent: 'exact' (thickness and
+        finish), 'thickness' (the vendor prices this thickness in every
+        finish) or 'template' (the profile in any thickness and finish).
+        Another vendor's rows are never returned: with no vendor there is
+        no rate.
         """
-        if not product_tmpl or not on_date:
-            return self.browse()
+        if not product_tmpl or not on_date or not vendor:
+            return self.browse(), False
         # date_from <= on_date <= date_to, open-ended when date_to is
         # empty. A rate whose date_to has passed with no successor is
         # deliberately NOT matched: an expired price is not a price, and
         # the caller's "no rate" warning is the right outcome.
         base = [
             ('product_tmpl_id', '=', product_tmpl.id),
+            ('vendor_id', '=', vendor.id),
             ('date_from', '<=', on_date),
             '|', ('date_to', '=', False), ('date_to', '>=', on_date),
         ]
         attempts = [
-            base + [('thickness_id', '=', thickness.id if thickness else False),
-                    ('finish_id', '=', finish.id if finish else False)],
-            base + [('thickness_id', '=', thickness.id if thickness else False),
-                    ('finish_id', '=', False)],
-            base + [('finish_id', '=', False), ('thickness_id', '=', False)],
+            ('exact', base + [
+                ('thickness_id', '=', thickness.id if thickness else False),
+                ('finish_id', '=', finish.id if finish else False)]),
+            ('thickness', base + [
+                ('thickness_id', '=', thickness.id if thickness else False),
+                ('finish_id', '=', False)]),
+            ('template', base + [
+                ('finish_id', '=', False), ('thickness_id', '=', False)]),
         ]
-        for domain in attempts:
+        for level, domain in attempts:
             rate = self.search(
                 domain, order='date_from desc, id desc', limit=1)
             if rate:
-                return rate
-        return self.browse()
+                return rate, level
+        return self.browse(), False
+
+    @api.model
+    def _rate_for(self, product_tmpl, thickness, finish, on_date, vendor):
+        """The rate in force on `on_date` from `vendor`'s rows only."""
+        return self._rate_lookup(
+            product_tmpl, thickness, finish, on_date, vendor)[0]

@@ -4,3 +4,4 @@ from . import test_sale_confirm
 from . import test_design_save
 from . import test_cut_rules
 from . import test_catalog
+from . import test_vendor_rates

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
@@ -30,6 +30,13 @@ class SaleOrder(models.Model):
             return ''
         lines = partner._display_address(without_company=True).split('\n')
         return ', '.join(part.strip() for part in lines if part.strip())
+    # One profile vendor per order: whose rates its windows are costed at.
+    # Filled from the first window's series and changeable here; once set
+    # it stays, whatever windows are added or removed afterwards.
+    aw_profile_vendor_id = fields.Many2one(
+        'res.partner', string='Profile vendor',
+        compute='_compute_aw_profile_vendor', store=True, readonly=False,
+        help="Whose rates the profiles on this quote are costed at.")
     aw_default_family_id = fields.Many2one(
         'aw.window.family', string='Default Family',
         ondelete='restrict',
@@ -53,6 +60,17 @@ class SaleOrder(models.Model):
         help="Series every new window on this quote starts from. Leave "
              "blank to be asked each time. A window's own Series can "
              "always be changed afterwards on the design itself.")
+
+
+    @api.depends('aw_design_ids.template_id.default_vendor_id')
+    def _compute_aw_profile_vendor(self):
+        for order in self:
+            if order.aw_profile_vendor_id:
+                continue
+            first = order.aw_design_ids.sorted('id')[:1]
+            order.aw_profile_vendor_id = (
+                first.template_id.default_vendor_id
+                or self.env['aw.profile.rate']._legacy_vendor())
 
     def _confirmation_error_message(self):
         """Core's own pre-confirmation hook (sale.order.action_confirm

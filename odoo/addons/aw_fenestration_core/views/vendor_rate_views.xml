@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===== Vendor rate sheet layout, set once per vendor ===== -->
+    <record id="view_aw_vendor_layout_form" model="ir.ui.view">
+        <field name="name">aw.vendor.layout.form</field>
+        <field name="model">aw.vendor.layout</field>
+        <field name="arch" type="xml">
+            <form string="Vendor layout">
+                <sheet>
+                    <group>
+                        <field name="vendor_id"/>
+                        <field name="note"/>
+                    </group>
+                    <p class="text-muted">
+                        The columns of this vendor's rate sheet, in order:
+                        which is the code, the thickness, the series, and one
+                        column per finish, each mapped to one of our finishes
+                        ("DULL" is Natural). Pasting a row reads it with this.
+                    </p>
+                    <field name="column_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="kind"/>
+                            <field name="header"/>
+                            <field name="finish_id" required="kind == 'finish'"
+                                   readonly="kind != 'finish'"/>
+                        </list>
+                    </field>
+                    <separator string="Thickness aliases"/>
+                    <field name="thickness_alias_ids">
+                        <list editable="bottom">
+                            <field name="alias"/>
+                            <field name="thickness_id"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_aw_vendor_layout_list" model="ir.ui.view">
+        <field name="name">aw.vendor.layout.list</field>
+        <field name="model">aw.vendor.layout</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="vendor_id"/>
+                <field name="note"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_aw_vendor_layout" model="ir.actions.act_window">
+        <field name="name">Vendor Layouts</field>
+        <field name="res_model">aw.vendor.layout</field>
+        <field name="view_mode">list,form</field>
+        <field name="views" eval="[(False, 'list'), (False, 'form')]"/>
+    </record>
+
+    <!-- ===== Rate lists ===== -->
+    <record id="view_aw_vendor_rate_list_form" model="ir.ui.view">
+        <field name="name">aw.vendor.rate.list.form</field>
+        <field name="model">aw.vendor.rate.list</field>
+        <field name="arch" type="xml">
+            <form string="Rate list">
+                <header>
+                    <button name="action_apply" type="object" string="Apply"
+                            class="btn-primary" invisible="state != 'draft'"
+                            confirm="Write these rates? Unmatched rows are not applied. An applied list becomes read only."/>
+                    <button name="action_rematch" type="object"
+                            string="Re-match" invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="vendor_id" readonly="state != 'draft'"/>
+                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="note" readonly="state != 'draft'"/>
+                        </group>
+                        <group>
+                            <field name="layout_id" readonly="1"/>
+                            <field name="columns_legend" readonly="1"/>
+                            <field name="line_count"/>
+                            <field name="unmatched_count"/>
+                        </group>
+                    </group>
+                    <group invisible="state != 'draft'">
+                        <group string="Paste from the vendor's sheet">
+                            <field name="paste_text" nolabel="1" colspan="2"
+                                   placeholder="Paste tab-separated rows here, with or without the header row..."/>
+                            <button name="action_parse_paste" type="object"
+                                    string="Add pasted rows" class="btn-secondary"/>
+                        </group>
+                        <group string="Or start from the rates in force">
+                            <field name="fill_series"
+                                   placeholder="e.g. DG.SERIES"/>
+                            <button name="action_fill_from_current" type="object"
+                                    string="Fill from current rates"
+                                    class="btn-secondary"/>
+                        </group>
+                    </group>
+                    <field name="line_ids" readonly="state != 'draft'">
+                        <list editable="bottom" decoration-danger="problem"
+                              decoration-warning="result and result != 'Applied'">
+                            <field name="sequence" widget="handle"/>
+                            <field name="state" column_invisible="1"/>
+                            <field name="code"/>
+                            <field name="thickness_text"/>
+                            <field name="series"/>
+                        <field name="rate_1" string="Rate 1"/>
+                        <field name="rate_2" string="Rate 2"/>
+                        <field name="rate_3" string="Rate 3"/>
+                        <field name="rate_4" string="Rate 4"/>
+                        <field name="rate_5" string="Rate 5"/>
+                        <field name="rate_6" string="Rate 6"/>
+                        <field name="rate_7" string="Rate 7"/>
+                        <field name="rate_8" string="Rate 8"/>
+                        <field name="rate_9" string="Rate 9" optional="hide"/>
+                        <field name="rate_10" string="Rate 10" optional="hide"/>
+                            <field name="product_tmpl_id"/>
+                            <field name="thickness_id"/>
+                            <field name="problem"/>
+                            <field name="result"/>
+                        </list>
+                    </field>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_aw_vendor_rate_list_list" model="ir.ui.view">
+        <field name="name">aw.vendor.rate.list.list</field>
+        <field name="model">aw.vendor.rate.list</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="state == 'applied'">
+                <field name="vendor_id"/>
+                <field name="date"/>
+                <field name="note"/>
+                <field name="line_count"/>
+                <field name="unmatched_count"/>
+                <field name="state"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_aw_vendor_rate_list" model="ir.actions.act_window">
+        <field name="name">Rate Lists</field>
+        <field name="res_model">aw.vendor.rate.list</field>
+        <field name="view_mode">list,form</field>
+        <field name="views" eval="[(False, 'list'), (False, 'form')]"/>
+    </record>
+
+</odoo>

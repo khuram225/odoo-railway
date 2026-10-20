@@ -71,6 +71,7 @@
                             <field name="feet_used"/>
                             <field name="yield_pct"/>
                             <field name="rate_per_ft"/>
+                            <field name="rate_date"/>
                             <field name="cost" widget="monetary"/>
                             <field name="currency_id" column_invisible="1"/>
                             <field name="proven_optimal" string="Proven"/>
@@ -82,6 +83,7 @@
                                     <group>
                                         <field name="product_id" readonly="1"/>
                                         <field name="rate_per_ft" readonly="1"/>
+                                        <field name="rate_date" readonly="1"/>
                                         <field name="currency_id" invisible="1"/>
                                     </group>
                                     <group>

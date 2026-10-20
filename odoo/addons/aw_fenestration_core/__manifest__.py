@@ -59,6 +59,7 @@ aw_fenestration_stock) that depend on this one.
         'views/window_template_views.xml',
         'views/res_config_settings_views.xml',
         'views/profile_rate_views.xml',
+        'views/vendor_rate_views.xml',
         'views/product_catalogue_views.xml',
         'views/menu_views.xml',
     ],
