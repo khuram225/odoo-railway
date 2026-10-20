@@ -20,4 +20,6 @@ from . import price_structure
 from . import thickness
 from . import product_catalogue
 from . import product_rate
+from . import product_attribute_line
+from . import variant_codes
 from . import finish_colour

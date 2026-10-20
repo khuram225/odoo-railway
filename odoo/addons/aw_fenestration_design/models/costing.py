@@ -29,9 +29,6 @@ MIN_MARGIN_PARAM = 'aw_fenestration.min_margin_pct'
 DEFAULT_MIN_MARGIN = 20.0
 MM_PER_FOOT = 304.8
 
-from odoo.addons.aw_fenestration_core.models.product_rate import (  # noqa: E402
-    FEET_PER_METRE,
-)
 
 
 class AwDesignBomLine(models.Model):
@@ -250,8 +247,8 @@ class AwDesign(models.Model):
                 else:
                     # No rate from this vendor: the variant's cost field
                     # (per metre) stands in, and the check says so.
-                    per_ft = (line.product_id.standard_price or 0.0) \
-                        / FEET_PER_METRE
+                    # Profiles are costed per foot, the rate's own unit.
+                    per_ft = line.product_id.standard_price or 0.0
                     unit_cost = per_ft
                     line.line_cost = (
                         (line.length_mm or 0.0) / MM_PER_FOOT
