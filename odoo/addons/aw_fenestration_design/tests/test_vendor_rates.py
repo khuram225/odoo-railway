@@ -171,3 +171,24 @@ class TestVendorRateLists(TransactionCase):
         self.assertEqual(
             sorted([line.rate_1, line.rate_2, line.rate_3]),
             [136.0, 137.0, 147.0])
+
+
+@tagged('post_install', '-at_install')
+class TestPremiumSeed(TransactionCase):
+
+    def test_seed_creates_what_is_missing_and_only_once(self):
+        param = self.env['ir.config_parameter'].sudo()
+        param.set_param('aw_fenestration.premium_layout_seeded', False)
+        Layout = self.env['aw.vendor.layout']
+        report = Layout._seed_premium_layout()
+        self.assertTrue(report['partner'])
+        layout = Layout.search([('vendor_id.name', 'ilike', 'premium')])
+        if 'created' in (report['layout'] or ''):
+            kinds = layout.column_ids.sorted('sequence').mapped('kind')
+            self.assertEqual(kinds[:3], ['code', 'thickness', 'series'])
+            self.assertEqual(len(kinds), 10)
+            self.assertIn('BRO', report['finishes_unmapped'])
+            self.assertTrue(
+                any(a.startswith('NOR') for a in report['thickness_set']))
+        # a second run does nothing
+        self.assertIsNone(Layout._seed_premium_layout())
