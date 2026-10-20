@@ -18,6 +18,10 @@ from .rate_paste import normalise_code, normalise_text, parse_paste
 _logger = logging.getLogger(__name__)
 
 MAX_FINISH_COLUMNS = 10
+THICKNESS_ALIASES = ('NOR', '1.6MM', '2MM', '1.4MM', '2.5MM', '3MM',
+                     '6MM', '3.8MM', '1.90MM', '1.80MM')
+PREMIUM_FIX_PARAM = 'aw_fenestration.premium_layout_fixed'
+PREMIUM_FIX_REPORT_PARAM = 'aw_fenestration.premium_layout_fix_report'
 PREMIUM_PARAM = 'aw_fenestration.premium_layout_seeded'
 PREMIUM_REPORT_PARAM = 'aw_fenestration.premium_layout_report'
 LEGACY_VENDOR_PARAM = 'aw_fenestration.legacy_rate_vendor_id'
@@ -70,8 +74,94 @@ class AwVendorLayout(models.Model):
         try:
             with self.env.cr.savepoint():
                 self._seed_premium_layout()
+                self._fix_premium_layout()
         except Exception:
             _logger.exception("aw_fenestration_core: Premium seed failed")
+
+    PREMIUM_RATE_HEADERS = (
+        'DULL', 'BRO', 'H.23', 'RAL P.C', 'BLACK', 'SHARA', 'WOOD')
+
+    @api.model
+    def _premium_finishes(self, finish_attr):
+        """DULL -> Natural, H.23 -> H23 PC RAL, SHARA -> Brown PC Sahara,
+        matched on the finish value's name ignoring case and spacing."""
+        def squash(text):
+            return ''.join((text or '').lower().split())
+
+        def find(test):
+            return finish_attr.value_ids.filtered(
+                lambda v: test(squash(v.name)))[:1]
+
+        return {
+            'DULL': find(lambda n: n == 'natural'),
+            'H.23': find(lambda n: n.startswith('h23')),
+            'SHARA': find(lambda n: n == 'brownpcsahara'),
+        }
+
+    @api.model
+    def _fix_premium_layout(self):
+        """A Premium layout that exists but has no rate columns gets them,
+        ONCE: the seed leaves an existing layout alone, and this one was
+        made by hand with the code, thickness and series columns only, so
+        no pasted number could be read as a rate. Only what is missing is
+        added; no column or alias that exists is changed."""
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(PREMIUM_FIX_PARAM):
+            return None
+        report = {'layouts_fixed': [], 'columns_added': [],
+                  'aliases_added': []}
+        finish_attr = self.env.ref('aw_fenestration_core.aw_attribute_finish')
+        thick_attr = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness')
+        finishes = self._premium_finishes(finish_attr)
+        for layout in self.with_context(active_test=False).search(
+                [('vendor_id.name', 'ilike', 'premium')]):
+            if not layout._finish_columns():
+                start = max(layout.column_ids.mapped('sequence') or [0])
+                vals = []
+                for index, header in enumerate(self.PREMIUM_RATE_HEADERS, 1):
+                    finish = finishes.get(header)
+                    vals.append((0, 0, {
+                        'sequence': start + 10 * index, 'header': header,
+                        'kind': 'finish',
+                        'finish_id': finish.id if finish else False}))
+                    report['columns_added'].append(
+                        '%s -> %s' % (header, finish.name if finish
+                                      else 'no finish set'))
+                layout.write({'column_ids': vals})
+                report['layouts_fixed'].append(layout.id)
+            have = {a.alias.upper() for a in layout.thickness_alias_ids}
+            for alias in THICKNESS_ALIASES:
+                if alias.upper() in have:
+                    continue
+                value = self._thickness_for_alias(thick_attr, alias)
+                if value:
+                    layout.write({'thickness_alias_ids': [(0, 0, {
+                        'alias': alias, 'thickness_id': value.id})]})
+                    report['aliases_added'].append(
+                        '%s -> %s' % (alias, value.name))
+        param.set_param(PREMIUM_FIX_PARAM, '1')
+        param.set_param(PREMIUM_FIX_REPORT_PARAM, repr(report))
+        _logger.info("aw_fenestration_core: Premium layout fix: %s", report)
+        return report
+
+    @api.model
+    def _thickness_for_alias(self, thick_attr, alias):
+        values = thick_attr.value_ids
+        if alias == 'NOR':
+            return values.filtered(lambda v: v.name == 'Standard')[:1]
+        try:
+            wanted = float(alias.upper().replace('MM', ''))
+        except ValueError:
+            return values.browse()
+        for value in values:
+            try:
+                if float((value.name or '').upper().replace(
+                        'MM', '')) == wanted:
+                    return value
+            except ValueError:
+                continue
+        return values.browse()
 
     @api.model
     def _seed_premium_layout(self):
@@ -108,15 +198,7 @@ class AwVendorLayout(models.Model):
             thick_attr = self.env.ref(
                 'aw_fenestration_core.aw_attribute_thickness')
 
-            def finish_named(test):
-                return finish_attr.value_ids.filtered(
-                    lambda v: test(v.name or ''))[:1]
-
-            finishes = {
-                'DULL': finish_named(lambda n: n == 'Natural'),
-                'H.23': finish_named(lambda n: n.upper().startswith('H23')),
-                'SHARA': finish_named(lambda n: n == 'Brown PC Sahara'),
-            }
+            finishes = self._premium_finishes(finish_attr)
             columns = [
                 (0, 0, {'sequence': 10, 'kind': 'code', 'header': 'SEC.NO.'}),
                 (0, 0, {'sequence': 20, 'kind': 'thickness',
@@ -130,7 +212,7 @@ class AwVendorLayout(models.Model):
                 finish = finishes.get(header)
                 columns.append((0, 0, {
                     'sequence': 40 + 10 * index, 'header': header,
-                    'kind': 'finish' if finish else 'skip',
+                    'kind': 'finish',
                     'finish_id': finish.id if finish else False}))
                 if finish:
                     report['finishes_set'].append(
@@ -139,25 +221,10 @@ class AwVendorLayout(models.Model):
                     report['finishes_unmapped'].append(header)
 
             def thickness_for(alias):
-                values = thick_attr.value_ids
-                if alias == 'NOR':
-                    return values.filtered(lambda v: v.name == 'Standard')[:1]
-                try:
-                    wanted = float(alias.upper().replace('MM', ''))
-                except ValueError:
-                    return values.browse()
-                for value in values:
-                    try:
-                        if float((value.name or '').upper().replace(
-                                'MM', '')) == wanted:
-                            return value
-                    except ValueError:
-                        continue
-                return values.browse()
+                return self._thickness_for_alias(thick_attr, alias)
 
             aliases = []
-            for alias in ('NOR', '1.6MM', '2MM', '1.4MM', '2.5MM', '3MM',
-                          '6MM', '3.8MM', '1.90MM', '1.80MM'):
+            for alias in THICKNESS_ALIASES:
                 value = thickness_for(alias)
                 if value:
                     aliases.append((0, 0, {
@@ -201,19 +268,13 @@ class AwVendorLayoutColumn(models.Model):
     ], required=True, default='finish')
     header = fields.Char(
         help="What the vendor calls the column, e.g. DULL or SEC.NO.")
+    # A rate column may have no finish yet: its numbers are read and kept,
+    # and Apply says that column was not applied until a finish is set.
     finish_id = fields.Many2one(
         'product.attribute.value', string='Our finish',
         domain=lambda self: [(
             'attribute_id', '=',
             self.env.ref('aw_fenestration_core.aw_attribute_finish').id)])
-
-    @api.constrains('kind', 'finish_id')
-    def _check_finish(self):
-        for column in self:
-            if column.kind == 'finish' and not column.finish_id:
-                raise ValidationError(_(
-                    "Column '%s' is a rate column, so it needs one of our "
-                    "finishes.", column.header or ''))
 
 
 class AwVendorThicknessAlias(models.Model):
@@ -294,12 +355,16 @@ class AwVendorRateList(models.Model):
             layout = self.env['aw.vendor.layout'].search(
                 [('vendor_id', '=', rec.vendor_id.id)], limit=1)
             rec.layout_id = layout
-            rec.columns_legend = ' | '.join(
-                '%s = %s (%s)' % (
-                    index, column.header or column.finish_id.name,
-                    column.finish_id.name)
-                for index, column in enumerate(
-                    layout._finish_columns(), start=1)) if layout else ''
+            if not layout:
+                rec.columns_legend = _('No layout for this vendor')
+            else:
+                columns = layout._finish_columns()
+                rec.columns_legend = ' | '.join(
+                    'Rate %s = %s (%s)' % (
+                        index, column.header or column.finish_id.name,
+                        column.finish_id.name or _('no finish set'))
+                    for index, column in enumerate(columns, start=1)
+                ) or _('This layout has no rate columns')
 
     @api.depends('line_ids.product_tmpl_id', 'line_ids.problem')
     def _compute_counts(self):
@@ -324,7 +389,22 @@ class AwVendorRateList(models.Model):
         layout = self._require_layout()
         rows = parse_paste(self.paste_text, layout._kinds())
         if not rows:
-            raise UserError(_("No rows with rates were found in the paste."))
+            columns = layout.column_ids.sorted('sequence')
+            described = ', '.join(
+                '%s = %s' % (c.header or '?', dict(
+                    c._fields['kind'].selection).get(c.kind, c.kind))
+                for c in columns) or _('no columns')
+            if not layout._finish_columns():
+                raise UserError(_(
+                    "%(vendor)s's layout has no rate columns, so no number "
+                    "in a pasted row can be read as a rate. Its columns: "
+                    "%(columns)s. Add the rate columns (one per finish) "
+                    "under Vendor Layouts.",
+                    vendor=self.vendor_id.display_name, columns=described))
+            raise UserError(_(
+                "No row has a number under any of the layout's rate "
+                "columns. Its columns, in order: %(columns)s.",
+                columns=described))
         count = len(layout._finish_columns())
         start = (self.line_ids[-1:].sequence or 0) + 10 if self.line_ids else 10
         self.env['aw.vendor.rate.list.line'].create([dict(
@@ -422,6 +502,11 @@ class AwVendorRateList(models.Model):
                 price = line['rate_%s' % index]
                 if not price:
                     continue            # empty cells create nothing
+                if not column.finish_id:
+                    notes.append(_(
+                        "no finish set for column %s",
+                        column.header or index))
+                    continue
                 if (line.thickness_id
                         and line.thickness_id not in offered_thickness) or (
                         column.finish_id not in offered_finish):

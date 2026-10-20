@@ -35,6 +35,13 @@ def parse_number(cell):
         return None
 
 
+def clean(text):
+    """What a spreadsheet copy can carry that a person cannot see: a BOM,
+    non-breaking spaces, CRLF line ends."""
+    return ((text or '').replace('\ufeff', '').replace('\xa0', ' ')
+            .replace('\r\n', '\n').replace('\r', '\n'))
+
+
 def split_row(line, kinds):
     """The cells of one pasted row, padded to the layout.
 
@@ -52,7 +59,9 @@ def split_row(line, kinds):
             cells = line.split()
         if len(cells) == width - 1 and 'series' in kinds:
             cells.insert(kinds.index('series'), '')
-    cells = [cell.strip() for cell in cells]
+    # An empty cell between two tabs is a cell: it must not shift the
+    # columns after it. Excel can also wrap a cell in quotes.
+    cells = [cell.strip().strip('"').strip() for cell in cells]
     return (cells + [''] * width)[:width]
 
 
@@ -68,7 +77,7 @@ def parse_paste(text, kinds):
     rows = []
     series = ''
     finish_at = [i for i, kind in enumerate(kinds) if kind == 'finish']
-    for line in (text or '').splitlines():
+    for line in clean(text).split('\n'):
         if not line.strip():
             continue
         cells = split_row(line, kinds)
