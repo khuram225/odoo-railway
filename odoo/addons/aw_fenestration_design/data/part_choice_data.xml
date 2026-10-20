@@ -5,8 +5,5 @@
          One-shot: guarded by a parameter inside. -->
     <data>
         <function model="aw.design.part.choice" name="_migrate_thickness_choices"/>
-        <!-- Last data file, so the catalog (core) and the mesh types
-             (attachment_types_data.xml) both exist. One-shot. -->
-        <function model="aw.window.template" name="_seed_re_mesh"/>
     </data>
 </odoo>

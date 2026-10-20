@@ -31,18 +31,6 @@
         </record>
 
 
-        <!-- The cloth a Mesh Type supplies. Cost 0 on purpose: the checks
-             flag a line with no cost, which is the reminder to price it.
-             Square metres of cloth per panel (see re_mesh_seed.py). -->
-        <record id="product_mesh_cloth" model="product.template">
-            <field name="name">Mesh cloth</field>
-            <field name="type">consu</field>
-            <field name="sale_ok" eval="False"/>
-            <field name="purchase_ok" eval="True"/>
-            <field name="list_price">0.0</field>
-            <field name="standard_price">0.0</field>
-            <field name="categ_id" ref="aw_fenestration_core.product_category_fenestration"/>
-        </record>
 
     </data>
 

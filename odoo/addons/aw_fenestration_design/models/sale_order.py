@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class SaleOrder(models.Model):
@@ -61,6 +65,27 @@ class SaleOrder(models.Model):
              "blank to be asked each time. A window's own Series can "
              "always be changed afterwards on the design itself.")
 
+
+    def _register_hook(self):
+        """Fill the profile vendor on orders that predate it, once the
+        legacy vendor can exist (see aw.window.template._register_hook).
+        The stored compute ran while modules were still loading, when
+        there was no vendor to give."""
+        super()._register_hook()
+        try:
+            with self.env.cr.savepoint():
+                self.env['aw.window.template']._seed_vendors()
+                legacy = self.env['aw.profile.rate']._legacy_vendor()
+                orders = self.sudo().search([
+                    ('aw_profile_vendor_id', '=', False),
+                    ('aw_design_ids', '!=', False)])
+                for order in orders:
+                    first = order.aw_design_ids.sorted('id')[:1]
+                    vendor = first.template_id.default_vendor_id or legacy
+                    if vendor:
+                        order.aw_profile_vendor_id = vendor
+        except Exception:
+            _logger.exception("aw_fenestration_design: order vendor fill failed")
 
     @api.depends('aw_design_ids.template_id.default_vendor_id')
     def _compute_aw_profile_vendor(self):
