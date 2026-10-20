@@ -210,6 +210,10 @@ class TestVendorRateLists(TransactionCase):
         self.assertEqual((summary['created'], summary['applied']), (1, 3))
         product = self.env['product.template'].search([('name', '=', 'ZZ-9')])
         self.assertEqual(product.uom_id.name, 'ft')
+        self.assertEqual(
+            product.categ_id,
+            self.env.ref('aw_fenestration_core.product_category_profiles_unclassified'))
+        self.assertEqual(product.aw_catalogue_category, 'DG.SERIES')
         attrs = product.attribute_line_ids.mapped('attribute_id.name')
         self.assertEqual(sorted(attrs), ['Finish', 'Thickness'])
         self.assertEqual(rate_list.line_ids.status_code, 'applied')

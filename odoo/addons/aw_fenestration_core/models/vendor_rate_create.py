@@ -6,7 +6,8 @@ are re-matched and Apply runs again so the rates land.
 
 What it will and will not do:
   * an unmatched row gets a product made for it (name = the vendor's code,
-    category under Profiles by the row's series, UoM ft), with the
+    category Profiles / Unclassified, the row's series text in the
+    product's Catalogue Section, UoM ft), with the
     thicknesses and the mapped finishes the list prices as attribute
     values, and the vendor alias is saved;
   * a matched product that lacks a thickness or a mapped finish gets that
@@ -35,21 +36,12 @@ def _squash(text):
 class AwVendorRateList(models.Model):
     _inherit = 'aw.vendor.rate.list'
 
-    def _profile_category_for(self, series, create=False):
-        """The category under Profiles for a vendor series: an existing
-        child with the same name (ignoring case and punctuation), else a
-        new one when `create`, else the name it would get."""
-        root = self.env.ref('aw_fenestration_core.product_category_profiles')
-        if not series:
-            return root, False
-        wanted = _squash(series)
-        for child in root.child_id:
-            if _squash(child.name) == wanted:
-                return child, False
-        if create:
-            return self.env['product.category'].sudo().create({
-                'name': series, 'parent_id': root.id}), True
-        return root.browse(), True
+    def _unclassified_category(self):
+        """Every new profile goes in Fenestration / Profiles / Unclassified.
+        The vendor's series text is kept on the product (Catalogue
+        Section), never turned into a category of its own."""
+        return self.env.ref(
+            'aw_fenestration_core.product_category_profiles_unclassified')
 
     def _missing_plan(self):
         """What Create missing would do, as data."""
@@ -102,11 +94,10 @@ class AwVendorRateList(models.Model):
                 continue
             thicknesses = lines.thickness_id
             finishes = priced_finishes(lines)
-            category, is_new = self._profile_category_for(first.series)
+            category = self._unclassified_category()
             plan['create'].append({
                 'code': first.code, 'norm': norm, 'series': first.series or '',
-                'category': (category.name if category else first.series),
-                'category_is_new': is_new,
+                'category': category.name,
                 'thicknesses': thicknesses.mapped('name'),
                 'finishes': finishes.mapped('name'),
                 'line_ids': lines.ids,
@@ -163,7 +154,8 @@ class AwVendorRateList(models.Model):
             '<li><b>%s</b> &mdash; %s%s &middot; Thickness: %s &middot; '
             'Finish: %s</li>' % (
                 esc(item['code']), esc(item['category'] or ''),
-                esc(_(' (new category)')) if item['category_is_new'] else '',
+                esc(_(' &middot; Catalogue Section: %s', item['series']))
+                if item['series'] else '',
                 esc(', '.join(item['thicknesses']) or '-'),
                 esc(', '.join(item['finishes']) or '-'))
             for item in plan['create']) or '<li>-</li>')
@@ -210,8 +202,7 @@ class AwVendorRateList(models.Model):
         Alias = self.env['aw.vendor.alias']
         created = extended = 0
         for item in plan['create']:
-            category, _new = self._profile_category_for(
-                item['series'], create=True)
+            category = self._unclassified_category()
             attribute_lines = []
             if item['thickness_ids']:
                 attribute_lines.append((0, 0, {
@@ -224,6 +215,7 @@ class AwVendorRateList(models.Model):
             template = Template.create({
                 'name': item['code'], 'type': 'consu', 'is_storable': True,
                 'uom_id': foot.id, 'categ_id': category.id,
+                'aw_catalogue_category': item['series'] or False,
                 'sale_ok': False, 'purchase_ok': True,
                 'attribute_line_ids': attribute_lines})
             if not Alias.search_count([
