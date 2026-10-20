@@ -73,6 +73,11 @@ Print's own domain context is in
 
 - `odoo/addons/hello_check/` — pipeline smoke-test module (depends on `base`
   only, no models/views). Confirms the addons path wiring works end to end.
+- `odoo/addons/aw_web_chatter_toggle/` — a toggle that collapses the chatter
+  to an icon bar on every form; state in `localStorage`, a class on `<body>`.
+  Depends on `mail` only and is `auto_install`, so it installs on the next
+  upgrade. It sits at the addons root, so the print service (whose addons
+  path is `addons_print` only) does not load it.
 - `odoo/addons/aluminum_inventory/` — first real business module, for an
   aluminum windows manufacturing operation. See below.
 - `odoo/addons/aw_fenestration_core/` — master data for the aluminum windows

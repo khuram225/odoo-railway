@@ -1,0 +1,40 @@
+// The toggle: a small button at the top of the chatter. Which arrow shows
+// follows the state on <body>.
+.o-aw-chatterToggle {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin-left: auto;
+    display: block;
+    padding: 0.25rem 0.5rem;
+}
+
+.o-aw-chatterToggle-expand {
+    display: none;
+}
+
+// Collapsed: a narrow bar with only the toggle in it.
+.o-aw-chatter-collapsed {
+    .o-aw-chatterToggle-collapse {
+        display: none;
+    }
+
+    .o-aw-chatterToggle-expand {
+        display: inline-block;
+    }
+
+    .o-mail-Form-chatter.o-aside {
+        width: 44px !important;
+        min-width: 44px;
+        flex-grow: 0 !important;
+    }
+
+    .o-mail-Chatter-top,
+    .o-mail-Chatter-content {
+        display: none !important;
+    }
+
+    .o-mail-Form-chatter .o-aw-chatterToggle {
+        margin-left: 0;
+    }
+}
