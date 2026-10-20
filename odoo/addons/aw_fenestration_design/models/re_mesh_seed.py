@@ -27,6 +27,36 @@ BEAD_XMLIDS = ('pos_mesh_bead_top', 'pos_mesh_bead_bottom',
 class AwWindowTemplate(models.Model):
     _inherit = 'aw.window.template'
 
+    def _register_hook(self):
+        """After every module has loaded, for the same reason the legacy
+        vendor is: a record created while modules are still loading can
+        miss NOT NULL columns that later modules add."""
+        super()._register_hook()
+        try:
+            with self.env.cr.savepoint():
+                self._seed_re_mesh()
+        except Exception:
+            _logger.exception("aw_fenestration_design: RE mesh seed failed")
+
+    @api.model
+    def _seed_cloth_product(self):
+        """The cloth a Mesh Type supplies. Cost 0 on purpose: the checks
+        flag a line with no cost, which is the reminder to price it."""
+        cloth = self.env.ref('aw_fenestration_design.product_mesh_cloth',
+                             raise_if_not_found=False)
+        if cloth:
+            return cloth
+        cloth = self.env['product.template'].create({
+            'name': 'Mesh cloth', 'type': 'consu', 'sale_ok': False,
+            'purchase_ok': True, 'list_price': 0.0, 'standard_price': 0.0,
+            'categ_id': self.env.ref(
+                'aw_fenestration_core.product_category_fenestration').id})
+        self.env['ir.model.data'].sudo().create({
+            'module': 'aw_fenestration_design', 'name': 'product_mesh_cloth',
+            'model': 'product.template', 'res_id': cloth.id,
+            'noupdate': True})
+        return cloth
+
     @api.model
     def _seed_re_mesh(self):
         param = self.env['ir.config_parameter'].sudo()
@@ -66,8 +96,7 @@ class AwWindowTemplate(models.Model):
                     spec[field] = formula
                     report['deductions'] += 1
 
-        cloth = self.env.ref('aw_fenestration_design.product_mesh_cloth',
-                             raise_if_not_found=False)
+        cloth = self._seed_cloth_product()
         if cloth:
             variant = cloth.product_variant_id
             for mesh in self.env['aw.mesh.type'].with_context(

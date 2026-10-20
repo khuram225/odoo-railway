@@ -1372,7 +1372,7 @@ dashboard's Healthcheck Path**, and read the deployment's
 `serviceManifest.deploy.healthcheckPath` (via `railway status --json`)
 rather than trusting the file.
 
-**Timings, measured, against a 300s `healthcheckTimeout`:**
+**Timings, measured, against what was a 300s `healthcheckTimeout` (now 900s: an upgrade runs before the server starts, and one with migrations can take longer than five minutes):**
 `/aw/health/registry` costs **0.0025s** server-side, and **cold start to
 first HTTP answer is 2s** (registry load 0.74s) in the boot job, which
 reports both as a `::notice::`. Production loads its registry in

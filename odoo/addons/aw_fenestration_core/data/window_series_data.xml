@@ -62,7 +62,5 @@
         <function model="aw.profile.position" name="_seed_catalog"/>
         <function model="res.config.settings" name="_migrate_length_uom"/>
         <function model="aw.window.template" name="_sync_all_catalog_lines"/>
-        <!-- Rates scoped by vendor: the existing ones become Chawla's. -->
-        <function model="aw.window.template" name="_seed_vendors"/>
     </data>
 </odoo>

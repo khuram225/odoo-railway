@@ -445,6 +445,26 @@ class AwWindowTemplate(models.Model):
                 added += len(vals)
         return added
 
+    def _register_hook(self):
+        """Once EVERY module has loaded.
+
+        The legacy vendor is a res.partner, and creating one while core's
+        data is still loading failed the whole upgrade: purchase_stock
+        adds a NOT NULL column to res.partner (group_rfq), but it loads
+        after this module, so its field was not in the registry yet and
+        the INSERT left the column out. A hook runs when the registry is
+        complete, which is also why this is safe to leave in place: it is
+        guarded by a parameter and does nothing once it has run."""
+        super()._register_hook()
+        # In a savepoint, and logged rather than raised: this also runs on
+        # every ordinary server start, where a failure here must not
+        # become a server that will not boot.
+        try:
+            with self.env.cr.savepoint():
+                self._seed_vendors()
+        except Exception:
+            _logger.exception("aw_fenestration_core: vendor seed failed")
+
     @api.model
     def _seed_vendors(self):
         """Rates were never scoped by vendor, so all of them belong to
