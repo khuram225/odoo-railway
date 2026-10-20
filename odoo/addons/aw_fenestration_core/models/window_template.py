@@ -457,11 +457,18 @@ class AwWindowTemplate(models.Model):
         Rate = self.env['aw.profile.rate'].with_context(active_test=False)
         if not Rate.search_count([('vendor_id', '=', False)]):
             return False
-        partner = self.env['res.partner'].search(
-            [('name', '=ilike', 'Chawla')], limit=1)
+        # An existing partner whose name contains Chawla is reused, a
+        # supplier first; one is created only if there is none.
+        Partner = self.env['res.partner'].with_context(active_test=False)
+        partner = Partner.search(
+            [('name', 'ilike', 'chawla')],
+            order=('supplier_rank desc, id' if 'supplier_rank' in Partner._fields
+                   else 'id'), limit=1)
+        origin = 'reused'
         if not partner:
-            partner = self.env['res.partner'].create({
-                'name': 'Chawla', 'is_company': True})
+            partner = Partner.create({'name': 'Chawla', 'is_company': True})
+            origin = 'created'
+        param.set_param('aw_fenestration.legacy_rate_vendor_origin', origin)
         # One statement: the vendor is part of the validity chain key, but
         # every row is moving to the same vendor, so no chain changes and
         # there is nothing for the write override to rebuild.
@@ -474,8 +481,10 @@ class AwWindowTemplate(models.Model):
                 {'default_vendor_id': partner.id})
         param.set_param('aw_fenestration.legacy_rate_vendor_id', partner.id)
         _logger.info(
-            "aw_fenestration_core: rates assigned to vendor '%s'",
-            partner.name)
+            "aw_fenestration_core: legacy rates assigned to vendor '%s' "
+            "(id %s), %s an existing partner",
+            partner.name, partner.id,
+            'reusing' if origin == 'reused' else 'creating')
         return True
 
     @api.model

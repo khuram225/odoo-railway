@@ -1059,10 +1059,15 @@ class AwDesign(models.Model):
         if uncosted:
             reasons = {}
             for line in uncosted:
-                reasons.setdefault(line.cost_note, 0)
-                reasons[line.cost_note] += 1
-            for reason, count in sorted(reasons.items()):
+                key = (line.cost_note, bool(line.line_cost))
+                reasons[key] = reasons.get(key, 0) + 1
+            for (reason, costed), count in sorted(reasons.items()):
+                # Costed with a stand-in is worth knowing, and is not the
+                # same thing as having no cost.
                 problems.append(('warning', _(
+                    "%(count)s BOM line(s) are priced with a stand-in: "
+                    "%(reason)s",
+                    count=count, reason=reason) if costed else _(
                     "%(count)s BOM line(s) have no cost: %(reason)s.",
                     count=count, reason=reason)))
 

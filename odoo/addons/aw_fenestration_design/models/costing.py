@@ -291,7 +291,10 @@ class AwDesign(models.Model):
             profiles = glass = other = 0.0
             uncosted = 0
             for line in design.bom_line_ids:
-                if line.cost_note:
+                # Only a line that carries NO cost is uncosted. A note on a
+                # line that was costed anyway (a fallback rate, the cost
+                # field standing in) is information, not a gap.
+                if line.cost_note and not line.line_cost:
                     uncosted += 1
                 if line.kind == 'profile':
                     profiles += line.line_cost
