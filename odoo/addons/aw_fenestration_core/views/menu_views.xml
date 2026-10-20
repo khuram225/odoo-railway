@@ -74,29 +74,31 @@
               action="action_aw_glass_spec"
               sequence="5"/>
 
-    <menuitem id="menu_aw_profile_rate"
-              name="Profile Rates"
+    <!-- Vendor rates: what is in force, the lists that put it there, and
+         how each vendor's sheet is read. Price Structures is separate: it
+         is how a cost becomes a price, not where a cost comes from. -->
+    <menuitem id="menu_aw_vendor_rates"
+              name="Vendor Rates"
               parent="menu_aw_fenestration_config"
-              action="action_aw_profile_rate"
               sequence="50"/>
+
+    <menuitem id="menu_aw_profile_rate"
+              name="Rates in force"
+              parent="menu_aw_vendor_rates"
+              action="action_aw_profile_rate"
+              sequence="10"/>
 
     <menuitem id="menu_aw_vendor_rate_list"
               name="Rate Lists"
-              parent="menu_aw_fenestration_config"
+              parent="menu_aw_vendor_rates"
               action="action_aw_vendor_rate_list"
-              sequence="52"/>
+              sequence="20"/>
 
     <menuitem id="menu_aw_vendor_layout"
               name="Vendor Layouts"
-              parent="menu_aw_fenestration_config"
+              parent="menu_aw_vendor_rates"
               action="action_aw_vendor_layout"
-              sequence="53"/>
-
-    <menuitem id="menu_aw_profile_rate_import"
-              name="Import Price List"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_profile_rate_import"
-              sequence="55"/>
+              sequence="30"/>
 
     <menuitem id="menu_aw_catalogue_import"
               name="Import Catalogue"
@@ -108,6 +110,6 @@
               name="Price Structures"
               parent="menu_aw_fenestration_config"
               action="action_aw_price_structure"
-              sequence="60"/>
+              sequence="70"/>
 
 </odoo>
