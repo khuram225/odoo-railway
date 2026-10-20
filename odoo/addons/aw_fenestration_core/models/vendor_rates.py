@@ -18,6 +18,8 @@ from .rate_paste import normalise_code, normalise_text, parse_paste
 _logger = logging.getLogger(__name__)
 
 MAX_FINISH_COLUMNS = 10
+PREMIUM_PARAM = 'aw_fenestration.premium_layout_seeded'
+PREMIUM_REPORT_PARAM = 'aw_fenestration.premium_layout_report'
 LEGACY_VENDOR_PARAM = 'aw_fenestration.legacy_rate_vendor_id'
 
 
@@ -58,6 +60,122 @@ class AwVendorLayout(models.Model):
     def _kinds(self):
         self.ensure_one()
         return self.column_ids.sorted('sequence').mapped('kind')
+
+    def _register_hook(self):
+        """Seed Premium's layout once every module has loaded (a partner
+        created while modules are still loading can miss NOT NULL columns
+        that later modules add). Savepoint, and logged rather than raised:
+        this also runs on every ordinary start."""
+        super()._register_hook()
+        try:
+            with self.env.cr.savepoint():
+                self._seed_premium_layout()
+        except Exception:
+            _logger.exception("aw_fenestration_core: Premium seed failed")
+
+    @api.model
+    def _seed_premium_layout(self):
+        """Premium and its rate sheet layout, CREATE-IF-MISSING and ONCE.
+
+        Nothing that exists is changed: a partner whose name contains
+        "premium" (archived included) is reused, and if Premium already
+        has a layout nothing is created at all. The rate columns whose
+        finish is not known are left as Ignore columns with the vendor's
+        header, so a pasted row still lines up; the user turns each into a
+        rate column by choosing its finish in the UI.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(PREMIUM_PARAM):
+            return None
+        report = {'partner': None, 'layout': None, 'finishes_set': [],
+                  'finishes_unmapped': [], 'thickness_set': [],
+                  'thickness_unmapped': []}
+        Partner = self.env['res.partner'].with_context(active_test=False)
+        partner = Partner.search([('name', 'ilike', 'premium')], limit=1)
+        if partner:
+            report['partner'] = 'reused: %s (id %s)' % (
+                partner.name, partner.id)
+        else:
+            partner = Partner.create({'name': 'Premium', 'is_company': True})
+            report['partner'] = 'created: Premium (id %s)' % partner.id
+
+        if self.with_context(active_test=False).search_count(
+                [('vendor_id', '=', partner.id)]):
+            report['layout'] = 'already exists; nothing created'
+        else:
+            finish_attr = self.env.ref(
+                'aw_fenestration_core.aw_attribute_finish')
+            thick_attr = self.env.ref(
+                'aw_fenestration_core.aw_attribute_thickness')
+
+            def finish_named(test):
+                return finish_attr.value_ids.filtered(
+                    lambda v: test(v.name or ''))[:1]
+
+            finishes = {
+                'DULL': finish_named(lambda n: n == 'Natural'),
+                'H.23': finish_named(lambda n: n.upper().startswith('H23')),
+                'SHARA': finish_named(lambda n: n == 'Brown PC Sahara'),
+            }
+            columns = [
+                (0, 0, {'sequence': 10, 'kind': 'code', 'header': 'SEC.NO.'}),
+                (0, 0, {'sequence': 20, 'kind': 'thickness',
+                        'header': 'Thickness'}),
+                (0, 0, {'sequence': 30, 'kind': 'series',
+                        'header': 'Series'}),
+            ]
+            for index, header in enumerate(
+                    ('DULL', 'BRO', 'H.23', 'RAL P.C', 'BLACK', 'SHARA',
+                     'WOOD')):
+                finish = finishes.get(header)
+                columns.append((0, 0, {
+                    'sequence': 40 + 10 * index, 'header': header,
+                    'kind': 'finish' if finish else 'skip',
+                    'finish_id': finish.id if finish else False}))
+                if finish:
+                    report['finishes_set'].append(
+                        '%s -> %s' % (header, finish.name))
+                else:
+                    report['finishes_unmapped'].append(header)
+
+            def thickness_for(alias):
+                values = thick_attr.value_ids
+                if alias == 'NOR':
+                    return values.filtered(lambda v: v.name == 'Standard')[:1]
+                try:
+                    wanted = float(alias.upper().replace('MM', ''))
+                except ValueError:
+                    return values.browse()
+                for value in values:
+                    try:
+                        if float((value.name or '').upper().replace(
+                                'MM', '')) == wanted:
+                            return value
+                    except ValueError:
+                        continue
+                return values.browse()
+
+            aliases = []
+            for alias in ('NOR', '1.6MM', '2MM', '1.4MM', '2.5MM', '3MM',
+                          '6MM', '3.8MM', '1.90MM', '1.80MM'):
+                value = thickness_for(alias)
+                if value:
+                    aliases.append((0, 0, {
+                        'alias': alias, 'thickness_id': value.id}))
+                    report['thickness_set'].append(
+                        '%s -> %s' % (alias, value.name))
+                else:
+                    report['thickness_unmapped'].append(alias)
+            layout = self.create({
+                'vendor_id': partner.id, 'column_ids': columns,
+                'thickness_alias_ids': aliases,
+                'note': 'Seeded; map the unmapped rate columns in the UI.'})
+            report['layout'] = 'created (id %s)' % layout.id
+
+        param.set_param(PREMIUM_PARAM, '1')
+        param.set_param(PREMIUM_REPORT_PARAM, repr(report))
+        _logger.info("aw_fenestration_core: Premium seed: %s", report)
+        return report
 
     def _finish_columns(self):
         """The rate columns, in order."""
