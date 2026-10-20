@@ -502,14 +502,25 @@ class AwVendorRateList(models.Model):
         self.ensure_one()
         if self.state != 'draft':
             raise UserError(_("This list is already applied."))
+        self._apply()
+        return True
+
+    def _apply(self):
+        """The work of Apply, repeatable: a rate is looked up by profile,
+        thickness, finish, vendor and date, so writing a list again
+        updates what it wrote and adds what it could not before."""
+        self.ensure_one()
         layout = self._require_layout()
         finish_columns = layout._finish_columns()
         Rate = self.env['aw.profile.rate']
-        written = skipped = 0
+        written = skipped = skipped_cells = failed_cells = 0
         affected = self.env['product.template']
         for line in self.line_ids.sorted('sequence'):
             if line.problem:
-                line.result = _("Not applied: %s", line.problem)
+                line.write({
+                    'result': _("Not applied: %s", line.problem),
+                    'cells_applied': 0, 'cells_skipped': 0,
+                    'cells_failed': 0, 'detail': line.problem})
                 skipped += 1
                 continue
             offered_thickness = self.env['aw.profile.section.line'] \
@@ -521,20 +532,26 @@ class AwVendorRateList(models.Model):
                     line.product_tmpl_id,
                     self.env.ref('aw_fenestration_core.aw_attribute_finish'))
             notes = []
+            line_applied = line_skipped = line_failed = 0
             for index, column in enumerate(finish_columns, start=1):
                 price = line['rate_%s' % index]
                 if not price:
                     continue            # empty cells create nothing
                 if not column.finish_id:
                     notes.append(_(
-                        "no finish set for column %s",
-                        column.header or index))
+                        "%s: no finish set", column.header or index))
+                    line_skipped += 1
                     continue
                 if (line.thickness_id
                         and line.thickness_id not in offered_thickness) or (
                         column.finish_id not in offered_finish):
-                    notes.append(_("no variant: %s",
-                                   column.finish_id.name))
+                    notes.append(_(
+                        "%(column)s: this profile has no %(finish)s%(thick)s",
+                        column=column.header or index,
+                        finish=column.finish_id.name,
+                        thick=(_(" in %s", line.thickness_id.name)
+                               if line.thickness_id else '')))
+                    line_failed += 1
                     continue
                 key = [
                     ('product_tmpl_id', '=', line.product_tmpl_id.id),
@@ -557,14 +574,25 @@ class AwVendorRateList(models.Model):
                         vendor_id=self.vendor_id.id,
                         date_from=self.date))
                 written += 1
+                line_applied += 1
                 affected |= line.product_tmpl_id
-            line.result = '; '.join(notes) if notes else _("Applied")
+            skipped_cells += line_skipped
+            failed_cells += line_failed
+            line.write({
+                'result': '; '.join(notes) if notes else _("Applied"),
+                'cells_applied': line_applied,
+                'cells_skipped': line_skipped,
+                'cells_failed': line_failed,
+                'detail': '; '.join(notes)})
         self.state = 'applied'
         self._follow_variant_costs(affected)
+        summary = {'applied': written, 'skipped': skipped_cells,
+                   'failed': failed_cells, 'rows_not_applied': skipped}
         self.message_post(body=_(
-            "Applied: %(written)s rate(s) written, %(skipped)s row(s) "
-            "not applied.", written=written, skipped=skipped))
-        return True
+            "Applied: %(applied)s rate(s) written, %(skipped)s column(s) "
+            "skipped (no finish), %(failed)s could not be applied (no such "
+            "variant), %(rows_not_applied)s row(s) not applied.", **summary))
+        return summary
 
     def _follow_variant_costs(self, templates):
         """A variant's cost field follows its series' default vendor, so
@@ -618,6 +646,35 @@ class AwVendorRateListLine(models.Model):
         compute='_compute_problem', store=True,
         help="Why this row cannot be applied. Empty means ready.")
     result = fields.Char(readonly=True)
+    # What Apply did to this row, kept as numbers so the grid can show a
+    # badge and keep the full detail for a tooltip.
+    cells_applied = fields.Integer(readonly=True)
+    cells_skipped = fields.Integer(
+        readonly=True, help="Rate columns with no finish set.")
+    cells_failed = fields.Integer(
+        readonly=True,
+        help="Mapped columns the product has no variant for.")
+    detail = fields.Char(readonly=True)
+    list_state = fields.Selection(related='list_id.state')
+    status_code = fields.Selection([
+        ('applied', 'Applied'),
+        ('partial', 'Partly applied'),
+        ('unmatched', 'Unmatched'),
+        ('not_applied', 'Not applied'),
+    ], compute='_compute_status_code', store=True)
+
+    @api.depends('problem', 'cells_applied', 'cells_failed',
+                 'list_id.state')
+    def _compute_status_code(self):
+        for line in self:
+            if line.problem:
+                line.status_code = 'unmatched'
+            elif line.list_id.state != 'applied' or not line.cells_applied:
+                line.status_code = 'not_applied'
+            elif line.cells_failed:
+                line.status_code = 'partial'
+            else:
+                line.status_code = 'applied'
 
     @api.depends('code', 'thickness_text')
     def _compute_norms(self):
