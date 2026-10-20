@@ -324,3 +324,28 @@ class TestLayoutWithoutRateColumns(TransactionCase):
         self.assertIn('BRO', rate_list.columns_legend)
         self.assertIn('no finish set', rate_list.columns_legend)
         self.assertEqual(len(layout._finish_columns()), 2)
+
+
+@tagged('post_install', '-at_install')
+class TestChawlaSeed(TransactionCase):
+
+    def test_seed_makes_the_layout_once(self):
+        param = self.env['ir.config_parameter'].sudo()
+        param.set_param('aw_fenestration.chawla_layout_seeded', False)
+        Layout = self.env['aw.vendor.layout']
+        report = Layout._seed_chawla_layout()
+        self.assertTrue(report['partner'])
+        if 'created' in (report['layout'] or ''):
+            layout = Layout.search(
+                [('vendor_id.name', 'ilike', 'chawla')], limit=1)
+            columns = layout.column_ids.sorted('sequence')
+            self.assertEqual(
+                columns.mapped('kind')[:2], ['code', 'thickness'])
+            self.assertEqual(
+                columns.mapped('header')[2:],
+                ['Std', 'H23', 'Brown PC Sahara', 'Black Multi SS Dull',
+                 'Designer', 'C.Shine'])
+            self.assertEqual(len(report['finishes_set']), 6)
+            self.assertEqual(report['finishes_unmapped'], [])
+            self.assertIn('Std -> Standard', report['thickness_set'])
+        self.assertIsNone(Layout._seed_chawla_layout())
