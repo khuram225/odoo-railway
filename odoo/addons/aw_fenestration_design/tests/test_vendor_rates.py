@@ -4,7 +4,7 @@ vendor's rates only."""
 from datetime import date
 
 from odoo.addons.aw_fenestration_core.models.rate_paste import (
-    canonical_code, normalise_code, parse_paste)
+    canonical_code, normalise_code, parse_paste, split_codes)
 from odoo.tests import TransactionCase, tagged
 
 KINDS = ['code', 'thickness', 'series'] + ['finish'] * 7
@@ -66,6 +66,29 @@ class TestRatePaste(TransactionCase):
     def test_numbers_with_commas_and_quotes(self):
         rows = parse_paste('A-1\tNOR\t\t"1,136"\t147\t\t\t\t\t', KINDS)
         self.assertEqual(rows[0]['rates'][:3], [1136.0, 147.0, None])
+
+    def test_a_slash_with_two_full_codes_is_two_rows(self):
+        self.assertEqual(split_codes('D-48 A/ET-48 A'),
+                         [('D-48A', False), ('ET-48A', False)])
+
+    def test_a_slash_with_a_bare_suffix_is_two_rows(self):
+        self.assertEqual(split_codes('D-42F / H'),
+                         [('D-42F', False), ('D-42H', False)])
+
+    def test_any_other_slash_stays_one_ambiguous_row(self):
+        for code in ('B-6/7', 'A/B/C', 'D-1/', '/D-2', 'D-5 / 12'):
+            self.assertEqual(split_codes(code), [(code, True)], code)
+        self.assertEqual(split_codes('D-48 HEAVY'), [('D-48 HEAVY', False)])
+
+    def test_the_slash_row_in_a_sheet_becomes_two_lines(self):
+        kinds = ['code', 'thickness'] + ['finish'] * 6
+        text = ('D-48 A/ET-48 A\tNor\t1\t2\t3\t4\t5\t6\n'
+                'D-11\tNor\t7\t8\t9\t10\t11\t12\n')
+        rows = parse_paste(text, kinds)
+        self.assertEqual([r['code'] for r in rows],
+                         ['D-48A', 'ET-48A', 'D-11'])
+        self.assertEqual(rows[0]['rates'], rows[1]['rates'])
+        self.assertEqual(len(rows[0]['rates']), 6)
 
 
 @tagged('post_install', '-at_install')
@@ -343,9 +366,11 @@ class TestChawlaSeed(TransactionCase):
                 columns.mapped('kind')[:2], ['code', 'thickness'])
             self.assertEqual(
                 columns.mapped('header')[2:],
-                ['Std', 'H23', 'Brown PC Sahara', 'Black Multi SS Dull',
-                 'Designer', 'C.Shine'])
+                ['natural', 'h23_pc_ral', 'brown_pc_sahara',
+                 'black_multi_ss_dull', 'designer', 'c_shine'])
+            self.assertEqual(columns.mapped('header')[:2],
+                             ['profile_code', 'thickness'])
             self.assertEqual(len(report['finishes_set']), 6)
             self.assertEqual(report['finishes_unmapped'], [])
-            self.assertIn('Std -> Standard', report['thickness_set'])
+            self.assertIn('Nor -> Standard', report['thickness_set'])
         self.assertIsNone(Layout._seed_chawla_layout())

@@ -39,6 +39,35 @@ def normalise_text(text):
     return re.sub(r'\s+', '', (text or '').upper())
 
 
+_FULL_CODE = re.compile(r'^[A-Za-z]+[-\s]*\d')
+_BASE_AND_SUFFIX = re.compile(r'^(.*\d)([A-Za-z]*)$')
+
+
+def split_codes(code):
+    """A code written with a slash is one row for two codes.
+
+    Returns [(code, ambiguous)]:
+      "D-48 A/ET-48 A"  both parts full codes   -> D-48A, ET-48A
+      "D-42F / H"       second part a bare suffix -> D-42F, D-42H
+      anything else with a slash stays ONE line, flagged ambiguous.
+    A code without a slash is returned as it is.
+    """
+    code = (code or '').strip()
+    if '/' not in code:
+        return [(code, False)]
+    parts = [part.strip() for part in code.split('/')]
+    if len(parts) != 2 or not all(parts):
+        return [(code, True)]
+    first, second = (re.sub(r'\s+', '', part) for part in parts)
+    if _FULL_CODE.match(parts[0]) and _FULL_CODE.match(parts[1]):
+        return [(first, False), (second, False)]
+    base = _BASE_AND_SUFFIX.match(first)
+    if _FULL_CODE.match(parts[0]) and base and re.fullmatch(
+            r'[A-Za-z]+', second):
+        return [(first, False), (base.group(1) + second, False)]
+    return [(code, True)]
+
+
 def parse_number(cell):
     """A rate from a cell: "1,234.5" -> 1234.5; blank or text -> None."""
     cell = (cell or '').strip().replace(',', '')
@@ -103,10 +132,12 @@ def parse_paste(text, kinds):
             (cells[i] for i, k in enumerate(kinds) if k == kind), '')
         row_series = pick('series') or series
         series = row_series
-        rows.append({
-            'code': pick('code'),
-            'thickness': pick('thickness'),
-            'series': row_series,
-            'rates': rates,
-        })
+        for code, ambiguous in split_codes(pick('code')):
+            rows.append({
+                'code': code,
+                'thickness': pick('thickness'),
+                'series': row_series,
+                'rates': list(rates),
+                'ambiguous': ambiguous,
+            })
     return rows

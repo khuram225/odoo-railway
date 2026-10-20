@@ -26,17 +26,21 @@ PREMIUM_PARAM = 'aw_fenestration.premium_layout_seeded'
 PREMIUM_REPORT_PARAM = 'aw_fenestration.premium_layout_report'
 CHAWLA_PARAM = 'aw_fenestration.chawla_layout_seeded'
 CHAWLA_REPORT_PARAM = 'aw_fenestration.chawla_layout_report'
-# Chawla's price list columns, in order: the vendor's header and the finish
-# it means. Matched on the finish value's name, ignoring case and spacing.
+# Chawla's sheet, with the headers exactly as it has them: profile_code and
+# thickness, then one column per finish. Each rate header is matched to the
+# finish value of that name, ignoring case and spacing.
+CHAWLA_CODE_HEADER = 'profile_code'
+CHAWLA_THICKNESS_HEADER = 'thickness'
 CHAWLA_RATE_COLUMNS = (
-    ('Std', 'Natural'),
-    ('H23', 'H23 PC RAL'),
-    ('Brown PC Sahara', 'Brown PC Sahara'),
-    ('Black Multi SS Dull', 'Black Multi SS Dull'),
-    ('Designer', 'Designer'),
-    ('C.Shine', 'C-Shine'),
+    ('natural', 'Natural'),
+    ('h23_pc_ral', 'H23 PC RAL'),
+    ('brown_pc_sahara', 'Brown PC Sahara'),
+    ('black_multi_ss_dull', 'Black Multi SS Dull'),
+    ('designer', 'Designer'),
+    ('c_shine', 'C-Shine'),
 )
-CHAWLA_THICKNESS_ALIASES = ('Std', '1.6MM', '2MM')
+CHAWLA_THICKNESS_ALIASES = (
+    'Nor', '1.4MM', '1.6MM', '2MM', '2.2MM', '3MM', '3.2MM')
 LEGACY_VENDOR_PARAM = 'aw_fenestration.legacy_rate_vendor_id'
 
 
@@ -140,14 +144,15 @@ class AwVendorLayout(models.Model):
 
             columns = [
                 (0, 0, {'sequence': 10, 'kind': 'code',
-                        'header': 'Section'}),
+                        'header': CHAWLA_CODE_HEADER}),
                 (0, 0, {'sequence': 20, 'kind': 'thickness',
-                        'header': 'Thickness'}),
+                        'header': CHAWLA_THICKNESS_HEADER}),
             ]
             for index, (header, finish_name) in enumerate(
                     CHAWLA_RATE_COLUMNS, start=1):
                 finish = finish_attr.value_ids.filtered(
-                    lambda v, w=squash(finish_name): squash(v.name) == w)[:1]
+                    lambda v, w=squash(finish_name.replace('_', ' ')):
+                    squash(v.name) == w)[:1]
                 columns.append((0, 0, {
                     'sequence': 20 + 10 * index, 'header': header,
                     'kind': 'finish',
@@ -160,7 +165,7 @@ class AwVendorLayout(models.Model):
             aliases = []
             for alias in CHAWLA_THICKNESS_ALIASES:
                 value = self._thickness_for_alias(
-                    thick_attr, 'NOR' if alias == 'Std' else alias)
+                    thick_attr, 'NOR' if alias.upper() == 'NOR' else alias)
                 if value:
                     aliases.append((0, 0, {
                         'alias': alias, 'thickness_id': value.id}))
@@ -535,6 +540,7 @@ class AwVendorRateList(models.Model):
             list_id=self.id, sequence=start + 10 * index,
             code=row['code'], thickness_text=row['thickness'],
             series=row['series'],
+            ambiguous_code=bool(row.get('ambiguous')),
             **{'rate_%s' % (i + 1): (rate or 0.0)
                for i, rate in enumerate(row['rates'][:count])})
             for index, row in enumerate(rows)])
@@ -719,6 +725,9 @@ class AwVendorRateListLine(models.Model):
     state = fields.Selection(related='list_id.state')
     vendor_id = fields.Many2one(related='list_id.vendor_id')
     code = fields.Char(required=True)
+    ambiguous_code = fields.Boolean(
+        readonly=True,
+        help="A code written with a slash that is not clearly two codes.")
     code_norm = fields.Char(compute='_compute_norms', store=True)
     thickness_text = fields.Char(string='Thickness')
     thickness_norm = fields.Char(compute='_compute_norms', store=True)
@@ -783,10 +792,13 @@ class AwVendorRateListLine(models.Model):
             line.code_norm = normalise_code(line.code)
             line.thickness_norm = normalise_text(line.thickness_text)
 
-    @api.depends('product_tmpl_id', 'thickness_id', 'thickness_text')
+    @api.depends('product_tmpl_id', 'thickness_id', 'thickness_text',
+                 'ambiguous_code')
     def _compute_problem(self):
         for line in self:
-            if not line.product_tmpl_id:
+            if line.ambiguous_code:
+                line.problem = _("Ambiguous code '%s'", line.code or '')
+            elif not line.product_tmpl_id:
                 line.problem = _("No profile matches '%s'", line.code or '')
             elif line.thickness_text and not line.thickness_id:
                 line.problem = _(
