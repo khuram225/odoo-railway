@@ -191,6 +191,66 @@ class TestVendorRateLists(TransactionCase):
             [136.0, 137.0, 147.0])
 
 
+    def _row_list(self, text, day=date(2026, 4, 3)):
+        rate_list = self.env['aw.vendor.rate.list'].create({
+            'vendor_id': self.premium.id, 'date': day, 'paste_text': text})
+        rate_list.action_parse_paste()
+        return rate_list
+
+    def test_an_unmatched_row_gets_a_product_and_its_rates(self):
+        rate_list = self._row_list('ZZ-9\tNOR\tDG.SERIES\t10\t20\t30')
+        self.assertEqual(rate_list.line_ids.status_code, 'unmatched')
+        plan = rate_list._missing_plan()
+        self.assertEqual([c['code'] for c in plan['create']], ['ZZ-9'])
+        self.assertEqual(plan['create'][0]['thicknesses'], ['Standard'])
+        self.assertEqual(len(plan['create'][0]['finishes']), 3)
+        self.assertFalse(self.env['product.template'].search(
+            [('name', '=', 'ZZ-9')]))              # a preview writes nothing
+        summary = rate_list._create_missing()
+        self.assertEqual((summary['created'], summary['applied']), (1, 3))
+        product = self.env['product.template'].search([('name', '=', 'ZZ-9')])
+        self.assertEqual(product.uom_id.name, 'ft')
+        attrs = product.attribute_line_ids.mapped('attribute_id.name')
+        self.assertEqual(sorted(attrs), ['Finish', 'Thickness'])
+        self.assertEqual(rate_list.line_ids.status_code, 'applied')
+        self.assertEqual(rate_list.unmatched_count, 0)
+        self.assertEqual(len(self._rates_for(product)), 3)
+
+    def test_a_matched_product_lacking_finishes_is_extended_not_duplicated(self):
+        env = self.env
+        finish_attr = env.ref('aw_fenestration_core.aw_attribute_finish')
+        thick_attr = env.ref('aw_fenestration_core.aw_attribute_thickness')
+        product = env['product.template'].create({
+            'name': 'EXT-1', 'default_code': 'EXT-1',
+            'categ_id': env.ref(
+                'aw_fenestration_core.product_category_profiles').id,
+            'attribute_line_ids': [
+                (0, 0, {'attribute_id': thick_attr.id,
+                        'value_ids': [(6, 0, self.standard.ids)]}),
+                (0, 0, {'attribute_id': finish_attr.id,
+                        'value_ids': [(6, 0, self.finishes[:1].ids)]})]})
+        rate_list = self._row_list('EXT-1\tNOR\t\t1\t2\t3')
+        plan = rate_list._missing_plan()
+        self.assertEqual(len(plan['extend']), 1)
+        self.assertEqual(len(plan['extend'][0]['finishes']), 2)
+        rate_list._create_missing()
+        finish_lines = product.attribute_line_ids.filtered(
+            lambda l: l.attribute_id == finish_attr)
+        self.assertEqual(len(finish_lines), 1)
+        self.assertEqual(finish_lines.value_ids, self.finishes)
+        self.assertEqual(rate_list.line_ids.status_code, 'applied')
+        self.assertEqual(len(self._rates_for(product)), 3)
+
+    def test_a_fully_mapped_layout_skips_no_column(self):
+        rate_list = self._row_list('ZZ-8\tNOR\t\t1\t2\t3')
+        self.assertEqual(rate_list._missing_plan()['skipped_columns'], [])
+
+    def _rates_for(self, product):
+        return self.env['aw.profile.rate'].search([
+            ('product_tmpl_id', '=', product.id),
+            ('vendor_id', '=', self.premium.id)])
+
+
 @tagged('post_install', '-at_install')
 class TestPremiumSeed(TransactionCase):
 

@@ -9,7 +9,8 @@ const LINE = "aw.vendor.rate.list.line";
 const LIST = "aw.vendor.rate.list";
 const LINE_FIELDS = [
     "code", "thickness_text", "series", "product_tmpl_id", "thickness_id",
-    "problem", "result", "match_source",
+    "problem", "result", "match_source", "status_code", "detail",
+    "cells_applied", "cells_skipped", "cells_failed",
     ...Array.from({ length: 10 }, (_, i) => `rate_${i + 1}`),
 ];
 
@@ -88,8 +89,27 @@ export class RateGrid extends Component {
         return line.product_tmpl_id ? line.product_tmpl_id[1] : "";
     }
 
-    statusText(line) {
-        return line.result || line.problem || "";
+    /** A short badge; the per-column detail goes in the tooltip. */
+    statusLabel(line) {
+        return {
+            applied: _t("Applied"),
+            partial: _t("Partly applied"),
+            unmatched: _t("Unmatched"),
+            not_applied: _t("Not applied"),
+        }[line.status_code] || "";
+    }
+
+    statusClass(line) {
+        return {
+            applied: "text-bg-success",
+            partial: "text-bg-warning",
+            unmatched: "text-bg-danger",
+            not_applied: "text-bg-secondary",
+        }[line.status_code] || "text-bg-light";
+    }
+
+    statusTitle(line) {
+        return line.detail || line.problem || line.result || "";
     }
 
     parseNumber(text) {

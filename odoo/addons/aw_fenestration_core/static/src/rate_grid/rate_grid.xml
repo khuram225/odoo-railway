@@ -81,7 +81,11 @@
                                     </button>
                                     <span t-else="" class="text-danger">no profile</span>
                                 </td>
-                                <td class="small" t-esc="statusText(line)"/>
+                                <td class="text-nowrap">
+                                    <span class="badge" t-att-class="statusClass(line)"
+                                          t-att-title="statusTitle(line)"
+                                          t-esc="statusLabel(line)"/>
+                                </td>
                                 <td>
                                     <button t-if="!readonly" type="button"
                                             class="btn btn-link btn-sm text-muted p-0"

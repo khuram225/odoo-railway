@@ -16,6 +16,7 @@ from . import alternates_migration
 from . import finish_migration
 from . import profile_rate
 from . import vendor_rates
+from . import vendor_rate_create
 from . import price_structure
 from . import thickness
 from . import product_catalogue
