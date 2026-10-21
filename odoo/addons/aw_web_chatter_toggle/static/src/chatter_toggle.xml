@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="aw_web_chatter_toggle.Chatter" t-inherit="mail.Chatter" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o-mail-Chatter-top')]" position="before">
+            <button type="button" class="o-aw-chatterToggle btn btn-link d-print-none"
+                    title="Collapse or expand the chatter"
+                    aria-label="Collapse or expand the chatter"
+                    t-on-click="toggleAwChatterCollapsed">
+                <i class="o-aw-chatterToggle-collapse fa fa-angle-double-right" role="img"/>
+                <i class="o-aw-chatterToggle-expand fa fa-angle-double-left" role="img"/>
+            </button>
+        </xpath>
+    </t>
+
+</templates>
