@@ -24,6 +24,23 @@ PREMIUM_FIX_PARAM = 'aw_fenestration.premium_layout_fixed'
 PREMIUM_FIX_REPORT_PARAM = 'aw_fenestration.premium_layout_fix_report'
 PREMIUM_PARAM = 'aw_fenestration.premium_layout_seeded'
 PREMIUM_REPORT_PARAM = 'aw_fenestration.premium_layout_report'
+CHAWLA_PARAM = 'aw_fenestration.chawla_layout_seeded'
+CHAWLA_REPORT_PARAM = 'aw_fenestration.chawla_layout_report'
+# Chawla's sheet, with the headers exactly as it has them: profile_code and
+# thickness, then one column per finish. Each rate header is matched to the
+# finish value of that name, ignoring case and spacing.
+CHAWLA_CODE_HEADER = 'profile_code'
+CHAWLA_THICKNESS_HEADER = 'thickness'
+CHAWLA_RATE_COLUMNS = (
+    ('natural', 'Natural'),
+    ('h23_pc_ral', 'H23 PC RAL'),
+    ('brown_pc_sahara', 'Brown PC Sahara'),
+    ('black_multi_ss_dull', 'Black Multi SS Dull'),
+    ('designer', 'Designer'),
+    ('c_shine', 'C-Shine'),
+)
+CHAWLA_THICKNESS_ALIASES = (
+    'Nor', '1.4MM', '1.6MM', '2MM', '2.2MM', '3MM', '3.2MM')
 LEGACY_VENDOR_PARAM = 'aw_fenestration.legacy_rate_vendor_id'
 
 
@@ -71,12 +88,106 @@ class AwVendorLayout(models.Model):
         that later modules add). Savepoint, and logged rather than raised:
         this also runs on every ordinary start."""
         super()._register_hook()
-        try:
-            with self.env.cr.savepoint():
-                self._seed_premium_layout()
-                self._fix_premium_layout()
-        except Exception:
-            _logger.exception("aw_fenestration_core: Premium seed failed")
+        # Each seed in its own savepoint: one failing must not undo or
+        # block the other.
+        for name, seeds in (
+                ('Premium', ('_seed_premium_layout', '_fix_premium_layout')),
+                ('Chawla', ('_seed_chawla_layout',))):
+            try:
+                with self.env.cr.savepoint():
+                    for seed in seeds:
+                        getattr(self, seed)()
+            except Exception:
+                _logger.exception(
+                    "aw_fenestration_core: %s seed failed", name)
+
+    @api.model
+    def _seed_chawla_layout(self):
+        """Chawla's rate sheet layout, CREATE-IF-MISSING and ONCE.
+
+        The partner is the one the legacy rates already belong to; a
+        partner is created only if there is none. If Chawla already has a
+        layout nothing is created or changed.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(CHAWLA_PARAM):
+            return None
+        report = {'partner': None, 'layout': None, 'finishes_set': [],
+                  'finishes_unmapped': [], 'thickness_set': [],
+                  'thickness_unmapped': []}
+        Partner = self.env['res.partner'].with_context(active_test=False)
+        partner = self.env['aw.profile.rate']._legacy_vendor()
+        if partner:
+            report['partner'] = 'reused: %s (id %s)' % (
+                partner.name, partner.id)
+        else:
+            partner = Partner.search([('name', 'ilike', 'chawla')], limit=1)
+            if partner:
+                report['partner'] = 'reused: %s (id %s)' % (
+                    partner.name, partner.id)
+            else:
+                partner = Partner.create(
+                    {'name': 'Chawla', 'is_company': True})
+                report['partner'] = 'created: Chawla (id %s)' % partner.id
+
+        if self.with_context(active_test=False).search_count(
+                [('vendor_id', '=', partner.id)]):
+            report['layout'] = 'already exists; nothing created'
+        else:
+            finish_attr = self.env.ref(
+                'aw_fenestration_core.aw_attribute_finish')
+            thick_attr = self.env.ref(
+                'aw_fenestration_core.aw_attribute_thickness')
+
+            def squash(text):
+                return ''.join((text or '').lower().split())
+
+            columns = [
+                (0, 0, {'sequence': 10, 'kind': 'code',
+                        'header': CHAWLA_CODE_HEADER}),
+                (0, 0, {'sequence': 20, 'kind': 'thickness',
+                        'header': CHAWLA_THICKNESS_HEADER}),
+            ]
+            for index, (header, finish_name) in enumerate(
+                    CHAWLA_RATE_COLUMNS, start=1):
+                finish = finish_attr.value_ids.filtered(
+                    lambda v, w=squash(finish_name.replace('_', ' ')):
+                    squash(v.name) == w)[:1]
+                columns.append((0, 0, {
+                    'sequence': 20 + 10 * index, 'header': header,
+                    'kind': 'finish',
+                    'finish_id': finish.id if finish else False}))
+                if finish:
+                    report['finishes_set'].append(
+                        '%s -> %s' % (header, finish.name))
+                else:
+                    report['finishes_unmapped'].append(header)
+            aliases = []
+            for alias in CHAWLA_THICKNESS_ALIASES:
+                if alias.upper() == 'NOR':
+                    # Chawla's own default thickness is Normal, not the
+                    # Standard that Premium's NOR maps to.
+                    value = thick_attr.value_ids.filtered(
+                        lambda v: v.name == 'Normal')[:1]
+                else:
+                    value = self._thickness_for_alias(thick_attr, alias)
+                if value:
+                    aliases.append((0, 0, {
+                        'alias': alias, 'thickness_id': value.id}))
+                    report['thickness_set'].append(
+                        '%s -> %s' % (alias, value.name))
+                else:
+                    report['thickness_unmapped'].append(alias)
+            layout = self.create({
+                'vendor_id': partner.id, 'column_ids': columns,
+                'thickness_alias_ids': aliases,
+                'note': 'Seeded from the Chawla price list.'})
+            report['layout'] = 'created (id %s)' % layout.id
+
+        param.set_param(CHAWLA_PARAM, '1')
+        param.set_param(CHAWLA_REPORT_PARAM, repr(report))
+        _logger.info("aw_fenestration_core: Chawla seed: %s", report)
+        return report
 
     PREMIUM_RATE_HEADERS = (
         'DULL', 'BRO', 'H.23', 'RAL P.C', 'BLACK', 'SHARA', 'WOOD')
@@ -434,6 +545,7 @@ class AwVendorRateList(models.Model):
             list_id=self.id, sequence=start + 10 * index,
             code=row['code'], thickness_text=row['thickness'],
             series=row['series'],
+            ambiguous_code=bool(row.get('ambiguous')),
             **{'rate_%s' % (i + 1): (rate or 0.0)
                for i, rate in enumerate(row['rates'][:count])})
             for index, row in enumerate(rows)])
@@ -618,6 +730,9 @@ class AwVendorRateListLine(models.Model):
     state = fields.Selection(related='list_id.state')
     vendor_id = fields.Many2one(related='list_id.vendor_id')
     code = fields.Char(required=True)
+    ambiguous_code = fields.Boolean(
+        readonly=True,
+        help="A code written with a slash that is not clearly two codes.")
     code_norm = fields.Char(compute='_compute_norms', store=True)
     thickness_text = fields.Char(string='Thickness')
     thickness_norm = fields.Char(compute='_compute_norms', store=True)
@@ -682,10 +797,13 @@ class AwVendorRateListLine(models.Model):
             line.code_norm = normalise_code(line.code)
             line.thickness_norm = normalise_text(line.thickness_text)
 
-    @api.depends('product_tmpl_id', 'thickness_id', 'thickness_text')
+    @api.depends('product_tmpl_id', 'thickness_id', 'thickness_text',
+                 'ambiguous_code')
     def _compute_problem(self):
         for line in self:
-            if not line.product_tmpl_id:
+            if line.ambiguous_code:
+                line.problem = _("Ambiguous code '%s'", line.code or '')
+            elif not line.product_tmpl_id:
                 line.problem = _("No profile matches '%s'", line.code or '')
             elif line.thickness_text and not line.thickness_id:
                 line.problem = _(
