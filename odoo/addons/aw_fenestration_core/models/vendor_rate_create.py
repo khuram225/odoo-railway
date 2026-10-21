@@ -24,7 +24,7 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from .rate_paste import normalise_code
+from .rate_paste import canonical_code, normalise_code
 
 _logger = logging.getLogger(__name__)
 
@@ -68,8 +68,9 @@ class AwVendorRateList(models.Model):
         # ---- unmatched rows, one product per vendor code
         groups = {}
         for line in self.line_ids.filtered(lambda l: not l.product_tmpl_id):
-            groups.setdefault(line.code_norm, self.line_ids.browse())
-            groups[line.code_norm] |= line
+            key = normalise_code(line.code)
+            groups.setdefault(key, self.line_ids.browse())
+            groups[key] |= line
         profiles = self.env['product.template'].search([(
             'categ_id', 'child_of',
             self.env.ref('aw_fenestration_core.product_category_profiles').id)])
@@ -96,7 +97,8 @@ class AwVendorRateList(models.Model):
             finishes = priced_finishes(lines)
             category = self._unclassified_category()
             plan['create'].append({
-                'code': first.code, 'norm': norm, 'series': first.series or '',
+                'code': first.code, 'name': canonical_code(first.code),
+                'norm': norm, 'series': first.series or '',
                 'category': category.name,
                 'thicknesses': thicknesses.mapped('name'),
                 'finishes': finishes.mapped('name'),
@@ -153,7 +155,7 @@ class AwVendorRateList(models.Model):
         out.append('<ul>%s</ul>' % ''.join(
             '<li><b>%s</b> &mdash; %s%s &middot; Thickness: %s &middot; '
             'Finish: %s</li>' % (
-                esc(item['code']), esc(item['category'] or ''),
+                esc(item['name']), esc(item['category'] or ''),
                 esc(_(' &middot; Catalogue Section: %s', item['series']))
                 if item['series'] else '',
                 esc(', '.join(item['thicknesses']) or '-'),
@@ -213,7 +215,7 @@ class AwVendorRateList(models.Model):
                     'attribute_id': finish_attr.id,
                     'value_ids': [(6, 0, item['finish_ids'])]}))
             template = Template.create({
-                'name': item['code'], 'type': 'consu', 'is_storable': True,
+                'name': item['name'], 'type': 'consu', 'is_storable': True,
                 'uom_id': foot.id, 'categ_id': category.id,
                 'aw_catalogue_category': item['series'] or False,
                 'sale_ok': False, 'purchase_ok': True,

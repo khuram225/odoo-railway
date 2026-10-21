@@ -4,7 +4,7 @@ vendor's rates only."""
 from datetime import date
 
 from odoo.addons.aw_fenestration_core.models.rate_paste import (
-    normalise_code, parse_paste)
+    canonical_code, normalise_code, parse_paste)
 from odoo.tests import TransactionCase, tagged
 
 KINDS = ['code', 'thickness', 'series'] + ['finish'] * 7
@@ -20,6 +20,14 @@ class TestRatePaste(TransactionCase):
         # suffix words stay: a different profile
         self.assertNotEqual(
             normalise_code('D-35 M.F'), normalise_code('D-35'))
+
+    def test_codes_have_one_canonical_spelling(self):
+        for raw, canonical in (('D38F', 'D-38F'), ('D 38F', 'D-38F'),
+                               ('D.40', 'D-40'), ('D-40', 'D-40'),
+                               ('D-35 M.F', 'D-35 M.F')):
+            self.assertEqual(canonical_code(raw), canonical, raw)
+        self.assertEqual(normalise_code('D.40'), normalise_code('D-40'))
+        self.assertEqual(normalise_code('D 38F'), normalise_code('D38F'))
 
     def test_a_typed_row_with_a_blank_series(self):
         rows = parse_paste('B-6  NOR  136 147 137 137 153 147 171', KINDS)
