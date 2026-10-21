@@ -68,7 +68,10 @@
                             class="btn-primary" invisible="state != 'draft'"
                             confirm="Write these rates? Unmatched rows are not applied. An applied list becomes read only."/>
                     <button name="action_rematch" type="object"
-                            string="Re-match" invisible="state != 'draft'"/>
+                            string="Re-match"/>
+                    <button name="action_reapply" type="object"
+                            string="Re-apply" invisible="state != 'applied'"
+                            confirm="Delete the rates this list wrote and write them again?"/>
                     <button name="action_create_missing" type="object"
                             string="Create missing"
                             invisible="not line_count"/>

@@ -41,23 +41,25 @@
                                 <td>
                                     <input type="text" class="form-control form-control-sm"
                                            t-att-value="line.code"
-                                           t-att-readonly="readonly or undefined"
+                                           t-att-readonly="!rowEditable(line) or undefined"
                                            t-att-data-row="line_index" data-col="code"
                                            t-on-change="(ev) => this.saveText(line, 'code', ev.target.value)"
                                            t-on-keydown="onKey"/>
                                 </td>
                                 <td>
                                     <input type="text" class="form-control form-control-sm"
+                                           list="aw_rate_grid_thickness"
                                            t-att-value="line.thickness_text"
-                                           t-att-readonly="readonly or undefined"
+                                           t-att-readonly="!rowEditable(line) or undefined"
                                            t-att-data-row="line_index" data-col="thickness"
                                            t-on-change="(ev) => this.saveText(line, 'thickness_text', ev.target.value)"
                                            t-on-keydown="onKey"/>
                                 </td>
                                 <td>
                                     <input type="text" class="form-control form-control-sm"
+                                           list="aw_rate_grid_series"
                                            t-att-value="line.series"
-                                           t-att-readonly="readonly or undefined"
+                                           t-att-readonly="!rowEditable(line) or undefined"
                                            t-att-data-row="line_index" data-col="series"
                                            t-on-change="(ev) => this.saveText(line, 'series', ev.target.value)"
                                            t-on-keydown="onKey"/>
@@ -66,7 +68,7 @@
                                     <input type="text" inputmode="decimal"
                                            class="form-control form-control-sm text-end"
                                            t-att-value="cell(line, col)"
-                                           t-att-readonly="(readonly or !col.mapped) or undefined"
+                                           t-att-readonly="(!rowEditable(line) or !col.mapped) or undefined"
                                            t-att-data-row="line_index"
                                            t-att-data-col="'rate' + col.index"
                                            t-on-change="(ev) => this.saveRate(line, col, ev.target.value)"
@@ -74,7 +76,7 @@
                                 </td>
                                 <td>
                                     <span t-if="line.product_tmpl_id" t-esc="productName(line)"/>
-                                    <button t-elif="!readonly" type="button"
+                                    <button t-elif="rowEditable(line)" type="button"
                                             class="btn btn-link btn-sm text-danger p-0"
                                             t-on-click="() => this.pickProduct(line)">
                                         pick the profile
@@ -87,7 +89,7 @@
                                           t-esc="statusLabel(line)"/>
                                 </td>
                                 <td>
-                                    <button t-if="!readonly" type="button"
+                                    <button t-if="rowEditable(line)" type="button"
                                             class="btn btn-link btn-sm text-muted p-0"
                                             title="Remove this row"
                                             t-on-click="() => this.removeLine(line)">
@@ -98,7 +100,15 @@
                         </tbody>
                     </table>
                 </div>
-                <button t-if="!readonly" type="button"
+                <datalist id="aw_rate_grid_thickness">
+                    <option t-foreach="thicknessOptions" t-as="opt" t-key="opt"
+                            t-att-value="opt"/>
+                </datalist>
+                <datalist id="aw_rate_grid_series">
+                    <option t-foreach="seriesOptions" t-as="opt" t-key="opt"
+                            t-att-value="opt"/>
+                </datalist>
+                <button t-if="canAdd" type="button"
                         class="btn btn-secondary btn-sm m-1"
                         t-on-click="addLine">Add line</button>
             </t>

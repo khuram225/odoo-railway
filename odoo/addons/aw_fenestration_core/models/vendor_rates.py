@@ -457,6 +457,13 @@ class AwVendorRateList(models.Model):
     line_count = fields.Integer(compute='_compute_counts')
     unmatched_count = fields.Integer(compute='_compute_counts')
 
+    @api.depends('name', 'note')
+    def _compute_display_name(self):
+        for rec in self:
+            rec.display_name = (
+                '%s (%s)' % (rec.name, rec.note) if rec.note
+                else rec.name or '')
+
     @api.depends('vendor_id', 'date')
     def _compute_name(self):
         for rec in self:
@@ -489,6 +496,10 @@ class AwVendorRateList(models.Model):
             layout = self.env['aw.vendor.layout'].search(
                 [('vendor_id', '=', rec.vendor_id.id)], limit=1)
             rec.grid_meta = {
+                'thickness_options': sorted(
+                    {a.alias for a in layout.thickness_alias_ids if a.alias}
+                ) if layout else [],
+                'series_options': rec._series_seen(),
                 'has_layout': bool(layout),
                 'profile_category_id': category.id if category else False,
                 'columns': [{
@@ -499,6 +510,25 @@ class AwVendorRateList(models.Model):
                 } for index, column in enumerate(
                     layout._finish_columns(), start=1)] if layout else [],
             }
+
+    def _series_seen(self):
+        """Series names already seen for this vendor, on any of its rate
+        lists or rates."""
+        self.ensure_one()
+        if not self.vendor_id:
+            return []
+        names = set()
+        for model, domain, field in (
+                ('aw.vendor.rate.list.line',
+                 [('list_id.vendor_id', '=', self.vendor_id.id)], 'series'),
+                ('aw.profile.rate',
+                 [('vendor_id', '=', self.vendor_id.id)], 'vendor_series')):
+            for (value,) in self.env[model].sudo().with_context(
+                    active_test=False)._read_group(
+                        domain + [(field, '!=', False)], [field]):
+                if value:
+                    names.add(value)
+        return sorted(names, key=str.lower)
 
     @api.depends('line_ids.product_tmpl_id', 'line_ids.problem')
     def _compute_counts(self):
@@ -606,8 +636,42 @@ class AwVendorRateList(models.Model):
 
     # -------------------------------------------------------------- apply
     def action_rematch(self):
-        self.line_ids._auto_match(force=True)
+        """Match again. On a draft that is every row; on an applied list
+        only the rows with a problem, so a row whose rates were already
+        written to a profile is never quietly pointed at another. Rates
+        are not touched either way: this changes matching and status."""
+        self.ensure_one()
+        if self.state == 'draft':
+            self.line_ids._auto_match(force=True)
+        else:
+            self.line_ids.filtered('problem')._auto_match()
         return True
+
+    def action_reapply(self):
+        """Applied lists only: delete the rates this list wrote, then run
+        Apply again. One transaction, so a failure leaves the old rates."""
+        self.ensure_one()
+        if self.state != 'applied':
+            raise UserError(_("Only an applied list can be applied again."))
+        old = self.env['aw.profile.rate'].with_context(
+            active_test=False).search([('rate_list_id', '=', self.id)])
+        deleted = len(old)
+        affected = old.product_tmpl_id
+        old.unlink()
+        summary = self._apply()
+        summary['deleted'] = deleted
+        self._follow_variant_costs(affected)
+        message = _(
+            "Re-applied: %(deleted)s old rate(s) deleted, %(applied)s "
+            "written, %(rows_not_applied)s row(s) not applied.", **summary)
+        self.message_post(body=message)
+        return {
+            'type': 'ir.actions.client', 'tag': 'display_notification',
+            'params': {'title': _("Re-applied"), 'message': message,
+                       'type': 'success', 'sticky': True,
+                       'next': {'type': 'ir.actions.client',
+                                'tag': 'soft_reload'}},
+        }
 
     def action_apply(self):
         """Write the rates. Unmatched rows are never applied."""
@@ -674,7 +738,7 @@ class AwVendorRateList(models.Model):
                 existing = Rate.search(key, limit=1)
                 values = {
                     'price': price, 'vendor_series': line.series,
-                    'source_note': self.name}
+                    'source_note': self.name, 'rate_list_id': self.id}
                 if existing:
                     existing.write(values)
                 else:
@@ -807,8 +871,8 @@ class AwVendorRateListLine(models.Model):
                 line.problem = _("No profile matches '%s'", line.code or '')
             elif line.thickness_text and not line.thickness_id:
                 line.problem = _(
-                    "Thickness '%s' is not one of ours; add an alias",
-                    line.thickness_text)
+                    "Unknown thickness '%s': not one of ours or an alias "
+                    "on this vendor's layout", line.thickness_text)
             else:
                 line.problem = False
 

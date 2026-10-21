@@ -5,6 +5,7 @@ from datetime import date
 
 from odoo.addons.aw_fenestration_core.models.rate_paste import (
     canonical_code, normalise_code, parse_paste, split_codes)
+from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
 
 KINDS = ['code', 'thickness', 'series'] + ['finish'] * 7
@@ -204,6 +205,81 @@ class TestVendorRateLists(TransactionCase):
             ('vendor_id', '=', self.premium.id), ('code_norm', '=', 'ZZ9')]))
         third = self._list(date(2026, 6, 1), 'zz 9  NOR  1 2 3')
         self.assertEqual(third.line_ids.product_tmpl_id, self.product)
+
+    def _rates_of(self, rate_list):
+        return self.env['aw.profile.rate'].search(
+            [('rate_list_id', '=', rate_list.id)])
+
+    def test_apply_marks_its_rates_with_the_list(self):
+        rate_list = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137')
+        rate_list.action_apply()
+        self.assertEqual(len(self._rates_of(rate_list)), 3)
+
+    def test_reapply_deletes_only_this_lists_rates_and_reports(self):
+        # two lists, one name: Re-apply on one must not touch the other
+        first = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137')
+        first.action_apply()
+        second = self.env['aw.vendor.rate.list'].create({
+            'vendor_id': self.premium.id, 'date': date(2026, 4, 3),
+            'note': 'second section', 'paste_text': 'ZZ-1\tNOR\t\t1\t2\t3'})
+        second.action_parse_paste()
+        self.assertEqual(first.name, second.name)
+        self.assertNotEqual(first.display_name, second.display_name)
+        self.assertIn('second section', second.display_name)
+        first.line_ids.write({'rate_1': 200.0})
+        action = first.action_reapply()
+        self.assertIn('3 old rate(s) deleted', action['params']['message'])
+        self.assertEqual(len(self._rates_of(first)), 3)
+        self.assertIn(200.0, self._rates_of(first).mapped('price'))
+        self.assertEqual(first.state, 'applied')
+
+    def test_reapply_needs_an_applied_list(self):
+        draft = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
+        with self.assertRaises(UserError):
+            draft.action_reapply()
+
+    def test_rematch_on_an_applied_list_leaves_rates_and_matched_rows(self):
+        rate_list = self._list(
+            date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3\nQQ-1\tNOR\t\t4\t5\t6')
+        rate_list.action_apply()
+        rates = self._rates_of(rate_list)
+        matched = rate_list.line_ids.filtered(
+            lambda l: l.product_tmpl_id == self.product)
+        rate_list.action_rematch()
+        self.assertEqual(self._rates_of(rate_list), rates)
+        self.assertEqual(matched.product_tmpl_id, self.product)
+        self.assertEqual(rate_list.unmatched_count, 1)
+
+    def test_free_text_thickness_must_resolve_or_the_row_is_flagged(self):
+        rate_list = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
+        line = rate_list.line_ids
+        line.write({'thickness_text': '9.9MM'})
+        self.assertIn('Unknown thickness', line.problem)
+        self.assertFalse(self.env['aw.vendor.thickness.alias'].search(
+            [('alias', '=', '9.9MM')]))          # nothing created from an edit
+        line.write({'thickness_text': 'NOR'})
+        self.assertFalse(line.problem)
+
+    def test_backfill_links_rates_only_where_the_name_is_unique(self):
+        unique = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
+        unique.action_apply()
+        rates = self._rates_of(unique)
+        self.env.cr.execute(
+            "UPDATE aw_profile_rate SET rate_list_id = NULL WHERE id IN %s",
+            (tuple(rates.ids),))
+        rates.invalidate_recordset()
+        self.env['aw.profile.rate']._backfill_rate_list_ids()
+        rates.invalidate_recordset()
+        self.assertEqual(rates.rate_list_id, unique)
+        # a second list with the same name makes the link ambiguous
+        self._list(date(2026, 4, 3), 'ZZ-1\tNOR\t\t1\t2\t3')
+        self.env.cr.execute(
+            "UPDATE aw_profile_rate SET rate_list_id = NULL WHERE id IN %s",
+            (tuple(rates.ids),))
+        rates.invalidate_recordset()
+        self.env['aw.profile.rate']._backfill_rate_list_ids()
+        rates.invalidate_recordset()
+        self.assertFalse(rates.rate_list_id)
 
     def test_fill_from_current_rates_prefills_the_series(self):
         first = self.env['aw.vendor.rate.list'].create({
