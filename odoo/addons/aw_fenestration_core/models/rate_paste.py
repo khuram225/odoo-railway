@@ -13,11 +13,26 @@ import re
 KINDS = ('code', 'thickness', 'series', 'finish', 'skip')
 
 
+_PREFIX_AND_NUMBER = re.compile(r'^([A-Za-z]+)[\s.\-]*(\d.*)$')
+
+
+def canonical_code(code):
+    """Letters, an optional separator (none, space, dot or hyphen), then
+    the number and suffix -- always written with a hyphen: "D38F",
+    "D 38F" and "D.40" are "D-38F" and "D-40". Anything not shaped like
+    that is returned trimmed and otherwise as it is."""
+    code = (code or '').strip()
+    match = _PREFIX_AND_NUMBER.match(code)
+    if not match:
+        return code
+    return '%s-%s' % (match.group(1).upper(), match.group(2).strip())
+
+
 def normalise_code(code):
     """Case, spaces, hyphens and underscores do not distinguish a vendor
-    code: "D35" is "D-35". Suffix words are kept ("D-35 M.F" stays a
-    different profile from "D-35")."""
-    return re.sub(r'[\s\-_]+', '', (code or '').upper())
+    code: "D35" is "D-35", and so is "D.40" "D-40". Suffix words are kept
+    ("D-35 M.F" stays a different profile from "D-35")."""
+    return re.sub(r'[\s\-_]+', '', canonical_code(code).upper())
 
 
 def normalise_text(text):

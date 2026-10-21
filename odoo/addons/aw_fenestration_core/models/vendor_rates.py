@@ -700,6 +700,8 @@ class AwVendorRateListLine(models.Model):
         or by name. A row somebody chose by hand is left alone unless
         forced."""
         Template = self.env['product.template']
+        # stored norms predate any change to the rule, so refresh them
+        self._compute_norms()
         profiles = Template.search([(
             'categ_id', 'child_of',
             self.env.ref('aw_fenestration_core.product_category_profiles').id)])
