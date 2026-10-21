@@ -134,6 +134,12 @@ class AwProfileRate(models.Model):
     source_note = fields.Char(
         help="Which file this row came from, so a price can always be "
              "traced back to the list it was quoted on.")
+    rate_list_id = fields.Many2one(
+        'aw.vendor.rate.list', string='Rate list', readonly=True,
+        copy=False, index=True, ondelete='set null',
+        help="The rate list that wrote this row. Re-apply deletes exactly "
+             "these, so two lists with the same name cannot touch each "
+             "other's rates.")
     active = fields.Boolean(default=True)
     variant_exists = fields.Boolean(
         string='Variant exists', compute='_compute_variant_exists',
@@ -255,6 +261,26 @@ class AwProfileRate(models.Model):
         result = super().unlink()
         self._recompute_date_to(keys)
         return result
+
+    @api.model
+    def _backfill_rate_list_ids(self):
+        """Link rates written before rate_list_id existed to their list,
+        by source_note, where EXACTLY ONE list (of that rate's vendor) has
+        that name. Several lists with one name cannot be told apart, so
+        their rates stay unlinked rather than being guessed. Idempotent;
+        plain SQL because a write here would rebuild every rate chain."""
+        cr = self.env.cr
+        cr.execute("""
+            UPDATE aw_profile_rate r SET rate_list_id = l.id
+              FROM aw_vendor_rate_list l
+             WHERE r.rate_list_id IS NULL
+               AND r.source_note = l.name
+               AND r.vendor_id = l.vendor_id
+               AND (SELECT count(*) FROM aw_vendor_rate_list x
+                     WHERE x.name = l.name AND x.vendor_id = l.vendor_id) = 1
+        """)
+        self.invalidate_model(['rate_list_id'])
+        return cr.rowcount
 
     @api.model
     def _backfill_date_to(self):

@@ -46,6 +46,7 @@ export class RateGrid extends Component {
             },
             () => [
                 this.props.record.data.line_count,
+                this.props.record.data.unmatched_count,
                 this.props.record.data.state,
             ]
         );
@@ -63,8 +64,33 @@ export class RateGrid extends Component {
         return this.meta.columns || [];
     }
 
-    get readonly() {
-        return this.props.readonly || this.props.record.data.state === "applied";
+    get applied() {
+        return this.props.record.data.state === "applied";
+    }
+
+    /** Rows can be added or pasted in only while the list is a draft. */
+    get canAdd() {
+        return !this.props.readonly && !this.applied;
+    }
+
+    /**
+     * Which rows can be edited: every row of a draft, and only the
+     * unmatched rows of an applied list. An applied row is a record of
+     * what was written and stays as it is.
+     */
+    rowEditable(line) {
+        if (this.props.readonly) {
+            return false;
+        }
+        return !this.applied || Boolean(line.problem);
+    }
+
+    get thicknessOptions() {
+        return this.meta.thickness_options || [];
+    }
+
+    get seriesOptions() {
+        return this.meta.series_options || [];
     }
 
     async load() {
@@ -181,7 +207,7 @@ export class RateGrid extends Component {
      * pasting a number into one cell still works.
      */
     async onPaste(ev) {
-        if (this.readonly || !this.listId) {
+        if (!this.canAdd || !this.listId) {
             return;
         }
         const text = ev.clipboardData ? ev.clipboardData.getData("text") : "";
