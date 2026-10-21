@@ -372,5 +372,5 @@ class TestChawlaSeed(TransactionCase):
                              ['profile_code', 'thickness'])
             self.assertEqual(len(report['finishes_set']), 6)
             self.assertEqual(report['finishes_unmapped'], [])
-            self.assertIn('Nor -> Standard', report['thickness_set'])
+            self.assertIn('Nor -> Normal', report['thickness_set'])
         self.assertIsNone(Layout._seed_chawla_layout())

@@ -164,8 +164,13 @@ class AwVendorLayout(models.Model):
                     report['finishes_unmapped'].append(header)
             aliases = []
             for alias in CHAWLA_THICKNESS_ALIASES:
-                value = self._thickness_for_alias(
-                    thick_attr, 'NOR' if alias.upper() == 'NOR' else alias)
+                if alias.upper() == 'NOR':
+                    # Chawla's own default thickness is Normal, not the
+                    # Standard that Premium's NOR maps to.
+                    value = thick_attr.value_ids.filtered(
+                        lambda v: v.name == 'Normal')[:1]
+                else:
+                    value = self._thickness_for_alias(thick_attr, alias)
                 if value:
                     aliases.append((0, 0, {
                         'alias': alias, 'thickness_id': value.id}))
