@@ -169,12 +169,12 @@ export HOME=/var/lib/odoo
 #
 # ODOO_UPGRADE_MODULES overrides the list; set it EMPTY to skip (the print
 # service, whose addons path has no aw_* modules, must do that). The default is
-# the aluminum pair, in the order Odoo resolves anyway (-u follows depends).
+# the aluminum modules, in the order Odoo resolves anyway (-u follows depends).
 #
 # If the update fails, so does the container: exit 1 here means the server
 # never starts, the healthcheck never passes, and Railway keeps serving the
 # previous deployment. Nothing below this block runs.
-UPGRADE_MODULES=${ODOO_UPGRADE_MODULES-aw_fenestration_core,aw_fenestration_design}
+UPGRADE_MODULES=${ODOO_UPGRADE_MODULES-aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle}
 if [ -n "$UPGRADE_MODULES" ]; then
     upgrade_db=${ODOO_DB_NAME:-odoo}
     echo "upgrade: odoo -u $UPGRADE_MODULES -d $upgrade_db --stop-after-init"
