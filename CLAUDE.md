@@ -55,7 +55,8 @@ layers of shell quoting is how this sort of code goes wrong quietly.
 
 **Module upgrade on deploy.** `entrypoint.sh` runs, as the `odoo` user and
 before the server starts, `odoo -c /etc/odoo/odoo.conf -d $ODOO_DB_NAME
--u aw_fenestration_core,aw_fenestration_design --stop-after-init`, then
+-u aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle
+--stop-after-init`, then
 logs `upgrade: done; versions: ...` read from `ir_module_module`.
 `ODOO_UPGRADE_MODULES` overrides the list and **set empty skips it**: the
 print service must set it empty, since its addons path has no `aw_*`
@@ -65,6 +66,7 @@ the previous deployment serving. The restart policy (`ON_FAILURE`, up to
 10) re-runs the update each time, which is harmless: it is idempotent.
 The update can fail part way, and modules commit as they go, so the old
 deployment may then be serving a partly upgraded database; fix forward.
+A new module is installed once from Apps, then added to the entrypoint list.
 
 Print's own domain context is in
 `odoo/addons/addons_print/CLAUDE.md`.
