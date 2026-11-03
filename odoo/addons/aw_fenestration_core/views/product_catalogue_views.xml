@@ -9,6 +9,32 @@
              lives here. -->
         <field name="inherit_id" ref="product.product_template_form_view"/>
         <field name="arch" type="xml">
+            <!-- Profiles are priced by rates, never typed: the table of
+                 current rates goes first, and the price, cost and
+                 "Can be Sold" controls go. Taxes stay. -->
+            <xpath expr="//page[@name='general_information']/group" position="before">
+                <field name="aw_is_profile" invisible="1"/>
+                <field name="aw_rates_table" widget="aw_rates_table" nolabel="1"
+                       invisible="not aw_is_profile"/>
+            </xpath>
+            <xpath expr="//span[@name='sale_option']" position="attributes">
+                <attribute name="invisible">aw_is_profile</attribute>
+            </xpath>
+            <xpath expr="//label[@for='list_price']" position="attributes">
+                <attribute name="invisible">aw_is_profile</attribute>
+            </xpath>
+            <xpath expr="//div[@name='list_price_uom']" position="attributes">
+                <attribute name="invisible">aw_is_profile</attribute>
+            </xpath>
+            <xpath expr="//label[@id='standard_price_label']" position="attributes">
+                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+            </xpath>
+            <xpath expr="//div[@name='standard_price_uom']" position="attributes">
+                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+            </xpath>
+            <xpath expr="//page[@name='sales_price']" position="attributes">
+                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+            </xpath>
             <xpath expr="//notebook" position="inside">
                 <!-- Only shown once a product has been matched to the
                      catalogue, so it stays out of the way on every other
@@ -33,38 +59,6 @@
                                  variants that actually exist. -->
                             <field name="aw_catalogue_thickness" invisible="1"/>
                         </group>
-                    </group>
-                    <group string="Current rates">
-                        <div class="text-muted" colspan="2">
-                            Every thickness and finish the current price
-                            list covers for this profile. "Variant
-                            exists" is no until somebody uses that
-                            combination — variants are created on
-                            demand, and the rate applies either way.
-                        </div>
-                        <field name="aw_cost_method" readonly="1"
-                               string="Costing method"/>
-                        <field name="aw_current_rate_ids" nolabel="1"
-                               colspan="2" readonly="1">
-                            <list decoration-muted="not variant_exists">
-                                <field name="thickness_id"/>
-                                <field name="finish_id"/>
-                                <field name="price" string="PKR / ft"/>
-                                <field name="date_from"
-                                       string="Effective from"/>
-                                <field name="date_to"
-                                       string="Effective to"
-                                       optional="hide"/>
-                                <field name="vendor_id"/>
-                                <field name="variant_exists"/>
-                            </list>
-                        </field>
-                        <div class="text-muted" colspan="2"
-                             invisible="aw_current_rate_ids">
-                            No current rate covers this profile. Import a
-                            price list, or check that its effective dates
-                            have not all passed.
-                        </div>
                     </group>
                 </page>
             </xpath>
@@ -100,8 +94,15 @@
         <field name="inherit_id" ref="product.product_product_tree_view"/>
         <field name="arch" type="xml">
             <field name="standard_price" position="before">
-                <field name="aw_rate_per_ft" string="PKR / ft" optional="show"/>
+                <field name="aw_is_profile" column_invisible="1"/>
+                <field name="aw_rate_per_ft" string="Rate, default vendor" optional="show"/>
                 <field name="aw_rate_date" string="Rate of" optional="hide"/>
+            </field>
+            <field name="lst_price" position="attributes">
+                <attribute name="invisible">aw_is_profile</attribute>
+            </field>
+            <field name="standard_price" position="attributes">
+                <attribute name="invisible">aw_is_profile</attribute>
             </field>
         </field>
     </record>
@@ -116,6 +117,9 @@
                  that page instead of a second tab of the same name. -->
             <xpath expr="//page[@name='aw_fenestration']" position="attributes">
                 <attribute name="invisible">not aw_catalogue_code and not aw_catalogue_page and not aw_rate_per_ft and not aw_rate_date</attribute>
+            </xpath>
+            <xpath expr="//group[@name='pricing']" position="attributes">
+                <attribute name="invisible">aw_is_profile</attribute>
             </xpath>
             <xpath expr="//page[@name='aw_fenestration']" position="inside">
                 <group string="This variant">

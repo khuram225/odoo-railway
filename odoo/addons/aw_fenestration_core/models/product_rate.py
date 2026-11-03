@@ -281,10 +281,88 @@ class ProductTemplate(models.Model):
                 '|', ('date_to', '=', False), ('date_to', '>=', today),
             ], order='thickness_id, finish_id, date_from desc')
 
+    aw_is_profile = fields.Boolean(
+        compute='_compute_aw_is_profile',
+        help="A catalogue profile: its price and cost are rates, never "
+             "typed on the product form.")
+    aw_rates_table = fields.Json(
+        compute='_compute_aw_rates_table', string='Current rates')
+
+    @api.depends('aw_catalogue_code', 'aw_catalogue_page')
+    def _compute_aw_is_profile(self):
+        for template in self:
+            template.aw_is_profile = bool(
+                template.aw_catalogue_code or template.aw_catalogue_page)
+
+    @api.depends()
+    def _compute_aw_rates_table(self):
+        for template in self:
+            template.aw_rates_table = (
+                template._aw_rates_table_data() if template.id else {})
+
+    def _aw_rates_table_data(self):
+        """Everything the cross-table needs, in one go: the rate in force
+        today for each thickness, finish and vendor of this profile, the
+        vendors that have any (a new vendor appears with its first applied
+        list, nothing here lists vendors by hand), and which
+        thickness/finish combinations already exist as variants. The
+        widget builds All / one vendor / Compare from it without another
+        call."""
+        self.ensure_one()
+        today = fields.Date.context_today(self)
+        rates = self.env['aw.profile.rate'].search([
+            ('product_tmpl_id', '=', self.id), ('vendor_id', '!=', False),
+            ('date_from', '<=', today),
+            '|', ('date_to', '=', False), ('date_to', '>=', today),
+        ], order='date_from desc, id desc')
+        cells, seen = [], set()
+        for rate in rates:
+            key = (rate.thickness_id.id, rate.finish_id.id, rate.vendor_id.id)
+            if key in seen:
+                continue
+            seen.add(key)
+            cells.append({
+                't': key[0], 'f': key[1], 'v': key[2],
+                'price': rate.price, 'date': str(rate.date_from)})
+        thicknesses = rates.thickness_id.sorted(lambda r: (r.sequence, r.id))
+        finishes = rates.finish_id.sorted(lambda r: (r.sequence, r.id))
+        vendors = rates.vendor_id.sorted(lambda p: (p.name or '').lower())
+        variants = set()
+        for variant in self.product_variant_ids:
+            thickness, finish = variant._aw_attribute_values()
+            variants.add('%s-%s' % (thickness.id, finish.id))
+        default = self._aw_default_vendor()
+        return {
+            'vendors': [{'id': v.id, 'name': v.name} for v in vendors],
+            'default_vendor_id': default.id if default in vendors else 0,
+            'thicknesses': [{'id': t.id, 'name': t.name}
+                            for t in thicknesses],
+            'finishes': [{'id': f.id, 'name': f.name,
+                          'color': f.html_color or ''} for f in finishes],
+            'cells': cells,
+            'variants': sorted(variants),
+        }
+
+    def aw_rates_action(self, thickness_id, finish_id, vendor_id):
+        """The history behind one cell: every version of that profile's
+        rate for the thickness, finish and vendor, newest first."""
+        self.ensure_one()
+        action = self.env['ir.actions.actions']._for_xml_id(
+            'aw_fenestration_core.action_aw_profile_rate')
+        action['name'] = _("Rates: %s", self.display_name)
+        action['domain'] = [
+            ('product_tmpl_id', '=', self.id),
+            ('thickness_id', '=', thickness_id or False),
+            ('finish_id', '=', finish_id or False),
+            ('vendor_id', '=', vendor_id)]
+        action['context'] = {}
+        action['views'] = [(False, 'list'), (False, 'form')]
+        return action
+
     aw_cost_sync_allowed = fields.Boolean(
         compute='_compute_aw_cost_sync_allowed',
         help="False when the costing method is AVCO or FIFO, where "
-             "stock valuation owns the cost field.")
+             "stock valuation owns the cost.")
     aw_cost_method = fields.Char(
         string='Costing Method', compute='_compute_aw_cost_sync_allowed')
 

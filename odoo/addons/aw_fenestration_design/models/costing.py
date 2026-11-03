@@ -111,6 +111,33 @@ class AwDesign(models.Model):
                 or self.template_id.default_vendor_id
                 or self.env['aw.profile.rate']._legacy_vendor())
 
+    def _fallback_vendor(self):
+        """Who prices a profile the order's vendor has no rate for: the
+        series' default vendor, and only when that is somebody else."""
+        self.ensure_one()
+        fallback = (self.template_id.default_vendor_id
+                    or self.env['aw.profile.rate']._legacy_vendor())
+        if fallback == self._costing_vendor():
+            return self.env['res.partner']
+        return fallback
+
+    def _rate_with_fallback(self, template, thickness, finish, on_date):
+        """(rate, level, used_fallback): the order vendor's rate, else the
+        series' default vendor's. Nothing from either is no rate; the cost
+        field of the variant is never consulted."""
+        rates = self.env['aw.profile.rate']
+        rate, level = rates._rate_lookup(
+            template, thickness, finish, on_date, self._costing_vendor())
+        if rate:
+            return rate, level, False
+        fallback = self._fallback_vendor()
+        if fallback:
+            rate, level = rates._rate_lookup(
+                template, thickness, finish, on_date, fallback)
+            if rate:
+                return rate, level, True
+        return rate, level, False
+
     def _profile_rate_keys(self):
         """(line, template, thickness, finish) for each costed profile
         line: the same resolution the costing uses, in one place so the
@@ -136,17 +163,18 @@ class AwDesign(models.Model):
     def _missing_rate_info(self):
         """([text], {bom line ids}): the profiles the costing vendor has
         no rate for, one text per profile and thickness, naming the
-        vendor whose cost field stands in. The same lookup the costing
-        does, so this cannot disagree with the number."""
+        vendor whose rate stands in, or saying the price is incomplete.
+        The same lookup the costing does, so this cannot disagree with
+        the number."""
         self.ensure_one()
         on_date = self._costing_date()
-        rates = self.env['aw.profile.rate']
         vendor = self._costing_vendor()
+        fallback = self._fallback_vendor()
         texts, line_ids, seen = [], set(), set()
         for line, template, thickness, finish in self._profile_rate_keys():
-            rate, _level = rates._rate_lookup(
-                template, thickness, finish, on_date, vendor)
-            if rate:
+            rate, _level, used_fallback = self._rate_with_fallback(
+                template, thickness, finish, on_date)
+            if rate and not used_fallback:
                 continue
             line_ids.add(line.id)
             key = (template.id, thickness.id if thickness else 0)
@@ -156,18 +184,18 @@ class AwDesign(models.Model):
             label = ' '.join(filter(None, [
                 template.default_code or template.name,
                 thickness.name if thickness else '']))
-            if line.product_id.standard_price:
+            if rate:
                 texts.append(_(
-                    "%(profile)s: no %(vendor)s rate, %(standin)s cost "
-                    "field used",
+                    "%(profile)s: no %(vendor)s rate, %(standin)s rate used",
                     profile=label, vendor=vendor.display_name or _('profile'),
-                    standin=(template._aw_default_vendor().display_name
-                             or _('the variant'))))
+                    standin=fallback.display_name))
             else:
                 texts.append(_(
-                    "%(profile)s: no %(vendor)s rate and no cost field "
-                    "either",
-                    profile=label, vendor=vendor.display_name or _('profile')))
+                    "%(profile)s: no %(vendor)s rate%(also)s, price "
+                    "incomplete",
+                    profile=label, vendor=vendor.display_name or _('profile'),
+                    also=(_(" and no %s rate", fallback.display_name)
+                          if fallback else '')))
         return texts, line_ids
 
     def _profile_cost_by_vendor(self):
@@ -222,7 +250,6 @@ class AwDesign(models.Model):
         """
         self.ensure_one()
         on_date = self._costing_date()
-        rates = self.env['aw.profile.rate']
         vendor = self._costing_vendor()
         # Keyed by TEMPLATE, not by the line's variant: phase 7e took
         # the variant off the line, and keying by template also finally
@@ -254,13 +281,13 @@ class AwDesign(models.Model):
                 # (A BOM line carries no position, so a template that is
                 # in no spec line -- an override's -- keeps the window's
                 # finish and the loose thickness it always had.)
-                rate, level = rates._rate_lookup(
+                rate, level, used_fallback = self._rate_with_fallback(
                     template,
                     (self._line_thickness(source, template)
                      if source else False),
                     (self._line_finish(source) if source
                      else self.finish_id),
-                    on_date, vendor)
+                    on_date)
                 variant = line.product_id.display_name or template.display_name
                 if rate:
                     unit_cost = rate.price
@@ -269,7 +296,14 @@ class AwDesign(models.Model):
                         (line.length_mm or 0.0) / MM_PER_FOOT
                         * rate.price * (line.qty or 0))
                     # A fallback is a rate for something else: never silent.
-                    if level == 'thickness':
+                    if used_fallback:
+                        note = _(
+                            "No %(vendor)s rate for %(variant)s: %(standin)s "
+                            "rate used.",
+                            vendor=vendor.display_name or _('profile'),
+                            variant=variant,
+                            standin=self._fallback_vendor().display_name)
+                    elif level == 'thickness':
                         note = _(
                             "%(vendor)s has no rate for this finish on "
                             "%(variant)s; its rate for the thickness in any "
@@ -282,23 +316,14 @@ class AwDesign(models.Model):
                             "in any thickness and finish is used.",
                             vendor=vendor.display_name, variant=variant)
                 else:
-                    # No rate from this vendor: the variant's cost field
-                    # (per metre) stands in, and the check says so.
-                    # Profiles are costed per foot, the rate's own unit.
-                    per_ft = line.product_id.standard_price or 0.0
-                    unit_cost = per_ft
-                    line.line_cost = (
-                        (line.length_mm or 0.0) / MM_PER_FOOT
-                        * per_ft * (line.qty or 0))
-                    note = (_(
-                        "No %(vendor)s rate for %(variant)s on %(date)s; "
-                        "the cost field is used.",
+                    # No rate from the order's vendor or the series'
+                    # default: nothing to cost with, and the line says so.
+                    line.line_cost = 0.0
+                    note = _(
+                        "No %(vendor)s rate for %(variant)s on %(date)s: "
+                        "price incomplete.",
                         vendor=vendor.display_name or _('profile'),
-                        variant=variant, date=on_date) if per_ft else _(
-                        "No %(vendor)s rate for %(variant)s on %(date)s, "
-                        "and no cost field either.",
-                        vendor=vendor.display_name or _('profile'),
-                        variant=variant, date=on_date))
+                        variant=variant, date=on_date)
 
             elif line.kind == 'glass':
                 unit_cost = line.product_id.standard_price or 0.0
