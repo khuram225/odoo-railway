@@ -457,6 +457,15 @@ class AwVendorRateList(models.Model):
     line_count = fields.Integer(compute='_compute_counts')
     unmatched_count = fields.Integer(compute='_compute_counts')
     conflict_count = fields.Integer(compute='_compute_counts')
+    # The grid's own field is a computed, so Odoo gives it readonly=True
+    # and a widget cannot tell that from "this list may not be edited".
+    # The rule lives here instead: rows can be added and removed on a draft.
+    grid_editable = fields.Boolean(compute='_compute_grid_editable')
+
+    @api.depends('state')
+    def _compute_grid_editable(self):
+        for rec in self:
+            rec.grid_editable = rec.state == 'draft'
 
     @api.depends('name', 'note')
     def _compute_display_name(self):
@@ -891,6 +900,15 @@ class AwVendorRateListLine(models.Model):
              "rate is written for them.")
     detail = fields.Char(readonly=True)
     list_state = fields.Selection(related='list_id.state')
+    # Every cell of a draft; on an applied list only an unmatched row,
+    # since an applied row is the record of what was written.
+    grid_editable = fields.Boolean(compute='_compute_grid_editable')
+
+    @api.depends('list_id.state', 'problem')
+    def _compute_grid_editable(self):
+        for line in self:
+            line.grid_editable = (
+                line.list_id.state == 'draft' or bool(line.problem))
     status_code = fields.Selection([
         ('applied', 'Applied'),
         ('partial', 'Partly applied'),
