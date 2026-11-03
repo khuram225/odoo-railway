@@ -10,7 +10,7 @@ const LIST = "aw.vendor.rate.list";
 const LINE_FIELDS = [
     "code", "thickness_text", "series", "product_tmpl_id", "thickness_id",
     "problem", "result", "match_source", "status_code", "detail",
-    "cells_applied", "cells_skipped", "cells_failed",
+    "cells_applied", "cells_skipped", "cells_failed", "grid_editable",
     ...Array.from({ length: 10 }, (_, i) => `rate_${i + 1}`),
 ];
 
@@ -49,6 +49,7 @@ export class RateGrid extends Component {
                 this.props.record.data.unmatched_count,
                 this.props.record.data.conflict_count,
                 this.props.record.data.state,
+                this.props.record.data.grid_editable,
             ]
         );
     }
@@ -71,7 +72,7 @@ export class RateGrid extends Component {
 
     /** Rows can be added or pasted in only while the list is a draft. */
     get canAdd() {
-        return !this.props.readonly && !this.applied;
+        return Boolean(this.props.record.data.grid_editable);
     }
 
     /**
@@ -80,10 +81,7 @@ export class RateGrid extends Component {
      * what was written and stays as it is.
      */
     rowEditable(line) {
-        if (this.props.readonly) {
-            return false;
-        }
-        return !this.applied || Boolean(line.problem);
+        return Boolean(line.grid_editable);
     }
 
     get thicknessOptions() {

@@ -286,6 +286,42 @@ class TestVendorRateLists(TransactionCase):
         with self.assertRaises(UserError):
             rate_list.action_set_to_draft()
 
+    def test_grid_is_editable_on_a_draft_and_follows_the_state(self):
+        rate_list = self._list(
+            date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137\nQQ-1\tNOR\t\t4\t5\t6')
+        self.assertTrue(rate_list.grid_editable)
+        self.assertTrue(all(rate_list.line_ids.mapped('grid_editable')))
+        rate_list.action_apply()
+        # applied: the list takes no new rows, matched rows are read only,
+        # the unmatched one can still be fixed
+        self.assertFalse(rate_list.grid_editable)
+        matched = rate_list.line_ids.filtered('product_tmpl_id')
+        unmatched = rate_list.line_ids - matched
+        self.assertFalse(matched.grid_editable)
+        self.assertTrue(unmatched.grid_editable)
+        # set to draft: everything is editable again, no refresh needed
+        rate_list.action_set_to_draft()
+        self.assertTrue(rate_list.grid_editable)
+        self.assertTrue(all(rate_list.line_ids.mapped('grid_editable')))
+        rate_list.action_apply()
+        self.assertFalse(rate_list.grid_editable)
+
+    def test_a_cell_changed_after_set_to_draft_is_stored(self):
+        rate_list = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137')
+        rate_list.action_apply()
+        rate_list.action_set_to_draft()
+        line = rate_list.line_ids
+        # what the grid sends when a cell is edited
+        line.write({'rate_1': 150.0})
+        line.invalidate_recordset()
+        self.env.invalidate_all()
+        self.assertEqual(
+            self.env['aw.vendor.rate.list.line'].search_read(
+                [('list_id', '=', rate_list.id)], ['rate_1'])[0]['rate_1'],
+            150.0)
+        rate_list.action_apply()
+        self.assertIn(150.0, self._rates_of(rate_list).mapped('price'))
+
     def test_reapply_needs_an_applied_list(self):
         draft = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
         with self.assertRaises(UserError):

@@ -112,6 +112,7 @@
                     </group>
                     <!-- The lines, as a grid whose rate columns are the
                          vendor layout's own. Read only once applied. -->
+                    <field name="grid_editable" invisible="1"/>
                     <field name="grid_meta" widget="aw_rate_grid" nolabel="1"
                            colspan="2"/>
                 </sheet>
