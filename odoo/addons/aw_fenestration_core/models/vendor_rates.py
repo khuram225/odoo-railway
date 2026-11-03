@@ -456,6 +456,7 @@ class AwVendorRateList(models.Model):
     grid_meta = fields.Json(compute='_compute_grid_meta')
     line_count = fields.Integer(compute='_compute_counts')
     unmatched_count = fields.Integer(compute='_compute_counts')
+    conflict_count = fields.Integer(compute='_compute_counts')
 
     @api.depends('name', 'note')
     def _compute_display_name(self):
@@ -530,11 +531,14 @@ class AwVendorRateList(models.Model):
                     names.add(value)
         return sorted(names, key=str.lower)
 
-    @api.depends('line_ids.product_tmpl_id', 'line_ids.problem')
+    @api.depends('line_ids.product_tmpl_id', 'line_ids.problem',
+                 'line_ids.cells_conflict')
     def _compute_counts(self):
         for rec in self:
             rec.line_count = len(rec.line_ids)
             rec.unmatched_count = len(rec.line_ids.filtered('problem'))
+            rec.conflict_count = len(
+                rec.line_ids.filtered('cells_conflict'))
 
     def _require_layout(self):
         self.ensure_one()
@@ -663,7 +667,8 @@ class AwVendorRateList(models.Model):
         self._follow_variant_costs(affected)
         message = _(
             "Re-applied: %(deleted)s old rate(s) deleted, %(applied)s "
-            "written, %(rows_not_applied)s row(s) not applied.", **summary)
+            "written, %(conflicts)s finish(es) in conflict, "
+            "%(rows_not_applied)s row(s) not applied.", **summary)
         self.message_post(body=message)
         return {
             'type': 'ir.actions.client', 'tag': 'display_notification',
@@ -672,6 +677,27 @@ class AwVendorRateList(models.Model):
                        'next': {'type': 'ir.actions.client',
                                 'tag': 'soft_reload'}},
         }
+
+    def action_set_to_draft(self):
+        """Applied lists only: delete the rates this list wrote, keep
+        every line, and make the whole list editable again."""
+        self.ensure_one()
+        if self.state != 'applied':
+            raise UserError(_("Only an applied list can be set to draft."))
+        old = self.env['aw.profile.rate'].with_context(
+            active_test=False).search([('rate_list_id', '=', self.id)])
+        deleted = len(old)
+        affected = old.product_tmpl_id
+        old.unlink()
+        self.line_ids.write({
+            'result': False, 'detail': False, 'cells_applied': 0,
+            'cells_skipped': 0, 'cells_failed': 0, 'cells_conflict': 0})
+        self.state = 'draft'
+        self._follow_variant_costs(affected)
+        self.message_post(body=_(
+            "Set to draft: %s rate(s) removed; the lines are kept.",
+            deleted))
+        return True
 
     def action_apply(self):
         """Write the rates. Unmatched rows are never applied."""
@@ -690,13 +716,15 @@ class AwVendorRateList(models.Model):
         finish_columns = layout._finish_columns()
         Rate = self.env['aw.profile.rate']
         written = skipped = skipped_cells = failed_cells = 0
+        conflict_cells = conflict_rows = 0
         affected = self.env['product.template']
         for line in self.line_ids.sorted('sequence'):
             if line.problem:
                 line.write({
                     'result': _("Not applied: %s", line.problem),
                     'cells_applied': 0, 'cells_skipped': 0,
-                    'cells_failed': 0, 'detail': line.problem})
+                    'cells_failed': 0, 'cells_conflict': 0,
+                    'detail': line.problem})
                 skipped += 1
                 continue
             offered_thickness = self.env['aw.profile.section.line'] \
@@ -708,7 +736,11 @@ class AwVendorRateList(models.Model):
                     line.product_tmpl_id,
                     self.env.ref('aw_fenestration_core.aw_attribute_finish'))
             notes = []
-            line_applied = line_skipped = line_failed = 0
+            line_applied = line_skipped = line_failed = line_conflict = 0
+            # Two columns can map to one finish (BRO and SHARA both Brown
+            # PC Sahara): one number is used, equal numbers are one, and
+            # different numbers write nothing rather than guess.
+            by_finish = {}
             for index, column in enumerate(finish_columns, start=1):
                 price = line['rate_%s' % index]
                 if not price:
@@ -718,6 +750,19 @@ class AwVendorRateList(models.Model):
                         "%s: no finish set", column.header or index))
                     line_skipped += 1
                     continue
+                by_finish.setdefault(column.finish_id, []).append(
+                    (column, price))
+            for finish, cells in by_finish.items():
+                if len({price for _col, price in cells}) > 1:
+                    notes.append(_(
+                        "Conflict: %(cells)s both map to %(finish)s",
+                        cells=' / '.join(
+                            '%s %s' % (col.header or finish.name, price)
+                            for col, price in cells),
+                        finish=finish.name))
+                    line_conflict += 1
+                    continue
+                column, price = cells[0]
                 if (line.thickness_id
                         and line.thickness_id not in offered_thickness) or (
                         column.finish_id not in offered_finish):
@@ -754,20 +799,27 @@ class AwVendorRateList(models.Model):
                 affected |= line.product_tmpl_id
             skipped_cells += line_skipped
             failed_cells += line_failed
+            conflict_cells += line_conflict
+            conflict_rows += 1 if line_conflict else 0
             line.write({
                 'result': '; '.join(notes) if notes else _("Applied"),
                 'cells_applied': line_applied,
                 'cells_skipped': line_skipped,
                 'cells_failed': line_failed,
+                'cells_conflict': line_conflict,
                 'detail': '; '.join(notes)})
         self.state = 'applied'
         self._follow_variant_costs(affected)
         summary = {'applied': written, 'skipped': skipped_cells,
-                   'failed': failed_cells, 'rows_not_applied': skipped}
+                   'failed': failed_cells, 'rows_not_applied': skipped,
+                   'conflicts': conflict_cells,
+                   'conflict_rows': conflict_rows}
         self.message_post(body=_(
             "Applied: %(applied)s rate(s) written, %(skipped)s column(s) "
             "skipped (no finish), %(failed)s could not be applied (no such "
-            "variant), %(rows_not_applied)s row(s) not applied.", **summary))
+            "variant), %(conflicts)s finish(es) in conflict on "
+            "%(conflict_rows)s row(s), %(rows_not_applied)s row(s) not "
+            "applied.", **summary))
         return summary
 
     def _follow_variant_costs(self, templates):
@@ -833,21 +885,28 @@ class AwVendorRateListLine(models.Model):
     cells_failed = fields.Integer(
         readonly=True,
         help="Mapped columns the product has no variant for.")
+    cells_conflict = fields.Integer(
+        readonly=True,
+        help="Finishes two columns map to, with different numbers: no "
+             "rate is written for them.")
     detail = fields.Char(readonly=True)
     list_state = fields.Selection(related='list_id.state')
     status_code = fields.Selection([
         ('applied', 'Applied'),
         ('partial', 'Partly applied'),
+        ('conflict', 'Conflict'),
         ('unmatched', 'Unmatched'),
         ('not_applied', 'Not applied'),
     ], compute='_compute_status_code', store=True)
 
     @api.depends('problem', 'cells_applied', 'cells_failed',
-                 'list_id.state')
+                 'cells_conflict', 'list_id.state')
     def _compute_status_code(self):
         for line in self:
             if line.problem:
                 line.status_code = 'unmatched'
+            elif line.list_id.state == 'applied' and line.cells_conflict:
+                line.status_code = 'conflict'
             elif line.list_id.state != 'applied' or not line.cells_applied:
                 line.status_code = 'not_applied'
             elif line.cells_failed:
