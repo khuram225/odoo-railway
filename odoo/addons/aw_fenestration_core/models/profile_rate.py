@@ -7,11 +7,15 @@ quote from March still cost at March's rates when someone reopens it in
 June -- the lookup asks for the newest rate that was in force on the
 quote's own order date, not for "the current price".
 """
+import json
+import logging
 from collections import defaultdict
 from datetime import timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+
+_logger = logging.getLogger(__name__)
 
 # Set while _recompute_date_to writes its results, so the write override
 # does not turn one recompute into an endless chain of them.
@@ -20,6 +24,14 @@ SYNC_CONTEXT = 'aw_rate_date_to_sync'
 # Marks the one-shot backfill as done. A Boolean-ish state with no
 # empty value to test, same as the is_required seed.
 BACKFILL_PARAM = 'aw_fenestration.rate_date_to_backfilled'
+
+# Holds the report of the one-time Chawla vendor merge; set means done.
+CHAWLA_MERGE_PARAM = 'aw_fenestration.chawla_vendor_merged'
+
+# B-6 Normal carries a 2026-10-01 +10 price at the old partner that was a
+# test list, not a real price: where it differs from the survivor's rate
+# it is dropped, not chained, so the survivor's 2026-01-01 rate stays.
+CHAWLA_TEST_VALUES = ('B-6', 'Normal')
 
 
 def resolve_chain(entries):
@@ -281,6 +293,125 @@ class AwProfileRate(models.Model):
         """)
         self.invalidate_model(['rate_list_id'])
         return cr.rowcount
+
+    @api.model
+    def _merge_chawla_vendor(self):
+        """One time: fold the legacy "Chawla" partner into "CHAWLA
+        ALUMINIUM", which holds the rate list, the layout and the aliases.
+
+        Two partners for one supplier meant the Pricing tab showed two
+        Chawla rows and pasting could only ever reach one of them. The
+        survivor is the one with the layout; the other is ARCHIVED, never
+        deleted. Rates, per profile + thickness + finish:
+
+        - the survivor has the same price(s): the old copy is dropped, so
+          the survivor's earlier start date stays in force and the rate
+          keeps its honest date;
+        - the price differs: both are kept, and the chain closes the
+          older one the day before the newer starts;
+        - only the old partner has one: it moves across unchanged.
+
+        Series defaults and the legacy-vendor parameter follow. Orders get
+        a plain SQL update of their vendor: no write override, so no
+        re-costing and no price change on any of them, confirmed or not.
+        Other vendors' rates are never read. Guarded by a parameter, which
+        also holds the counts and the keys that were chained.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(CHAWLA_MERGE_PARAM):
+            return False
+        old = self._legacy_vendor()
+        Partner = self.env['res.partner'].with_context(active_test=False)
+        survivors = Partner.search(
+            [('name', '=ilike', 'CHAWLA ALUMINIUM')]) - old
+        if (not old or (old.name or '').strip().lower() != 'chawla'
+                or len(survivors) != 1):
+            _logger.info(
+                "aw_fenestration_core: Chawla vendor merge skipped "
+                "(legacy vendor %r, %s survivor candidate(s))",
+                old.name, len(survivors))
+            return False
+        new = survivors
+
+        Rate = self.with_context(active_test=False)
+        rates = Rate.search([('vendor_id', 'in', [old.id, new.id])])
+        new_prices = defaultdict(set)
+        old_rates = defaultdict(list)
+        for rate in rates:
+            key = (rate.product_tmpl_id.id, rate.thickness_id.id,
+                   rate.finish_id.id)
+            if rate.vendor_id == new:
+                new_prices[key].add(round(rate.price, 6))
+            else:
+                old_rates[key].append(rate)
+        drop_ids, move_ids, chained = [], [], []
+        for key, olds in old_rates.items():
+            same = (key in new_prices and new_prices[key]
+                    == {round(r.price, 6) for r in olds})
+            if same:
+                drop_ids += [r.id for r in olds]
+                continue
+            if key in new_prices and (
+                    olds[0].product_tmpl_id.default_code
+                    or olds[0].product_tmpl_id.name,
+                    olds[0].thickness_id.name) == CHAWLA_TEST_VALUES:
+                drop_ids += [r.id for r in olds]
+                continue
+            move_ids += [r.id for r in olds]
+            if key in new_prices:
+                chained.append(key)
+        # Label the chained keys before anything moves.
+        labels = []
+        for key in sorted(chained):
+            first = old_rates[key][0]
+            versions = sorted(
+                [(r.date_from, r.vendor_id.id, r.price) for r in rates
+                 if (r.product_tmpl_id.id, r.thickness_id.id,
+                     r.finish_id.id) == key])
+            labels.append("%s %s %s: %s" % (
+                first.product_tmpl_id.default_code
+                or first.product_tmpl_id.name,
+                first.thickness_id.name or '-', first.finish_id.name or '-',
+                ' | '.join('%s %s=%s' % (d, 'old' if v == old.id else 'new', p)
+                           for d, v, p in versions)))
+
+        Rate.browse(drop_ids).unlink()
+        Rate.browse(move_ids).write({'vendor_id': new.id})
+
+        cr = self.env.cr
+        cr.execute(
+            "UPDATE aw_window_template SET default_vendor_id = %s "
+            "WHERE default_vendor_id = %s", (new.id, old.id))
+        series = cr.rowcount
+        orders = 0
+        cr.execute(
+            "SELECT 1 FROM information_schema.columns WHERE "
+            "table_name = 'sale_order' AND column_name = "
+            "'aw_profile_vendor_id'")
+        if cr.fetchone():
+            cr.execute(
+                "UPDATE sale_order SET aw_profile_vendor_id = %s "
+                "WHERE aw_profile_vendor_id = %s", (new.id, old.id))
+            orders = cr.rowcount
+        self.env['aw.window.template'].invalidate_model(['default_vendor_id'])
+        if 'sale.order' in self.env:
+            self.env['sale.order'].invalidate_model(['aw_profile_vendor_id'])
+        param.set_param('aw_fenestration.legacy_rate_vendor_id', new.id)
+        old.write({'active': False})
+
+        report = {'dropped': len(drop_ids), 'moved': len(move_ids),
+                  'chained_keys': len(chained), 'series': series,
+                  'orders': orders, 'from': old.id, 'to': new.id,
+                  'chained': labels}
+        param.set_param(CHAWLA_MERGE_PARAM, json.dumps(report))
+        _logger.info(
+            "aw_fenestration_core: merged vendor %s into %s: %s rate(s) "
+            "dropped, %s moved (%s key(s) chained), %s series default(s), "
+            "%s order(s)", old.id, new.id, len(drop_ids), len(move_ids),
+            len(chained), series, orders)
+        for label in labels:
+            _logger.info("aw_fenestration_core: chained: %s", label)
+        return report
 
     @api.model
     def _backfill_date_to(self):
