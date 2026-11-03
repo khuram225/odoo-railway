@@ -76,3 +76,38 @@ class TestVendorRecost(TransactionCase):
         self.assertIn('1 windows re-costed', bodies)
         # every profile has a Premium rate, so none is named missing
         self.assertFalse(self.design._missing_rate_info()[0])
+
+    def test_no_rate_falls_back_to_the_series_default_and_says_so(self):
+        Rate = self.env['aw.profile.rate']
+        self.design.template_id.default_vendor_id = self.chawla
+        self.order.write({'aw_profile_vendor_id': self.premium.id})
+        Rate.search([('vendor_id', '=', self.premium.id)]).unlink()
+        self.design._explode()
+        texts, line_ids = self.design._missing_rate_info()
+        self.assertTrue(texts)
+        for text in texts:
+            self.assertIn('no Premium (test) rate, Chawla (test) rate used',
+                          text)
+            self.assertNotIn('cost field', text)
+        lines = self.design.bom_line_ids.filtered(
+            lambda l: l.id in line_ids)
+        self.assertTrue(lines)
+        self.assertTrue(all(l.line_cost for l in lines))
+        self.assertTrue(all('Chawla (test) rate used' in l.cost_note
+                            for l in lines))
+
+    def test_no_rate_anywhere_is_zero_and_incomplete(self):
+        self.design.template_id.default_vendor_id = self.chawla
+        self.order.write({'aw_profile_vendor_id': self.premium.id})
+        self.env['aw.profile.rate'].search([
+            ('vendor_id', 'in', [self.premium.id, self.chawla.id])]).unlink()
+        self.design._explode()
+        texts, line_ids = self.design._missing_rate_info()
+        self.assertTrue(texts)
+        for text in texts:
+            self.assertIn('price incomplete', text)
+            self.assertNotIn('cost field', text)
+        lines = self.design.bom_line_ids.filtered(
+            lambda l: l.id in line_ids)
+        self.assertFalse(any(l.line_cost for l in lines))
+        self.assertTrue(all('price incomplete' in l.cost_note for l in lines))

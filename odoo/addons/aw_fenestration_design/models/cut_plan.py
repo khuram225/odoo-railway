@@ -617,8 +617,8 @@ class AwCutPlanGroup(models.Model):
     rate_date = fields.Date(
         string='Rate of',
         help="The effective date of the rate above, so a cost can be "
-             "traced to the list it came from. Empty when the cost field "
-             "stood in for a missing rate.")
+             "traced to the list it came from. Empty when no rate "
+             "was found.")
 
     piece_fingerprint = fields.Char(
         readonly=True,

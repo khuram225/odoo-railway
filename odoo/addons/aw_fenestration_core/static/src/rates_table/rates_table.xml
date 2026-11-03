@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="aw_fenestration_core.RatesTable">
+        <div class="o_aw_rates_table mb-3">
+            <div class="fw-bold mb-1">Current rates (PKR / ft)</div>
+            <div t-if="!vendors.length" class="text-muted">
+                No current rate covers this profile. Apply a rate list, or
+                check that its effective dates have not all passed.
+            </div>
+            <t t-else="">
+                <div class="btn-group btn-group-sm mb-2" role="group">
+                    <button t-foreach="modes" t-as="item" t-key="item.key"
+                            type="button" class="btn"
+                            t-att-class="item.key === activeMode ? 'btn-primary' : 'btn-outline-secondary'"
+                            t-on-click="() => this.setMode(item.key)"
+                            t-esc="item.label"/>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered mb-1">
+                        <thead>
+                            <tr>
+                                <th>Thickness</th>
+                                <th t-if="activeMode === 'all'">Vendor</th>
+                                <th t-foreach="finishes" t-as="finish" t-key="finish.id"
+                                    class="text-end">
+                                    <span t-if="finish.color" class="d-inline-block rounded-circle me-1 border"
+                                          t-attf-style="width:10px;height:10px;background:#{finish.color}"/>
+                                    <t t-esc="finish.name"/>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="rows" t-as="row" t-key="row.key">
+                                <td t-esc="row.thickness"/>
+                                <td t-if="activeMode === 'all'">
+                                    <div t-esc="row.vendor"/>
+                                    <div class="small text-muted" t-esc="row.date"/>
+                                </td>
+                                <td t-foreach="row.cells" t-as="cell" t-key="cell.key"
+                                    class="text-end"
+                                    t-att-class="cell.price !== null ? 'o_aw_rates_cell' : ''"
+                                    t-att-style="cell.price !== null ? 'cursor:pointer' : ''"
+                                    t-on-click="() => this.openCell(cell)">
+                                    <t t-if="cell.price !== null">
+                                        <span t-att-class="cell.best ? 'fw-bold' : ''"
+                                              t-esc="fmt(cell.price)"/>
+                                        <div t-if="activeMode === 'compare'"
+                                             class="small text-muted" t-esc="cell.vendor"/>
+                                    </t>
+                                    <span t-elif="cell.dot" class="text-muted"
+                                          title="Variant exists, no rate">&#183;</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </t>
+        </div>
+    </t>
+
+</templates>
