@@ -99,3 +99,13 @@ class TestRatesTable(TransactionCase):
         self.assertEqual(set(found.mapped('vendor_id')), self.b)
         self.assertEqual(set(found.mapped('finish_id')), first)
         self.assertTrue(action['views'])
+
+    def test_profile_variants_list_has_no_price_or_cost(self):
+        action = self.both.action_aw_open_variants()
+        view_id = action['views'][0][0]
+        arch = self.env['product.product'].get_view(view_id, 'list')['arch']
+        self.assertNotIn('name="lst_price"', arch)
+        self.assertNotIn('name="standard_price"', arch)
+        self.assertIn('name="aw_rate_per_ft"', arch)
+        self.assertEqual(action['domain'],
+                         [('product_tmpl_id', '=', self.both.id)])

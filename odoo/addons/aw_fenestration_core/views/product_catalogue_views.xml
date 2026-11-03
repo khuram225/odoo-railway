@@ -17,6 +17,19 @@
                 <field name="aw_rates_table" widget="aw_rates_table" nolabel="1"
                        invisible="not aw_is_profile"/>
             </xpath>
+            <!-- Profiles open their variants in a list without the sales
+                 price and cost columns. -->
+            <xpath expr="//button[@icon='fa-sitemap']" position="attributes">
+                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+            </xpath>
+            <xpath expr="//button[@icon='fa-sitemap']" position="before">
+                <button name="action_aw_open_variants" type="object"
+                        icon="fa-sitemap" class="oe_stat_button"
+                        invisible="product_variant_count &lt;= 1 or not aw_is_profile"
+                        groups="product.group_product_variant">
+                    <field string="Variants" name="product_variant_count" widget="statinfo"/>
+                </button>
+            </xpath>
             <xpath expr="//span[@name='sale_option']" position="attributes">
                 <attribute name="invisible">aw_is_profile</attribute>
             </xpath>
@@ -104,6 +117,20 @@
             <field name="standard_price" position="attributes">
                 <attribute name="invisible">aw_is_profile</attribute>
             </field>
+        </field>
+    </record>
+
+    <!-- The variants of a profile: the same list, no sales price or cost.
+         Primary, so it is the base list plus its extensions with those
+         two columns taken out. -->
+    <record id="view_product_product_list_profile" model="ir.ui.view">
+        <field name="name">product.product.list.profile.aw_fenestration_core</field>
+        <field name="model">product.product</field>
+        <field name="mode">primary</field>
+        <field name="inherit_id" ref="product.product_product_tree_view"/>
+        <field name="arch" type="xml">
+            <field name="lst_price" position="replace"/>
+            <field name="standard_price" position="replace"/>
         </field>
     </record>
 

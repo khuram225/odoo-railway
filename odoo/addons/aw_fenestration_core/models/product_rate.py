@@ -202,6 +202,12 @@ class ProductProduct(models.Model):
                 updated |= variant
         return updated, blocked
 
+    def action_aw_open_variants(self):
+        """The template form's Variants button also lands on the variant
+        form, so the method has to exist here too."""
+        self.ensure_one()
+        return self.product_tmpl_id.action_aw_open_variants()
+
     def action_aw_update_costs_from_rates(self):
         """Cost from the current rate, for these variants."""
         variants = self
@@ -341,6 +347,24 @@ class ProductTemplate(models.Model):
                           'color': f.html_color or ''} for f in finishes],
             'cells': cells,
             'variants': sorted(variants),
+        }
+
+    def action_aw_open_variants(self):
+        """The variants list for a profile: no sales price or cost."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Product Variants"),
+            'res_model': 'product.product',
+            'views': [
+                (self.env.ref(
+                    'aw_fenestration_core.view_product_product_list_profile'
+                ).id, 'list'),
+                (self.env.ref('product.product_variant_easy_edit_view').id,
+                 'form')],
+            'domain': [('product_tmpl_id', '=', self.id)],
+            'context': {'create': False,
+                        'default_product_tmpl_id': self.id},
         }
 
     def aw_rates_action(self, thickness_id, finish_id, vendor_id):
