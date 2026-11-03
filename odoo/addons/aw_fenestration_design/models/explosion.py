@@ -1055,7 +1055,11 @@ class AwDesign(models.Model):
         # Pricing (spec 8). An incomplete price must never be mistaken
         # for a real one, so the lines that carry no cost are named
         # rather than quietly averaged into a number that looks fine.
-        uncosted = self.bom_line_ids.filtered('cost_note')
+        missing_texts, missing_lines = self._missing_rate_info()
+        for text in missing_texts:
+            problems.append(('warning', text))
+        uncosted = self.bom_line_ids.filtered('cost_note').filtered(
+            lambda l: l.id not in missing_lines)
         if uncosted:
             reasons = {}
             for line in uncosted:

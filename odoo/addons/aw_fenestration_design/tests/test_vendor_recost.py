@@ -1,0 +1,78 @@
+# -*- coding: utf-8 -*-
+"""Changing an order's Profile vendor re-costs its windows.
+
+Before this, the vendor was read only when a window was exploded, so
+switching it on a quotation changed nothing until each window was saved
+again: the Pricing tab compared vendors live while the stored cost, and
+the price on the order line, stayed at the old vendor's.
+"""
+import unittest
+from datetime import date
+
+from odoo.tests import TransactionCase, tagged
+
+
+@tagged('post_install', '-at_install')
+class TestVendorRecost(TransactionCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        family = env['aw.window.family'].search([]).filtered(
+            lambda f: f.series_ids.filtered('active').filtered(
+                lambda s: s.leaf_type_ids))[:1]
+        if not family:
+            raise unittest.SkipTest(
+                "No glazing family with a configured profile system")
+        series = family.series_ids.filtered('active').filtered(
+            lambda s: s.leaf_type_ids)[0]
+        cls.chawla = env['res.partner'].create({'name': 'Chawla (test)'})
+        cls.premium = env['res.partner'].create({'name': 'Premium (test)'})
+        cls.order = env['sale.order'].create({
+            'partner_id': env['res.partner'].create(
+                {'name': 'Recost customer'}).id,
+            'aw_default_series_id': series.id,
+            'aw_profile_vendor_id': cls.chawla.id,
+        })
+        cls.design = cls.order._create_fenestration_position(
+            series, family=family)
+        cls.design.write({'width_mm': 2400.0, 'height_mm': 1800.0})
+        leaf = {'width_mm': 1200.0, 'leaf_type_id': series.leaf_type_ids[0].id}
+        cls.design.save_layout({
+            'header': cls.design.get_configurator_data()['header'],
+            'rows': [{'height_mm': 1800.0,
+                      'leaves': [dict(leaf), dict(leaf)]}]})
+        keys = cls.design._profile_rate_keys()
+        if not keys:
+            raise unittest.SkipTest("The test window has no profile lines")
+        # A rate at both vendors for every profile the window uses, the
+        # Premium one twice the Chawla one, so the switch must show.
+        seen = set()
+        for _line, template, thickness, finish in keys:
+            key = (template.id, thickness.id if thickness else 0,
+                   finish.id if finish else 0)
+            if key in seen:
+                continue
+            seen.add(key)
+            for vendor, price in ((cls.chawla, 100.0), (cls.premium, 200.0)):
+                env['aw.profile.rate'].create({
+                    'product_tmpl_id': template.id,
+                    'thickness_id': thickness.id if thickness else False,
+                    'finish_id': finish.id if finish else False,
+                    'vendor_id': vendor.id, 'price': price,
+                    'date_from': date(2000, 1, 1)})
+        cls.design._explode()
+        cls.design._sync_sale_order_line()
+
+    def test_switching_vendor_reprices_the_line_and_says_so(self):
+        line = self.design.sale_order_line_id
+        before = line.price_unit
+        self.assertTrue(before)
+        self.order.write({'aw_profile_vendor_id': self.premium.id})
+        self.assertGreater(line.price_unit, before)
+        bodies = ' '.join(self.order.message_ids.mapped('body'))
+        self.assertIn('Profile vendor changed to Premium (test)', bodies)
+        self.assertIn('1 windows re-costed', bodies)
+        # every profile has a Premium rate, so none is named missing
+        self.assertFalse(self.design._missing_rate_info()[0])

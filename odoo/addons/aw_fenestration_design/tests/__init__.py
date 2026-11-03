@@ -6,3 +6,4 @@ from . import test_cut_rules
 from . import test_catalog
 from . import test_vendor_rates
 from . import test_variant_data
+from . import test_vendor_recost

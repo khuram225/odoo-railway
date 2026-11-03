@@ -3,6 +3,7 @@ import logging
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools.misc import formatLang
 
 _logger = logging.getLogger(__name__)
 
@@ -65,6 +66,63 @@ class SaleOrder(models.Model):
              "blank to be asked each time. A window's own Series can "
              "always be changed afterwards on the design itself.")
 
+
+    def write(self, vals):
+        if 'aw_profile_vendor_id' not in vals:
+            return super().write(vals)
+        new_id = vals['aw_profile_vendor_id'] or False
+        # Only a real change of an existing vendor: filling an empty one
+        # is the compute's job, not a decision somebody made.
+        changed = self.filtered(
+            lambda o: o.aw_profile_vendor_id
+            and o.aw_profile_vendor_id.id != new_id)
+        if changed.filtered(lambda o: o.state not in ('draft', 'sent')):
+            raise UserError(_(
+                "Confirmed orders keep the rates of their date."))
+        before = {o.id: sum(o.aw_design_ids.mapped('price_total'))
+                  for o in changed}
+        result = super().write(vals)
+        for order in changed:
+            order._recost_after_vendor_change(before[order.id])
+        return result
+
+    def _recost_after_vendor_change(self, total_before):
+        """Cost every window again at the new vendor's rates, put the
+        prices on the order lines, and say so in the chatter."""
+        self.ensure_one()
+        recosted, failed = 0, []
+        for design in self.aw_design_ids:
+            try:
+                with self.env.cr.savepoint():
+                    design._explode()
+                recosted += 1
+            except Exception:
+                _logger.exception(
+                    "aw_fenestration_design: re-costing %s failed",
+                    design.display_name)
+                failed.append(design.name or design.display_name)
+        self.aw_design_ids._sync_sale_order_line()
+        designs = self.aw_design_ids
+        total_after = sum(designs.mapped('price_total'))
+        manual = designs.filtered('manual_rate').mapped('name')
+        body = _(
+            "Profile vendor changed to %(vendor)s: %(count)s windows "
+            "re-costed, total from %(before)s to %(after)s.",
+            vendor=self.aw_profile_vendor_id.display_name or '',
+            count=recosted,
+            before=formatLang(self.env, total_before,
+                              currency_obj=self.currency_id),
+            after=formatLang(self.env, total_after,
+                             currency_obj=self.currency_id))
+        if manual:
+            body += ' ' + _(
+                "%(count)s window(s) have a manual rate, so their price "
+                "is unchanged: %(refs)s.",
+                count=len(manual), refs=', '.join(manual))
+        if failed:
+            body += ' ' + _(
+                "Could not be re-costed: %s.", ', '.join(failed))
+        self.message_post(body=body)
 
     def _register_hook(self):
         """Fill the profile vendor on orders that predate it, once the

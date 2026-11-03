@@ -133,6 +133,43 @@ class AwDesign(models.Model):
                 self._line_finish(source) if source else self.finish_id))
         return keys
 
+    def _missing_rate_info(self):
+        """([text], {bom line ids}): the profiles the costing vendor has
+        no rate for, one text per profile and thickness, naming the
+        vendor whose cost field stands in. The same lookup the costing
+        does, so this cannot disagree with the number."""
+        self.ensure_one()
+        on_date = self._costing_date()
+        rates = self.env['aw.profile.rate']
+        vendor = self._costing_vendor()
+        texts, line_ids, seen = [], set(), set()
+        for line, template, thickness, finish in self._profile_rate_keys():
+            rate, _level = rates._rate_lookup(
+                template, thickness, finish, on_date, vendor)
+            if rate:
+                continue
+            line_ids.add(line.id)
+            key = (template.id, thickness.id if thickness else 0)
+            if key in seen:
+                continue
+            seen.add(key)
+            label = ' '.join(filter(None, [
+                template.default_code or template.name,
+                thickness.name if thickness else '']))
+            if line.product_id.standard_price:
+                texts.append(_(
+                    "%(profile)s: no %(vendor)s rate, %(standin)s cost "
+                    "field used",
+                    profile=label, vendor=vendor.display_name or _('profile'),
+                    standin=(template._aw_default_vendor().display_name
+                             or _('the variant'))))
+            else:
+                texts.append(_(
+                    "%(profile)s: no %(vendor)s rate and no cost field "
+                    "either",
+                    profile=label, vendor=vendor.display_name or _('profile')))
+        return texts, line_ids
+
     def _profile_cost_by_vendor(self):
         """This window's profile cost at each vendor's rates in force,
         for comparison. Only vendors that have any rate; "n of m variants
@@ -397,6 +434,7 @@ class AwDesign(models.Model):
                 'manual_price': manual,
                 'manual_margin_pct': margin_of(manual),
                 'uncosted': self.uncosted_line_count,
+                'missing_rates': self._missing_rate_info()[0],
                 'components': [
                     {'name': line.name,
                      'value': line.value,

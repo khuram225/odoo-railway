@@ -1292,6 +1292,11 @@
                                 <t t-esc="pricing.uncosted"/> line(s) have no
                                 cost — this price is incomplete.
                             </div>
+                            <ul t-if="(pricing.missing_rates || []).length"
+                                class="small text-warning ps-3 mb-2">
+                                <li t-foreach="pricing.missing_rates" t-as="miss"
+                                    t-key="miss_index" t-esc="miss"/>
+                            </ul>
                             <div t-if="pricing.manual_in_use"
                                  class="badge bg-warning text-dark mb-2">
                                 Manual rate in use
