@@ -55,6 +55,9 @@
         <function model="aw.price.structure" name="_seed_default_structure"/>
         <function model="aw.profile.rate" name="_backfill_date_to"/>
         <function model="aw.profile.rate" name="_backfill_rate_list_ids"/>
+        <!-- One time: Chawla into CHAWLA ALUMINIUM. After the backfills, so
+             the chains it rebuilds are already complete. -->
+        <function model="aw.profile.rate" name="_merge_chawla_vendor"/>
         <function model="product.attribute" name="_seed_finish_colours"/>
         <!-- The position catalog, LAST: rename and add positions, then
              give every spec a row for every position (unused where it
