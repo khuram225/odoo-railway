@@ -47,6 +47,7 @@ export class RateGrid extends Component {
             () => [
                 this.props.record.data.line_count,
                 this.props.record.data.unmatched_count,
+                this.props.record.data.conflict_count,
                 this.props.record.data.state,
             ]
         );
@@ -120,6 +121,7 @@ export class RateGrid extends Component {
         return {
             applied: _t("Applied"),
             partial: _t("Partly applied"),
+            conflict: _t("Conflict"),
             unmatched: _t("Unmatched"),
             not_applied: _t("Not applied"),
         }[line.status_code] || "";
@@ -129,6 +131,7 @@ export class RateGrid extends Component {
         return {
             applied: "text-bg-success",
             partial: "text-bg-warning",
+            conflict: "text-bg-danger",
             unmatched: "text-bg-danger",
             not_applied: "text-bg-secondary",
         }[line.status_code] || "text-bg-light";

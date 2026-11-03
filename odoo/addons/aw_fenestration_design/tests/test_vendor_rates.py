@@ -233,6 +233,59 @@ class TestVendorRateLists(TransactionCase):
         self.assertIn(200.0, self._rates_of(first).mapped('price'))
         self.assertEqual(first.state, 'applied')
 
+    def _duplicate_finish_columns(self):
+        """The third column now maps to the first column's finish."""
+        third = self.layout.column_ids.filtered(
+            lambda c: c.kind == 'finish')[2]
+        third.finish_id = self.finishes[0]
+
+    def test_two_columns_for_one_finish(self):
+        self._duplicate_finish_columns()
+        rate_list = self._list(
+            date(2026, 4, 3),
+            'B-6\tNOR\t\t100\t5\t100\n'     # equal: one rate
+            'B-6\tNOR\t\t0\t6\t120')        # only one has a number
+        rate_list.action_apply()
+        # each row writes the shared finish once, never twice
+        by_row = rate_list.line_ids.sorted('sequence')
+        self.assertEqual(by_row[0].cells_conflict, 0)
+        self.assertEqual(by_row[1].cells_conflict, 0)
+        self.assertEqual(by_row[0].cells_applied, 2)
+        self.assertEqual(by_row[1].cells_applied, 2)
+        self.assertEqual(rate_list.conflict_count, 0)
+
+    def test_differing_numbers_write_no_rate_and_say_so(self):
+        self._duplicate_finish_columns()
+        rate_list = self._list(
+            date(2026, 4, 3), 'B-6\tNOR\t\t959\t7\t1120')
+        rate_list.action_apply()
+        line = rate_list.line_ids
+        self.assertEqual(line.status_code, 'conflict')
+        self.assertEqual(line.cells_conflict, 1)
+        self.assertIn('959', line.detail)
+        self.assertIn('1120', line.detail)
+        self.assertIn('both map to', line.detail)
+        self.assertEqual(line.cells_applied, 1)       # the other finish only
+        self.assertNotIn(959.0, self._rates_of(rate_list).mapped('price'))
+        self.assertNotIn(1120.0, self._rates_of(rate_list).mapped('price'))
+        self.assertEqual(rate_list.conflict_count, 1)
+
+    def test_set_to_draft_removes_rates_and_keeps_lines(self):
+        rate_list = self._list(
+            date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137')
+        rate_list.action_apply()
+        other = self._list(date(2026, 5, 1), 'B-6\tNOR\t\t1\t2\t3')
+        other.action_apply()
+        lines = rate_list.line_ids
+        rate_list.action_set_to_draft()
+        self.assertEqual(rate_list.state, 'draft')
+        self.assertEqual(rate_list.line_ids, lines)
+        self.assertFalse(self._rates_of(rate_list))
+        self.assertEqual(len(self._rates_of(other)), 3)
+        self.assertEqual(lines.cells_applied, 0)
+        with self.assertRaises(UserError):
+            rate_list.action_set_to_draft()
+
     def test_reapply_needs_an_applied_list(self):
         draft = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
         with self.assertRaises(UserError):

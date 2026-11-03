@@ -72,6 +72,9 @@
                     <button name="action_reapply" type="object"
                             string="Re-apply" invisible="state != 'applied'"
                             confirm="Delete the rates this list wrote and write them again?"/>
+                    <button name="action_set_to_draft" type="object"
+                            string="Set to draft" invisible="state != 'applied'"
+                            confirm="Rates of this list are removed until you Apply again."/>
                     <button name="action_create_missing" type="object"
                             string="Create missing"
                             invisible="not line_count"/>
@@ -88,6 +91,8 @@
                             <field name="layout_id" readonly="1"/>
                             <field name="line_count"/>
                             <field name="unmatched_count"/>
+                            <field name="conflict_count"
+                                   invisible="not conflict_count"/>
                         </group>
                     </group>
                     <group invisible="state != 'draft'">
@@ -125,6 +130,7 @@
                 <field name="note"/>
                 <field name="line_count"/>
                 <field name="unmatched_count"/>
+                <field name="conflict_count" optional="show"/>
                 <field name="state"/>
             </list>
         </field>
