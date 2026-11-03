@@ -61,6 +61,26 @@ class TestChawlaMerge(TransactionCase):
                 'thickness_id': cls.standard.id, 'finish_id': finish.id,
                 'vendor_id': vendor.id, 'price': price,
                 'date_from': start})
+        # B-6 Normal: a different price at the old partner is test data
+        cls.normal = thick_attr.value_ids.filtered(
+            lambda v: v.name == 'Normal')[:1]
+        cls.b6 = env['product.template'].create({
+            'name': 'B-6 (merge test)', 'default_code': 'B-6',
+            'categ_id': cls.product.categ_id.id,
+            'attribute_line_ids': [
+                (0, 0, {'attribute_id': thick_attr.id,
+                        'value_ids': [(6, 0, (cls.normal or cls.standard).ids)]}),
+                (0, 0, {'attribute_id': finish_attr.id,
+                        'value_ids': [(6, 0, same.ids)]})]})
+        cls.b6_thickness = cls.normal or cls.standard
+        for name, vendor, price, start in (
+                ('b6_new', cls.new, 112.0, date(2026, 1, 1)),
+                ('b6_old_sep', cls.old, 112.0, date(2026, 9, 24)),
+                ('b6_old_oct', cls.old, 122.0, date(2026, 10, 1))):
+            cls.rates[name] = env['aw.profile.rate'].create({
+                'product_tmpl_id': cls.b6.id,
+                'thickness_id': cls.b6_thickness.id, 'finish_id': same.id,
+                'vendor_id': vendor.id, 'price': price, 'date_from': start})
         cls.template = env['aw.window.template'].search([], limit=1)
         if cls.template:
             cls.template.default_vendor_id = cls.old
@@ -78,7 +98,7 @@ class TestChawlaMerge(TransactionCase):
     def test_merge(self):
         Rate = self.env['aw.profile.rate'].with_context(active_test=False)
         report = Rate._merge_chawla_vendor()
-        self.assertEqual(report['dropped'], 1)
+        self.assertEqual(report['dropped'], 3)
         self.assertEqual(report['moved'], 2)
         self.assertEqual(report['chained_keys'], 1)
 
@@ -94,6 +114,11 @@ class TestChawlaMerge(TransactionCase):
         self.assertEqual(self.rates['old_only'].vendor_id, self.new)
         self.assertEqual(self.rates['old_only'].price, 90.0)
         self.assertEqual(self.rates['old_only'].date_from, date(2026, 9, 24))
+        # B-6 Normal test values: both old rows gone, only 2026-01-01 stays
+        self.assertFalse(self.rates['b6_old_sep'].exists())
+        self.assertFalse(self.rates['b6_old_oct'].exists())
+        self.assertEqual(self.rates['b6_new'].price, 112.0)
+        self.assertFalse(self.rates['b6_new'].date_to)
         # another vendor's rate is untouched
         self.assertEqual(self.rates['other'].vendor_id, self.other)
         self.assertEqual(self.rates['other'].price, 55.0)
@@ -114,9 +139,9 @@ class TestChawlaMerge(TransactionCase):
         self.assertTrue(self.old.exists())
         stored = json.loads(self.env['ir.config_parameter'].sudo().get_param(
             'aw_fenestration.chawla_vendor_merged'))
-        self.assertEqual(stored['dropped'], 1)
+        self.assertEqual(stored['dropped'], 3)
 
         # a second run changes nothing
         self.assertFalse(Rate._merge_chawla_vendor())
         self.assertEqual(
-            Rate.search_count([('vendor_id', '=', self.new.id)]), 3)
+            Rate.search_count([('vendor_id', '=', self.new.id)]), 5)

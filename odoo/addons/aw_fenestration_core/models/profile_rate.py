@@ -28,6 +28,11 @@ BACKFILL_PARAM = 'aw_fenestration.rate_date_to_backfilled'
 # Holds the report of the one-time Chawla vendor merge; set means done.
 CHAWLA_MERGE_PARAM = 'aw_fenestration.chawla_vendor_merged'
 
+# B-6 Normal carries a 2026-10-01 +10 price at the old partner that was a
+# test list, not a real price: where it differs from the survivor's rate
+# it is dropped, not chained, so the survivor's 2026-01-01 rate stays.
+CHAWLA_TEST_VALUES = ('B-6', 'Normal')
+
 
 def resolve_chain(entries):
     """Work out each version's end date from a chain of versions.
@@ -344,6 +349,12 @@ class AwProfileRate(models.Model):
             same = (key in new_prices and new_prices[key]
                     == {round(r.price, 6) for r in olds})
             if same:
+                drop_ids += [r.id for r in olds]
+                continue
+            if key in new_prices and (
+                    olds[0].product_tmpl_id.default_code
+                    or olds[0].product_tmpl_id.name,
+                    olds[0].thickness_id.name) == CHAWLA_TEST_VALUES:
                 drop_ids += [r.id for r in olds]
                 continue
             move_ids += [r.id for r in olds]
