@@ -40,3 +40,5 @@ access_aw_vendor_rate_list_user,aw.vendor.rate_list.user,model_aw_vendor_rate_li
 access_aw_vendor_rate_list_manager,aw.vendor.rate_list.manager,model_aw_vendor_rate_list,group_fenestration_manager,1,1,1,1
 access_aw_vendor_rate_list_line_user,aw.vendor.rate_list_line.user,model_aw_vendor_rate_list_line,base.group_user,1,0,0,0
 access_aw_vendor_rate_list_line_manager,aw.vendor.rate_list_line.manager,model_aw_vendor_rate_list_line,group_fenestration_manager,1,1,1,1
+access_aw_vendor_rate_list_create_wizard_manager,aw.vendor.rate.list.create.wizard.manager,model_aw_vendor_rate_list_create_wizard,group_fenestration_manager,1,1,1,1
+access_aw_window_template_copy_wizard_manager,aw.window.template.copy.wizard.manager,model_aw_window_template_copy_wizard,group_fenestration_manager,1,1,1,1

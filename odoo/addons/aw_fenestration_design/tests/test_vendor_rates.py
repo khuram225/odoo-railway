@@ -322,6 +322,21 @@ class TestVendorRateLists(TransactionCase):
         rate_list.action_apply()
         self.assertIn(150.0, self._rates_of(rate_list).mapped('price'))
 
+    def test_a_normal_user_can_open_create_missing(self):
+        user = self.env['res.users'].create({
+            'name': 'Rate clerk', 'login': 'rate_clerk_test',
+            'group_ids': [(6, 0, [
+                self.env.ref('base.group_user').id,
+                self.env.ref(
+                    'aw_fenestration_core.group_fenestration_manager').id])]})
+        rate_list = self._list(
+            date(2026, 4, 3),
+            'B-6\tNOR\t\t136\t147\t137\nQQ-1\tNOR\t\t4\t5\t6')
+        action = rate_list.with_user(user).action_create_missing()
+        wizard = self.env[action['res_model']].with_user(user).browse(
+            action['res_id'])
+        self.assertIn('QQ-1', wizard.preview)
+
     def test_reapply_needs_an_applied_list(self):
         draft = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
         with self.assertRaises(UserError):
