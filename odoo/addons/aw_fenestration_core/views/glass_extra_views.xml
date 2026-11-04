@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The plain lists a glass build-up picks from, and the small prices
+         around a sheet. Both are typed by hand, once per item. -->
+    <record id="view_aw_glass_option_list" model="ir.ui.view">
+        <field name="name">aw.glass.option.list</field>
+        <field name="model">aw.glass.option</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="kind"/>
+                <field name="name"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_aw_glass_option" model="ir.actions.act_window">
+        <field name="name">Glass Options</field>
+        <field name="res_model">aw.glass.option</field>
+        <field name="view_mode">list</field>
+        <field name="views" eval="[(False, 'list')]"/>
+    </record>
+
+    <record id="view_aw_glass_extra_list" model="ir.ui.view">
+        <field name="name">aw.glass.extra.list</field>
+        <field name="model">aw.glass.extra</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="kind"/>
+                <field name="name"/>
+                <field name="unit"/>
+                <field name="rate"/>
+                <field name="date_from"/>
+                <field name="vendor_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_aw_glass_extra" model="ir.actions.act_window">
+        <field name="name">Glass Extras</field>
+        <field name="res_model">aw.glass.extra</field>
+        <field name="view_mode">list</field>
+        <field name="views" eval="[(False, 'list')]"/>
+    </record>
+
+</odoo>

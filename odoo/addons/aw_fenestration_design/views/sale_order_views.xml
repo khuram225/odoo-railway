@@ -32,6 +32,8 @@
                              first window's series; change it here. -->
                         <field name="aw_profile_vendor_id"
                                readonly="state not in ('draft', 'sent')"/>
+                        <field name="aw_glass_vendor_id"
+                               readonly="state not in ('draft', 'sent')"/>
                         <div class="text-muted small" colspan="2"
                              invisible="state in ('draft', 'sent')">
                             Confirmed orders keep the rates of their date.

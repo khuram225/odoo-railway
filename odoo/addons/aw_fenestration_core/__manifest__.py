@@ -63,6 +63,7 @@ aw_fenestration_stock) that depend on this one.
         'views/product_catalogue_views.xml',
         'views/finish_views.xml',
         'views/glass_rate_views.xml',
+        'views/glass_extra_views.xml',
         'views/menu_views.xml',
     ],
     'assets': {

@@ -1636,13 +1636,6 @@ export class DesignConfigurator extends Component {
             this.state.data.header.template_name = fallback
                 ? fallback.name : "";
         }
-        // Default glass FILLS only, matching _compute_glass_spec on the
-        // server: switching Series must not replace glass someone chose.
-        if (!this.state.data.header.glass_spec_id
-                && context.default_glass_spec_id) {
-            this.state.data.header.glass_spec_id =
-                context.default_glass_spec_id;
-        }
 
         if (reset) {
             const first = context.leaf_types[0];
@@ -1750,56 +1743,287 @@ export class DesignConfigurator extends Component {
         }
     }
 
-    /**
-     * The header Glass: apply one glass to the panels that have no
-     * hand-chosen glass. A panel counts as chosen when it was picked by
-     * hand (glass_chosen) or already carries an override that is not a
-     * suggestion -- which includes every window made before suggestions
-     * existed, so those keep what they have. The window's own glass is
-     * set too, so a panel left on "Design glass" follows it.
-     */
-    onApplyGlassToAll(ev) {
-        const id = parseInt(ev.target.value, 10);
-        ev.target.value = "";
-        if (!id) {
+    // -- glass stacks --------------------------------------------------------
+    get glassCatalog() {
+        return this.state.data?.glass_catalog || {};
+    }
+
+    get glassColours() {
+        return [...new Set((this.glassCatalog.types || []).map((t) => t.colour))];
+    }
+
+    get glassKinds() {
+        return [...new Set((this.glassCatalog.types || []).map((t) => t.kind))];
+    }
+
+    get headerStack() {
+        return this.state.data?.header?.glass_stack || [];
+    }
+
+    get panelOwnStack() {
+        return this.selectedPanel?.glass_parts || [];
+    }
+
+    get panelFollowsWindow() {
+        return !this.panelOwnStack.length;
+    }
+
+    cloneStack(stack) {
+        return (stack || []).map((part) => ({ ...part }));
+    }
+
+    stackSummary(stack) {
+        return (stack || []).map((part) => part.label || "?").join(" + ");
+    }
+
+    partKindLabel(kind) {
+        return { sheet: _t("Sheet"), gap: _t("Gap"), protector: _t("Protector") }[kind] || kind;
+    }
+
+    /** The array being edited. A panel edited alone first takes its own
+     * copy of the window's stack. */
+    stackOf(scope) {
+        if (scope === "header") {
+            const header = this.state.data.header;
+            if (!header.glass_stack) {
+                header.glass_stack = [];
+            }
+            return header.glass_stack;
+        }
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return [];
+        }
+        if (!(leaf.glass_parts || []).length) {
+            leaf.glass_parts = this.cloneStack(this.headerStack);
+        }
+        return leaf.glass_parts;
+    }
+
+    touchStack(scope) {
+        if (scope === "panel" && this.selectedPanel) {
+            // A choice made here is the user's, not a suggestion.
+            this.selectedPanel.glass_suggested = false;
+            this.selectedPanel.glass_chosen = true;
+        }
+        this.state.dirty = true;
+    }
+
+    typeOf(colour, kind) {
+        return (this.glassCatalog.types || []).find(
+            (t) => t.colour === colour && t.kind === kind) || null;
+    }
+
+    partType(part) {
+        return (this.glassCatalog.types || []).find(
+            (t) => t.id === part.glass_type_id) || null;
+    }
+
+    partColour(part) {
+        return this.partType(part)?.colour || "";
+    }
+
+    partKind(part) {
+        return this.partType(part)?.kind || "";
+    }
+
+    blankPart(kind) {
+        const options = this.glassCatalog;
+        const clear = this.typeOf("Clear", "Plain") || (options.types || [])[0];
+        const first = (list) => (list && list.length ? list[0].id : false);
+        if (kind === "gap") {
+            const widths = options.gap_widths || [];
+            return {
+                kind: "gap", gap_mm: widths.includes(12) ? 12 : widths[0] || 12,
+                spacer_type_id: first(options.spacer_types),
+                spacer_colour_id: first(options.spacer_colours),
+                gas_id: first(options.gases), glass_type_id: false,
+                thickness_mm: 0, extra_id: false, rate_manual: false,
+                manual_rate: 0, remark: "", migrated: false, default_gap: false,
+                label: _t("gap"),
+            };
+        }
+        const thicknesses = options.thicknesses || [];
+        return {
+            kind: kind, glass_type_id: clear ? clear.id : false,
+            thickness_mm: thicknesses.includes(6) ? 6 : thicknesses[0] || 6,
+            gap_mm: 0, spacer_type_id: false, spacer_colour_id: false,
+            gas_id: false, extra_id: false, rate_manual: false, manual_rate: 0,
+            remark: "", migrated: false, default_gap: false, label: "",
+        };
+    }
+
+    relabel(part) {
+        if (part.kind === "gap") {
+            const gas = (this.glassCatalog.gases || []).find((g) => g.id === part.gas_id);
+            part.label = `${part.gap_mm} mm gap`
+                + (gas && gas.name.toLowerCase() !== "air" ? `, ${gas.name}` : "");
+        } else {
+            part.label = `${part.thickness_mm} mm ${this.partType(part)?.name || "?"}`;
+        }
+    }
+
+    addGlassPart(scope, kind) {
+        const stack = this.stackOf(scope);
+        const part = this.blankPart(kind);
+        this.relabel(part);
+        stack.push(part);
+        this.touchStack(scope);
+    }
+
+    removeGlassPart(scope, index) {
+        this.stackOf(scope).splice(index, 1);
+        this.touchStack(scope);
+    }
+
+    moveGlassPart(scope, index, step) {
+        const stack = this.stackOf(scope);
+        const target = index + step;
+        if (target < 0 || target >= stack.length) {
             return;
         }
-        let filled = 0;
-        let kept = 0;
+        [stack[index], stack[target]] = [stack[target], stack[index]];
+        this.touchStack(scope);
+    }
+
+    setPartField(scope, index, field, value) {
+        const part = this.stackOf(scope)[index];
+        if (!part) {
+            return;
+        }
+        if (field === "thickness_mm" || field === "gap_mm") {
+            part[field] = parseFloat(value) || 0;
+        } else {
+            part[field] = parseInt(value, 10) || false;
+        }
+        this.relabel(part);
+        this.touchStack(scope);
+    }
+
+    setPartColourOrKind(scope, index, which, value) {
+        const part = this.stackOf(scope)[index];
+        if (!part) {
+            return;
+        }
+        const colour = which === "colour" ? value : this.partColour(part);
+        const kind = which === "kind" ? value : this.partKind(part);
+        const found = this.typeOf(colour, kind);
+        if (!found) {
+            this.notification.add(
+                _t("There is no %(kind)s %(colour)s glass type.", { kind, colour }),
+                { type: "warning" });
+            return;
+        }
+        part.glass_type_id = found.id;
+        this.relabel(part);
+        this.touchStack(scope);
+    }
+
+    /** The list rate for a sheet, from the glass vendor's rates in force. */
+    partListRate(part) {
+        const key = `${part.glass_type_id}-${part.thickness_mm}`;
+        const rates = this.glassCatalog.rates || {};
+        return key in rates ? rates[key] : null;
+    }
+
+    partRateUsed(part) {
+        if (part.rate_manual) {
+            return part.manual_rate;
+        }
+        const listed = this.partListRate(part);
+        return listed === null ? "" : listed;
+    }
+
+    setPartRate(scope, index, value) {
+        const part = this.stackOf(scope)[index];
+        if (!part) {
+            return;
+        }
+        // Typing a rate is a manual rate for this panel; Reset undoes it.
+        part.rate_manual = true;
+        part.manual_rate = parseFloat(value) || 0;
+        this.touchStack(scope);
+    }
+
+    resetPartRate(scope, index) {
+        const part = this.stackOf(scope)[index];
+        if (part) {
+            part.rate_manual = false;
+            part.manual_rate = 0;
+            this.touchStack(scope);
+        }
+    }
+
+    editPanelGlass() {
+        // Take a copy of the window's stack so this panel can differ.
+        this.stackOf("panel");
+        this.touchStack("panel");
+    }
+
+    followWindowGlass() {
+        const leaf = this.selectedPanel;
+        if (leaf) {
+            leaf.glass_parts = [];
+            leaf.glass_suggested = false;
+            leaf.glass_chosen = false;
+            this.state.dirty = true;
+        }
+    }
+
+    glassPanels() {
+        const found = [];
         const walk = (rows) => {
             for (const row of rows || []) {
                 for (const leaf of row.leaves || []) {
                     if (leaf.rows && leaf.rows.length) {
                         walk(leaf.rows);
-                        continue;
+                    } else if (leaf.leaf_type_code !== "MESH"
+                            && leaf.infill_uses_glass !== false) {
+                        found.push(leaf);
                     }
-                    if (leaf.leaf_type_code === "MESH"
-                            || leaf.infill_uses_glass === false) {
-                        continue;
-                    }
-                    const chosen = leaf.glass_chosen
-                        || (leaf.glass_spec_id && !leaf.glass_suggested);
-                    if (chosen) {
-                        kept += 1;
-                        continue;
-                    }
-                    leaf.glass_spec_id = id;
-                    leaf.glass_suggested = false;
-                    filled += 1;
                 }
             }
         };
         walk(this.state.data.rows);
-        this.state.data.header.glass_spec_id = id;
+        return found;
+    }
+
+    /** Copy a stack into the other panels that take glass. */
+    copyStackToPanels(stack, except) {
+        let copied = 0;
+        for (const leaf of this.glassPanels()) {
+            if (leaf === except) {
+                continue;
+            }
+            leaf.glass_parts = this.cloneStack(stack);
+            leaf.glass_suggested = false;
+            leaf.glass_chosen = true;
+            copied += 1;
+        }
         this.state.dirty = true;
+        return copied;
+    }
+
+    copyGlassToOtherPanels() {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        const stack = leaf.glass_parts && leaf.glass_parts.length
+            ? leaf.glass_parts : this.headerStack;
+        const copied = this.copyStackToPanels(stack, leaf);
         this.notification.add(
-            _t("Glass applied to %(filled)s panel(s); %(kept)s with a glass of their own were left alone.",
-               { filled, kept }),
+            _t("Glass copied to %(count)s other panel(s).", { count: copied }),
             { type: "success" });
     }
 
-    onGlassSpecChange(ev) {
-        this.onHeaderIdChange("glass_spec_id", ev);
+    /** The window's glass (Spec tab), copied into every panel that takes
+     * glass: each panel then has its own copy and can differ. */
+    onApplyGlassToAll() {
+        const copied = this.copyStackToPanels(this.headerStack, null);
+        this.notification.add(
+            _t("Window glass copied to %(count)s panel(s).", { count: copied }),
+            { type: "success" });
     }
 
     /** The finish dropdown's choice; Finish is required, so no clearing. */
@@ -3078,7 +3302,7 @@ export class DesignConfigurator extends Component {
                                 nested || !leaf.infill
                                     ? true
                                     : !!infillByCode[leaf.infill]?.uses_glass,
-                            glass_spec_id: false,
+                            glass_parts: [],
                             grid_pattern_id: nested ? false : gridByCode[leaf.grid?.pattern]?.id || false,
                             grid_rows: nested ? 0 : leaf.grid?.rows || 0,
                             grid_cols: nested ? 0 : leaf.grid?.cols || 0,
@@ -4494,23 +4718,9 @@ export class DesignConfigurator extends Component {
         // An unglazed infill has no glass to override, so drop any that
         // was set rather than leaving it to be quietly applied later.
         if (!leaf.infill_uses_glass) {
-            leaf.glass_spec_id = false;
+            leaf.glass_parts = [];
             leaf.glass_suggested = false;
         }
-        this.state.dirty = true;
-    }
-
-    setPanelGlass(value) {
-        const leaf = this.selectedPanel;
-        if (!leaf) {
-            return;
-        }
-        leaf.glass_spec_id = parseInt(value, 10) || false;
-        // A choice made here is the user's, not a suggestion --
-        // "Design glass" (empty) included, which is a choice too, so
-        // later saves never suggest for this panel again.
-        leaf.glass_suggested = false;
-        leaf.glass_chosen = true;
         this.state.dirty = true;
     }
 
@@ -4547,10 +4757,6 @@ export class DesignConfigurator extends Component {
         }
         leaf.mesh_hinge_side = side;
         this.state.dirty = true;
-    }
-
-    onPanelGlassChange(ev) {
-        this.setPanelGlass(ev.target.value);
     }
 
     onPanelGridChange(ev) {

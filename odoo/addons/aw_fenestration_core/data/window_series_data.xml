@@ -59,6 +59,7 @@
         <function model="product.attribute" name="_seed_finish_colours"/>
         <!-- Glass types of the first supplier list and the supplier; fill-only. -->
         <function model="aw.glass.type" name="_seed_glass_types"/>
+        <function model="aw.glass.option" name="_seed_glass_options"/>
         <!-- Names for every vendor column, Premium's mapping, Wood, and the two
              unused strays. Once; never fails the upgrade. -->
         <function model="product.attribute.value" name="_migrate_finish_names"/>

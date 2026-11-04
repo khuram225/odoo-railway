@@ -42,6 +42,11 @@ class SaleOrder(models.Model):
         'res.partner', string='Profile vendor',
         compute='_compute_aw_profile_vendor', store=True, readonly=False,
         help="Whose rates the profiles on this quote are costed at.")
+    aw_glass_vendor_id = fields.Many2one(
+        'res.partner', string='Glass vendor',
+        default=lambda self: self.env['aw.glass.type']
+        ._default_glass_vendor().id or False,
+        help="Whose glass rates the sheets on this quote are costed at.")
     aw_default_family_id = fields.Many2one(
         'aw.window.family', string='Default Family',
         ondelete='restrict',

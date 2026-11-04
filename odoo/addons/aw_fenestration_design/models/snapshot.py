@@ -91,12 +91,25 @@ class AwDesign(models.Model):
             'glass': self.glass_spec_id.id or 0,
             'rows': leaves(self.row_ids),
         }
+        # Only a stack somebody has edited changes the fingerprint. The
+        # stacks the migration made from the old specs describe the same
+        # glass, and counting them would turn every stored drawing "out
+        # of date" at once.
+        edited = self.env['aw.glass.part'].search([
+            ('migrated', '=', False), '|', ('design_id', '=', self.id),
+            ('leaf_id.row_id.design_id', '=', self.id)])
+        if edited:
+            payload['glass_stack'] = sorted(
+                (p.leaf_id.panel_no or 0, p.sequence, p.kind,
+                 p.glass_type_id.id, p.thickness_mm, p.gap_mm)
+                for p in edited)
         # sort_keys so an unrelated dict ordering change can never look
         # like a layout change.
         blob = json.dumps(payload, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
-    @api.depends('width_mm', 'height_mm', 'glass_spec_id', 'elevation_hash',
+    @api.depends('width_mm', 'height_mm', 'glass_spec_id', 'glass_part_ids',
+                 'elevation_hash',
                  'elevation_svg',
                  'row_ids.height_mm', 'row_ids.leaf_ids.width_mm',
                  'row_ids.leaf_ids.leaf_type_id',
@@ -107,7 +120,8 @@ class AwDesign(models.Model):
                  'row_ids.leaf_ids.mesh_cassette_side',
                  'row_ids.leaf_ids.infill_type_id',
                  'row_ids.leaf_ids.grid_pattern_id',
-                 'row_ids.leaf_ids.glass_spec_id')
+                 'row_ids.leaf_ids.glass_spec_id',
+                 'row_ids.leaf_ids.glass_part_ids')
     def _compute_elevation_is_current(self):
         for design in self:
             design.elevation_is_current = bool(
@@ -181,8 +195,7 @@ class AwDesign(models.Model):
                         'size': self._render_pair(
                             leaf.width_mm or 0.0, row.height_mm or 0.0,
                             self.length_uom),
-                        'glass': (leaf.glass_spec_id
-                                  or self.glass_spec_id).display_name or '',
+                        'glass': self._glass_stack_text(leaf),
                         'mesh': leaf.mesh_type_id.display_name or '',
                         'infill': leaf.infill_type_id.display_name or '',
                         'grid': leaf.grid_pattern_id.display_name or '',
@@ -215,7 +228,7 @@ class AwDesign(models.Model):
             (_('System'), self.window_series_id.display_name or ''),
             (_('Spec'), spec.full_name or spec.display_name or ''),
             (_('Finish'), self.finish_id.aw_doc_name() if self.finish_id else ''),
-            (_('Glass'), self.glass_spec_id.display_name or ''),
+            (_('Glass'), self._glass_stack_text()),
         ]
 
     def _sheet_qr_src(self):

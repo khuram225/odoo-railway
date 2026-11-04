@@ -195,7 +195,8 @@
                     <tbody>
                         <tr t-foreach="glass_lines" t-as="line" t-key="line.id">
                             <td>
-                                <span t-esc="line.glass_spec_id.display_name or '(none)'"/>
+                                <span t-esc="line.glass_label or '(none)'"/>
+                                <span t-if="line.glass_remark"> (<t t-esc="line.glass_remark"/>)</span>
                             </td>
                             <td class="text-end"><span t-esc="'%.1f' % line.glass_w"/></td>
                             <td class="text-end"><span t-esc="'%.1f' % line.glass_h"/></td>

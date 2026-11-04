@@ -27,6 +27,8 @@ import re
 
 from odoo import api, models
 
+from .glass_recipes import recipe_for_spec
+
 WET_WORDS = 'aw_fenestration.glass_wet_words'
 DEFAULT_WET_WORDS = 'BATH, POWDER, TOILET, WC, WASHROOM'
 THRESHOLD_1 = 'aw_fenestration.glass_threshold_1_m2'
@@ -86,22 +88,31 @@ class AwDesign(models.Model):
             if not (design.suggest_glass
                     and design.family_id.glazing == 'double'):
                 continue
-            default = design.glass_spec_id or design.template_id.glass_spec_id
+            Part = self.env['aw.glass.part']
+            default = Part._signature(design._glass_stack_dicts())
             for leaf in design._all_panels():
                 if leaf.leaf_type_id.code == 'MESH' or (
                         leaf.infill_type_id
                         and not leaf.infill_type_id.uses_glass):
                     continue
                 if leaf.glass_chosen or (
-                        leaf.glass_spec_id and not leaf.glass_suggested):
+                        leaf.glass_part_ids and not leaf.glass_suggested):
                     continue          # chosen by hand: never replaced
                 pick = design._suggested_glass_for(leaf)
-                if pick and pick != default:
-                    values = {'glass_spec_id': pick.id,
+                items = []
+                if pick:
+                    recipe = recipe_for_spec(pick.name, priced=True)
+                    items = [dict(design._recipe_dict(p), migrated=False,
+                                  rate_manual=False)
+                             for p in (recipe or [])]
+                if items and Part._signature(items) != default:
+                    values = {'glass_part_ids': [(5, 0, 0)]
+                              + Part._commands_from(items),
                               'glass_suggested': True}
                 else:
                     # Nothing to suggest (or it equals the window's own
-                    # glass): a previous suggestion is withdrawn.
-                    values = {'glass_spec_id': False,
+                    # glass): a previous suggestion is withdrawn, and the
+                    # panel follows the window's stack again.
+                    values = {'glass_part_ids': [(5, 0, 0)],
                               'glass_suggested': False}
                 leaf.write(values)

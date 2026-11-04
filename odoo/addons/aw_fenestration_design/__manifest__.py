@@ -58,6 +58,7 @@ row/leaf grid shape:
         'views/cut_plan_views.xml',
         'views/cut_label_wizard_views.xml',
         'views/res_config_settings_views.xml',
+        'views/glass_part_views.xml',
         'views/menu_views.xml',
         'report/report_shop_drawing.xml',
         'report/report_elevation_schedule.xml',

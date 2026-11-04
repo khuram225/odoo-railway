@@ -585,17 +585,13 @@ class AwDesign(models.Model):
 
         if uses_glass:
             rules = self._deduction_rules()
-            spec = leaf.glass_spec_id or self.glass_spec_id
             rule_w = rules.glass_sash_w if opening else rules.glass_fixed_w
             rule_h = rules.glass_sash_h if opening else rules.glass_fixed_h
             width = evaluate_formula(rule_w, context)
             height = evaluate_formula(rule_h, context)
-            out.append({
+            base = {
                 'kind': 'glass',
-                'product_id': spec.product_id.id if spec else False,
-                'glass_spec_id': spec.id if spec else False,
                 'panel_no': leaf.panel_no,
-                'label': '%s glass' % label,
                 'glass_w': width,
                 'glass_h': height,
                 'calc_rule': rule_w or '',
@@ -604,14 +600,43 @@ class AwDesign(models.Model):
                 'calc_worked': substitute_formula(rule_w, context),
                 'calc_worked_h': substitute_formula(rule_h, context),
                 'qty': 1,
-                # Not `missing_product`: that reports per line, and glass
-                # is chosen once in the header, so a 6-panel design would
-                # say the same thing six times. Flagged separately and
-                # summarised once per design instead.
-                'missing_glass': not spec,
-                'glass_without_product': bool(spec and not spec.product_id),
-                'glass_spec_name': spec.display_name if spec else '',
-            })
+            }
+            Part = self.env['aw.glass.part']
+            GlassType = self.env['aw.glass.type'].sudo()
+            stack = self._glass_stack_dicts(leaf)
+            if not stack:
+                # Not `missing_product`: that reports per line, and a
+                # window's glass is built once in the header, so a
+                # 6-panel design would say the same thing six times.
+                # Flagged separately and summarised once per design.
+                out.append(dict(
+                    base, product_id=False, label='%s glass' % label,
+                    missing_glass=True))
+            for part in stack:
+                variant = False
+                if part['kind'] != 'gap' and part['glass_type_id'] \
+                        and part['thickness_mm']:
+                    # The Glass Sheet variant of this type and thickness,
+                    # made on demand.
+                    variant = GlassType.browse(
+                        part['glass_type_id'])._variant_for(
+                            part['thickness_mm']).id
+                part_label = Part._label_of(part)
+                out.append(dict(
+                    base,
+                    product_id=variant or False,
+                    label='%s glass: %s' % (label, part_label),
+                    glass_part_kind=part['kind'],
+                    glass_type_id=part['glass_type_id'] or False,
+                    glass_mm=(part['gap_mm'] if part['kind'] == 'gap'
+                              else part['thickness_mm']),
+                    glass_label=part_label,
+                    glass_remark=part['remark'],
+                    glass_spacer=part['spacer_type'],
+                    glass_gas=part['gas'],
+                    glass_extra_id=part['extra_id'] or False,
+                    glass_manual_rate=part['manual_rate'],
+                    rate_is_manual=part['rate_manual']))
 
         if leaf.grid_pattern_id:
             out.extend(self._attachment_lines(
@@ -1042,15 +1067,8 @@ class AwDesign(models.Model):
         # reader what was wrong but not where to fix it.
         if any(v.get('missing_glass') for v in (exploded or [])):
             problems.append(('warning', _(
-                "No glass selected for %s — choose Glass in the header, "
-                "or set a glass override on the panel.",
-                self.display_name)))
-        without_product = {
-            v.get('glass_spec_name') for v in (exploded or [])
-            if v.get('glass_without_product')}
-        for name in sorted(n for n in without_product if n):
-            problems.append(('warning', _(
-                "Glass '%s' has no product, so it can't be costed.", name)))
+                "No glass for %s — build the glass stack in the header, "
+                "or on the panel.", self.display_name)))
 
         # Pricing (spec 8). An incomplete price must never be mistaken
         # for a real one, so the lines that carry no cost are named

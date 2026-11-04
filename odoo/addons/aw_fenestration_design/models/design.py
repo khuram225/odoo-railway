@@ -262,10 +262,11 @@ class AwDesign(models.Model):
         leaves one unassigned raises, and `or` expresses the rule
         exactly -- keep what is there, otherwise take the default.
         """
+        # Glass is a stack now: this no longer takes the spec's pointer, so
+        # a new window starts with none and is given the spec's default
+        # STACK by _apply_spec. Assigning keeps the stored compute valid.
         for design in self:
-            design.glass_spec_id = (
-                design.glass_spec_id
-                or design.template_id.glass_spec_id)
+            design.glass_spec_id = design.glass_spec_id
 
     @api.depends('window_series_id')
     @api.depends('template_id')
@@ -362,10 +363,13 @@ class AwDesign(models.Model):
             # field to say what it already says -- and the FINISH is the
             # design's own since phase 7e, defaulted from the order, so a
             # spec has no say in it.
-            for field, value in (
-                    ('glass_spec_id', spec.glass_spec_id),):
-                if value and (force or not design[field]):
-                    design[field] = value
+            if spec.glass_part_ids and (
+                    force or not design._has_glass_stacks()):
+                # The spec's default stack becomes the window's, copied.
+                design.glass_part_ids = [(5, 0, 0)] + self.env[
+                    'aw.glass.part']._commands_from(
+                        [p._as_dict() for p in spec.glass_part_ids.sorted(
+                            'sequence')])
 
     def _resolve_spec(self):
         """Give a design without a spec its system's default one.
@@ -699,7 +703,7 @@ class AwDesign(models.Model):
     # sale_order_line_id and re-point a design at someone else's quote line.
     CONFIGURATOR_HEADER_FIELDS = (
         'name', 'location', 'qty', 'width_mm', 'height_mm',
-        'window_series_id', 'glass_spec_id', 'finish_id', 'thickness_id',
+        'window_series_id', 'finish_id', 'thickness_id',
         'family_id',
         'manual_rate', 'template_id', 'price_structure_id',
     )
@@ -717,7 +721,6 @@ class AwDesign(models.Model):
     # is a real instruction to clear, which is what "No glass" in the
     # header does, so the two cannot be collapsed.
     CONFIGURATOR_PROTECTED_HEADER = (
-        'glass_spec_id',
         'finish_id', 'thickness_id', 'manual_rate', 'template_id',
         'price_structure_id',
     )
@@ -785,7 +788,11 @@ class AwDesign(models.Model):
                 'infill_uses_glass': (
                     leaf.infill_type_id.uses_glass
                     if leaf.infill_type_id else True),
-                'glass_spec_id': leaf.glass_spec_id.id,
+                # The panel's OWN stack; empty means it follows the
+                # window's.
+                'glass_parts': self._glass_stack_client(
+                    [p._as_dict() for p in leaf.glass_part_ids.sorted(
+                        'sequence')]),
                 'glass_suggested': leaf.glass_suggested,
                 'glass_chosen': leaf.glass_chosen,
                 'grid_pattern_id': leaf.grid_pattern_id.id,
@@ -1182,9 +1189,9 @@ class AwDesign(models.Model):
             # components added to the window (below). The glass and
             # panel rules are the system's own, which is what the
             # window was being cut to (see _deduction_rules).
-            if not self.glass_spec_id:
+            if not self._glass_stack_dicts():
                 raise UserError(_(
-                    "Choose a glass for this window first: a specification "
+                    "Build a glass for this window first: a specification "
                     "needs one."))
             rules = ('glass_fixed_w', 'glass_fixed_h', 'glass_sash_w',
                      'glass_sash_h', 'mesh_w', 'mesh_h', 'max_panel_w',
@@ -1194,6 +1201,8 @@ class AwDesign(models.Model):
                 name=name,
                 window_type_id=system.id,
                 glass_spec_id=self.glass_spec_id.id,
+                glass_part_ids=self.env['aw.glass.part']._commands_from(
+                    self._glass_stack_dicts()),
                 is_default=False,
                 notes=_("Saved from custom window %s.", self.name or '')))
         for line in spec.profile_line_ids.filtered('is_used'):
@@ -1297,6 +1306,7 @@ class AwDesign(models.Model):
                 'id': g.id, 'name': g.display_name,
             } for g in self.env['aw.glass.spec'].search(
                 self.env.context.get('aw_glass_domain') or [])],
+            'glass_catalog': self._glass_catalog(),
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
                 'kind': g.kind,
@@ -1385,7 +1395,9 @@ class AwDesign(models.Model):
                 'height_mm': self.height_mm,
                 'window_series_id': series.id,
                 'window_series_name': series.display_name or '',
-                'glass_spec_id': self.glass_spec_id.id,
+                # The window's default glass stack, which new panels copy.
+                'glass_stack': self._glass_stack_client(
+                    self._glass_stack_dicts()),
                 'finish_id': self.finish_id.id,
                 'thickness_id': self.thickness_id.id,
                 'profile_section_id': self.profile_section_id.id,
@@ -1583,7 +1595,8 @@ class AwDesign(models.Model):
                 'cut_angle': line.cut_angle or '',
                 'qty': line.qty or 0,
                 'panel_no': line.panel_no or 0,
-                'glass_spec': line.glass_spec_id.display_name or '',
+                'glass_spec': line.glass_label or '',
+                'glass_remark': line.glass_remark or '',
                 'glass_w': line.glass_w or 0.0,
                 'glass_h': line.glass_h or 0.0,
                 'area_sqm': line.area_sqm or 0.0,
@@ -1677,10 +1690,11 @@ class AwDesign(models.Model):
                     'mesh_cassette_side': (
                         leaf.get('mesh_cassette_side') or False),
                     'infill_type_id': leaf.get('infill_type_id') or False,
-                    'glass_spec_id': leaf.get('glass_spec_id') or False,
+                    'glass_part_ids': self.env['aw.glass.part']
+                    ._commands_from(leaf.get('glass_parts') or []),
                     'glass_suggested': bool(
                         leaf.get('glass_suggested')
-                        and leaf.get('glass_spec_id')),
+                        and leaf.get('glass_parts')),
                     'glass_chosen': bool(leaf.get('glass_chosen')),
                     'grid_pattern_id': leaf.get('grid_pattern_id') or False,
                     'grid_rows': leaf.get('grid_rows') or 0,
@@ -1719,6 +1733,10 @@ class AwDesign(models.Model):
             header.pop(key, None)
         if header:
             self.write(header)
+        if 'glass_stack' in incoming:
+            # The window's default glass stack, replaced whole.
+            self.glass_part_ids = [(5, 0, 0)] + self.env[
+                'aw.glass.part']._commands_from(incoming['glass_stack'] or [])
         # Only ever refills what was NOT sent, so clearing a value from
         # the UI still works and is not undone here.
         self._apply_header_defaults(unsent)
@@ -1784,9 +1802,7 @@ class AwDesign(models.Model):
         # The section and hardware set are computed from the spec now,
         # so there is nothing to backstop: glass is the one header field
         # left that a Series has an answer for.
-        defaults = {
-            'glass_spec_id': self.template_id.glass_spec_id,
-        }
+        defaults = {}
         values = {}
         for key in fields_to_fill:
             fallback = defaults.get(key)
@@ -1908,6 +1924,9 @@ class AwDesign(models.Model):
             'thickness_id': self.thickness_id.id,
             'manual_rate': self.manual_rate,
         })
+        copy.glass_part_ids = [(5, 0, 0)] + self.env[
+            'aw.glass.part']._commands_from(
+                [p._as_dict() for p in self.glass_part_ids.sorted('sequence')])
         # Per-window changes. copy() on each override rather than a
         # hand-built dict, so a field added to aw.design.override later
         # comes along without this line being remembered.

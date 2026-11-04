@@ -165,19 +165,14 @@
                             </div>
                         </div>
                         <div>
-                            <!-- Each panel's glass is its own choice (Panel
-                                 tab). This only fills the panels nobody has
-                                 chosen for, and the window's own glass. -->
+                            <!-- The window's glass is built on the Spec
+                                 tab; this copies it into every panel. -->
                             <label class="form-label small text-muted mb-0">Glass</label>
-                            <select class="form-select form-select-sm"
-                                    t-on-change="(ev) => this.onApplyGlassToAll(ev)">
-                                <option value="">Apply to all panels...</option>
-                                <t t-foreach="glassSpecOptions" t-as="opt" t-key="opt.id">
-                                    <option t-att-value="opt.id">
-                                        <t t-esc="opt.name"/>
-                                    </option>
-                                </t>
-                            </select>
+                            <button type="button" class="btn btn-sm btn-outline-secondary w-100"
+                                    title="Copy the window glass (Spec tab) into every panel"
+                                    t-on-click="() => this.onApplyGlassToAll()">
+                                Apply to all panels
+                            </button>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Finish</label>
@@ -1051,27 +1046,37 @@
                                          louvre, fan, AC cutout or solid panel. -->
                                     <t t-if="selectedPanelUsesGlass">
                                         <div class="small text-muted mb-1">
-                                            Glass override
+                                            Glass
                                             <span t-if="selectedPanel.glass_suggested"
                                                   class="badge text-bg-info ms-1"
-                                                  title="Suggested from the panel size or the window's location. Choose another to replace it.">
+                                                  title="Suggested from the panel size or the window's location. Change it to replace it.">
                                                 suggested
                                             </span>
+                                            <span t-if="panelFollowsWindow"
+                                                  class="badge text-bg-light ms-1">follows the window</span>
                                         </div>
-                                        <select class="form-select form-select-sm mb-2"
-                                                t-on-change="onPanelGlassChange">
-                                            <option value="">Design glass</option>
-                                            <t t-foreach="glassSpecs" t-as="gs" t-key="gs.id">
-                                                <option t-att-value="gs.id"
-                                                        t-att-selected="selectedPanel.glass_spec_id === gs.id">
-                                                    <t t-esc="gs.name"/>
-                                                </option>
-                                            </t>
-                                        </select>
-                                        <div t-if="!glassSpecs.length" class="small text-warning mb-2">
-                                            No Glass Specs exist yet, so there is
-                                            nothing to override with.
-                                        </div>
+                                        <t t-if="panelFollowsWindow">
+                                            <div class="small mb-1" t-esc="stackSummary(headerStack) || 'No glass'"/>
+                                            <button type="button" class="btn btn-sm btn-outline-secondary mb-2"
+                                                    t-on-click="() => this.editPanelGlass()">
+                                                Change for this panel
+                                            </button>
+                                        </t>
+                                        <t t-else="">
+                                            <t t-set="stackScope" t-value="'panel'"/>
+                                            <t t-set="stackItems" t-value="panelOwnStack"/>
+                                            <t t-call="aw_fenestration_design.GlassStack"/>
+                                            <div class="d-flex gap-1 mb-2">
+                                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                        t-on-click="() => this.followWindowGlass()">
+                                                    Follow the window
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                        t-on-click="() => this.copyGlassToOtherPanels()">
+                                                    Copy to other panels
+                                                </button>
+                                            </div>
+                                        </t>
                                     </t>
 
                                     </t>
@@ -1715,17 +1720,12 @@
                             </div>
 
                             <div class="mb-3">
-                                <label class="form-label small text-muted mb-0">Glass</label>
-                                <select class="form-select form-select-sm"
-                                        t-on-change="onGlassSpecChange">
-                                    <option value="">No glass</option>
-                                    <t t-foreach="glassSpecOptions" t-as="opt" t-key="opt.id">
-                                        <option t-att-value="opt.id"
-                                                t-att-selected="opt.id === state.data.header.glass_spec_id">
-                                            <t t-esc="opt.name"/>
-                                        </option>
-                                    </t>
-                                </select>
+                                <label class="form-label small text-muted mb-0">
+                                    Window glass (new panels start from this)
+                                </label>
+                                <t t-set="stackScope" t-value="'header'"/>
+                                <t t-set="stackItems" t-value="headerStack"/>
+                                <t t-call="aw_fenestration_design.GlassStack"/>
                             </div>
 
                             <!-- Saving copies the section and the hardware
@@ -1758,6 +1758,97 @@
                 </div>
 
             </t>
+        </div>
+    </t>
+
+    <!-- A stack of glass parts: Sheet, Gap, Sheet, Protector. Used for the
+         window's default and for a panel's own; the caller sets
+         stackScope ('header' or 'panel') and stackItems. -->
+    <t t-name="aw_fenestration_design.GlassStack">
+        <div class="o_aw_glass_stack mb-2">
+            <div t-foreach="stackItems" t-as="part" t-key="part_index"
+                 class="border rounded p-1 mb-1 small">
+                <div class="d-flex align-items-center gap-1 mb-1">
+                    <span class="badge text-bg-secondary" t-esc="partKindLabel(part.kind)"/>
+                    <span class="ms-auto d-flex gap-1">
+                        <button type="button" class="btn btn-sm btn-link p-0" title="Up"
+                                t-on-click="() => this.moveGlassPart(stackScope, part_index, -1)">&#8593;</button>
+                        <button type="button" class="btn btn-sm btn-link p-0" title="Down"
+                                t-on-click="() => this.moveGlassPart(stackScope, part_index, 1)">&#8595;</button>
+                        <button type="button" class="btn btn-sm btn-link p-0 text-danger" title="Remove"
+                                t-on-click="() => this.removeGlassPart(stackScope, part_index)">&#215;</button>
+                    </span>
+                </div>
+                <t t-if="part.kind === 'gap'">
+                    <div class="d-flex gap-1 flex-wrap">
+                        <input type="number" class="form-control form-control-sm" style="width:5rem"
+                               title="Gap width (mm)" t-att-value="part.gap_mm"
+                               t-on-change="(ev) => this.setPartField(stackScope, part_index, 'gap_mm', ev.target.value)"/>
+                        <select class="form-select form-select-sm" style="width:auto" title="Spacer"
+                                t-on-change="(ev) => this.setPartField(stackScope, part_index, 'spacer_type_id', ev.target.value)">
+                            <option t-foreach="glassCatalog.spacer_types || []" t-as="opt" t-key="opt.id"
+                                    t-att-value="opt.id" t-att-selected="opt.id === part.spacer_type_id"
+                                    t-esc="opt.name"/>
+                        </select>
+                        <select class="form-select form-select-sm" style="width:auto" title="Spacer colour"
+                                t-on-change="(ev) => this.setPartField(stackScope, part_index, 'spacer_colour_id', ev.target.value)">
+                            <option t-foreach="glassCatalog.spacer_colours || []" t-as="opt" t-key="opt.id"
+                                    t-att-value="opt.id" t-att-selected="opt.id === part.spacer_colour_id"
+                                    t-esc="opt.name"/>
+                        </select>
+                        <select class="form-select form-select-sm" style="width:auto" title="Gas"
+                                t-on-change="(ev) => this.setPartField(stackScope, part_index, 'gas_id', ev.target.value)">
+                            <option t-foreach="glassCatalog.gases || []" t-as="opt" t-key="opt.id"
+                                    t-att-value="opt.id" t-att-selected="opt.id === part.gas_id"
+                                    t-esc="opt.name"/>
+                        </select>
+                    </div>
+                    <div t-if="part.default_gap" class="text-warning">default gap, not checked</div>
+                </t>
+                <t t-else="">
+                    <div class="d-flex gap-1 flex-wrap">
+                        <select class="form-select form-select-sm" style="width:auto" title="Colour"
+                                t-on-change="(ev) => this.setPartColourOrKind(stackScope, part_index, 'colour', ev.target.value)">
+                            <option t-foreach="glassColours" t-as="opt" t-key="opt"
+                                    t-att-value="opt" t-att-selected="opt === partColour(part)"
+                                    t-esc="opt"/>
+                        </select>
+                        <select class="form-select form-select-sm" style="width:auto" title="Type"
+                                t-on-change="(ev) => this.setPartColourOrKind(stackScope, part_index, 'kind', ev.target.value)">
+                            <option t-foreach="glassKinds" t-as="opt" t-key="opt"
+                                    t-att-value="opt" t-att-selected="opt === partKind(part)"
+                                    t-esc="opt"/>
+                        </select>
+                        <select class="form-select form-select-sm" style="width:auto" title="Thickness (mm)"
+                                t-on-change="(ev) => this.setPartField(stackScope, part_index, 'thickness_mm', ev.target.value)">
+                            <option t-foreach="glassCatalog.thicknesses || []" t-as="opt" t-key="opt"
+                                    t-att-value="opt" t-att-selected="opt === part.thickness_mm">
+                                <t t-esc="opt"/> mm
+                            </option>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-center gap-1 mt-1">
+                        <span class="text-muted">list rate</span>
+                        <span t-esc="partListRate(part) === null ? 'none' : partListRate(part)"/>
+                        <span class="text-muted ms-2">used</span>
+                        <input type="number" step="0.01" class="form-control form-control-sm" style="width:6rem"
+                               t-att-value="partRateUsed(part)"
+                               t-on-change="(ev) => this.setPartRate(stackScope, part_index, ev.target.value)"/>
+                        <span t-if="part.rate_manual" class="badge text-bg-warning">manual</span>
+                        <button t-if="part.rate_manual" type="button" class="btn btn-sm btn-link p-0"
+                                t-on-click="() => this.resetPartRate(stackScope, part_index)">Reset</button>
+                    </div>
+                </t>
+                <div t-if="part.remark" class="text-warning mt-1" t-esc="part.remark"/>
+            </div>
+            <div class="d-flex gap-1 flex-wrap">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        t-on-click="() => this.addGlassPart(stackScope, 'sheet')">+ Sheet</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        t-on-click="() => this.addGlassPart(stackScope, 'gap')">+ Gap</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        t-on-click="() => this.addGlassPart(stackScope, 'protector')">+ Protector</button>
+            </div>
         </div>
     </t>
 

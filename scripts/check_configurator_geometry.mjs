@@ -60,7 +60,8 @@ function make(rows, W = 2438.4, H = 3200.4) {
         data: {
             id: 1, length_uom: "ftin", size_display: "",
             header: { name: "D1", location: "", qty: 1, width_mm: W, height_mm: H,
-                      window_series_id: 1, window_series_name: "Casement Single Glaze" },
+                      window_series_id: 1, window_series_name: "Casement Single Glaze",
+                      glass_stack: [] },
             rows, leaf_types: LEAF_TYPES, presets: [],
             mesh_types: [
                 { id: 11, code: "MSH-FIX", name: "Fixed Mesh", mechanism: "fixed",
@@ -74,6 +75,21 @@ function make(rows, W = 2438.4, H = 3200.4) {
                 { id: 23, code: "ADD-FAN", name: "Fan", kind: "fan", uses_glass: false },
             ],
             glass_specs: [{ id: 31, name: "Frosted 6mm" }],
+            glass_catalog: {
+                types: [
+                    { id: 51, name: "Clear", colour: "Clear", kind: "Plain" },
+                    { id: 52, name: "Grey", colour: "Grey", kind: "Plain" },
+                    { id: 53, name: "Ref. Grey", colour: "Grey", kind: "Reflective" },
+                ],
+                thicknesses: [4, 5, 6, 8],
+                spacer_types: [{ id: 61, name: "Aluminium" }],
+                gap_widths: [6, 12],
+                spacer_colours: [{ id: 71, name: "Silver" }],
+                gases: [{ id: 81, name: "Air" }, { id: 82, name: "Argon" }],
+                films: [],
+                rates: { "51-6": 265.52, "52-6": 399.91, "53-6": 482.32 },
+                extra_rates: {},
+            },
             grid_patterns: [{ id: 41, code: "ADD-GRID-R", name: "Georgian", kind: "rect" }],
             series_options: [
                 { id: 1, name: "Casement Single Glaze",
@@ -724,14 +740,70 @@ console.log("\nATTACHMENTS (spec 5.1-5.5):");
     const g = mk();
     g.selectLeaf([[0, 1]]);
     ok(g.selectedPanelUsesGlass, "no infill set means glass, so override shown");
-    g.setPanelGlass("31");
-    ok(g.selectedPanel.glass_spec_id === 31, "glass override set");
+    g.addGlassPart("panel", "sheet");
+    ok(g.selectedPanel.glass_parts.length === 1, "a glass stack for the panel");
     g.applyInfill(22); // louvre, uses_glass false
     ok(!g.selectedPanelUsesGlass, "louvre is not glazed, so no override offered");
-    ok(!g.selectedPanel.glass_spec_id,
-       "and the override that was set is cleared, not left to apply silently");
+    ok(!(g.selectedPanel.glass_parts || []).length,
+       "and the stack that was set is cleared, not left to apply silently");
     g.applyInfill(21); // back to glass
     ok(g.selectedPanelUsesGlass, "back to Glass, override offered again");
+
+    console.log("\nGLASS STACKS (window default, panel copy):");
+    {
+        const stk = mk();
+        stk.addGlassPart("header", "sheet");
+        stk.addGlassPart("header", "gap");
+        stk.addGlassPart("header", "sheet");
+        const head = stk.state.data.header.glass_stack;
+        ok(head.map((p) => p.kind).join(",") === "sheet,gap,sheet",
+           "the window's stack: sheet, gap, sheet");
+        ok(head[0].label === "6 mm Clear" && head[1].label === "12 mm gap",
+           `rows are labelled (${stk.stackSummary(head)})`);
+        stk.selectLeaf([[0, 0]]);
+        ok(stk.panelFollowsWindow, "a panel starts by following the window");
+        ok(stk.headerStack === head, "and the window has its own stack to show");
+
+        // a panel edited alone takes its own copy; the others do not move
+        const other = stk.state.data.rows[0].leaves[1];
+        stk.setPartColourOrKind("panel", 0, "colour", "Grey");
+        ok(!stk.panelFollowsWindow, "editing a panel gives it a stack of its own");
+        ok(stk.selectedPanel.glass_parts[0].glass_type_id === 52,
+           "panel 1 changed to Grey");
+        ok(head[0].glass_type_id === 51, "the window's own stack did not change");
+        ok(!(other.glass_parts || []).length,
+           "panel 2 did not change (override on one panel never moves the others)");
+        ok(stk.selectedPanel.glass_chosen === true, "a hand edit is a choice, not a suggestion");
+
+        // rates: list rate shown, a typed rate is manual and Reset undoes it
+        ok(stk.partListRate(stk.selectedPanel.glass_parts[0]) === 399.91, "list rate of Grey 6 mm");
+        stk.setPartRate("panel", 0, "100");
+        ok(stk.selectedPanel.glass_parts[0].rate_manual
+           && stk.partRateUsed(stk.selectedPanel.glass_parts[0]) === 100, "a typed rate is manual");
+        stk.resetPartRate("panel", 0);
+        ok(!stk.selectedPanel.glass_parts[0].rate_manual
+           && stk.partRateUsed(stk.selectedPanel.glass_parts[0]) === 399.91,
+           "Reset returns to the list rate");
+        stk.setPartColourOrKind("panel", 0, "kind", "Reflective");
+        ok(stk.selectedPanel.glass_parts[0].glass_type_id === 53, "Grey + Reflective is Ref. Grey");
+        stk.setPartColourOrKind("panel", 0, "colour", "Clear");
+        ok(stk.selectedPanel.glass_parts[0].glass_type_id === 53 && stk._warned === 1,
+           "no Clear + Reflective type: refused with a message");
+
+        // Apply to all copies the window's stack, Copy to others the panel's
+        const copied = stk.copyStackToPanels(head, null);
+        ok(copied === 2 && stk.state.data.rows[0].leaves.every(
+            (l) => l.glass_parts.length === 3), "Apply to all copies the window glass into every panel");
+        ok(stk.state.data.rows[0].leaves[0].glass_parts !== head
+           && stk.state.data.rows[0].leaves[0].glass_parts[0] !== head[0],
+           "copies, not shared rows");
+        stk.followWindowGlass();
+        ok(stk.panelFollowsWindow, "Follow the window drops the panel's own stack");
+        stk.moveGlassPart("header", 1, 1);
+        ok(head.map((p) => p.kind).join(",") === "sheet,sheet,gap", "a row moves down");
+        stk.removeGlassPart("header", 2);
+        ok(head.length === 2, "a row is removed");
+    }
 
     console.log("\n  infill symbols differ per kind:");
     const sym = mk();

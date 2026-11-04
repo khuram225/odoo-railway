@@ -108,6 +108,26 @@ class AwDesignBomLine(models.Model):
         help="Why this window is different. Printed on the shop "
              "drawing beside the line.")
     glass_spec_id = fields.Many2one('aw.glass.spec', ondelete='restrict')
+    # One glass line per part of the panel's stack (Sheet, Gap, Protector).
+    glass_part_kind = fields.Selection([
+        ('sheet', 'Sheet'), ('gap', 'Gap'), ('protector', 'Protector')])
+    glass_type_id = fields.Many2one('aw.glass.type', ondelete='restrict')
+    glass_mm = fields.Float(string='Glass / gap (mm)')
+    glass_label = fields.Char(string='Glass part')
+    glass_remark = fields.Char(
+        string='Glass remark',
+        help="Printed with the glass, e.g. 'was: Clear Tempered'.")
+    glass_spacer = fields.Char()
+    glass_gas = fields.Char()
+    glass_extra_id = fields.Many2one('aw.glass.extra', ondelete='restrict')
+    glass_manual_rate = fields.Float(digits='Product Price')
+    rate_is_manual = fields.Boolean(
+        string='Manual rate',
+        help="The rate used was typed for this panel, not the list rate.")
+    rate_list = fields.Float(
+        string='List rate', digits='Product Price',
+        help="The dated vendor rate for this part when it was costed; "
+             "the rate used is Unit cost.")
     glass_w = fields.Float(string='Width (mm)')
     glass_h = fields.Float(string='Height (mm)')
     area_sqm = fields.Float(compute='_compute_area_sqm', store=True)
