@@ -6,6 +6,7 @@ one rate column and no finish, and follows the same rules as a profile
 list: paste, Re-match, Apply, Re-apply, Set to draft, and the same-date
 rewrite.
 """
+import os
 from datetime import date
 
 from odoo.exceptions import UserError
@@ -224,3 +225,43 @@ class TestGlassRates(TransactionCase):
         with self.assertRaises(UserError) as caught:
             rate_list.action_parse_paste()
         self.assertIn('5mm 231.88', str(caught.exception))
+
+    def _real_list_text(self):
+        path = os.path.join(os.path.dirname(__file__), 'data',
+                            'ghani_glass_2026_07_01.txt')
+        with open(path, encoding='utf-8') as handle:
+            return handle.read()
+
+    def test_the_real_ghani_list_reads_applies_and_prices_correctly(self):
+        rate_list = self._list(date(2026, 7, 1), self._real_list_text())
+        self.assertEqual(len(rate_list.line_ids), 61)
+        self.assertFalse(rate_list.need_summary)
+        rate_list.action_apply()
+        self.assertEqual(self.env['aw.glass.rate'].search_count(
+            [('rate_list_id', '=', rate_list.id)]), 61)
+        day = date(2026, 8, 1)
+        for name, mm, price in (
+                ('Clear', 6, 265.52), ('Grey', 6, 399.91),
+                ('Ref. Grey', 6, 482.32), ('WC Green', 6, 248.64),
+                ('Ref. Clear', 6, 384.57), ('CC Grey', 5, 389.29)):
+            self.assertEqual(self._rate(name, mm, day).price, price, name)
+
+    def test_a_correct_list_at_the_same_date_repairs_wrong_prices(self):
+        # the shape of the earlier mistake: reflective prices on plain types
+        wrong = self._list(
+            date(2026, 7, 1),
+            'Clear 6mm 384.57\nGrey 4mm 387.69\nGrey 6mm 482.32')
+        wrong.action_apply()
+        self.assertEqual(self._rate('Clear', 6, date(2026, 8, 1)).price, 384.57)
+        right = self._list(date(2026, 7, 1), self._real_list_text())
+        right.action_apply()
+        day = date(2026, 8, 1)
+        self.assertEqual(self._rate('Clear', 6, day).price, 265.52)
+        self.assertEqual(self._rate('Grey', 4, day).price, 323.56)
+        self.assertEqual(self._rate('Grey', 6, day).price, 399.91)
+        # one rate per type and thickness, not two
+        rates = self.env['aw.glass.rate'].search([
+            ('vendor_id', '=', self.ghani.id),
+            ('date_from', '=', date(2026, 7, 1)),
+            ('glass_type_id.name', '=', 'Clear'), ('thickness_mm', '=', 6)])
+        self.assertEqual(len(rates), 1)
