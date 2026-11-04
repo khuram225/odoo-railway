@@ -513,6 +513,16 @@ current rates of a series. Apply writes ordinary rate rows; unmatched rows
 are never applied. "No variant" means the profile does not offer that
 thickness or finish, not that the dynamic variant is not made yet.
 
+A rate list never creates catalogue records: Apply writes rates only for
+products, thicknesses and finishes that already exist (the one exception is a
+finish made from the vendor's own header, e.g. Wood, which Apply adds to the
+profile's Finish line). Each row carries a `need` -- product, unknown
+thickness, thickness, finish -- with the exact text saying what to add; the
+list shows "7 need a product, 4 need a thickness, 2 unknown thickness, 0 need
+a finish" with a filter on each, and Re-match (then Re-apply) picks the row up
+once the product is fixed. There used to be a "Create missing" wizard; it was
+removed, and what it had already created stays.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

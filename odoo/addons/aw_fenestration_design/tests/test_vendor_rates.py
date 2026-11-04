@@ -322,21 +322,6 @@ class TestVendorRateLists(TransactionCase):
         rate_list.action_apply()
         self.assertIn(150.0, self._rates_of(rate_list).mapped('price'))
 
-    def test_a_normal_user_can_open_create_missing(self):
-        user = self.env['res.users'].create({
-            'name': 'Rate clerk', 'login': 'rate_clerk_test',
-            'group_ids': [(6, 0, [
-                self.env.ref('base.group_user').id,
-                self.env.ref(
-                    'aw_fenestration_core.group_fenestration_manager').id])]})
-        rate_list = self._list(
-            date(2026, 4, 3),
-            'B-6\tNOR\t\t136\t147\t137\nQQ-1\tNOR\t\t4\t5\t6')
-        action = rate_list.with_user(user).action_create_missing()
-        wizard = self.env[action['res_model']].with_user(user).browse(
-            action['res_id'])
-        self.assertIn('QQ-1', wizard.preview)
-
     def test_reapply_needs_an_applied_list(self):
         draft = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
         with self.assertRaises(UserError):
@@ -408,57 +393,92 @@ class TestVendorRateLists(TransactionCase):
         rate_list.action_parse_paste()
         return rate_list
 
-    def test_an_unmatched_row_gets_a_product_and_its_rates(self):
-        rate_list = self._row_list('ZZ-9\tNOR\tDG.SERIES\t10\t20\t30')
-        self.assertEqual(rate_list.line_ids.status_code, 'unmatched')
-        plan = rate_list._missing_plan()
-        self.assertEqual([c['code'] for c in plan['create']], ['ZZ-9'])
-        self.assertEqual(plan['create'][0]['thicknesses'], ['Standard'])
-        self.assertEqual(len(plan['create'][0]['finishes']), 3)
-        self.assertFalse(self.env['product.template'].search(
-            [('name', '=', 'ZZ-9')]))              # a preview writes nothing
-        summary = rate_list._create_missing()
-        self.assertEqual((summary['created'], summary['applied']), (1, 3))
-        product = self.env['product.template'].search([('name', '=', 'ZZ-9')])
-        self.assertEqual(product.uom_id.name, 'ft')
-        self.assertEqual(
-            product.categ_id,
-            self.env.ref('aw_fenestration_core.product_category_profiles_unclassified'))
-        self.assertEqual(product.aw_catalogue_category, 'DG.SERIES')
-        attrs = product.attribute_line_ids.mapped('attribute_id.name')
-        self.assertEqual(sorted(attrs), ['Finish', 'Thickness'])
-        self.assertEqual(rate_list.line_ids.status_code, 'applied')
-        self.assertEqual(rate_list.unmatched_count, 0)
-        self.assertEqual(len(self._rates_for(product)), 3)
-
-    def test_a_matched_product_lacking_finishes_is_extended_not_duplicated(self):
+    def _profile(self, code, finishes, thicknesses=None):
         env = self.env
-        finish_attr = env.ref('aw_fenestration_core.aw_attribute_finish')
-        thick_attr = env.ref('aw_fenestration_core.aw_attribute_thickness')
-        product = env['product.template'].create({
-            'name': 'EXT-1', 'default_code': 'EXT-1',
+        return env['product.template'].create({
+            'name': code, 'default_code': code,
             'categ_id': env.ref(
                 'aw_fenestration_core.product_category_profiles').id,
             'attribute_line_ids': [
-                (0, 0, {'attribute_id': thick_attr.id,
-                        'value_ids': [(6, 0, self.standard.ids)]}),
-                (0, 0, {'attribute_id': finish_attr.id,
-                        'value_ids': [(6, 0, self.finishes[:1].ids)]})]})
-        rate_list = self._row_list('EXT-1\tNOR\t\t1\t2\t3')
-        plan = rate_list._missing_plan()
-        self.assertEqual(len(plan['extend']), 1)
-        self.assertEqual(len(plan['extend'][0]['finishes']), 2)
-        rate_list._create_missing()
-        finish_lines = product.attribute_line_ids.filtered(
-            lambda l: l.attribute_id == finish_attr)
-        self.assertEqual(len(finish_lines), 1)
-        self.assertEqual(finish_lines.value_ids, self.finishes)
-        self.assertEqual(rate_list.line_ids.status_code, 'applied')
-        self.assertEqual(len(self._rates_for(product)), 3)
+                (0, 0, {'attribute_id': env.ref(
+                    'aw_fenestration_core.aw_attribute_thickness').id,
+                    'value_ids': [(6, 0, (thicknesses
+                                          or self.standard).ids)]}),
+                (0, 0, {'attribute_id': env.ref(
+                    'aw_fenestration_core.aw_attribute_finish').id,
+                    'value_ids': [(6, 0, finishes.ids)]})]})
 
-    def test_a_fully_mapped_layout_skips_no_column(self):
-        rate_list = self._row_list('ZZ-8\tNOR\t\t1\t2\t3')
-        self.assertEqual(rate_list._missing_plan()['skipped_columns'], [])
+    def test_each_state_is_counted_worded_and_clears_after_a_rematch(self):
+        env = self.env
+        thick_attr = env.ref('aw_fenestration_core.aw_attribute_thickness')
+        other_thickness = (thick_attr.value_ids - self.standard)[:1]
+        self.env['aw.vendor.thickness.alias'].create({
+            'layout_id': self.layout.id, 'alias': 'X16',
+            'thickness_id': other_thickness.id})
+        thin = self._profile('TH-1', self.finishes)
+        self._profile('UN-1', self.finishes)
+        fin = self._profile('FI-1', self.finishes[:1])
+        rows = '\n'.join([
+            'ZZ-1\tNOR\t\t1\t2\t3',        # no product
+            'TH-1\tX16\t\t1\t2\t3',        # thickness not on the product
+            'UN-1\tQQQ\t\t1\t2\t3',        # no such thickness at all
+            'FI-1\tNOR\t\t1\t2\t3',        # finishes not on the product
+            'B-6\tNOR\t\t136\t147\t137'])  # ready
+        counts = {m: env[m].search_count([]) for m in (
+            'product.template', 'product.product',
+            'product.attribute.value')}
+        rate_list = self._row_list(rows)
+        by_code = {l.code: l for l in rate_list.line_ids}
+        self.assertEqual(
+            rate_list.need_summary,
+            '1 need a product, 1 need a thickness, 1 unknown thickness, '
+            '1 need a finish')
+        self.assertEqual(by_code['ZZ-1'].need_text,
+                         'No product ZZ-1: create it in Products, then '
+                         'Re-match')
+        self.assertEqual(
+            by_code['TH-1'].need_text,
+            'TH-1 has no thickness %s: add it on the product (Attributes & '
+            'Variants), then Re-match' % other_thickness.name)
+        self.assertEqual(by_code['UN-1'].need, 'unknown_thickness')
+        self.assertIn("Unknown thickness 'QQQ'", by_code['UN-1'].need_text)
+        self.assertEqual(
+            by_code['FI-1'].need_text,
+            'FI-1 has no finish %s, %s: add them on the product, then '
+            'Re-match' % (self.finishes[1].name, self.finishes[2].name))
+        self.assertFalse(by_code['B-6'].need)
+        self.assertEqual(rate_list.action_show_need_product()['domain'][1],
+                         ('need', '=', 'product'))
+
+        rate_list.action_apply()
+        # B-6 in full, FI-1's one existing finish; nothing else written
+        self.assertEqual(len(self._rates_for(self.product)), 3)
+        self.assertEqual(len(self._rates_for(fin)), 1)
+        self.assertFalse(self._rates_for(thin))
+        self.assertEqual(by_code['FI-1'].status_code, 'needs_finish')
+        self.assertTrue(by_code['FI-1'].detail.startswith('FI-1 has no finish'))
+        # Apply created no product, variant or attribute value
+        for model, count in counts.items():
+            self.assertEqual(env[model].search_count([]), count, model)
+
+        # fix the products, Re-match turns the rows applicable, Re-apply
+        zz = self._profile('ZZ-1', self.finishes)
+        fin.write({'attribute_line_ids': [(0, 0, {
+            'attribute_id': env.ref(
+                'aw_fenestration_core.aw_attribute_finish').id,
+            'value_ids': [(4, f.id) for f in self.finishes[1:]]})]})
+        rate_list.action_rematch()
+        self.assertFalse(by_code['ZZ-1'].need)
+        self.assertEqual(by_code['ZZ-1'].product_tmpl_id, zz)
+        self.assertFalse(by_code['FI-1'].need)
+        self.assertEqual(
+            rate_list.need_summary,
+            '0 need a product, 1 need a thickness, 1 unknown thickness, '
+            '0 need a finish')
+        rate_list.action_reapply()
+        self.assertEqual(len(self._rates_for(zz)), 3)
+        self.assertEqual(len(self._rates_for(fin)), 3)
+        self.assertEqual(len(self._rates_for(self.product)), 3)
 
     def _rates_for(self, product):
         return self.env['aw.profile.rate'].search([

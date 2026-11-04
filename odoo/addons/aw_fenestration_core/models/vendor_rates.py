@@ -508,6 +508,11 @@ class AwVendorRateList(models.Model):
     grid_meta = fields.Json(compute='_compute_grid_meta')
     line_count = fields.Integer(compute='_compute_counts')
     unmatched_count = fields.Integer(compute='_compute_counts')
+    need_product_count = fields.Integer(compute='_compute_counts')
+    need_thickness_count = fields.Integer(compute='_compute_counts')
+    unknown_thickness_count = fields.Integer(compute='_compute_counts')
+    need_finish_count = fields.Integer(compute='_compute_counts')
+    need_summary = fields.Char(compute='_compute_counts')
     conflict_count = fields.Integer(compute='_compute_counts')
     # The grid's own field is a computed, so Odoo gives it readonly=True
     # and a widget cannot tell that from "this list may not be edited".
@@ -593,11 +598,24 @@ class AwVendorRateList(models.Model):
         return sorted(names, key=str.lower)
 
     @api.depends('line_ids.product_tmpl_id', 'line_ids.problem',
-                 'line_ids.cells_conflict')
+                 'line_ids.cells_conflict', 'line_ids.need')
     def _compute_counts(self):
         for rec in self:
             rec.line_count = len(rec.line_ids)
             rec.unmatched_count = len(rec.line_ids.filtered('problem'))
+            by_need = rec.line_ids.mapped('need')
+            rec.need_product_count = by_need.count('product')
+            rec.need_thickness_count = by_need.count('thickness')
+            rec.unknown_thickness_count = by_need.count('unknown_thickness')
+            rec.need_finish_count = by_need.count('finish')
+            rec.need_summary = _(
+                "%(product)s need a product, %(thickness)s need a "
+                "thickness, %(unknown)s unknown thickness, %(finish)s need "
+                "a finish",
+                product=rec.need_product_count,
+                thickness=rec.need_thickness_count,
+                unknown=rec.unknown_thickness_count,
+                finish=rec.need_finish_count) if any(by_need) else ''
             rec.conflict_count = len(
                 rec.line_ids.filtered('cells_conflict'))
 
@@ -700,6 +718,30 @@ class AwVendorRateList(models.Model):
         return True
 
     # -------------------------------------------------------------- apply
+    def _show_need(self, need, title):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': title,
+            'res_model': 'aw.vendor.rate.list.line',
+            'views': [(False, 'list'), (False, 'form')],
+            'domain': [('list_id', '=', self.id), ('need', '=', need)],
+            'context': {},
+        }
+
+    def action_show_need_product(self):
+        return self._show_need('product', _("Rows that need a product"))
+
+    def action_show_need_thickness(self):
+        return self._show_need('thickness', _("Rows that need a thickness"))
+
+    def action_show_unknown_thickness(self):
+        return self._show_need(
+            'unknown_thickness', _("Rows with an unknown thickness"))
+
+    def action_show_need_finish(self):
+        return self._show_need('finish', _("Rows that need a finish"))
+
     def action_rematch(self):
         """Match again. On a draft that is every row; on an applied list
         only the rows with a problem, so a row whose rates were already
@@ -709,7 +751,9 @@ class AwVendorRateList(models.Model):
         if self.state == 'draft':
             self.line_ids._auto_match(force=True)
         else:
-            self.line_ids.filtered('problem')._auto_match()
+            self.line_ids.filtered(
+                lambda l: l.problem or l.need)._auto_match()
+        self.line_ids._refresh_need()
         return True
 
     def action_reapply(self):
@@ -788,6 +832,7 @@ class AwVendorRateList(models.Model):
                     'detail': line.problem})
                 skipped += 1
                 continue
+            line._refresh_need()
             offered_thickness = self.env['aw.profile.section.line'] \
                 ._template_values(
                     line.product_tmpl_id,
@@ -849,12 +894,6 @@ class AwVendorRateList(models.Model):
                 if (line.thickness_id
                         and line.thickness_id not in offered_thickness) or (
                         column.finish_id not in offered_finish):
-                    notes.append(_(
-                        "%(column)s: this profile has no %(finish)s%(thick)s",
-                        column=column.header or index,
-                        finish=column.finish_id.name,
-                        thick=(_(" in %s", line.thickness_id.name)
-                               if line.thickness_id else '')))
                     line_failed += 1
                     continue
                 key = [
@@ -880,6 +919,8 @@ class AwVendorRateList(models.Model):
                 written += 1
                 line_applied += 1
                 affected |= line.product_tmpl_id
+            if line.need in ('thickness', 'finish') and line.need_text:
+                notes.insert(0, line.need_text)
             skipped_cells += line_skipped
             failed_cells += line_failed
             conflict_cells += line_conflict
@@ -959,6 +1000,17 @@ class AwVendorRateListLine(models.Model):
     problem = fields.Char(
         compute='_compute_problem', store=True,
         help="Why this row cannot be applied. Empty means ready.")
+    # What this row needs before it can be applied in full, written by
+    # _refresh_need (on match, on edit, and at Apply). Stored, because the
+    # list filters on it, and plain rather than computed: it depends on the
+    # product's attribute lines, which a stored compute cannot watch.
+    need = fields.Selection([
+        ('product', 'Needs a product'),
+        ('unknown_thickness', 'Unknown thickness'),
+        ('thickness', 'Needs a thickness'),
+        ('finish', 'Needs a finish'),
+    ], index=True, readonly=True)
+    need_text = fields.Char(readonly=True)
     result = fields.Char(readonly=True)
     # What Apply did to this row, kept as numbers so the grid can show a
     # badge and keep the full detail for a tooltip.
@@ -988,15 +1040,21 @@ class AwVendorRateListLine(models.Model):
         ('partial', 'Partly applied'),
         ('conflict', 'Conflict'),
         ('unmatched', 'Unmatched'),
+        ('needs_thickness', 'Needs a thickness'),
+        ('needs_finish', 'Needs a finish'),
         ('not_applied', 'Not applied'),
     ], compute='_compute_status_code', store=True)
 
     @api.depends('problem', 'cells_applied', 'cells_failed',
-                 'cells_conflict', 'list_id.state')
+                 'cells_conflict', 'list_id.state', 'need')
     def _compute_status_code(self):
         for line in self:
             if line.problem:
                 line.status_code = 'unmatched'
+            elif line.need == 'thickness':
+                line.status_code = 'needs_thickness'
+            elif line.need == 'finish':
+                line.status_code = 'needs_finish'
             elif line.list_id.state == 'applied' and line.cells_conflict:
                 line.status_code = 'conflict'
             elif line.list_id.state != 'applied' or not line.cells_applied:
@@ -1019,13 +1077,67 @@ class AwVendorRateListLine(models.Model):
             if line.ambiguous_code:
                 line.problem = _("Ambiguous code '%s'", line.code or '')
             elif not line.product_tmpl_id:
-                line.problem = _("No profile matches '%s'", line.code or '')
+                line.problem = _(
+                    "No product %s: create it in Products, then Re-match",
+                    line.code or '')
             elif line.thickness_text and not line.thickness_id:
                 line.problem = _(
                     "Unknown thickness '%s': not one of ours or an alias "
                     "on this vendor's layout", line.thickness_text)
             else:
                 line.problem = False
+
+    def _need_for(self):
+        """(need, text) for this row. Nothing is created: a row either
+        names what is missing on the product, or is ready."""
+        self.ensure_one()
+        if self.ambiguous_code:
+            return 'product', _("Ambiguous code '%s'", self.code or '')
+        if not self.product_tmpl_id:
+            return 'product', _(
+                "No product %s: create it in Products, then Re-match",
+                self.code or '')
+        if self.thickness_text and not self.thickness_id:
+            return 'unknown_thickness', _(
+                "Unknown thickness '%s': not one of ours or an alias "
+                "on this vendor's layout", self.thickness_text)
+        Section = self.env['aw.profile.section.line']
+        template = self.product_tmpl_id
+        label = template.default_code or template.name
+        if self.thickness_id and self.thickness_id not in \
+                Section._template_values(template, self.env.ref(
+                    'aw_fenestration_core.aw_attribute_thickness')):
+            return 'thickness', _(
+                "%(code)s has no thickness %(thickness)s: add it on the "
+                "product (Attributes & Variants), then Re-match",
+                code=label, thickness=self.thickness_id.name)
+        offered = Section._template_values(template, self.env.ref(
+            'aw_fenestration_core.aw_attribute_finish'))
+        missing = []
+        for index, column in enumerate(
+                self.list_id.layout_id._finish_columns(), start=1):
+            finish = column.finish_id
+            if not finish or not self['rate_%s' % index]:
+                continue
+            # A finish the vendor itself named (Wood) is added by Apply.
+            if finish in offered or finish.aw_owner_vendor_id \
+                    == self.vendor_id or finish in missing:
+                continue
+            missing.append(finish)
+        if missing:
+            return 'finish', _(
+                "%(code)s has no finish %(finishes)s: add %(them)s on the "
+                "product, then Re-match",
+                code=label, finishes=', '.join(f.name for f in missing),
+                them=_("them") if len(missing) > 1 else _("it"))
+        return False, False
+
+    def _refresh_need(self):
+        for line in self:
+            need, text = line._need_for()
+            if (line.need or False) != need or (line.need_text or False) != text:
+                line.with_context(aw_need=True).write(
+                    {'need': need, 'need_text': text})
 
     # --------------------------------------------------------------- match
     def _auto_match(self, force=False):
@@ -1082,6 +1194,7 @@ class AwVendorRateListLine(models.Model):
                         lambda v: normalise_text(v.name) == wanted)[:1]
             elif not line.thickness_text:
                 line.thickness_id = False
+        self._refresh_need()
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -1090,6 +1203,7 @@ class AwVendorRateListLine(models.Model):
             lambda l: l.match_source == 'none' and not l.product_tmpl_id)
         if pending:
             pending._auto_match()
+        lines._refresh_need()
         return lines
 
     def write(self, vals):
@@ -1105,6 +1219,11 @@ class AwVendorRateListLine(models.Model):
         if ('code' in vals or 'thickness_text' in vals) and not manual \
                 and not self.env.context.get('aw_auto_match'):
             self._auto_match()
+        elif not self.env.context.get('aw_need') \
+                and not self.env.context.get('aw_auto_match') \
+                and ({'product_tmpl_id', 'thickness_id'} & set(vals)
+                     or any(k.startswith('rate_') for k in vals)):
+            self._refresh_need()
         return result
 
     def _save_alias(self):
