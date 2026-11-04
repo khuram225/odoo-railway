@@ -83,9 +83,6 @@
                     <button name="action_set_to_draft" type="object"
                             string="Set to draft" invisible="state != 'applied'"
                             confirm="Rates of this list are removed until you Apply again."/>
-                    <button name="action_create_missing" type="object"
-                            string="Create missing"
-                            invisible="not line_count"/>
                     <field name="state" widget="statusbar"/>
                 </header>
                 <sheet>
@@ -103,6 +100,22 @@
                                    invisible="not conflict_count"/>
                         </group>
                     </group>
+                    <div class="alert alert-warning d-flex flex-wrap gap-2 align-items-center"
+                         role="alert" invisible="not need_summary">
+                        <field name="need_summary" readonly="1" nolabel="1"/>
+                        <button name="action_show_need_product" type="object"
+                                string="Show products" class="btn-link"
+                                invisible="not need_product_count"/>
+                        <button name="action_show_need_thickness" type="object"
+                                string="Show thicknesses" class="btn-link"
+                                invisible="not need_thickness_count"/>
+                        <button name="action_show_unknown_thickness" type="object"
+                                string="Show unknown" class="btn-link"
+                                invisible="not unknown_thickness_count"/>
+                        <button name="action_show_need_finish" type="object"
+                                string="Show finishes" class="btn-link"
+                                invisible="not need_finish_count"/>
+                    </div>
                     <group invisible="state != 'draft'">
                         <group string="Paste from the vendor's sheet">
                             <field name="paste_text" nolabel="1" colspan="2"
@@ -129,6 +142,38 @@
         </field>
     </record>
 
+    <record id="view_aw_vendor_rate_list_line_list" model="ir.ui.view">
+        <field name="name">aw.vendor.rate.list.line.list</field>
+        <field name="model">aw.vendor.rate.list.line</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="code"/>
+                <field name="thickness_text"/>
+                <field name="product_tmpl_id"/>
+                <field name="need"/>
+                <field name="need_text"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_vendor_rate_list_line_search" model="ir.ui.view">
+        <field name="name">aw.vendor.rate.list.line.search</field>
+        <field name="model">aw.vendor.rate.list.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="code"/>
+                <filter name="need_product" string="Need a product"
+                        domain="[('need', '=', 'product')]"/>
+                <filter name="need_thickness" string="Need a thickness"
+                        domain="[('need', '=', 'thickness')]"/>
+                <filter name="unknown_thickness" string="Unknown thickness"
+                        domain="[('need', '=', 'unknown_thickness')]"/>
+                <filter name="need_finish" string="Need a finish"
+                        domain="[('need', '=', 'finish')]"/>
+            </search>
+        </field>
+    </record>
+
     <record id="view_aw_vendor_rate_list_list" model="ir.ui.view">
         <field name="name">aw.vendor.rate.list.list</field>
         <field name="model">aw.vendor.rate.list</field>
@@ -152,25 +197,5 @@
         <field name="views" eval="[(False, 'list'), (False, 'form')]"/>
     </record>
 
-    <record id="view_aw_vendor_rate_list_create_wizard_form" model="ir.ui.view">
-        <field name="name">aw.vendor.rate.list.create.wizard.form</field>
-        <field name="model">aw.vendor.rate.list.create.wizard</field>
-        <field name="arch" type="xml">
-            <form string="Create missing">
-                <p class="text-muted">
-                    This is what will be written. Nothing has been yet.
-                    Confirming creates the products and adds the values
-                    below, matches the rows again, and applies the list
-                    again so the rates land.
-                </p>
-                <field name="preview" readonly="1" nolabel="1"/>
-                <footer>
-                    <button name="action_confirm" type="object"
-                            string="Create and apply" class="btn-primary"/>
-                    <button special="cancel" string="Cancel"/>
-                </footer>
-            </form>
-        </field>
-    </record>
 
 </odoo>

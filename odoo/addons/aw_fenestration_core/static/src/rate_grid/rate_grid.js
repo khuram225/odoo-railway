@@ -11,6 +11,7 @@ const LINE_FIELDS = [
     "code", "thickness_text", "series", "product_tmpl_id", "thickness_id",
     "problem", "result", "match_source", "status_code", "detail",
     "cells_applied", "cells_skipped", "cells_failed", "grid_editable",
+    "need", "need_text",
     ...Array.from({ length: 10 }, (_, i) => `rate_${i + 1}`),
 ];
 
@@ -121,6 +122,8 @@ export class RateGrid extends Component {
             partial: _t("Partly applied"),
             conflict: _t("Conflict"),
             unmatched: _t("Unmatched"),
+            needs_thickness: _t("Needs thickness"),
+            needs_finish: _t("Needs finish"),
             not_applied: _t("Not applied"),
         }[line.status_code] || "";
     }
@@ -131,12 +134,14 @@ export class RateGrid extends Component {
             partial: "text-bg-warning",
             conflict: "text-bg-danger",
             unmatched: "text-bg-danger",
+            needs_thickness: "text-bg-warning",
+            needs_finish: "text-bg-warning",
             not_applied: "text-bg-secondary",
         }[line.status_code] || "text-bg-light";
     }
 
     statusTitle(line) {
-        return line.detail || line.problem || line.result || "";
+        return line.detail || line.problem || line.need_text || line.result || "";
     }
 
     parseNumber(text) {
