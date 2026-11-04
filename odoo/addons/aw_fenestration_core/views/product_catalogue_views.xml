@@ -9,13 +9,12 @@
              lives here. -->
         <field name="inherit_id" ref="product.product_template_form_view"/>
         <field name="arch" type="xml">
-            <!-- Profiles are priced by rates, never typed: the table of
-                 current rates goes first, and the price, cost and
-                 "Can be Sold" controls go. Taxes stay. -->
+            <!-- Profiles are priced by rates, never typed: the price, cost
+                 and "Can be Sold" controls go. Taxes and category stay.
+                 A profile is any product in Fenestration / Profiles or a
+                 child of it. The rates themselves are on the Rates tab. -->
             <xpath expr="//page[@name='general_information']/group" position="before">
                 <field name="aw_is_profile" invisible="1"/>
-                <field name="aw_rates_table" widget="aw_rates_table" nolabel="1"
-                       invisible="not aw_is_profile"/>
             </xpath>
             <xpath expr="//span[@name='sale_option']" position="attributes">
                 <attribute name="invisible">aw_is_profile</attribute>
@@ -60,6 +59,13 @@
                             <field name="aw_catalogue_thickness" invisible="1"/>
                         </group>
                     </group>
+                </page>
+            </xpath>
+
+            <!-- After Fenestration, for every profile product. -->
+            <xpath expr="//page[@name='aw_fenestration']" position="after">
+                <page string="Rates" name="aw_rates" invisible="not aw_is_profile">
+                    <field name="aw_rates_table" widget="aw_rates_table" nolabel="1"/>
                 </page>
             </xpath>
 

@@ -283,16 +283,22 @@ class ProductTemplate(models.Model):
 
     aw_is_profile = fields.Boolean(
         compute='_compute_aw_is_profile',
-        help="A catalogue profile: its price and cost are rates, never "
-             "typed on the product form.")
+        help="A product in Fenestration / Profiles or a child of it: its "
+             "price and cost are rates, never typed on the product form.")
     aw_rates_table = fields.Json(
         compute='_compute_aw_rates_table', string='Current rates')
 
-    @api.depends('aw_catalogue_code', 'aw_catalogue_page')
+    @api.depends('categ_id')
     def _compute_aw_is_profile(self):
+        """Any product in Fenestration / Profiles or a child of it, with
+        or without a catalogue code (a profile made by hand in
+        Unclassified is one)."""
+        root = self.env.ref('aw_fenestration_core.product_category_profiles',
+                            raise_if_not_found=False)
         for template in self:
+            path = template.categ_id.parent_path or ''
             template.aw_is_profile = bool(
-                template.aw_catalogue_code or template.aw_catalogue_page)
+                root and root.parent_path and path.startswith(root.parent_path))
 
     @api.depends()
     def _compute_aw_rates_table(self):

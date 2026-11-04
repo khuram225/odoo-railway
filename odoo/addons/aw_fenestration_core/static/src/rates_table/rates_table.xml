@@ -56,6 +56,9 @@
                     </table>
                 </div>
             </t>
+            <div class="text-muted small mt-1">
+                Rates come from vendor rate lists. To change a price, load a new rate list.
+            </div>
         </div>
     </t>
 
