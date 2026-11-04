@@ -19,6 +19,7 @@ from .profile_rate import SYNC_CONTEXT, resolve_chain
 _logger = logging.getLogger(__name__)
 
 GLASS_VENDOR = 'Ghani Glass Ltd'
+GLASS_VENDOR_PARAM = 'aw_fenestration.glass_vendor_seeded'
 # The types the first list uses. Seeded by name and never overwritten.
 SEED_GLASS_TYPES = [
     ('Clear', False), ('Green', False), ('Brown', False), ('Blue', False),
@@ -60,11 +61,12 @@ class AwGlassType(models.Model):
 
     @api.model
     def _seed_glass_types(self):
-        """The types and the supplier of the first glass list, fill-only
-        by name: an existing type is never touched."""
-        partner = self.env['res.partner'].with_context(active_test=False)
-        if not partner.search([('name', '=ilike', GLASS_VENDOR)], limit=1):
-            partner.create({'name': GLASS_VENDOR, 'is_company': True})
+        """The types of the first glass list, fill-only by name: an
+        existing type is never touched. No partner is made here: this runs
+        from a data file, while modules are still loading, and a partner
+        created then misses the NOT NULL columns later modules add (the
+        purchase module's group_rfq killed two deploys). The supplier is
+        made by _seed_glass_vendor, from the registry hook."""
         made = 0
         for name, reflective in SEED_GLASS_TYPES:
             if not self.with_context(active_test=False).search(
@@ -72,6 +74,34 @@ class AwGlassType(models.Model):
                 self.create({'name': name, 'reflective': reflective})
                 made += 1
         return made
+
+    def _register_hook(self):
+        """The supplier, once every module has loaded. Savepoint, and
+        logged rather than raised: this also runs on every ordinary start,
+        where a failure must not become a server that will not boot."""
+        super()._register_hook()
+        try:
+            with self.env.cr.savepoint():
+                self._seed_glass_vendor()
+        except Exception:
+            _logger.exception("aw_fenestration_core: glass vendor seed failed")
+
+    @api.model
+    def _seed_glass_vendor(self):
+        """Ghani Glass Ltd, ONCE. A partner whose name contains
+        "ghani glass" (any case, archived included) is reused before one
+        is created, so a supplier somebody already added is not doubled."""
+        partner = self.env['res.partner'].with_context(active_test=False)
+        param = self.env['ir.config_parameter'].sudo()
+        found = partner.search([('name', 'ilike', 'ghani glass')], limit=1)
+        if param.get_param(GLASS_VENDOR_PARAM):
+            return found
+        if not found:
+            found = partner.create({'name': GLASS_VENDOR, 'is_company': True})
+        param.set_param(GLASS_VENDOR_PARAM, str(found.id))
+        _logger.info("aw_fenestration_core: glass vendor is '%s' (id %s)",
+                     found.name, found.id)
+        return found
 
 
 class AwGlassRate(models.Model):
