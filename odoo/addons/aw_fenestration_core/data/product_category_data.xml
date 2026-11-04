@@ -71,14 +71,6 @@
             <field name="name">Glass</field>
             <field name="parent_id" ref="product_category_fenestration"/>
         </record>
-        <record id="product_category_glass_toughened" model="product.category">
-            <field name="name">Toughened</field>
-            <field name="parent_id" ref="product_category_glass"/>
-        </record>
-        <record id="product_category_glass_dgu" model="product.category">
-            <field name="name">DGU</field>
-            <field name="parent_id" ref="product_category_glass"/>
-        </record>
 
         <!-- Seed the 8 real Window Series (window_series.jpeg), replacing the
              earlier 6 Chawla-derived placeholder names. leaf_type_ids

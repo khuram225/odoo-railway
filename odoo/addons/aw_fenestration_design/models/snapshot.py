@@ -72,7 +72,6 @@ class AwDesign(models.Model):
                         'infill': leaf.infill_type_id.id or 0,
                         'grid': leaf.grid_pattern_id.id or 0,
                         'grid_rc': [leaf.grid_rows or 0, leaf.grid_cols or 0],
-                        'glass': leaf.glass_spec_id.id or 0,
                         'panel_no': leaf.panel_no or 0,
                         'rows': leaves(leaf.child_row_ids),
                     })
@@ -88,7 +87,6 @@ class AwDesign(models.Model):
         payload = {
             'w': round(self.width_mm or 0.0, 3),
             'h': round(self.height_mm or 0.0, 3),
-            'glass': self.glass_spec_id.id or 0,
             'rows': leaves(self.row_ids),
         }
         # Only a stack somebody has edited changes the fingerprint. The
@@ -108,7 +106,7 @@ class AwDesign(models.Model):
         blob = json.dumps(payload, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
-    @api.depends('width_mm', 'height_mm', 'glass_spec_id', 'glass_part_ids',
+    @api.depends('width_mm', 'height_mm', 'glass_part_ids',
                  'elevation_hash',
                  'elevation_svg',
                  'row_ids.height_mm', 'row_ids.leaf_ids.width_mm',
@@ -120,7 +118,6 @@ class AwDesign(models.Model):
                  'row_ids.leaf_ids.mesh_cassette_side',
                  'row_ids.leaf_ids.infill_type_id',
                  'row_ids.leaf_ids.grid_pattern_id',
-                 'row_ids.leaf_ids.glass_spec_id',
                  'row_ids.leaf_ids.glass_part_ids')
     def _compute_elevation_is_current(self):
         for design in self:

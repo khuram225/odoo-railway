@@ -13,3 +13,4 @@ from . import test_finish_names
 from . import test_glass_rates
 from . import test_glass_products
 from . import test_glass_stack
+from . import test_glass_retire

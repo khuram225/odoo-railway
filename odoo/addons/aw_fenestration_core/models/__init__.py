@@ -8,7 +8,6 @@ from . import spec_section
 from . import profile_section
 from . import section_seed
 from . import hardware_set
-from . import glass_spec
 from . import window_template
 from . import template_copy_wizard
 from . import spec_migration
@@ -27,3 +26,4 @@ from . import finish_names
 from . import glass_rates
 from . import glass_sheet
 from . import glass_extras
+from . import glass_retire

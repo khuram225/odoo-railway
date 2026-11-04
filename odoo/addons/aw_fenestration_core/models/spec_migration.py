@@ -71,10 +71,6 @@ class AwWindowTemplate(models.Model):
             'window_type_id': system.id,
             'profile_section_id': section.id,
             'hardware_set_id': system.hardware_set_ids[:1].id or False,
-            'glass_spec_id': (
-                system.default_glass_spec_id.id
-                or self.env['aw.glass.spec'].search([], limit=1).id
-                or False),
             'is_default': not has_default,
             'notes': "Created by the phase 7d migration, so the designs "
                      "built on this Profile Section keep their BOM.",

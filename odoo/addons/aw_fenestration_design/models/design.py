@@ -126,14 +126,6 @@ class AwDesign(models.Model):
     override_ids = fields.One2many(
         'aw.design.override', 'design_id', string='Changes for this window')
     override_count = fields.Integer(compute='_compute_override_count')
-    # Computed store=True readonly=False, like the rule sets below: a new
-    # design picks up the Series' default glass, but the compute only
-    # ever FILLS an empty value, so changing Series never silently
-    # replaces glass someone chose.
-    glass_spec_id = fields.Many2one(
-        'aw.glass.spec', tracking=True, ondelete='restrict',
-        compute='_compute_glass_spec', store=True, readonly=False)
-
     # -- which rules this design is built to (spec 6, addition A) ----------
     # Computed with store=True and readonly=False: they follow the Series
     # when it changes, which is what you want nine times out of ten, but
@@ -173,7 +165,7 @@ class AwDesign(models.Model):
     # in aw_fenestration_core/data/chawla_attributes_data.xml. Domains by
     # xmlid rather than by name string, matching the pattern already used
     # for categ_id in aw_fenestration_core's profile_section.py/
-    # hardware_set.py/glass_spec.py -- a renamed attribute wouldn't
+    # hardware_set.py/section_seed.py -- a renamed attribute wouldn't
     # silently break this the way name-matching would.
     # Phase 7e: REQUIRED, and the only place a finish is decided. It
     # used to be optional here and required on every spec profile line,
@@ -253,20 +245,6 @@ class AwDesign(models.Model):
             'aw_fenestration_core.aw_attr_val_finish_natural',
             raise_if_not_found=False)
         return natural.id if natural else False
-
-    @api.depends('window_series_id')
-    def _compute_glass_spec(self):
-        """Fill from the Series' default, never replace.
-
-        Assigning on every record is deliberate: a stored compute that
-        leaves one unassigned raises, and `or` expresses the rule
-        exactly -- keep what is there, otherwise take the default.
-        """
-        # Glass is a stack now: this no longer takes the spec's pointer, so
-        # a new window starts with none and is given the spec's default
-        # STACK by _apply_spec. Assigning keeps the stored compute valid.
-        for design in self:
-            design.glass_spec_id = design.glass_spec_id
 
     @api.depends('window_series_id')
     @api.depends('template_id')
@@ -1200,7 +1178,6 @@ class AwDesign(models.Model):
                 {f: system[f] for f in rules},
                 name=name,
                 window_type_id=system.id,
-                glass_spec_id=self.glass_spec_id.id,
                 glass_part_ids=self.env['aw.glass.part']._commands_from(
                     self._glass_stack_dicts()),
                 is_default=False,
@@ -1259,12 +1236,6 @@ class AwDesign(models.Model):
         }
         return data
 
-    def _glass_context(self):
-        """Context carrying this design's glass domain."""
-        self.ensure_one()
-        domain = self.family_id._glass_domain() if self.family_id else []
-        return self.with_context(aw_glass_domain=domain)
-
     def _attachment_catalogue(self):
         """Fly screens, infills, glass and bars for this design.
 
@@ -1300,12 +1271,6 @@ class AwDesign(models.Model):
                 'family_sequence': (
                     i.family_id.sequence if i.family_id else 999),
             } for i in available['infill']],
-            # Only the glass this family can use. Curtain wall's family
-            # is 'none', whose domain is empty, so it still sees all.
-            'glass_specs': [{
-                'id': g.id, 'name': g.display_name,
-            } for g in self.env['aw.glass.spec'].search(
-                self.env.context.get('aw_glass_domain') or [])],
             'glass_catalog': self._glass_catalog(),
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
@@ -1487,7 +1452,7 @@ class AwDesign(models.Model):
             # get_series_context, so on open the configurator had no mesh,
             # infill, glass or grid at all -- the headings rendered with
             # nothing under them.
-            **self._glass_context()._attachment_catalogue(),
+            **self._attachment_catalogue(),
             **self._bom_payload(),
             **self._pricing_payload(),
         }
@@ -1919,7 +1884,6 @@ class AwDesign(models.Model):
             'qty': self.qty,
             'width_mm': self.width_mm,
             'height_mm': self.height_mm,
-            'glass_spec_id': self.glass_spec_id.id,
             'finish_id': self.finish_id.id,
             'thickness_id': self.thickness_id.id,
             'manual_rate': self.manual_rate,

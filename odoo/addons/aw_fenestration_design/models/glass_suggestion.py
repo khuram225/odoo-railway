@@ -36,9 +36,10 @@ THRESHOLD_2 = 'aw_fenestration.glass_threshold_2_m2'
 DEFAULT_THRESHOLD_1 = 4.5
 DEFAULT_THRESHOLD_2 = 7.0
 
-CLEAR_6_10_8 = 'aw_fenestration_core.glass_spec_lc_6_10_8_clear'
-CLEAR_8_8_8 = 'aw_fenestration_core.glass_spec_lc_8_8_8_clear'
-FROSTED = 'aw_fenestration_core.glass_spec_lc_6_10_6_frosted'
+# The Lake City schedule, by the names glass_recipes.py knows them by.
+CLEAR_6_10_8 = '6+10+8 Clear Tempered'
+CLEAR_8_8_8 = '8+8+8 Clear Tempered'
+FROSTED = '6+10+6 Frosted Tempered'
 
 
 class AwDesign(models.Model):
@@ -69,18 +70,17 @@ class AwDesign(models.Model):
         return any(word.startswith(k) for word in words for k in keywords)
 
     def _suggested_glass_for(self, leaf):
-        """The glass the rule suggests for one panel, or empty."""
+        """The name of the stack the rule suggests for one panel, or ''."""
         self.ensure_one()
-        Glass = self.env['aw.glass.spec']
         if self._wet_room(self.location):
-            return self.env.ref(FROSTED, raise_if_not_found=False) or Glass
+            return FROSTED
         area_m2 = (leaf.width_mm or 0.0) * (leaf.row_id.height_mm or 0.0) / 1e6
         small, large = self._glass_thresholds()
         if area_m2 >= large:
-            return self.env.ref(CLEAR_8_8_8, raise_if_not_found=False) or Glass
+            return CLEAR_8_8_8
         if area_m2 >= small:
-            return self.env.ref(CLEAR_6_10_8, raise_if_not_found=False) or Glass
-        return Glass
+            return CLEAR_6_10_8
+        return ''
 
     def _suggest_glass(self):
         """Fill the glass of panels that have none; see the module note."""
@@ -101,7 +101,7 @@ class AwDesign(models.Model):
                 pick = design._suggested_glass_for(leaf)
                 items = []
                 if pick:
-                    recipe = recipe_for_spec(pick.name, priced=True)
+                    recipe = recipe_for_spec(pick, priced=True)
                     items = [dict(design._recipe_dict(p), migrated=False,
                                   rate_manual=False)
                              for p in (recipe or [])]

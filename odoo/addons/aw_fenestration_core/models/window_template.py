@@ -60,14 +60,8 @@ class AwWindowTemplate(models.Model):
         domain="[('window_type_id', '=', window_type_id)]", tracking=True,
         help="Leave empty until a hardware list exists. A design built "
              "to this spec will warn that its hardware cost is missing.")
-    # Optional: a window's glass is chosen per panel, so the spec's glass
-    # is only a starting point. Empty is fine -- a design that finds none
-    # simply starts with no glass chosen, and the panel's own choice
-    # (or the window-level one) supplies it.
-    glass_spec_id = fields.Many2one(
-        'aw.glass.spec', ondelete='restrict', tracking=True,
-        help="The glass a new window built to this spec starts with. "
-             "Optional.")
+    # A spec's default glass is a stack (aw.glass.part, defined with the
+    # design), which a new window copies as its own.
     # Phase 7e: the spec's own Default Finish was REMOVED. Colour is
     # decided in ONE place now -- the design -- defaulting from the sale
     # order's own default and failing that to Natural. A spec that also

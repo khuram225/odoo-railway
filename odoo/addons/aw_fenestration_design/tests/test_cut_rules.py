@@ -73,8 +73,7 @@ class TestPanelOpening(TransactionCase):
         series = env.ref('aw_fenestration_core.window_series_casement_dg',
                          raise_if_not_found=False)
         fixed = env['aw.leaf.type'].search([('code', '=', 'FIXED')], limit=1)
-        glass = env['aw.glass.spec'].search([], limit=1)
-        if not (series and fixed and glass):
+        if not (series and fixed):
             raise unittest.SkipTest("Seed data is missing")
         profile = env['product.template'].search([
             ('categ_id', 'child_of', env.ref(
@@ -88,7 +87,6 @@ class TestPanelOpening(TransactionCase):
             'is_required': False})
         template = env['aw.window.template'].create({
             'name': 'PO spec', 'window_type_id': series.id,
-            'glass_spec_id': glass.id,
             'frame_deduction_w_mm': 3 * INCH,
             'frame_deduction_h_mm': 3 * INCH,
             'divider_body_mm': 1.5 * INCH,
@@ -103,7 +101,7 @@ class TestPanelOpening(TransactionCase):
             ]})
         design = env['aw.design'].create({
             'name': 'PO', 'qty': 1, 'window_series_id': series.id,
-            'template_id': template.id, 'glass_spec_id': glass.id,
+            'template_id': template.id,
             'width_mm': width_in * INCH, 'height_mm': height_in * INCH})
         return design, fixed
 
@@ -184,8 +182,7 @@ class TestCutRules(TransactionCase):
                              raise_if_not_found=False)
         cls.casement = env['aw.leaf.type'].search(
             [('code', '=', 'CASEMENT')], limit=1)
-        cls.glass = env['aw.glass.spec'].search([], limit=1)
-        if not (cls.series and cls.casement and cls.glass):
+        if not (cls.series and cls.casement):
             raise unittest.SkipTest(
                 "Seed data for the cut-rules test is missing")
         profiles = env['product.template'].search(
@@ -217,7 +214,6 @@ class TestCutRules(TransactionCase):
         cls.template = env['aw.window.template'].create({
             'name': 'RE openable, 2 sash + divider',
             'window_type_id': cls.series.id,
-            'glass_spec_id': cls.glass.id,
             'panel_count': 2, 'divider_count': 1,
             'frame_deduction_w_mm': 3 * INCH,
             'frame_deduction_h_mm': 3 * INCH,
@@ -236,7 +232,6 @@ class TestCutRules(TransactionCase):
             'name': 'CR1', 'qty': 1,
             'window_series_id': cls.series.id,
             'template_id': cls.template.id,
-            'glass_spec_id': cls.glass.id,
             'width_mm': 72 * INCH, 'height_mm': 72 * INCH,
         })
         row = env['aw.design.row'].create({

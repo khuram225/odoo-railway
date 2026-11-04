@@ -150,7 +150,6 @@
                                     <field name="is_default" widget="boolean_toggle"/>
                                     <field name="profile_line_count" string="Profiles"/>
                                     <field name="hardware_line_count" string="Hardware"/>
-                                    <field name="glass_spec_id"/>
                                     <field name="design_count" string="Used in"/>
                                 </list>
                             </field>

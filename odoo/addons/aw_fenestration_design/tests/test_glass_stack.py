@@ -178,86 +178,12 @@ class TestGlassStack(TransactionCase):
     def test_no_stack_at_all_is_one_warning_not_a_cost(self):
         self.leaves.glass_part_ids = [(5, 0, 0)]
         self.design.glass_part_ids = [(5, 0, 0)]
-        self.design.glass_spec_id = False
-        self.design.template_id.glass_spec_id = False
         self.design.template_id.glass_part_ids.unlink()
         self.design._explode()
         glass = self.design.bom_line_ids.filtered(lambda l: l.kind == 'glass')
         self.assertTrue(glass)                       # the panel still shows
         self.assertFalse(glass.filtered('glass_part_kind'))
         self.assertFalse(any(glass.mapped('line_cost')))
-
-    # -- migration ---------------------------------------------------------------
-    def _legacy_design(self, header_spec, panel_spec=None):
-        """The design as it was before stacks: specs only, no parts."""
-        self.leaves.glass_part_ids = [(5, 0, 0)]
-        self.design.glass_part_ids = [(5, 0, 0)]
-        self.design.glass_spec_id = header_spec
-        self.leaves[0].glass_spec_id = panel_spec or False
-        self.leaves[1].glass_spec_id = False
-
-    def _spec(self, name):
-        spec = self.env['aw.glass.spec'].with_context(active_test=False).search(
-            [('name', '=', name)], limit=1)
-        if not spec:
-            raise unittest.SkipTest("spec %r is not seeded here" % name)
-        return spec
-
-    def test_a_window_with_no_stack_is_read_through_its_old_spec(self):
-        self._legacy_design(self._spec('24mm DGU (6 + 12 + 6)'))
-        items = self.design._glass_stack_dicts()
-        self.assertEqual([i['kind'] for i in items], ['sheet', 'gap', 'sheet'])
-        self.assertEqual([i['thickness_mm'] for i in items if i['kind'] == 'sheet'],
-                         [6.0, 6.0])
-
-    def test_the_migration_makes_header_and_panel_stacks_once(self):
-        header = self._spec('24mm DGU (6 + 12 + 6)')
-        panel = self._spec('6+10+8 Clear Tempered')
-        self._legacy_design(header, panel)
-        self.env['ir.config_parameter'].sudo().set_param(
-            'aw_fenestration.glass_stacks_migrated', '')
-        report = self.design._migrate_glass_stacks()
-        self.assertTrue(report)
-        self.assertEqual(
-            self.design.glass_part_ids.mapped('kind'), ['sheet', 'gap', 'sheet'])
-        first = self.leaves[0].glass_part_ids.sorted('sequence')
-        self.assertEqual([p.thickness_mm for p in first if p.kind == 'sheet'],
-                         [6.0, 8.0])
-        self.assertEqual(first.filtered(lambda p: p.kind == 'sheet')
-                         .mapped('remark'), ['was: Clear Tempered'] * 2)
-        gap = first.filtered(lambda p: p.kind == 'gap')
-        self.assertEqual((gap.gap_mm, gap.spacer_type_id.name, gap.gas_id.name,
-                          gap.spacer_colour_id.name), (10.0, 'Aluminium', 'Air', 'Silver'))
-        self.assertTrue(gap.default_gap and gap.migrated)
-        # panel 2 had no override: it gets its own copy of the window's
-        second = self.leaves[1].glass_part_ids
-        self.assertEqual(len(second), 3)
-        self.assertTrue(all(p.migrated for p in second))
-        # an unpriced spec migrates with a manual 0, so no quote changes
-        self.assertTrue(all(p.rate_manual and p.manual_rate == 0.0
-                            for p in second if p.kind == 'sheet'))
-        lines = self._lines()
-        self.assertEqual(sum(lines.mapped('line_cost')), 0.0)
-        # once: a second run changes nothing
-        self.assertFalse(self.design._migrate_glass_stacks())
-
-    def test_a_priced_spec_takes_the_list_rate(self):
-        spec = self._spec('10mm Clear Toughened')
-        self.clear_rate = self.env['aw.glass.rate'].create({
-            'glass_type_id': self.clear.id, 'thickness_mm': 10,
-            'vendor_id': self.vendor.id, 'price': 611.92,
-            'date_from': date(2000, 1, 1)})
-        spec.product_id.standard_price = 611.92
-        self._legacy_design(spec)
-        self.env['ir.config_parameter'].sudo().set_param(
-            'aw_fenestration.glass_stacks_migrated', '')
-        self.design._migrate_glass_stacks()
-        sheet = self.leaves[0].glass_part_ids
-        self.assertFalse(sheet.rate_manual)
-        self.assertEqual(sheet.remark, 'was: Clear Toughened')
-        line = self._lines(self.leaves[0].panel_no)
-        self.assertEqual(line.rate_list, 611.92)
-        self.assertGreater(line.line_cost, 0.0)
 
     def test_quotes_print_the_remark_not_plain_clear(self):
         self.leaves.glass_part_ids = [(5, 0, 0)]
@@ -278,3 +204,24 @@ class TestGlassStack(TransactionCase):
             'aw_fenestration_design.action_aw_glass_part_migrated'))
         self.assertTrue(self.env.ref(
             'aw_fenestration_design.action_aw_glass_part_remark'))
+
+    def test_a_new_spec_starts_with_a_sealed_unit_stack(self):
+        spec = self.env['aw.window.template'].search([], limit=1)
+        if not spec:
+            self.skipTest("no spec")
+        Part = self.env['aw.glass.part']
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aw_fenestration.default_glass_stack_seeded', '')
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aw_fenestration.spec_dg_openable_id', str(spec.id))
+        spec.glass_part_ids = [(5, 0, 0)]
+        self.assertTrue(self.env['aw.window.template']._seed_default_glass_stacks())
+        parts = spec.glass_part_ids.sorted('sequence')
+        self.assertEqual(parts.mapped('kind'), ['sheet', 'gap', 'sheet'])
+        self.assertEqual(parts[0].thickness_mm, 6.0)
+        self.assertEqual(parts[1].gap_mm, 12.0)
+        self.assertFalse(any(parts.mapped('migrated')))
+        self.assertFalse(any(parts.mapped('rate_manual')))
+        # once, and never over a stack somebody already has
+        self.assertFalse(self.env['aw.window.template']._seed_default_glass_stacks())
+        self.assertTrue(Part.search_count([('template_id', '=', spec.id)]) == 3)
