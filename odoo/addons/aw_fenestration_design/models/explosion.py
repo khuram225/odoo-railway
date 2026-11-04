@@ -23,7 +23,7 @@ from .family import OPENING_LEAF_CODES
 CHECK_ONLY_KEYS = frozenset({
     'missing_product', 'missing_product_reason', 'position_id',
     'missing_glass',
-    'glass_without_product', 'glass_spec_name', '_order',
+    '_order',
 })
 
 # How to say "the layout needs this" in the checks, per scope. Phrased

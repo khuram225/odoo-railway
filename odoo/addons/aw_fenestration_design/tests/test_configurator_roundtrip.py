@@ -54,9 +54,9 @@ class TestConfiguratorRoundTrip(TransactionCase):
         """The core property: load, save the payload back untouched, and
         nothing about the header moves."""
         self.design.manual_rate = 123.45
-        glass = self.env['aw.glass.spec'].search([], limit=1)
-        if glass:
-            self.design.glass_spec_id = glass
+        self.design.glass_part_ids = [(5, 0, 0)] + self.env[
+            'aw.glass.part']._commands_from([
+                {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 6.0}])
 
         data = self.design.get_configurator_data()
         before = self._header_snapshot()
@@ -89,17 +89,17 @@ class TestConfiguratorRoundTrip(TransactionCase):
                 "An unsent profile_section_id was blanked by the save.")
 
     def test_explicit_clear_still_clears(self):
-        """The other half: dropping unsent keys must not make a real
-        'No glass' choice impossible."""
-        glass = self.env['aw.glass.spec'].search([], limit=1)
-        if not glass:
-            self.skipTest("No glass specs seeded")
-        self.design.glass_spec_id = glass
+        """The other half: a real 'no glass' choice must still be possible
+        -- sending an empty window stack clears it."""
+        self.design.glass_part_ids = [(5, 0, 0)] + self.env[
+            'aw.glass.part']._commands_from([
+                {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 6.0}])
+        self.assertTrue(self.design.glass_part_ids)
 
         data = self.design.get_configurator_data()
-        header = dict(data['header'], glass_spec_id=False)
+        header = dict(data['header'], glass_stack=[])
         self.design.save_layout({'header': header, 'rows': data['rows']})
 
         self.assertFalse(
-            self.design.glass_spec_id,
-            "Clearing glass from the header did not take effect.")
+            self.design.glass_part_ids,
+            "Clearing the glass stack from the header did not take effect.")

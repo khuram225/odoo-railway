@@ -16,12 +16,10 @@ class TestPositionCatalog(TransactionCase):
         cls.series = cls.env.ref(
             'aw_fenestration_core.window_series_casement_dg',
             raise_if_not_found=False)
-        cls.glass = cls.env['aw.glass.spec'].search([], limit=1)
-        if not (cls.series and cls.glass):
+        if not cls.series:
             raise unittest.SkipTest("Seed data is missing")
         cls.spec = cls.env['aw.window.template'].create({
-            'name': 'CAT', 'window_type_id': cls.series.id,
-            'glass_spec_id': cls.glass.id})
+            'name': 'CAT', 'window_type_id': cls.series.id})
         cls.positions = cls.env['aw.profile.position'].search(
             [('scope', '!=', False)])
 

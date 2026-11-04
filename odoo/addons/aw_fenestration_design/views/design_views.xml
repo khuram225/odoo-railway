@@ -167,7 +167,6 @@
                     </group>
                     <group>
                         <group string="Glazing / Finish">
-                            <field name="glass_spec_id" readonly="1"/>
                             <field name="finish_id" readonly="1"/>
                         </group>
                         <group string="Quote">

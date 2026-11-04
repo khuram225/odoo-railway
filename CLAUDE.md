@@ -557,8 +557,7 @@ the registry hook, not a data file, because it creates a product and a
 product made during an upgrade misses columns that purchase and sale add.
 The Rates tab shows this table for the Glass Sheet too (rows glass types,
 columns thicknesses) and is shown for anything `aw_priced_by_rates` (a
-profile or the Glass Sheet). The old flat glass products still exist until
-glass becomes a per-panel stack.
+profile or the Glass Sheet). The old flat glass products are gone (see Glass stacks).
 
 ## Glass stacks
 
@@ -576,19 +575,31 @@ per running ft + gas per unit from `aw.glass.extra`; with no price typed it
 costs nothing and says nothing. The explosion makes one BOM glass line per
 part.
 
-`models/glass_recipes.py` (Odoo-free, `scripts/check_glass_recipes.py`) says
-what each of the 11 old specs means as a stack. Tempered, Toughened and
-Frosted are processing that has no service yet, so those specs became PLAIN
-Clear sheets with a remark ("was: Clear Tempered") that quotes and shop
-drawings print. The migration (`_migrate_glass_stacks`, from the registry
-hook, once) gives each window a header stack and each glazed panel its own
-copy; sheets of unpriced specs carry a manual rate of 0 flagged `migrated`,
-the three priced specs take the list rate (that is why those panels rise: the
-old cost multiplied a per-sqft number by m2). Specs and their pointers are
-kept; a window with no stack anywhere is still read through its old spec.
-The elevation fingerprint ignores migrated parts so no stored drawing goes
-out of date. Reports: Glass > "Panels with migrated glass" and "Panels with a
-migration remark". Services and Georgian bars come later (PR E).
+`models/glass_recipes.py` (Odoo-free, `scripts/check_glass_recipes.py`) keeps
+the 11 old spec NAMES as recipes, because the Lake City glass suggestions
+(wet-room and large-pane rules) are written in them, and holds the default
+sealed unit (6 + 12 + 6) a new "Double Glaze - Openable" window starts with.
+Tempered, Toughened and Frosted are processing that has no service yet, so
+those were migrated as PLAIN Clear sheets with a remark ("was: Clear
+Tempered") that quotes and shop drawings print. Reports: Glass > "Panels with
+migrated glass" and "Panels with a migration remark". Services and Georgian
+bars come later (PR E).
+
+**The old flat glass is gone.** There is no `aw.glass.spec` model, no
+`glass_spec_id` anywhere, no flat glass product, and no Fenestration / Glass /
+DGU or Toughened category. `aw.glass.type._retire_flat_glass()` did it once, in
+SQL, from a data function: it first VERIFIES nothing points at the specs or
+products (a scan of every foreign key, plus that every profile spec had a
+default stack), logs and stops without failing the upgrade if anything does,
+then clears the profile specs' pointers, DROPS the four `glass_spec_id` columns
+(Odoo only drops a removed field's column at the end of the upgrade, and their
+restricting foreign keys would block the delete until then), deletes the
+specs, the products and the two categories. Do not bring the old seeds back:
+`glass_spec_data.xml`, the Lake City product seed and `_seed_glazing` were
+deleted with it, and a deleted record whose seed still exists is recreated at
+the next upgrade. The seeded "Double Glaze - Openable" spec gets its default
+stack from the design module (`glass_default_stack.py`), found through the
+`aw_fenestration.spec_dg_openable_id` parameter because it is renamed 'RE'.
 
 ## Static checks
 

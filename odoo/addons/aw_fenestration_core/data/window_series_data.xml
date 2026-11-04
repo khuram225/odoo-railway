@@ -19,7 +19,6 @@
         <function model="aw.window.family" name="_seed_families"/>
         <function model="aw.window.series" name="_seed_default_leaf_types"/>
         <function model="aw.window.series" name="_seed_family_and_names"/>
-        <function model="aw.glass.spec" name="_seed_glazing"/>
         <function model="aw.profile.section" name="_seed_dg_openable_section"/>
         <!-- After the seed, so a database seeing both for the first
              time gets the corrected thicknesses either way: the seed
@@ -47,7 +46,6 @@
         <function model="aw.spec.section" name="_migrate_line_sections"/>
         <function model="aw.window.template" name="_migrate_deductions_to_specs"/>
         <!-- Phase 7e -->
-        <function model="aw.window.template" name="_migrate_system_glass_to_specs"/>
         <function model="aw.window.template" name="_rename_seeded_spec"/>
         <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>
         <function model="aw.price.structure" name="_seed_default_structure"/>
@@ -70,5 +68,8 @@
         <function model="aw.profile.position" name="_seed_catalog"/>
         <function model="res.config.settings" name="_migrate_length_uom"/>
         <function model="aw.window.template" name="_sync_all_catalog_lines"/>
+        <!-- The old flat glass (11 specs, 11 products), once and last, in
+             SQL: verified first, never fails the upgrade. -->
+        <function model="aw.glass.type" name="_retire_flat_glass"/>
     </data>
 </odoo>

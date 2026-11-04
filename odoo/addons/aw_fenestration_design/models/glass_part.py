@@ -18,8 +18,6 @@ before the migration has run.
 """
 from odoo import _, api, fields, models
 
-from .glass_recipes import recipe_for_spec
-
 
 class AwGlassPart(models.Model):
     _name = 'aw.glass.part'
@@ -217,8 +215,7 @@ class AwDesign(models.Model):
     glass_summary = fields.Char(compute='_compute_glass_summary')
 
     @api.depends('glass_part_ids', 'glass_part_ids.glass_type_id',
-                 'glass_part_ids.thickness_mm', 'glass_part_ids.gap_mm',
-                 'glass_spec_id')
+                 'glass_part_ids.thickness_mm', 'glass_part_ids.gap_mm')
     def _compute_glass_summary(self):
         Part = self.env['aw.glass.part']
         for design in self:
@@ -237,39 +234,17 @@ class AwDesign(models.Model):
             ('leaf_id.row_id.design_id', '=', self.id)]))
 
     def _glass_stack_dicts(self, leaf=None):
-        """The stack a panel is glazed with, as canonical dicts, in order.
-
-        A panel's own parts, else the window's header stack. A window with
-        no stack anywhere yet is read through the old spec it points at
-        (its panel's override, else its own), then the spec's default
-        stack, so nothing costs differently before the migration has run;
-        once ANY stack exists on the window the old pointers are ignored,
-        and a panel with none simply has no glass.
-        """
+        """The stack a panel is glazed with, as canonical dicts, in order:
+        its own parts, else the window's header stack, else its profile
+        spec's default stack (a window made before it was given its own).
+        Nothing at all means no glass."""
         self.ensure_one()
         Part = self.env['aw.glass.part']
         own = leaf.glass_part_ids if leaf else Part
         parts = own or self.glass_part_ids
-        if parts:
-            return [p._as_dict() for p in parts.sorted('sequence')]
-        if self._has_glass_stacks():
-            return []
-        spec = (leaf and leaf.glass_spec_id) or self.glass_spec_id
-        if spec:
-            return self._spec_stack_dicts(spec)
-        if self.template_id.glass_part_ids:
-            return [p._as_dict() for p in
-                    self.template_id.glass_part_ids.sorted('sequence')]
-        return self._spec_stack_dicts(self.template_id.glass_spec_id)
-
-    def _spec_stack_dicts(self, spec):
-        """A saved spec read as a stack (see glass_recipes); nothing for a
-        spec whose name is not one it knows."""
-        if not spec:
-            return []
-        recipe = recipe_for_spec(
-            spec.name, priced=spec.product_id.standard_price > 0)
-        return [self._recipe_dict(part) for part in (recipe or [])]
+        if not parts and not self._has_glass_stacks():
+            parts = self.template_id.glass_part_ids
+        return [p._as_dict() for p in parts.sorted('sequence')]
 
     @api.model
     def _recipe_dict(self, part):

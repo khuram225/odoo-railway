@@ -6,10 +6,8 @@ reading the OLD column in SQL because the field it reads is gone from
 the model while the column survives -- Odoo never drops a column it
 stops using, which is what makes a migration like this possible at all.
 
-1. `aw.window.series.default_glass_spec_id` is gone. Its value is copied
-   onto the system's specs that have no glass of their own. A spec that
-   already has one keeps it: the spec was always the more specific
-   answer.
+1. (Removed: it copied `aw.window.series.default_glass_spec_id` onto the
+   specs. Glass is a per-panel stack now and the saved glass specs are gone.)
 
 2. The design half of this -- giving every design the finish its spec
    lines carried -- lives in `aw_fenestration_design`, in
@@ -47,35 +45,6 @@ class AwWindowTemplate(models.Model):
              WHERE table_name = %s AND column_name = %s
         """, (table, column))
         return bool(self.env.cr.fetchone())
-
-    @api.model
-    def _migrate_system_glass_to_specs(self):
-        """Copy each system's old Default Glass onto its specs."""
-        param = self.env['ir.config_parameter'].sudo()
-        if param.get_param(GLASS_PARAM):
-            return False
-        param.set_param(GLASS_PARAM, '1')
-        if not self._column_exists('aw_window_series',
-                                   'default_glass_spec_id'):
-            return False
-
-        self.env.cr.execute("""
-            SELECT id, default_glass_spec_id FROM aw_window_series
-             WHERE default_glass_spec_id IS NOT NULL
-        """)
-        filled = 0
-        for system_id, glass_id in self.env.cr.fetchall():
-            specs = self.with_context(active_test=False).search([
-                ('window_type_id', '=', system_id),
-                ('glass_spec_id', '=', False),
-            ])
-            if specs:
-                specs.write({'glass_spec_id': glass_id})
-                filled += len(specs)
-        _logger.info(
-            "aw_fenestration_core phase 7e: default glass copied onto %s "
-            "specification(s)", filled)
-        return True
 
     @api.model
     def _rename_seeded_spec(self):

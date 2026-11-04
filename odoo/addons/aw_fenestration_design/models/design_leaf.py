@@ -120,10 +120,6 @@ class AwDesignLeaf(models.Model):
     infill_type_id = fields.Many2one(
         'aw.infill.type', string='Infill', ondelete='restrict',
         help="What fills this panel. Empty means glass.")
-    glass_spec_id = fields.Many2one(
-        'aw.glass.spec', string='Glass override', ondelete='restrict',
-        help="Overrides the design's glass for this panel only. Empty "
-             "means the design's glass.")
     glass_chosen = fields.Boolean(
         string='Glass Chosen', default=False,
         help="Somebody picked this panel's glass by hand, including "

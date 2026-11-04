@@ -75,3 +75,14 @@ def recipe_for_spec(name, priced=False):
         mm, rest = match.groups()
         return [sheet(mm, _remark(rest))]
     return None
+
+
+# What a new "Double Glaze - Openable" window starts with: sheet, gap, sheet,
+# a plain sealed unit. Not a migration, so nothing is flagged and the sheets
+# take their list rate.
+DEFAULT_SEALED_UNIT = [
+    {'kind': 'sheet', 'glass_type': COLOUR, 'thickness_mm': 6.0},
+    {'kind': 'gap', 'gap_mm': 12.0, 'spacer_type': 'Aluminium',
+     'spacer_colour': 'Silver', 'gas': 'Air'},
+    {'kind': 'sheet', 'glass_type': COLOUR, 'thickness_mm': 6.0},
+]

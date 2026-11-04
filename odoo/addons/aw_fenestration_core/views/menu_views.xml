@@ -68,15 +68,6 @@
               action="action_aw_leaf_type"
               sequence="4"/>
 
-    <!-- Retired: a panel's glass is its own stack now. The records stay
-         (the migration reads them); the menu is hidden. -->
-    <menuitem id="menu_aw_glass_spec"
-              name="Glass Specs"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_glass_spec"
-              active="False"
-              sequence="5"/>
-
     <!-- Vendor rates: what is in force, the lists that put it there, and
          how each vendor's sheet is read. Price Structures is separate: it
          is how a cost becomes a price, not where a cost comes from. -->

@@ -1052,10 +1052,6 @@ export class DesignConfigurator extends Component {
         this.state.dirty = true;
     }
 
-    get glassSpecOptions() {
-        return this.state.data?.glass_specs || [];
-    }
-
     // -- specification (phase 7c) ------------------------------------
     get specOptions() {
         return this.state.data?.spec_options || [];
@@ -1614,7 +1610,7 @@ export class DesignConfigurator extends Component {
         this.state.data.presets = context.presets;
         // The catalogue comes back too, so the library's mesh and infill
         // sections stay in step with whatever the new Series allows.
-        for (const key of ["mesh_types", "infill_types", "glass_specs",
+        for (const key of ["mesh_types", "infill_types", "glass_catalog",
                            "grid_patterns", "families", "spec_options",
                            "spec_parts"]) {
             if (context[key]) {
@@ -4535,10 +4531,6 @@ export class DesignConfigurator extends Component {
 
     get infillTypes() {
         return this.state.data?.infill_types || [];
-    }
-
-    get glassSpecs() {
-        return this.state.data?.glass_specs || [];
     }
 
     get gridPatterns() {

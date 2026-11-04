@@ -53,18 +53,6 @@ class AwWindowFamily(models.Model):
         for family in self:
             family.series_count = len(family.series_ids)
 
-    def _glass_domain(self):
-        """Which glass specs this family may use.
-
-        A family with no glazing preference takes anything, which is
-        the point of 'none' -- curtain wall is glazed to whatever the
-        job needs.
-        """
-        self.ensure_one()
-        if not self.glazing or self.glazing == 'none':
-            return []
-        return [('glazing', 'in', (self.glazing, False))]
-
     @api.model
     def _seed_families(self):
         """Fill-only-if-empty, by code, once per database."""

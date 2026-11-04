@@ -71,8 +71,10 @@ SECTION_LINES = {
 # The specification seeded over that section (phase 7c). "Spec" is the
 # user-facing word for aw.window.template throughout.
 SPEC_NAME = 'Double Glaze – Openable – RE spec'
-SPEC_GLASS_XMLID = 'glass_spec_dgu_24'
 SPEC_SEEDED_PARAM = 'aw_fenestration.spec_dg_openable_seeded'
+# The id of the spec this seed made (it is renamed 'RE' soon after, so
+# a name cannot find it): the design module gives it its default glass.
+SPEC_ID_PARAM = 'aw_fenestration.spec_dg_openable_id'
 
 
 class AwProfileSection(models.Model):
@@ -273,10 +275,7 @@ class AwProfileSection(models.Model):
             raise_if_not_found=False)
         section = self._sections_by_seed_name().filtered(
             lambda s, r=series: s.window_type_id == r)[:1]
-        glass = self.env.ref(
-            'aw_fenestration_core.%s' % SPEC_GLASS_XMLID,
-            raise_if_not_found=False)
-        if not (series and section and glass):
+        if not (series and section):
             return False
 
         Spec = self.env['aw.window.template']
@@ -293,18 +292,19 @@ class AwProfileSection(models.Model):
                 "-- none exists yet. Designs built to it will warn that "
                 "their hardware cost is missing.", SPEC_NAME)
 
-        Spec.create({
+        seeded = Spec.create({
             'name': SPEC_NAME,
             'window_type_id': series.id,
             'profile_section_id': section.id,
             'hardware_set_id': hardware.id if hardware else False,
-            'glass_spec_id': glass.id,
             'is_default': not Spec.search_count([
                 ('window_type_id', '=', series.id),
                 ('is_default', '=', True)]),
-            'notes': "Seeded in phase 7c: the RE set plus 24mm DGU.",
+            'notes': "Seeded in phase 7c: the RE set. Its default glass stack "
+                     "comes from the design module.",
         })
         param.set_param(SPEC_SEEDED_PARAM, '1')
+        param.set_param(SPEC_ID_PARAM, seeded.id)
         return True
 
     @api.model

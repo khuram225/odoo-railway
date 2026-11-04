@@ -74,7 +74,6 @@ function make(rows, W = 2438.4, H = 3200.4) {
                 { id: 22, code: "ADD-LOUV-F", name: "Louvre", kind: "louvre", uses_glass: false },
                 { id: 23, code: "ADD-FAN", name: "Fan", kind: "fan", uses_glass: false },
             ],
-            glass_specs: [{ id: 31, name: "Frosted 6mm" }],
             glass_catalog: {
                 types: [
                     { id: 51, name: "Clear", colour: "Clear", kind: "Plain" },

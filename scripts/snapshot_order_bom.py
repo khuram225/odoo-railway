@@ -58,7 +58,7 @@ try:
                 value = line[field]
                 row[field] = num(value) if isinstance(value, float) else value
             row['product'] = line.product_id.display_name or ''
-            row['glass_spec'] = line.glass_spec_id.display_name or ''
+            row['glass_spec'] = line.glass_label or ''
             lines.append(row)
         out['designs'].append({
             'name': design.name,

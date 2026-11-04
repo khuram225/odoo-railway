@@ -231,28 +231,6 @@ class AwDesign(models.Model):
                     as_dict(leaf), as_dict(after) if after else None)
         return bad
 
-    # ------------------------------------------------------------------
-    @api.onchange('family_id')
-    def _onchange_family_clears_glass(self):
-        """Drop glass the new family cannot use, and say so."""
-        for design in self:
-            spec = design.glass_spec_id
-            if not (design.family_id and spec):
-                continue
-            wanted = design.family_id.glazing
-            if wanted and wanted != 'none' and spec.glazing \
-                    and spec.glazing != wanted:
-                design.glass_spec_id = False
-                return {'warning': {
-                    'title': _("Glass cleared"),
-                    'message': _(
-                        "'%(glass)s' is %(has)s glazed and %(family)s "
-                        "needs %(wants)s. Pick a new glass.",
-                        glass=spec.display_name, has=spec.glazing,
-                        family=design.family_id.display_name,
-                        wants=wanted),
-                }}
-
     @api.model
     def _migrate_family_from_series(self):
         """Give existing designs and quotes a family, once.

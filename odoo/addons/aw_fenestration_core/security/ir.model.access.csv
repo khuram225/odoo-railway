@@ -15,8 +15,6 @@ access_aw_hardware_set_user,aw.hardware.set.user,model_aw_hardware_set,base.grou
 access_aw_hardware_set_manager,aw.hardware.set.manager,model_aw_hardware_set,group_fenestration_manager,1,1,1,1
 access_aw_hardware_set_line_user,aw.hardware.set.line.user,model_aw_hardware_set_line,base.group_user,1,0,0,0
 access_aw_hardware_set_line_manager,aw.hardware.set.line.manager,model_aw_hardware_set_line,group_fenestration_manager,1,1,1,1
-access_aw_glass_spec_user,aw.glass.spec.user,model_aw_glass_spec,base.group_user,1,0,0,0
-access_aw_glass_spec_manager,aw.glass.spec.manager,model_aw_glass_spec,group_fenestration_manager,1,1,1,1
 access_aw_window_template_user,aw.window.template.user,model_aw_window_template,base.group_user,1,0,0,0
 access_aw_window_template_manager,aw.window.template.manager,model_aw_window_template,group_fenestration_manager,1,1,1,1
 access_aw_profile_rate_user,aw.profile.rate.user,model_aw_profile_rate,base.group_user,1,0,0,0

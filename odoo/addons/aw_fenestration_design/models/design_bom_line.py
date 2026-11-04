@@ -107,7 +107,6 @@ class AwDesignBomLine(models.Model):
         string='Change Note',
         help="Why this window is different. Printed on the shop "
              "drawing beside the line.")
-    glass_spec_id = fields.Many2one('aw.glass.spec', ondelete='restrict')
     # One glass line per part of the panel's stack (Sheet, Gap, Protector).
     glass_part_kind = fields.Selection([
         ('sheet', 'Sheet'), ('gap', 'Gap'), ('protector', 'Protector')])
