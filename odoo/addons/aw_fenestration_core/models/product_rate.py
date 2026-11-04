@@ -337,8 +337,11 @@ class ProductTemplate(models.Model):
             'default_vendor_id': default.id if default in vendors else 0,
             'thicknesses': [{'id': t.id, 'name': t.name}
                             for t in thicknesses],
-            'finishes': [{'id': f.id, 'name': f.name,
-                          'color': f.html_color or ''} for f in finishes],
+            'finishes': [{
+                'id': f.id, 'name': f.name, 'color': f.html_color or '',
+                'names': [{'name': n.name, 'vendor_id': n.vendor_id.id,
+                           'sequence': n.sequence}
+                          for n in f.aw_name_ids]} for f in finishes],
             'cells': cells,
             'variants': sorted(variants),
         }

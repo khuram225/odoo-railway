@@ -473,6 +473,22 @@ The data files are `noupdate`, and a reinstall re-applies them: it
 recreated the Chawla products and, through their `(0, 0)` attribute-line
 commands, added a second set of lines to the five that survived.
 
+## Finish names
+
+A finish is one Finish attribute value; rates, variants and windows point at
+it. What a vendor calls it (DULL, SHARA) is a NAME (`aw.finish.name`), added
+when a layout column is mapped to the finish. Selectors and rate tables show
+the names joined with " / ", the order vendor's own first (`aw_label()`);
+quotes and shop drawings show `aw_doc_name()` (customer name, else the
+finish's own name). There are no groups and costing looks up the finish
+value exactly as before. A finish made from a vendor's header (Wood) carries
+`aw_owner_vendor_id`; only that kind is added to a profile by Apply, every
+other missing finish still stops the cell. `_migrate_finish_names` runs once:
+Premium's confirmed mapping, Wood, and the unused strays removed only if
+nothing at all points at them on the day (otherwise kept and noted on the
+vendor's chatter; it never fails the upgrade). Its raw-SQL attachment count
+must flush the ORM first.
+
 ## Vendor rates
 
 `aw.profile.rate` is the vendor price line: one row per profile, thickness,

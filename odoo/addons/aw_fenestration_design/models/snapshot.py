@@ -214,7 +214,7 @@ class AwDesign(models.Model):
             (_('Size'), self.size_display or ''),
             (_('System'), self.window_series_id.display_name or ''),
             (_('Spec'), spec.full_name or spec.display_name or ''),
-            (_('Finish'), self.finish_id.name or ''),
+            (_('Finish'), self.finish_id.aw_doc_name() if self.finish_id else ''),
             (_('Glass'), self.glass_spec_id.display_name or ''),
         ]
 

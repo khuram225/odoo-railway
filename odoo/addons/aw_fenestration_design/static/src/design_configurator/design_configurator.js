@@ -1180,7 +1180,8 @@ export class DesignConfigurator extends Component {
     partFinishName(row) {
         const own = (row.finish_options || []).find(
             (option) => option.id === row.finish_id);
-        return own ? own.name : (this.currentFinish.name || "");
+        return own ? (own.label || own.name)
+            : (this.currentFinish.label || this.currentFinish.name || "");
     }
 
     // -- add component --------------------------------------------------

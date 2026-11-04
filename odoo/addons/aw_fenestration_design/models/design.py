@@ -851,7 +851,9 @@ class AwDesign(models.Model):
             return []
         # The value's own name: display_name carries the attribute too
         # ("Finish: Natural"), which read twice next to a "Finish" label.
+        vendor = self._costing_vendor()
         return [{'id': value.id, 'name': value.name,
+                 'label': value.aw_label(vendor),
                  'color': value.html_color or ''}
                 for value in self.env['product.attribute.value'].search(
                     [('attribute_id', '=', attribute.id)])]
@@ -947,7 +949,8 @@ class AwDesign(models.Model):
                 # Only the finishes THIS profile is sold in: offering the
                 # others just produces a variant that cannot be made.
                 'finish_options': [
-                    {'id': f.id, 'name': f.name}
+                    {'id': f.id, 'name': f.name,
+                     'label': f.aw_label(self._costing_vendor())}
                     for f in self.env['aw.profile.section.line']
                     ._template_values(template, self.env.ref(
                         'aw_fenestration_core.aw_attribute_finish'))],

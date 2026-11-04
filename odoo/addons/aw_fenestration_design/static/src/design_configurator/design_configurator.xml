@@ -190,7 +190,7 @@
                                         data-bs-toggle="dropdown" aria-expanded="false">
                                     <span class="o_aw_finish_dot"
                                           t-att-style="finishStyle(currentFinish)"/>
-                                    <span t-esc="currentFinish.name || 'Choose...'"/>
+                                    <span t-esc="currentFinish.label || currentFinish.name || 'Choose...'"/>
                                 </button>
                                 <ul class="dropdown-menu">
                                     <li t-foreach="finishOptions" t-as="opt" t-key="opt.id">
@@ -199,7 +199,7 @@
                                            t-on-click.prevent="() => this.setFinish(opt.id)">
                                             <span class="o_aw_finish_dot"
                                                   t-att-style="finishStyle(opt)"/>
-                                            <span t-esc="opt.name"/>
+                                            <span t-esc="opt.label || opt.name"/>
                                         </a>
                                     </li>
                                     <li t-if="!finishOptions.length"

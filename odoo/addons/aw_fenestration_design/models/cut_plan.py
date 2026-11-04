@@ -566,12 +566,14 @@ class AwCutPlan(models.Model):
         rows = []
         for group in self.group_ids:
             product = group.product_id
-            thickness = finish = ''
+            thickness = finish = finish_label = ''
             for value in product.product_template_variant_value_ids:
                 if value.attribute_id.name == 'Thickness':
                     thickness = value.name
                 elif value.attribute_id.name == 'Finish':
                     finish = value.name
+                    finish_label = value.product_attribute_value_id.aw_label(
+                        self.sale_order_id.aw_profile_vendor_id)
             for bar_index, bar in enumerate(group.bar_ids, start=1):
                 for cut_index, cut in enumerate(bar.cut_ids, start=1):
                     design = cut.bom_line_id.design_id
@@ -583,7 +585,7 @@ class AwCutPlan(models.Model):
                         'role': cut.label or '',
                         'profile': product.product_tmpl_id.name or '',
                         'thickness': thickness,
-                        'finish': finish,
+                        'finish': finish_label or finish,
                         'length': cut.length_label,
                         'length_mm': cut.length_mm,
                         'angle': cut.cut_angle or '',
