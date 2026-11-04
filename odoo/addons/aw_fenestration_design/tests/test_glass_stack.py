@@ -225,3 +225,52 @@ class TestGlassStack(TransactionCase):
         # once, and never over a stack somebody already has
         self.assertFalse(self.env['aw.window.template']._seed_default_glass_stacks())
         self.assertTrue(Part.search_count([('template_id', '=', spec.id)]) == 3)
+
+    # -- default stacks use the list rate ---------------------------------------
+    def _migrated_zero(self, mm):
+        return self._sheet(mm, manual_zero=True, migrated=True)
+
+    def _clear(self):
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aw_fenestration.default_stack_rates_cleared', '')
+        return self.env['aw.window.template']._clear_migrated_default_rates()
+
+    def test_a_default_stack_loses_its_migrated_zero_but_an_order_keeps_it(self):
+        spec = self.design.template_id
+        spec.glass_part_ids = [(5, 0, 0)] + self.Part._commands_from([
+            self._migrated_zero(6), self._gap(), self._migrated_zero(6),
+            self._sheet(8, rate_manual=True, manual_rate=77.0)])
+        self._set_header([self._migrated_zero(6)])      # on an order's window
+        self.assertEqual(self._clear(), 2)
+        sheets = spec.glass_part_ids.filtered(lambda p: p.kind == 'sheet')
+        self.assertEqual(
+            sorted(sheets.mapped('rate_manual')), [False, False, True])
+        self.assertEqual(sheets.filtered('rate_manual').manual_rate, 77.0)
+        self.assertFalse(any(spec.glass_part_ids.mapped('migrated')))
+        # the window on the order is not re-priced
+        header = self.design.glass_part_ids
+        self.assertTrue(header.rate_manual and header.migrated)
+        # once
+        self.assertEqual(self.env['aw.window.template']
+                         ._clear_migrated_default_rates(), 0)
+
+    def test_a_new_window_costs_its_glass_at_the_list_rate(self):
+        spec = self.design.template_id
+        spec.glass_part_ids = [(5, 0, 0)] + self.Part._commands_from([
+            self._migrated_zero(6), self._gap(), self._migrated_zero(6)])
+        self._clear()
+        series = spec.window_type_id
+        fresh = self.order._create_fenestration_position(
+            series, family=self.design.family_id)
+        fresh.write({'template_id': spec.id, 'width_mm': 2400.0,
+                     'height_mm': 1800.0})
+        fresh._apply_spec(force=True)
+        fresh._explode()
+        sheets = fresh.bom_line_ids.filtered(
+            lambda l: l.kind == 'glass' and l.glass_part_kind == 'sheet')
+        self.assertTrue(sheets)
+        for line in sheets:
+            self.assertFalse(line.rate_is_manual)
+            self.assertEqual(line.rate_list, 100.0)
+            self.assertAlmostEqual(
+                line.line_cost, 100.0 * line.area_sqm * SQFT_PER_SQM, 2)
