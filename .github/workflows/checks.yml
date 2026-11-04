@@ -346,6 +346,108 @@ jobs:
           echo "ok: the static check rejected the broken tree, naming the fault"
 
   # =====================================================================
+  # The upgrade production actually runs.
+  #
+  # The boot test installs everything into a FRESH database in one pass, so
+  # purchase is already loaded when our data files run. Production is not
+  # like that: purchase, sale and account were installed long ago, our
+  # modules are UPGRADED (-u) on top, and during that upgrade our data
+  # files run BEFORE purchase's models are loaded -- so a record created
+  # then (a partner, a product) is inserted without the NOT NULL columns
+  # purchase added, and the upgrade dies. It did exactly that twice
+  # (res_partner.group_rfq, creating the glass supplier) while this suite
+  # was green.
+  #
+  # So this job reproduces the order: our core alone first, then the core
+  # modules production has, then the rest of ours, then -u of ours.
+  # =====================================================================
+  upgrade:
+    name: upgrade test
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    container:
+      image: odoo:19.0-20260723
+      options: --user root
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: postgres
+      PGUSER: odoo
+      PGPASSWORD: odoo
+      PROD_CORE_MODULES: account,account_payment,mail,product,purchase,purchase_stock,sale,sale_management,sale_purchase,sale_stock,stock,stock_account
+      ODOO_ADDONS: /usr/lib/python3/dist-packages/odoo/addons,odoo/addons
+
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: Which modules are ours
+        id: modules
+        run: |
+          set -eu
+          ours=$(find odoo/addons -name __manifest__.py \
+            -not -path 'odoo/addons/addons_print/*' \
+            -printf '%h\n' | xargs -n1 basename | sort | paste -sd, -)
+          test -n "$ours" || { echo "::error::no aluminum modules found"; exit 1; }
+          echo "ours=$ours" >> "$GITHUB_OUTPUT"
+          echo "::notice::upgrading ours=[$ours]"
+
+      - name: Install our core alone, as it first was
+        run: |
+          set -eu
+          odoo -d aw_up --addons-path="$ODOO_ADDONS" \
+            -i aw_fenestration_core \
+            --without-demo=all --stop-after-init --no-http \
+            --log-level=info > /tmp/up1.log 2>&1 || { tail -60 /tmp/up1.log; exit 1; }
+          sh scripts/ci_assert_clean_log.sh /tmp/up1.log
+
+      - name: Install the core modules production has, afterwards
+        run: |
+          set -eu
+          odoo -d aw_up --addons-path="$ODOO_ADDONS" \
+            -i "$PROD_CORE_MODULES" \
+            --without-demo=all --stop-after-init --no-http \
+            --log-level=info > /tmp/up2.log 2>&1 || { tail -60 /tmp/up2.log; exit 1; }
+          sh scripts/ci_assert_clean_log.sh /tmp/up2.log
+
+      - name: Install the rest of ours
+        run: |
+          set -eu
+          odoo -d aw_up --addons-path="$ODOO_ADDONS" \
+            -i "${{ steps.modules.outputs.ours }}" \
+            --without-demo=all --stop-after-init --no-http \
+            --log-level=info > /tmp/up3.log 2>&1 || { tail -60 /tmp/up3.log; exit 1; }
+          sh scripts/ci_assert_clean_log.sh /tmp/up3.log
+
+      - name: Upgrade ours (-u) on a database that already has purchase and sale
+        run: |
+          set -eu
+          odoo -d aw_up --addons-path="$ODOO_ADDONS" \
+            -u "${{ steps.modules.outputs.ours }}" \
+            --stop-after-init --no-http \
+            --log-level=info > /tmp/up4.log 2>&1 || { tail -80 /tmp/up4.log; exit 1; }
+          sh scripts/ci_assert_clean_log.sh /tmp/up4.log
+          {
+            echo "### upgrade test"
+            echo
+            echo "core alone, then \`$PROD_CORE_MODULES\`, then the rest of ours, then \`-u\` of ours: clean"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::upgrade clean: -u of [${{ steps.modules.outputs.ours }}] on a database with $PROD_CORE_MODULES"
+
+  # =====================================================================
   # The single status Railway waits on. It has no steps: its only job is
   # to be red unless both of the above are green, so one status name
   # covers both and adding a third job later needs one line here.
@@ -353,13 +455,15 @@ jobs:
   all-checks:
     name: all checks
     runs-on: ubuntu-latest
-    needs: [static, boot]
+    needs: [static, boot, upgrade]
     if: always()
     steps:
-      - name: Require both gates
+      - name: Require all gates
         run: |
           echo "static: ${{ needs.static.result }}"
           echo "boot:   ${{ needs.boot.result }}"
+          echo "upgrade: ${{ needs.upgrade.result }}"
           test "${{ needs.static.result }}" = "success" \
             && test "${{ needs.boot.result }}" = "success" \
+            && test "${{ needs.upgrade.result }}" = "success" \
             || { echo "::error::a gate did not pass"; exit 1; }

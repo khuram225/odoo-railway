@@ -78,6 +78,20 @@ class AwGlassSpec(models.Model):
         param.set_param(key, '1')
         return marked
 
+    def _register_hook(self):
+        """The Lake City glass and the RE spec's default, once every
+        module has loaded. They create products, and a product created
+        while modules are still loading can miss NOT NULL columns that
+        purchase or sale add. Both are idempotent and fill-only, so
+        running them on every start is harmless."""
+        super()._register_hook()
+        try:
+            with self.env.cr.savepoint():
+                self._seed_lake_city_glass()
+                self._seed_re_spec_default_glass()
+        except Exception:
+            _logger.exception("aw_fenestration_core: Lake City seed failed")
+
     @api.model
     def _lake_city_xmlid(self, suffix):
         return 'aw_fenestration_core.glass_spec_%s' % suffix

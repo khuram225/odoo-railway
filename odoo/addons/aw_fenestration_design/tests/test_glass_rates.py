@@ -31,8 +31,9 @@ class TestGlassRates(TransactionCase):
         super().setUpClass()
         env = cls.env
         env['aw.glass.type']._seed_glass_types()
-        cls.ghani = env['res.partner'].search(
-            [('name', '=', 'Ghani Glass Ltd')], limit=1)
+        cls.ghani = env['aw.glass.type']._seed_glass_vendor() \
+            or env['res.partner'].search(
+                [('name', 'ilike', 'ghani glass')], limit=1)
         cls.other = env['res.partner'].create({'name': 'Other glass vendor'})
         cls.Type = env['aw.glass.type']
 
@@ -150,3 +151,28 @@ class TestGlassRates(TransactionCase):
         self.assertEqual(profile._rate_model(), 'aw.profile.rate')
         self.assertEqual(self._list(date(2026, 7, 1), 'Clear\t6mm\t1')
                          ._rate_model(), 'aw.glass.rate')
+
+    def test_the_supplier_reuses_an_existing_partner_even_archived(self):
+        env = self.env
+        param = env['ir.config_parameter'].sudo()
+        env['res.partner'].with_context(active_test=False).search(
+            [('name', 'ilike', 'ghani glass')]).write({'name': 'zz old'})
+        mine = env['res.partner'].create(
+            {'name': 'GHANI GLASS (archived one)', 'active': False})
+        param.set_param('aw_fenestration.glass_vendor_seeded', '')
+        before = env['res.partner'].with_context(
+            active_test=False).search_count([])
+        self.assertEqual(env['aw.glass.type']._seed_glass_vendor(), mine)
+        self.assertEqual(env['res.partner'].with_context(
+            active_test=False).search_count([]), before)
+        # one-shot: a second call changes nothing and still finds it
+        self.assertEqual(env['aw.glass.type']._seed_glass_vendor(), mine)
+
+    def test_the_supplier_is_created_when_there_is_none(self):
+        env = self.env
+        env['res.partner'].with_context(active_test=False).search(
+            [('name', 'ilike', 'ghani glass')]).write({'name': 'zz old'})
+        env['ir.config_parameter'].sudo().set_param(
+            'aw_fenestration.glass_vendor_seeded', '')
+        partner = env['aw.glass.type']._seed_glass_vendor()
+        self.assertEqual(partner.name, 'Ghani Glass Ltd')
