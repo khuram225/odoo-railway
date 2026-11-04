@@ -426,8 +426,10 @@ jobs:
       - name: Install the rest of ours
         run: |
           set -eu
+          rest=$(echo "${{ steps.modules.outputs.ours }}" | tr ',' '\n' \
+            | grep -v '^aw_fenestration_core$' | paste -sd, -)
           odoo -d aw_up --addons-path="$ODOO_ADDONS" \
-            -i "${{ steps.modules.outputs.ours }}" \
+            -i "$rest" \
             --without-demo=all --stop-after-init --no-http \
             --log-level=info > /tmp/up3.log 2>&1 || { tail -60 /tmp/up3.log; exit 1; }
           sh scripts/ci_assert_clean_log.sh /tmp/up3.log
