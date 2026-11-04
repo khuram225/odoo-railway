@@ -315,6 +315,8 @@ class ProductTemplate(models.Model):
         widget builds All / one vendor / Compare from it without another
         call."""
         self.ensure_one()
+        if self.aw_is_glass_sheet:
+            return self._aw_glass_rates_table_data()
         today = fields.Date.context_today(self)
         rates = self.env['aw.profile.rate'].search([
             ('product_tmpl_id', '=', self.id), ('vendor_id', '!=', False),

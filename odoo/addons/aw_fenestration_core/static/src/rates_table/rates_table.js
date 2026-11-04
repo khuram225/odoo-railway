@@ -170,8 +170,11 @@ export class RatesTable extends Component {
             return;
         }
         const id = this.props.record.resId;
+        // The Glass Sheet's rows are glass types and its columns thicknesses.
+        const method = this.table.kind === "glass"
+            ? "aw_glass_rates_action" : "aw_rates_action";
         const action = await this.orm.call(
-            "product.template", "aw_rates_action",
+            "product.template", method,
             [[id], cell.thicknessId, cell.finishId, cell.vendorId]);
         await this.action.doAction(action);
     }

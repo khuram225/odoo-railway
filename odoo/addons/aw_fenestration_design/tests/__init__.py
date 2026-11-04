@@ -11,3 +11,4 @@ from . import test_chawla_merge
 from . import test_rates_table
 from . import test_finish_names
 from . import test_glass_rates
+from . import test_glass_products

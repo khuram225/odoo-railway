@@ -3,7 +3,7 @@
 
     <t t-name="aw_fenestration_core.RatesTable">
         <div class="o_aw_rates_table mb-3">
-            <div class="fw-bold mb-1">Current rates (PKR / ft)</div>
+            <div class="fw-bold mb-1">Current rates (<t t-esc="table.unit || 'PKR / ft'"/>)</div>
             <div t-if="!vendors.length" class="text-muted">
                 No current rate covers this profile. Apply a rate list, or
                 check that its effective dates have not all passed.
@@ -20,7 +20,7 @@
                     <table class="table table-sm table-bordered mb-1">
                         <thead>
                             <tr>
-                                <th>Thickness</th>
+                                <th t-esc="table.row_label || 'Thickness'"/>
                                 <th t-if="activeMode === 'all'">Vendor</th>
                                 <th t-foreach="finishes" t-as="finish" t-key="finish.id"
                                     class="text-end">

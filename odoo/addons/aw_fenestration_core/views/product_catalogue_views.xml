@@ -14,25 +14,25 @@
                  A profile is any product in Fenestration / Profiles or a
                  child of it. The rates themselves are on the Rates tab. -->
             <xpath expr="//page[@name='general_information']/group" position="before">
-                <field name="aw_is_profile" invisible="1"/>
+                <field name="aw_priced_by_rates" invisible="1"/>
             </xpath>
             <xpath expr="//span[@name='sale_option']" position="attributes">
-                <attribute name="invisible">aw_is_profile</attribute>
+                <attribute name="invisible">aw_priced_by_rates</attribute>
             </xpath>
             <xpath expr="//label[@for='list_price']" position="attributes">
-                <attribute name="invisible">aw_is_profile</attribute>
+                <attribute name="invisible">aw_priced_by_rates</attribute>
             </xpath>
             <xpath expr="//div[@name='list_price_uom']" position="attributes">
-                <attribute name="invisible">aw_is_profile</attribute>
+                <attribute name="invisible">aw_priced_by_rates</attribute>
             </xpath>
             <xpath expr="//label[@id='standard_price_label']" position="attributes">
-                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+                <attribute name="invisible" add="aw_priced_by_rates" separator=" or "/>
             </xpath>
             <xpath expr="//div[@name='standard_price_uom']" position="attributes">
-                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+                <attribute name="invisible" add="aw_priced_by_rates" separator=" or "/>
             </xpath>
             <xpath expr="//page[@name='sales_price']" position="attributes">
-                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+                <attribute name="invisible" add="aw_priced_by_rates" separator=" or "/>
             </xpath>
             <xpath expr="//notebook" position="inside">
                 <!-- Only shown once a product has been matched to the
@@ -64,7 +64,7 @@
 
             <!-- After Fenestration, for every profile product. -->
             <xpath expr="//page[@name='aw_fenestration']" position="after">
-                <page string="Rates" name="aw_rates" invisible="not aw_is_profile">
+                <page string="Rates" name="aw_rates" invisible="not aw_priced_by_rates">
                     <field name="aw_rates_table" widget="aw_rates_table" nolabel="1"/>
                 </page>
             </xpath>
@@ -100,15 +100,15 @@
         <field name="inherit_id" ref="product.product_product_tree_view"/>
         <field name="arch" type="xml">
             <field name="standard_price" position="before">
-                <field name="aw_is_profile" column_invisible="1"/>
+                <field name="aw_priced_by_rates" column_invisible="1"/>
                 <field name="aw_rate_per_ft" string="Rate, default vendor" optional="show"/>
                 <field name="aw_rate_date" string="Rate of" optional="hide"/>
             </field>
             <field name="lst_price" position="attributes">
-                <attribute name="invisible">aw_is_profile</attribute>
+                <attribute name="invisible">aw_priced_by_rates</attribute>
             </field>
             <field name="standard_price" position="attributes">
-                <attribute name="invisible">aw_is_profile</attribute>
+                <attribute name="invisible">aw_priced_by_rates</attribute>
             </field>
         </field>
     </record>
@@ -171,12 +171,12 @@
         <field name="inherit_id" ref="product.product_template_only_form_view"/>
         <field name="arch" type="xml">
             <xpath expr="//div[@name='button_box']/button[field[@name='product_variant_count']]" position="attributes">
-                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+                <attribute name="invisible" add="aw_priced_by_rates" separator=" or "/>
             </xpath>
             <xpath expr="//div[@name='button_box']/button[@name='action_open_documents']" position="before">
                 <button name="action_aw_open_variants" type="object"
                         icon="fa-sitemap" class="oe_stat_button"
-                        invisible="product_variant_count &lt;= 1 or not aw_is_profile"
+                        invisible="product_variant_count &lt;= 1 or not aw_priced_by_rates"
                         groups="product.group_product_variant">
                     <field string="Variants" name="product_variant_count" widget="statinfo"/>
                 </button>
@@ -191,10 +191,10 @@
         <field name="inherit_id" ref="product.product_variant_easy_edit_view"/>
         <field name="arch" type="xml">
             <xpath expr="//group[@name='pricing']" position="attributes">
-                <attribute name="invisible">aw_is_profile</attribute>
+                <attribute name="invisible">aw_priced_by_rates</attribute>
             </xpath>
             <xpath expr="//group[@name='pricing']" position="before">
-                <field name="aw_is_profile" invisible="1"/>
+                <field name="aw_priced_by_rates" invisible="1"/>
             </xpath>
         </field>
     </record>
