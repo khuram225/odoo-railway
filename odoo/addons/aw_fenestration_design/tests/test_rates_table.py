@@ -127,7 +127,7 @@ class TestRatesTable(TransactionCase):
             env['product.template'].get_view(view_type='form')['arch'])
         rates = arch.xpath("//page[@name='aw_rates']")
         self.assertEqual(len(rates), 1)
-        self.assertIn('aw_is_profile', rates[0].get('invisible'))
+        self.assertIn('aw_priced_by_rates', rates[0].get('invisible'))
         self.assertTrue(rates[0].xpath(".//field[@name='aw_rates_table']"))
         # after the Fenestration tab, and General Information is without it
         pages = [p.get('name') for p in arch.xpath('//notebook/page')]
@@ -139,11 +139,11 @@ class TestRatesTable(TransactionCase):
                       "//div[@name='list_price_uom']",
                       "//span[@name='sale_option']"):
             node = arch.xpath(xpath)[0]
-            self.assertIn('aw_is_profile', node.get('invisible'), xpath)
+            self.assertIn('aw_priced_by_rates', node.get('invisible'), xpath)
         # the Fenestration tab keeps its own rule: no code or page, no tab
         fen = arch.xpath("//page[@name='aw_fenestration']")[0]
         self.assertIn('aw_catalogue_code', fen.get('invisible'))
-        self.assertNotIn('aw_is_profile', fen.get('invisible'))
+        self.assertNotIn('aw_priced_by_rates', fen.get('invisible'))
         # a product elsewhere is not a profile
         self.assertFalse(env['product.template'].create(
             {'name': 'Plain'}).aw_is_profile)

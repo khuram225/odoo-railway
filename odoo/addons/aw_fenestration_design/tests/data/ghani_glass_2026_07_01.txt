@@ -1,0 +1,61 @@
+Clear 2mm 127.39
+Clear 3mm 190.38
+Clear 4mm 231.89
+Clear 5mm 247.63
+Clear 6mm 265.52
+Clear 8mm 463.06
+Clear 10mm 611.92
+Clear 12mm 745.04
+WC Green 5mm 231.88
+WC Green 6mm 248.64
+WC Brown 5mm 231.88
+WC Brown 6mm 248.64
+WC Blue 5mm 231.88
+WC Blue 6mm 248.64
+Green 4mm 287.36
+Green 5mm 345.70
+Green 6mm 359.56
+Green 8mm 948.13
+Green 12mm 1508.85
+Brown 4mm 287.36
+Brown 5mm 345.70
+Brown 6mm 359.56
+Brown 8mm 948.13
+Brown 12mm 1458.66
+Blue 4mm 287.36
+Blue 5mm 345.70
+Blue 6mm 359.56
+Blue 8mm 971.78
+Blue 12mm 1508.85
+Ford Blue 4mm 287.36
+Ford Blue 5mm 345.70
+Ford Blue 6mm 359.56
+Ref. Green 4mm 336.95
+Ref. Green 5mm 413.53
+Ref. Green 6mm 429.57
+Ref. Brown 4mm 336.95
+Ref. Brown 5mm 413.53
+Ref. Brown 6mm 429.57
+Ref. Blue 4mm 336.95
+Ref. Blue 5mm 413.53
+Ref. Blue 6mm 429.57
+Ref. Ford Blue 4mm 336.95
+Ref. Ford Blue 5mm 413.53
+Ref. Ford Blue 6mm 429.57
+CC Green 5mm 328.37
+CC Green 6mm 341.53
+CC Brown 5mm 328.37
+CC Brown 6mm 341.53
+CC Blue 5mm 328.37
+CC Blue 6mm 341.53
+Grey 4mm 323.56
+Grey 5mm 385.91
+Grey 6mm 399.91
+Grey 8mm 1055.78
+Grey 12mm 1643.78
+Ref. Grey 4mm 387.69
+Ref. Grey 5mm 460.96
+Ref. Grey 6mm 482.32
+Ref. Clear 6mm 384.57
+CC Grey 5mm 389.29
+CC Grey 6mm 389.29

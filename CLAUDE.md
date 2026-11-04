@@ -540,6 +540,26 @@ Types, then Re-match" and is not applied; nothing is created by Apply. Re-match,
 Apply, Re-apply, Set to draft and the same-date rewrite behave as for profiles.
 Nothing costs from these rates yet (glass layers are the next change).
 
+## Glass sheet variants
+
+One product template "Glass Sheet" (ft², not sold, no sales price or cost
+shown, Fenestration / Glass) with three dynamic attributes: Colour, Type
+(Plain, Reflective, WC, CC) and Glass Thickness (a separate attribute from
+the profile Thickness). A glass type (`aw.glass.type`, which carries a colour
+and a kind) plus a thickness names one variant, made on demand by
+`_variant_for(mm)`; `variant._aw_glass_key()` goes back. Rates stay keyed on
+type + thickness + vendor + date and the variant's `aw_glass_rate` is looked
+up from them. `models/glass_variants.py` (Odoo-free, run by
+`scripts/check_glass_variants.py` on the real Ghani list) holds the naming:
+all 61 rates map to 61 different variants. Odoo ships `ft²` switched off;
+the seed switches it on rather than adding a second one. The seed runs from
+the registry hook, not a data file, because it creates a product and a
+product made during an upgrade misses columns that purchase and sale add.
+The Rates tab shows this table for the Glass Sheet too (rows glass types,
+columns thicknesses) and is shown for anything `aw_priced_by_rates` (a
+profile or the Glass Sheet). The old flat glass products still exist until
+glass becomes a per-panel stack.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

@@ -80,11 +80,12 @@ class AwGlassType(models.Model):
         logged rather than raised: this also runs on every ordinary start,
         where a failure must not become a server that will not boot."""
         super()._register_hook()
-        try:
-            with self.env.cr.savepoint():
-                self._seed_glass_vendor()
-        except Exception:
-            _logger.exception("aw_fenestration_core: glass vendor seed failed")
+        for seed in ('_seed_glass_vendor', '_seed_glass_sheet'):
+            try:
+                with self.env.cr.savepoint():
+                    getattr(self, seed)()
+            except Exception:
+                _logger.exception("aw_fenestration_core: %s failed", seed)
 
     @api.model
     def _seed_glass_vendor(self):
