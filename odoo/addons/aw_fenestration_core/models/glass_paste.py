@@ -4,6 +4,13 @@
 Free of Odoo imports, like rate_paste.py, so scripts/check_glass_paste.py
 runs this very code against the Ghani list.
 
+A row is three fields in this order: the glass TYPE, a THICKNESS with "mm",
+and the PRICE. Tabs, runs of spaces and non-breaking spaces all separate
+them; the price is always the last number on the line, and the thickness
+the one with "mm" just before it. A line that does not fit that (a heading,
+or a row with a second number) is not guessed at: it is handed back in
+`skipped`, so nothing a pasted sheet contains is dropped silently.
+
 One pasted row can mean several rates, and each becomes its own row:
 
 - colours separated by "/" or listed in brackets: "Green/Brown 8mm 948.13"
@@ -12,21 +19,31 @@ One pasted row can mean several rates, and each becomes its own row:
 - "Ref." means reflective: a separate glass type "Ref. <colour>";
 - WC and CC are kept exactly as written ("WC Green", "CC Grey"), with no
   guess at what they stand for.
+
+A type is compared whole: "Ref. Grey" and "Grey" are different types and
+are never merged.
 """
 import re
 
 COLOUR_WORDS = {'grn': 'Green', 'brw': 'Brown'}
 PREFIXES = ('WC', 'CC')
 
-_THICKNESS = (r'(?=[\d.\s/]*mm)\d+(?:\.\d+)?\s*(?:mm)?'
-              r'(?:\s*/\s*\d+(?:\.\d+)?\s*(?:mm)?)*')
-_ROW = re.compile(
-    r'^\s*(?P<type>.+?)[\s\t]+(?P<thick>%s)[\s\t]+(?P<price>\d[\d,]*(?:\.\d+)?)\s*$'
-    % _THICKNESS, re.I)
+# Every kind of space the sheet might use between fields, as plain space.
+_ODD_SPACES = re.compile('[    　]')
+_PRICE_AT_END = re.compile(r'(?<![\d.,])(\d[\d,]*(?:\.\d+)?)\s*$')
+_THICKNESS_AT_END = re.compile(
+    r'(?P<thick>\d+(?:\.\d+)?\s*(?:mm)?(?:\s*/\s*\d+(?:\.\d+)?\s*(?:mm)?)*)\s*$',
+    re.I)
+
+
+def clean_line(raw):
+    """One line with every kind of space made an ordinary one."""
+    return _ODD_SPACES.sub(' ', raw or '').strip()
 
 
 def norm_type(text):
-    """Two spellings of one glass type compare equal."""
+    """Two spellings of one glass type compare equal. The whole text is
+    compared, so 'Ref. Grey' ('refgrey') never equals 'Grey'."""
     return re.sub(r'[\s.\-_]+', '', (text or '').lower())
 
 
@@ -74,20 +91,49 @@ def thickness_label(mm):
     return '%smm' % ('%g' % mm)
 
 
-def parse_glass_paste(text):
-    """Rows of a pasted price list -> one dict per (type, thickness):
-    {'type', 'reflective', 'thickness_mm', 'thickness', 'price'}.
-    Lines that are not a row (headings, blanks) are ignored."""
-    rows = []
+def split_row(raw):
+    """(type_text, thickness_text, price) of one line, or None when the
+    line is not exactly type + thickness-with-mm + price."""
+    line = clean_line(raw)
+    price_match = _PRICE_AT_END.search(line)
+    if not price_match:
+        return None
+    rest = line[:price_match.start()].rstrip()
+    thick = _THICKNESS_AT_END.search(rest)
+    if not thick or 'mm' not in thick.group('thick').lower():
+        return None
+    type_text = rest[:thick.start()].strip()
+    if not type_text:
+        return None
+    return (type_text, thick.group('thick'),
+            float(price_match.group(1).replace(',', '')))
+
+
+def parse_glass_paste_report(text):
+    """(rows, skipped): one dict per (type, thickness) read, and the lines
+    that were NOT read because they contain a number but are not a
+    type + thickness + price row. A line with no digit at all (a heading)
+    is not reported."""
+    rows, skipped = [], []
     for raw in (text or '').splitlines():
-        match = _ROW.match(raw)
-        if not match:
+        line = clean_line(raw)
+        if not line:
             continue
-        price = float(match.group('price').replace(',', ''))
-        for name, reflective in expand_type(match.group('type')):
-            for mm in parse_thickness(match.group('thick')):
+        parsed = split_row(line)
+        if not parsed:
+            if re.search(r'\d', line):
+                skipped.append(line)
+            continue
+        type_text, thick_text, price = parsed
+        for name, reflective in expand_type(type_text):
+            for mm in parse_thickness(thick_text):
                 rows.append({
                     'type': name, 'reflective': reflective,
                     'thickness_mm': mm, 'thickness': thickness_label(mm),
                     'price': price})
-    return rows
+    return rows, skipped
+
+
+def parse_glass_paste(text):
+    """Just the rows. See parse_glass_paste_report for what is left out."""
+    return parse_glass_paste_report(text)[0]

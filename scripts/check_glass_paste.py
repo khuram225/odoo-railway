@@ -81,6 +81,27 @@ check(mod.norm_type('Ref.Green') == mod.norm_type('ref. green'), 'norm_type')
 check(mod.parse_thickness('5mm/6mm') == [5.0, 6.0], 'parse_thickness')
 check(mod.parse_glass_paste('Heading only') == [], 'a heading is not a row')
 
+# -- robustness: separators, whole-type comparison, nothing dropped quietly
+NB = chr(0xa0)
+mixed = ('Ref.' + NB + 'Grey' + NB + NB + '4mm ' + NB + '387.69\n'
+         'Grey   4mm\t323.56\n')
+rows2, skipped2 = mod.parse_glass_paste_report(mixed)
+check(skipped2 == [], 'NBSP / space runs should separate the fields')
+check({(r['type'], r['price']) for r in rows2}
+      == {('Ref. Grey', 387.69), ('Grey', 323.56)},
+      'Ref. Grey and Grey must stay two types: %s' % rows2)
+check(mod.norm_type('Ref. Grey') != mod.norm_type('Grey'), 'whole-type compare')
+rows3, skipped3 = mod.parse_glass_paste_report(
+    'WC (Grn, Brw, Blue)\n5mm\t231.88\nGreen 4mm 287.36 336.95\n'
+    'Clear 6mm 265.52\n')
+check([r['type'] for r in rows3] == ['Clear'],
+      'only the clean row is read: %s' % rows3)
+check(len(skipped3) == 2 and '5mm' in skipped3[0] and '336.95' in skipped3[1],
+      'unread lines must be handed back, headings (no digit) not: %s'
+      % skipped3)
+check(mod.split_row('Clear 6mm') is None, 'a row without a price is not a row')
+check(mod.split_row('Clear 6 265.52') is None, 'a thickness needs mm')
+
 if fail:
     print('FAIL: glass price-list reader')
     for message in fail:
