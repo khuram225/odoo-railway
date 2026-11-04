@@ -202,12 +202,6 @@ class ProductProduct(models.Model):
                 updated |= variant
         return updated, blocked
 
-    def action_aw_open_variants(self):
-        """The template form's Variants button also lands on the variant
-        form, so the method has to exist here too."""
-        self.ensure_one()
-        return self.product_tmpl_id.action_aw_open_variants()
-
     def action_aw_update_costs_from_rates(self):
         """Cost from the current rate, for these variants."""
         variants = self

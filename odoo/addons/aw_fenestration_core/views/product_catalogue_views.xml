@@ -17,19 +17,6 @@
                 <field name="aw_rates_table" widget="aw_rates_table" nolabel="1"
                        invisible="not aw_is_profile"/>
             </xpath>
-            <!-- Profiles open their variants in a list without the sales
-                 price and cost columns. -->
-            <xpath expr="//button[@icon='fa-sitemap']" position="attributes">
-                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
-            </xpath>
-            <xpath expr="//button[@icon='fa-sitemap']" position="before">
-                <button name="action_aw_open_variants" type="object"
-                        icon="fa-sitemap" class="oe_stat_button"
-                        invisible="product_variant_count &lt;= 1 or not aw_is_profile"
-                        groups="product.group_product_variant">
-                    <field string="Variants" name="product_variant_count" widget="statinfo"/>
-                </button>
-            </xpath>
             <xpath expr="//span[@name='sale_option']" position="attributes">
                 <attribute name="invisible">aw_is_profile</attribute>
             </xpath>
@@ -145,9 +132,6 @@
             <xpath expr="//page[@name='aw_fenestration']" position="attributes">
                 <attribute name="invisible">not aw_catalogue_code and not aw_catalogue_page and not aw_rate_per_ft and not aw_rate_date</attribute>
             </xpath>
-            <xpath expr="//group[@name='pricing']" position="attributes">
-                <attribute name="invisible">aw_is_profile</attribute>
-            </xpath>
             <xpath expr="//page[@name='aw_fenestration']" position="inside">
                 <group string="This variant">
                     <field name="aw_thickness_name"/>
@@ -165,6 +149,46 @@
                         The figure above is for reference.
                     </div>
                 </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Profiles open their variants in a list without the sales price
+         and cost columns. The core Variants button is added by
+         product_template_only_form_view, NOT by the base form this
+         module's other product extension patches, so it is patched here.
+         It is found by the stat field it carries, not by its name (a
+         numeric action id) or its icon. -->
+    <record id="view_product_template_only_form_variants_fenestration" model="ir.ui.view">
+        <field name="name">product.template.only.form.variants.aw_fenestration_core</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_only_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']/button[field[@name='product_variant_count']]" position="attributes">
+                <attribute name="invisible" add="aw_is_profile" separator=" or "/>
+            </xpath>
+            <xpath expr="//div[@name='button_box']/button[@name='action_open_documents']" position="before">
+                <button name="action_aw_open_variants" type="object"
+                        icon="fa-sitemap" class="oe_stat_button"
+                        invisible="product_variant_count &lt;= 1 or not aw_is_profile"
+                        groups="product.group_product_variant">
+                    <field string="Variants" name="product_variant_count" widget="statinfo"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- The easy-edit variant form is where the pricing group lives. -->
+    <record id="view_product_variant_easy_edit_fenestration" model="ir.ui.view">
+        <field name="name">product.product.easy.edit.aw_fenestration_core</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_variant_easy_edit_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='pricing']" position="attributes">
+                <attribute name="invisible">aw_is_profile</attribute>
+            </xpath>
+            <xpath expr="//group[@name='pricing']" position="before">
+                <field name="aw_is_profile" invisible="1"/>
             </xpath>
         </field>
     </record>
