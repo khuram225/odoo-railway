@@ -47,3 +47,7 @@ access_aw_glass_type_user,aw.glass.type.user,model_aw_glass_type,base.group_user
 access_aw_glass_type_manager,aw.glass.type.manager,model_aw_glass_type,group_fenestration_manager,1,1,1,1
 access_aw_glass_rate_user,aw.glass.rate.user,model_aw_glass_rate,base.group_user,1,0,0,0
 access_aw_glass_rate_manager,aw.glass.rate.manager,model_aw_glass_rate,group_fenestration_manager,1,1,1,1
+access_aw_glass_option_user,aw.glass.option.user,model_aw_glass_option,base.group_user,1,0,0,0
+access_aw_glass_option_manager,aw.glass.option.manager,model_aw_glass_option,group_fenestration_manager,1,1,1,1
+access_aw_glass_extra_user,aw.glass.extra.user,model_aw_glass_extra,base.group_user,1,0,0,0
+access_aw_glass_extra_manager,aw.glass.extra.manager,model_aw_glass_extra,group_fenestration_manager,1,1,1,1

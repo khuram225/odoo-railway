@@ -28,6 +28,7 @@ from odoo import _, api, fields, models
 MIN_MARGIN_PARAM = 'aw_fenestration.min_margin_pct'
 DEFAULT_MIN_MARGIN = 20.0
 MM_PER_FOOT = 304.8
+SQFT_PER_SQM = 10.7639104
 
 
 
@@ -240,6 +241,63 @@ class AwDesign(models.Model):
             })
         return sorted(out, key=lambda v: (not v['is_order_vendor'], v['name']))
 
+    def _cost_glass_line(self, line, on_date):
+        """(rate used, rate date, note) for one row of a panel's glass
+        stack, and the line's cost.
+
+        A sheet or a glass protector costs its dated vendor rate for the
+        type and thickness times the glass area in sqft, unless a rate was
+        typed for this panel (flagged manual). A film protector costs its
+        extra per sqft. A gap costs the spacer per running ft round the
+        glass plus the gas per unit; with no price typed yet for spacer or
+        gas it costs nothing and says nothing, because a missing price
+        there is expected until the supplier gives one.
+        """
+        Extra = self.env['aw.glass.extra']
+        vendor = self._glass_vendor()
+        label = line.glass_label or _('glass')
+        qty = line.qty or 0
+        kind = line.glass_part_kind
+        if kind == 'gap':
+            perimeter_ft = 2.0 * ((line.glass_w or 0.0)
+                                  + (line.glass_h or 0.0)) / MM_PER_FOOT * qty
+            spacer = Extra._rate_for(
+                'spacer', line.glass_spacer, on_date, vendor)
+            gas = Extra._rate_for('gas', line.glass_gas, on_date, vendor)
+            line.rate_list = spacer.rate if spacer else 0.0
+            line.line_cost = (
+                perimeter_ft * (spacer.rate if spacer else 0.0)
+                + (gas.rate if gas else 0.0) * qty)
+            return (spacer.rate if spacer else 0.0,
+                    spacer.date_from if spacer else False, '')
+        area_sqft = (line.area_sqm or 0.0) * SQFT_PER_SQM
+        rate_date = False
+        if line.glass_extra_id:
+            extra = Extra._rate_for(
+                'protector_film', line.glass_extra_id.name, on_date, vendor)
+            listed = extra.rate if extra else 0.0
+            rate_date = extra.date_from if extra else False
+        elif line.glass_type_id and line.glass_mm:
+            rate = self.env['aw.glass.rate']._rate_for(
+                line.glass_type_id, line.glass_mm, on_date, vendor)
+            listed = rate.price if rate else 0.0
+            rate_date = rate.date_from if rate else False
+        else:
+            line.rate_list = 0.0
+            line.line_cost = 0.0
+            return 0.0, False, _("%s: glass type or thickness not set", label)
+        used = line.glass_manual_rate if line.rate_is_manual else listed
+        line.rate_list = listed
+        line.line_cost = used * area_sqft
+        if line.rate_is_manual:
+            note = _("%(label)s: manual rate %(used)g (list rate %(listed)g)",
+                     label=label, used=used, listed=listed)
+        elif not listed:
+            note = _("%s: no rate", label)
+        else:
+            note = ''
+        return used, rate_date, note
+
     def _cost_bom_lines(self):
         """Attach cost to every BOM line, after explosion.
 
@@ -326,10 +384,8 @@ class AwDesign(models.Model):
                         variant=variant, date=on_date)
 
             elif line.kind == 'glass':
-                unit_cost = line.product_id.standard_price or 0.0
-                line.line_cost = unit_cost * (line.area_sqm or 0.0)
-                if not unit_cost:
-                    note = _("Glass product has no cost price")
+                unit_cost, rate_date, note = self._cost_glass_line(
+                    line, on_date)
 
             else:
                 unit_cost = line.product_id.standard_price or 0.0

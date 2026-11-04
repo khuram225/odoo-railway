@@ -139,6 +139,13 @@ class AwGlassType(models.Model):
                 line.write({'value_ids': [(4, v.id) for v in missing]})
         return sheet
 
+    @api.model
+    def _thickness_values(self, thickness_attr=None):
+        """The thicknesses in mm the Glass Sheet carries."""
+        attribute = thickness_attr or self._glass_attribute('thickness')
+        return [thickness_mm(v.name) for v in attribute.value_ids
+                if thickness_mm(v.name) is not None]
+
     def _variant_for(self, mm, create=True):
         """The Glass Sheet variant of this type at `mm`, made on demand
         (dynamic variants). Nothing when the type has no colour or kind, or

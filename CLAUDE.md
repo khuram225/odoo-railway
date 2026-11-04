@@ -560,6 +560,36 @@ columns thicknesses) and is shown for anything `aw_priced_by_rates` (a
 profile or the Glass Sheet). The old flat glass products still exist until
 glass becomes a per-panel stack.
 
+## Glass stacks
+
+A panel's glass is its own STACK of `aw.glass.part` rows (Sheet, optional Gap,
+Sheet, optional Protector), not a saved spec. A window has a header default
+stack (`aw.design.glass_part_ids`), a profile spec has a default stack
+(`aw.window.template.glass_part_ids`), and a panel has its own
+(`aw.design.leaf.glass_part_ids`); a panel with none follows the window.
+`_glass_stack_dicts(leaf)` is the one door to what a panel is glazed with. A
+sheet is a glass type + thickness (so a Glass Sheet variant) priced from the
+dated vendor rate of the ORDER's glass vendor (`sale.order.aw_glass_vendor_id`,
+default Ghani) in sqft, unless a rate was typed for the panel (`rate_manual`,
+noted in the cost note; Reset returns to the list rate). A gap costs spacer
+per running ft + gas per unit from `aw.glass.extra`; with no price typed it
+costs nothing and says nothing. The explosion makes one BOM glass line per
+part.
+
+`models/glass_recipes.py` (Odoo-free, `scripts/check_glass_recipes.py`) says
+what each of the 11 old specs means as a stack. Tempered, Toughened and
+Frosted are processing that has no service yet, so those specs became PLAIN
+Clear sheets with a remark ("was: Clear Tempered") that quotes and shop
+drawings print. The migration (`_migrate_glass_stacks`, from the registry
+hook, once) gives each window a header stack and each glazed panel its own
+copy; sheets of unpriced specs carry a manual rate of 0 flagged `migrated`,
+the three priced specs take the list rate (that is why those panels rise: the
+old cost multiplied a per-sqft number by m2). Specs and their pointers are
+kept; a window with no stack anywhere is still read through its old spec.
+The elevation fingerprint ignores migrated parts so no stored drawing goes
+out of date. Reports: Glass > "Panels with migrated glass" and "Panels with a
+migration remark". Services and Georgian bars come later (PR E).
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

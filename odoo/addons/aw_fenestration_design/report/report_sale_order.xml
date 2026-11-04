@@ -29,8 +29,8 @@
                                 — <span t-esc="aw_design.template_id.full_name or aw_design.window_series_id.display_name"/>
                             </t>
                         </div>
-                        <div t-if="aw_design.glass_spec_id">
-                            Glass: <span t-esc="aw_design.glass_spec_id.display_name"/>
+                        <div t-if="aw_design._glass_stack_dicts()">
+                            Glass: <span t-esc="aw_design._glass_stack_text()"/>
                         </div>
                         <div t-if="aw_design.finish_id">
                             Finish: <span t-esc="aw_design.finish_id.aw_doc_name()"/>

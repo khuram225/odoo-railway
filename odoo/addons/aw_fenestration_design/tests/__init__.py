@@ -12,3 +12,4 @@ from . import test_rates_table
 from . import test_finish_names
 from . import test_glass_rates
 from . import test_glass_products
+from . import test_glass_stack

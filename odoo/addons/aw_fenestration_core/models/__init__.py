@@ -26,3 +26,4 @@ from . import finish_colour
 from . import finish_names
 from . import glass_rates
 from . import glass_sheet
+from . import glass_extras
