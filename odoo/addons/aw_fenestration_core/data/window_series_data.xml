@@ -59,6 +59,9 @@
              the chains it rebuilds are already complete. -->
         <function model="aw.profile.rate" name="_merge_chawla_vendor"/>
         <function model="product.attribute" name="_seed_finish_colours"/>
+        <!-- Names for every vendor column, Premium's mapping, Wood, and the two
+             unused strays. Once; never fails the upgrade. -->
+        <function model="product.attribute.value" name="_migrate_finish_names"/>
         <!-- The position catalog, LAST: rename and add positions, then
              give every spec a row for every position (unused where it
              is not mapped). After every migration above, which re-point

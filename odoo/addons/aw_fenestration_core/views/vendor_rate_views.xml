@@ -15,16 +15,24 @@
                     <p class="text-muted">
                         The columns of this vendor's rate sheet, in order:
                         which is the code, the thickness, the series, and one
-                        column per finish, each mapped to one of our finishes
-                        ("DULL" is Natural). Pasting a row reads it with this.
+                        column per finish. Pick the finish a column is ("DULL" is
+                        Natural) and its header is added to that finish's names;
+                        or use New finish to make one named after the header.
+                        Pasting a row reads it with this.
                     </p>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not unmapped_note">
+                        <field name="unmapped_note" readonly="1" nolabel="1"/>
+                    </div>
                     <field name="column_ids">
                         <list editable="bottom">
                             <field name="sequence" widget="handle"/>
                             <field name="kind"/>
                             <field name="header"/>
-                            <field name="finish_id" required="kind == 'finish'"
-                                   readonly="kind != 'finish'"/>
+                            <field name="finish_id" readonly="kind != 'finish'"/>
+                            <button name="action_new_finish" type="object"
+                                    string="New finish" class="btn-link"
+                                    invisible="kind != 'finish' or finish_id or not id"/>
                         </list>
                     </field>
                     <separator string="Thickness aliases"/>

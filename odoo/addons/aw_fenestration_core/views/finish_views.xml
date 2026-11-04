@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Finishes and the names vendors call them. A finish is still one
+         Finish attribute value; its names are what each vendor's layout
+         column called it. -->
+    <record id="view_aw_finish_list" model="ir.ui.view">
+        <field name="name">aw.finish.list</field>
+        <field name="model">product.attribute.value</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="aw_customer_name" optional="show"/>
+                <field name="aw_owner_vendor_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_finish_form" model="ir.ui.view">
+        <field name="name">aw.finish.form</field>
+        <field name="model">product.attribute.value</field>
+        <field name="arch" type="xml">
+            <form string="Finish">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="aw_customer_name"/>
+                            <field name="html_color" widget="color"/>
+                        </group>
+                        <group>
+                            <field name="aw_owner_vendor_id" readonly="1"
+                                   invisible="not aw_owner_vendor_id"/>
+                        </group>
+                    </group>
+                    <separator string="Names"/>
+                    <p class="text-muted">
+                        What each vendor calls this finish. Selectors and
+                        rate tables show them joined, the order vendor's
+                        first; quotes and shop drawings show the first
+                        name, or the customer name if set.
+                    </p>
+                    <field name="aw_name_ids">
+                        <list editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="vendor_id"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_finish" model="ir.actions.act_window">
+        <field name="name">Finishes</field>
+        <field name="res_model">product.attribute.value</field>
+        <field name="view_mode">list,form</field>
+        <field name="views" eval="[(ref('view_aw_finish_list'), 'list'), (ref('view_aw_finish_form'), 'form')]"/>
+        <field name="domain" eval="[('attribute_id', '=', ref('aw_fenestration_core.aw_attribute_finish'))]"/>
+        <field name="context" eval="{'default_attribute_id': ref('aw_fenestration_core.aw_attribute_finish')}"/>
+    </record>
+
+</odoo>

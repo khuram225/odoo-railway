@@ -79,6 +79,30 @@ export class RatesTable extends Component {
         return vendor ? vendor.name : "";
     }
 
+    /**
+     * All of a finish's names joined with " / ", the shown vendor's own
+     * first (the picked vendor, else the default vendor), each spelling
+     * once.
+     */
+    finishLabel(finish) {
+        const mode = this.activeMode;
+        const vendorId = /^\d+$/.test(mode)
+            ? Number(mode) : (this.table.default_vendor_id || 0);
+        const names = [...(finish.names || [])].sort((a, b) =>
+            (a.vendor_id === vendorId ? 0 : 1) - (b.vendor_id === vendorId ? 0 : 1)
+            || a.sequence - b.sequence);
+        const seen = new Set();
+        const out = [];
+        for (const item of names) {
+            const key = item.name.toLowerCase().replace(/[\s_.\-]+/g, "");
+            if (key && !seen.has(key)) {
+                seen.add(key);
+                out.push(item.name);
+            }
+        }
+        return out.length ? out.join(" / ") : finish.name;
+    }
+
     fmt(price) {
         return Number.isInteger(price) ? String(price) : price.toFixed(2);
     }

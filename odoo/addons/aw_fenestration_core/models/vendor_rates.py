@@ -13,6 +13,7 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from .finish_names import norm_name
 from .rate_paste import normalise_code, normalise_text, parse_paste
 
 _logger = logging.getLogger(__name__)
@@ -355,6 +356,19 @@ class AwVendorLayout(models.Model):
         _logger.info("aw_fenestration_core: Premium seed: %s", report)
         return report
 
+    unmapped_note = fields.Char(compute='_compute_unmapped_note')
+
+    @api.depends('column_ids.kind', 'column_ids.finish_id',
+                 'column_ids.header')
+    def _compute_unmapped_note(self):
+        for layout in self:
+            missing = layout.column_ids.filtered(
+                lambda c: c.kind == 'finish' and not c.finish_id)
+            layout.unmapped_note = _(
+                "These columns have no finish and their prices will be "
+                "skipped: %s", ', '.join(
+                    c.header or '?' for c in missing)) if missing else ''
+
     def _finish_columns(self):
         """The rate columns, in order."""
         self.ensure_one()
@@ -382,10 +396,48 @@ class AwVendorLayoutColumn(models.Model):
     # A rate column may have no finish yet: its numbers are read and kept,
     # and Apply says that column was not applied until a finish is set.
     finish_id = fields.Many2one(
-        'product.attribute.value', string='Our finish',
+        'product.attribute.value', string='Finish',
         domain=lambda self: [(
             'attribute_id', '=',
             self.env.ref('aw_fenestration_core.aw_attribute_finish').id)])
+
+    def _add_header_name(self):
+        """Picking a finish adds the column's header to the finish's
+        names, for this layout's vendor."""
+        for column in self:
+            if (column.kind == 'finish' and column.finish_id
+                    and column.header):
+                column.finish_id._aw_add_name(
+                    column.header, column.layout_id.vendor_id)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        columns = super().create(vals_list)
+        columns._add_header_name()
+        return columns
+
+    def write(self, vals):
+        result = super().write(vals)
+        if {'finish_id', 'header', 'kind'} & set(vals):
+            self._add_header_name()
+        return result
+
+    def action_new_finish(self):
+        """A new finish named after the vendor's own header (WOOD),
+        owned by this vendor and mapped to this column."""
+        self.ensure_one()
+        if not self.header:
+            raise UserError(_("Give the column a header first."))
+        attribute = self.env.ref('aw_fenestration_core.aw_attribute_finish')
+        finish = attribute.value_ids.filtered(
+            lambda v: norm_name(v.name) == norm_name(self.header))[:1]
+        if not finish:
+            finish = self.env['product.attribute.value'].create({
+                'attribute_id': attribute.id,
+                'name': self.header.strip().title(),
+                'aw_owner_vendor_id': self.layout_id.vendor_id.id})
+        self.finish_id = finish
+        return True
 
 
 class AwVendorThicknessAlias(models.Model):
@@ -772,6 +824,28 @@ class AwVendorRateList(models.Model):
                     line_conflict += 1
                     continue
                 column, price = cells[0]
+                finish_attr = self.env.ref(
+                    'aw_fenestration_core.aw_attribute_finish')
+                if (column.finish_id not in offered_finish
+                        and column.finish_id.aw_owner_vendor_id
+                        == self.vendor_id
+                        and not (line.thickness_id
+                                 and line.thickness_id
+                                 not in offered_thickness)
+                        and line.product_tmpl_id.attribute_line_ids.filtered(
+                            lambda l: l.attribute_id == finish_attr)):
+                    # Only a finish made from THIS vendor's own header
+                    # (Wood) is added; every other missing finish still
+                    # stops the cell. The attribute-line guard merges it
+                    # into the profile's existing Finish line.
+                    line.product_tmpl_id.write({'attribute_line_ids': [(0, 0, {
+                        'attribute_id': finish_attr.id,
+                        'value_ids': [(4, column.finish_id.id)]})]})
+                    offered_finish = self.env['aw.profile.section.line'] \
+                        ._template_values(line.product_tmpl_id, finish_attr)
+                    notes.append(_(
+                        "%(finish)s added to this profile",
+                        finish=column.finish_id.name))
                 if (line.thickness_id
                         and line.thickness_id not in offered_thickness) or (
                         column.finish_id not in offered_finish):

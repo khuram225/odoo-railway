@@ -28,6 +28,8 @@ access_aw_price_structure_line_manager,aw.price.structure.line.manager,model_aw_
 access_aw_catalogue_import_manager,aw.catalogue.import.manager,model_aw_catalogue_import,group_fenestration_manager,1,1,1,1
 access_aw_window_family_user,aw.window.family.user,model_aw_window_family,base.group_user,1,0,0,0
 access_aw_window_family_manager,aw.window.family.manager,model_aw_window_family,group_fenestration_manager,1,1,1,1
+access_aw_finish_name_user,aw.finish.name.user,model_aw_finish_name,base.group_user,1,0,0,0
+access_aw_finish_name_manager,aw.finish.name.manager,model_aw_finish_name,group_fenestration_manager,1,1,1,1
 access_aw_vendor_layout_user,aw.vendor.layout.user,model_aw_vendor_layout,base.group_user,1,0,0,0
 access_aw_vendor_layout_manager,aw.vendor.layout.manager,model_aw_vendor_layout,group_fenestration_manager,1,1,1,1
 access_aw_vendor_layout_column_user,aw.vendor.layout_column.user,model_aw_vendor_layout_column,base.group_user,1,0,0,0

@@ -9,3 +9,4 @@ from . import test_variant_data
 from . import test_vendor_recost
 from . import test_chawla_merge
 from . import test_rates_table
+from . import test_finish_names
