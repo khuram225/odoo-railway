@@ -109,3 +109,41 @@ class TestRatesTable(TransactionCase):
         self.assertIn('name="aw_rate_per_ft"', arch)
         self.assertEqual(action['domain'],
                          [('product_tmpl_id', '=', self.both.id)])
+
+    def test_a_hand_made_profile_in_unclassified_is_a_profile(self):
+        from lxml import etree
+        env = self.env
+        unclassified = env.ref(
+            'aw_fenestration_core.product_category_profiles_unclassified')
+        by_hand = env['product.template'].create({
+            'name': 'Hand made profile', 'categ_id': unclassified.id})
+        self.assertFalse(by_hand.aw_catalogue_code)
+        self.assertFalse(by_hand.aw_catalogue_page)
+        # a profile by category, with no catalogue code or page
+        self.assertTrue(by_hand.aw_is_profile)
+        # and the form says what a profile has: a Rates tab, no price or
+        # "Can be Sold", no Prices tab, all keyed on that same flag
+        arch = etree.fromstring(
+            env['product.template'].get_view(view_type='form')['arch'])
+        rates = arch.xpath("//page[@name='aw_rates']")
+        self.assertEqual(len(rates), 1)
+        self.assertIn('aw_is_profile', rates[0].get('invisible'))
+        self.assertTrue(rates[0].xpath(".//field[@name='aw_rates_table']"))
+        # after the Fenestration tab, and General Information is without it
+        pages = [p.get('name') for p in arch.xpath('//notebook/page')]
+        self.assertEqual(pages.index('aw_rates'),
+                         pages.index('aw_fenestration') + 1)
+        self.assertFalse(arch.xpath(
+            "//page[@name='general_information']//field[@name='aw_rates_table']"))
+        for xpath in ("//page[@name='sales_price']",
+                      "//div[@name='list_price_uom']",
+                      "//span[@name='sale_option']"):
+            node = arch.xpath(xpath)[0]
+            self.assertIn('aw_is_profile', node.get('invisible'), xpath)
+        # the Fenestration tab keeps its own rule: no code or page, no tab
+        fen = arch.xpath("//page[@name='aw_fenestration']")[0]
+        self.assertIn('aw_catalogue_code', fen.get('invisible'))
+        self.assertNotIn('aw_is_profile', fen.get('invisible'))
+        # a product elsewhere is not a profile
+        self.assertFalse(env['product.template'].create(
+            {'name': 'Plain'}).aw_is_profile)
