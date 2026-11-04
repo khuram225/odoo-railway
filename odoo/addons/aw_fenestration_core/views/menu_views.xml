@@ -94,6 +94,24 @@
               action="action_aw_vendor_rate_list"
               sequence="20"/>
 
+    <menuitem id="menu_aw_glass_rate"
+              name="Glass rates in force"
+              parent="menu_aw_vendor_rates"
+              action="action_aw_glass_rate"
+              sequence="12"/>
+
+    <menuitem id="menu_aw_glass_rate_list"
+              name="Glass Rate Lists"
+              parent="menu_aw_vendor_rates"
+              action="action_aw_glass_rate_list"
+              sequence="22"/>
+
+    <menuitem id="menu_aw_glass_type"
+              name="Glass Types"
+              parent="menu_aw_vendor_rates"
+              action="action_aw_glass_type"
+              sequence="32"/>
+
     <menuitem id="menu_aw_vendor_layout"
               name="Vendor Layouts"
               parent="menu_aw_vendor_rates"
