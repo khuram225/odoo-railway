@@ -18,9 +18,10 @@
                     <table class="table table-sm o_aw_rate_grid_table mb-1">
                         <thead>
                             <tr>
-                                <th>Code</th>
+                                <th t-if="isGlass">Glass type</th>
+                                <th t-else="">Code</th>
                                 <th>Thickness</th>
-                                <th>Series</th>
+                                <th t-if="!isGlass">Series</th>
                                 <th t-foreach="columns" t-as="col" t-key="col.index"
                                     class="text-end"
                                     t-att-class="col.mapped ? '' : 'text-muted'">
@@ -30,7 +31,8 @@
                                         <t t-else="">no finish</t>
                                     </div>
                                 </th>
-                                <th>Profile</th>
+                                <th t-if="isGlass">Matched</th>
+                                <th t-else="">Profile</th>
                                 <th>Status</th>
                                 <th/>
                             </tr>
@@ -40,6 +42,7 @@
                                 t-att-class="line.problem ? 'table-danger' : ''">
                                 <td>
                                     <input type="text" class="form-control form-control-sm"
+                                           t-att-list="isGlass ? 'aw_rate_grid_glass' : undefined"
                                            t-att-value="line.code"
                                            t-att-readonly="!rowEditable(line) or undefined"
                                            t-att-data-row="line_index" data-col="code"
@@ -55,7 +58,7 @@
                                            t-on-change="(ev) => this.saveText(line, 'thickness_text', ev.target.value)"
                                            t-on-keydown="onKey"/>
                                 </td>
-                                <td>
+                                <td t-if="!isGlass">
                                     <input type="text" class="form-control form-control-sm"
                                            list="aw_rate_grid_series"
                                            t-att-value="line.series"
@@ -74,7 +77,11 @@
                                            t-on-change="(ev) => this.saveRate(line, col, ev.target.value)"
                                            t-on-keydown="onKey"/>
                                 </td>
-                                <td>
+                                <td t-if="isGlass">
+                                    <span t-if="line.glass_type_id" t-esc="line.glass_type_id[1]"/>
+                                    <span t-else="" class="text-danger">no glass type</span>
+                                </td>
+                                <td t-else="">
                                     <span t-if="line.product_tmpl_id" t-esc="productName(line)"/>
                                     <button t-elif="rowEditable(line)" type="button"
                                             class="btn btn-link btn-sm text-danger p-0"
@@ -102,6 +109,10 @@
                 </div>
                 <datalist id="aw_rate_grid_thickness">
                     <option t-foreach="thicknessOptions" t-as="opt" t-key="opt"
+                            t-att-value="opt"/>
+                </datalist>
+                <datalist id="aw_rate_grid_glass">
+                    <option t-foreach="glassTypeOptions" t-as="opt" t-key="opt"
                             t-att-value="opt"/>
                 </datalist>
                 <datalist id="aw_rate_grid_series">

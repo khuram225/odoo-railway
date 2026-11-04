@@ -59,6 +59,8 @@
              the chains it rebuilds are already complete. -->
         <function model="aw.profile.rate" name="_merge_chawla_vendor"/>
         <function model="product.attribute" name="_seed_finish_colours"/>
+        <!-- Glass types of the first supplier list and the supplier; fill-only. -->
+        <function model="aw.glass.type" name="_seed_glass_types"/>
         <!-- Names for every vendor column, Premium's mapping, Wood, and the two
              unused strays. Once; never fails the upgrade. -->
         <function model="product.attribute.value" name="_migrate_finish_names"/>

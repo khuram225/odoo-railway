@@ -43,3 +43,7 @@ access_aw_vendor_rate_list_manager,aw.vendor.rate_list.manager,model_aw_vendor_r
 access_aw_vendor_rate_list_line_user,aw.vendor.rate_list_line.user,model_aw_vendor_rate_list_line,base.group_user,1,0,0,0
 access_aw_vendor_rate_list_line_manager,aw.vendor.rate_list_line.manager,model_aw_vendor_rate_list_line,group_fenestration_manager,1,1,1,1
 access_aw_window_template_copy_wizard_manager,aw.window.template.copy.wizard.manager,model_aw_window_template_copy_wizard,group_fenestration_manager,1,1,1,1
+access_aw_glass_type_user,aw.glass.type.user,model_aw_glass_type,base.group_user,1,0,0,0
+access_aw_glass_type_manager,aw.glass.type.manager,model_aw_glass_type,group_fenestration_manager,1,1,1,1
+access_aw_glass_rate_user,aw.glass.rate.user,model_aw_glass_rate,base.group_user,1,0,0,0
+access_aw_glass_rate_manager,aw.glass.rate.manager,model_aw_glass_rate,group_fenestration_manager,1,1,1,1

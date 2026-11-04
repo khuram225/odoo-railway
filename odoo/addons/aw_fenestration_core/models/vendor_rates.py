@@ -14,6 +14,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from .finish_names import norm_name
+from .glass_paste import norm_type, parse_glass_paste, parse_thickness
 from .rate_paste import normalise_code, normalise_text, parse_paste
 
 _logger = logging.getLogger(__name__)
@@ -482,6 +483,11 @@ class AwVendorRateList(models.Model):
     _order = 'date desc, id desc'
 
     name = fields.Char(compute='_compute_name', store=True)
+    kind = fields.Selection([
+        ('profile', 'Profiles'), ('glass', 'Glass'),
+    ], required=True, default='profile', index=True,
+        help="What the list prices. A glass list has one rate column, in "
+             "PKR per sqft, and no finish.")
     vendor_id = fields.Many2one(
         'res.partner', string='Vendor', required=True, tracking=True,
         index=True)
@@ -512,6 +518,7 @@ class AwVendorRateList(models.Model):
     need_thickness_count = fields.Integer(compute='_compute_counts')
     unknown_thickness_count = fields.Integer(compute='_compute_counts')
     need_finish_count = fields.Integer(compute='_compute_counts')
+    need_glass_type_count = fields.Integer(compute='_compute_counts')
     need_summary = fields.Char(compute='_compute_counts')
     conflict_count = fields.Integer(compute='_compute_counts')
     # The grid's own field is a computed, so Odoo gives it readonly=True
@@ -537,9 +544,13 @@ class AwVendorRateList(models.Model):
             rec.name = '%s - %s' % (
                 rec.vendor_id.display_name or '', rec.date or '')
 
-    @api.depends('vendor_id')
+    @api.depends('vendor_id', 'kind')
     def _compute_layout(self):
         for rec in self:
+            if rec.kind == 'glass':
+                rec.layout_id = False
+                rec.columns_legend = _('Rate 1 = PKR per sqft')
+                continue
             layout = self.env['aw.vendor.layout'].search(
                 [('vendor_id', '=', rec.vendor_id.id)], limit=1)
             rec.layout_id = layout
@@ -554,12 +565,22 @@ class AwVendorRateList(models.Model):
                     for index, column in enumerate(columns, start=1)
                 ) or _('This layout has no rate columns')
 
-    @api.depends('vendor_id')
+    @api.depends('vendor_id', 'kind')
     def _compute_grid_meta(self):
         category = self.env.ref(
             'aw_fenestration_core.product_category_profiles',
             raise_if_not_found=False)
         for rec in self:
+            if rec.kind == 'glass':
+                rec.grid_meta = {
+                    'kind': 'glass', 'has_layout': True,
+                    'thickness_options': [], 'series_options': [],
+                    'glass_type_options': self.env['aw.glass.type'].search(
+                        []).mapped('name'),
+                    'columns': [{'index': 1, 'header': 'PKR / sqft',
+                                 'finish': '', 'mapped': True}],
+                }
+                continue
             layout = self.env['aw.vendor.layout'].search(
                 [('vendor_id', '=', rec.vendor_id.id)], limit=1)
             rec.grid_meta = {
@@ -608,6 +629,16 @@ class AwVendorRateList(models.Model):
             rec.need_thickness_count = by_need.count('thickness')
             rec.unknown_thickness_count = by_need.count('unknown_thickness')
             rec.need_finish_count = by_need.count('finish')
+            rec.need_glass_type_count = by_need.count('glass_type')
+            if rec.kind == 'glass':
+                rec.need_summary = _(
+                    "%(types)s need a glass type, %(unknown)s unknown "
+                    "thickness",
+                    types=rec.need_glass_type_count,
+                    unknown=rec.unknown_thickness_count) if any(by_need) \
+                    else ''
+                rec.conflict_count = 0
+                continue
             rec.need_summary = _(
                 "%(product)s need a product, %(thickness)s need a "
                 "thickness, %(unknown)s unknown thickness, %(finish)s need "
@@ -633,6 +664,8 @@ class AwVendorRateList(models.Model):
         self.ensure_one()
         if self.state != 'draft':
             raise UserError(_("An applied list is read only."))
+        if self.kind == 'glass':
+            return self._parse_glass_paste()
         layout = self._require_layout()
         rows = parse_paste(self.paste_text, layout._kinds())
         if not rows:
@@ -665,11 +698,31 @@ class AwVendorRateList(models.Model):
         self.paste_text = False
         return True
 
+    def _parse_glass_paste(self):
+        """Glass type, thickness, price per sqft: one line per type and
+        thickness. A colour list or "5mm/6mm" is split into its rates."""
+        self.ensure_one()
+        rows = parse_glass_paste(self.paste_text)
+        if not rows:
+            raise UserError(_(
+                "No row reads as a glass type, a thickness (like 5mm) and "
+                "a price. Paste rows such as: Clear  6mm  265.52"))
+        start = (self.line_ids[-1:].sequence or 0) + 10 \
+            if self.line_ids else 10
+        self.env['aw.vendor.rate.list.line'].create([{
+            'list_id': self.id, 'sequence': start + 10 * index,
+            'code': row['type'], 'thickness_text': row['thickness'],
+            'rate_1': row['price']} for index, row in enumerate(rows)])
+        self.paste_text = False
+        return True
+
     # ------------------------------------------------------------ entry 3
     def action_fill_from_current(self):
         """Prefill rows with this vendor's rates in force today for a
         series, so only the changed numbers are typed over."""
         self.ensure_one()
+        if self.kind == 'glass':
+            raise UserError(_("Fill from current rates is for profile lists."))
         if self.state != 'draft':
             raise UserError(_("An applied list is read only."))
         layout = self._require_layout()
@@ -739,6 +792,9 @@ class AwVendorRateList(models.Model):
         return self._show_need(
             'unknown_thickness', _("Rows with an unknown thickness"))
 
+    def action_show_need_glass_type(self):
+        return self._show_need('glass_type', _("Rows that need a glass type"))
+
     def action_show_need_finish(self):
         return self._show_need('finish', _("Rows that need a finish"))
 
@@ -756,16 +812,20 @@ class AwVendorRateList(models.Model):
         self.line_ids._refresh_need()
         return True
 
+    def _rate_model(self):
+        return 'aw.glass.rate' if self.kind == 'glass' else 'aw.profile.rate'
+
     def action_reapply(self):
         """Applied lists only: delete the rates this list wrote, then run
         Apply again. One transaction, so a failure leaves the old rates."""
         self.ensure_one()
         if self.state != 'applied':
             raise UserError(_("Only an applied list can be applied again."))
-        old = self.env['aw.profile.rate'].with_context(
+        old = self.env[self._rate_model()].with_context(
             active_test=False).search([('rate_list_id', '=', self.id)])
         deleted = len(old)
-        affected = old.product_tmpl_id
+        affected = old.product_tmpl_id if self.kind == 'profile' \
+            else self.env['product.template']
         old.unlink()
         summary = self._apply()
         summary['deleted'] = deleted
@@ -789,10 +849,11 @@ class AwVendorRateList(models.Model):
         self.ensure_one()
         if self.state != 'applied':
             raise UserError(_("Only an applied list can be set to draft."))
-        old = self.env['aw.profile.rate'].with_context(
+        old = self.env[self._rate_model()].with_context(
             active_test=False).search([('rate_list_id', '=', self.id)])
         deleted = len(old)
-        affected = old.product_tmpl_id
+        affected = old.product_tmpl_id if self.kind == 'profile' \
+            else self.env['product.template']
         old.unlink()
         self.line_ids.write({
             'result': False, 'detail': False, 'cells_applied': 0,
@@ -817,6 +878,8 @@ class AwVendorRateList(models.Model):
         thickness, finish, vendor and date, so writing a list again
         updates what it wrote and adds what it could not before."""
         self.ensure_one()
+        if self.kind == 'glass':
+            return self._apply_glass()
         layout = self._require_layout()
         finish_columns = layout._finish_columns()
         Rate = self.env['aw.profile.rate']
@@ -946,6 +1009,53 @@ class AwVendorRateList(models.Model):
             "applied.", **summary))
         return summary
 
+    def _apply_glass(self):
+        """Glass rates: one per row, by type, thickness, vendor and the
+        list's date. A row needing a glass type, or with a thickness that
+        is not a number, is not applied; nothing is created."""
+        self.ensure_one()
+        Rate = self.env['aw.glass.rate']
+        written = skipped = 0
+        for line in self.line_ids.sorted('sequence'):
+            line._refresh_need()
+            reason = line.need_text if line.need else (
+                False if line.rate_1 else _("no price"))
+            if reason:
+                line.write({
+                    'result': _("Not applied: %s", reason),
+                    'cells_applied': 0, 'cells_skipped': 0,
+                    'cells_failed': 0, 'cells_conflict': 0,
+                    'detail': reason})
+                skipped += 1
+                continue
+            thickness = parse_thickness(line.thickness_text)[0]
+            key = [('glass_type_id', '=', line.glass_type_id.id),
+                   ('thickness_mm', '=', thickness),
+                   ('vendor_id', '=', self.vendor_id.id),
+                   ('date_from', '=', self.date)]
+            values = {'price': line.rate_1, 'source_note': self.name,
+                      'rate_list_id': self.id}
+            existing = Rate.search(key, limit=1)
+            if existing:
+                existing.write(values)
+            else:
+                Rate.create(dict(
+                    values, glass_type_id=line.glass_type_id.id,
+                    thickness_mm=thickness, vendor_id=self.vendor_id.id,
+                    date_from=self.date))
+            line.write({'result': _("Applied"), 'cells_applied': 1,
+                        'cells_skipped': 0, 'cells_failed': 0,
+                        'cells_conflict': 0, 'detail': False})
+            written += 1
+        self.state = 'applied'
+        summary = {'applied': written, 'skipped': 0, 'failed': 0,
+                   'rows_not_applied': skipped, 'conflicts': 0,
+                   'conflict_rows': 0}
+        self.message_post(body=_(
+            "Applied: %(applied)s glass rate(s) written, "
+            "%(rows_not_applied)s row(s) not applied.", **summary))
+        return summary
+
     def _follow_variant_costs(self, templates):
         """A variant's cost field follows its series' default vendor, so
         stock valuation stays sensible. Only for profiles whose default
@@ -994,6 +1104,9 @@ class AwVendorRateListLine(models.Model):
             self.env.ref('aw_fenestration_core.product_category_profiles').id)])
     thickness_id = fields.Many2one(
         'product.attribute.value', string='Our thickness')
+    glass_type_id = fields.Many2one(
+        'aw.glass.type', string='Glass type',
+        help="Set on a glass list's rows: the type the first column names.")
     match_source = fields.Selection([
         ('none', 'Not matched'), ('direct', 'By code'),
         ('alias', 'By alias'), ('manual', 'Chosen')], default='none')
@@ -1009,6 +1122,7 @@ class AwVendorRateListLine(models.Model):
         ('unknown_thickness', 'Unknown thickness'),
         ('thickness', 'Needs a thickness'),
         ('finish', 'Needs a finish'),
+        ('glass_type', 'Needs a glass type'),
     ], index=True, readonly=True)
     need_text = fields.Char(readonly=True)
     result = fields.Char(readonly=True)
@@ -1071,10 +1185,12 @@ class AwVendorRateListLine(models.Model):
             line.thickness_norm = normalise_text(line.thickness_text)
 
     @api.depends('product_tmpl_id', 'thickness_id', 'thickness_text',
-                 'ambiguous_code')
+                 'ambiguous_code', 'glass_type_id', 'list_id.kind')
     def _compute_problem(self):
         for line in self:
-            if line.ambiguous_code:
+            if line.list_id.kind == 'glass':
+                line.problem = line._glass_need()[1] or False
+            elif line.ambiguous_code:
                 line.problem = _("Ambiguous code '%s'", line.code or '')
             elif not line.product_tmpl_id:
                 line.problem = _(
@@ -1087,10 +1203,26 @@ class AwVendorRateListLine(models.Model):
             else:
                 line.problem = False
 
+    def _glass_need(self):
+        """(need, text) for a glass row: a type that exists, and a
+        thickness that is a number of mm."""
+        self.ensure_one()
+        if not self.glass_type_id:
+            return 'glass_type', _(
+                "No glass type %s: add it under Glass Types, then Re-match",
+                self.code or '')
+        if len(parse_thickness(self.thickness_text)) != 1:
+            return 'unknown_thickness', _(
+                "Unknown thickness '%s': write it like 5mm",
+                self.thickness_text or '')
+        return False, False
+
     def _need_for(self):
         """(need, text) for this row. Nothing is created: a row either
         names what is missing on the product, or is ready."""
         self.ensure_one()
+        if self.list_id.kind == 'glass':
+            return self._glass_need()
         if self.ambiguous_code:
             return 'product', _("Ambiguous code '%s'", self.code or '')
         if not self.product_tmpl_id:
@@ -1144,6 +1276,16 @@ class AwVendorRateListLine(models.Model):
         """Product by alias then by code; thickness by the vendor's alias
         or by name. A row somebody chose by hand is left alone unless
         forced."""
+        glass = self.filtered(lambda l: l.list_id.kind == 'glass')
+        if glass:
+            Type = self.env['aw.glass.type']
+            for line in glass.with_context(aw_auto_match=True):
+                line.glass_type_id = Type.search(
+                    [('name_norm', '=', norm_type(line.code))], limit=1)
+            glass._refresh_need()
+            self -= glass
+            if not self:
+                return
         Template = self.env['product.template']
         # stored norms predate any change to the rule, so refresh them
         self._compute_norms()

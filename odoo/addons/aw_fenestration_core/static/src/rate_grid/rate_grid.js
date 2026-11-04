@@ -11,7 +11,7 @@ const LINE_FIELDS = [
     "code", "thickness_text", "series", "product_tmpl_id", "thickness_id",
     "problem", "result", "match_source", "status_code", "detail",
     "cells_applied", "cells_skipped", "cells_failed", "grid_editable",
-    "need", "need_text",
+    "need", "need_text", "glass_type_id",
     ...Array.from({ length: 10 }, (_, i) => `rate_${i + 1}`),
 ];
 
@@ -83,6 +83,14 @@ export class RateGrid extends Component {
      */
     rowEditable(line) {
         return Boolean(line.grid_editable);
+    }
+
+    get isGlass() {
+        return this.meta.kind === "glass";
+    }
+
+    get glassTypeOptions() {
+        return this.meta.glass_type_options || [];
     }
 
     get thicknessOptions() {

@@ -523,6 +523,23 @@ a finish" with a filter on each, and Re-match (then Re-apply) picks the row up
 once the product is fixed. There used to be a "Create missing" wizard; it was
 removed, and what it had already created stays.
 
+## Glass rates
+
+A glass sheet is priced by TYPE and THICKNESS (mm), per square foot, by a
+vendor from a start date: `aw.glass.type` (Clear, Green, WC Green, CC Grey,
+Ref. Grey, ...; Ref. is the `reflective` flag) and `aw.glass.rate`, which
+keeps the same validity chain as profile rates (`resolve_chain`; a new list
+adds rows, each version ends the day before the next). A glass spec has no
+price of its own. Glass rates are entered on the same rate list screen with
+`kind = glass`: one rate column, no finish, no layout. `models/glass_paste.py`
+(Odoo-free, run by `scripts/check_glass_paste.py`) splits a row into one rate
+per colour and per thickness: "Green/Brown", "WC (Grn, Brw, Blue)",
+"5mm/6mm"; Grn and Brw are spelled out, WC and CC are kept exactly as written.
+A row whose type is not in Glass Types is "No glass type X: add it under Glass
+Types, then Re-match" and is not applied; nothing is created by Apply. Re-match,
+Apply, Re-apply, Set to draft and the same-date rewrite behave as for profiles.
+Nothing costs from these rates yet (glass layers are the next change).
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

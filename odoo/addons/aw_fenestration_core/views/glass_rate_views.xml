@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ===== glass types ===== -->
+    <record id="view_aw_glass_type_list" model="ir.ui.view">
+        <field name="name">aw.glass.type.list</field>
+        <field name="model">aw.glass.type</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="name"/>
+                <field name="reflective"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_aw_glass_type" model="ir.actions.act_window">
+        <field name="name">Glass Types</field>
+        <field name="res_model">aw.glass.type</field>
+        <field name="view_mode">list</field>
+        <field name="views" eval="[(False, 'list')]"/>
+    </record>
+
+    <!-- ===== glass rates: never edited by hand, they come from lists ===== -->
+    <record id="view_aw_glass_rate_list" model="ir.ui.view">
+        <field name="name">aw.glass.rate.list</field>
+        <field name="model">aw.glass.rate</field>
+        <field name="arch" type="xml">
+            <list create="0" edit="0" delete="0"
+                  decoration-muted="status in ('superseded', 'expired')"
+                  decoration-info="status == 'future'">
+                <field name="date_from" string="Effective from"/>
+                <field name="date_to" string="Effective to"/>
+                <field name="status"/>
+                <field name="glass_type_id"/>
+                <field name="thickness_mm"/>
+                <field name="price"/>
+                <field name="vendor_id"/>
+                <field name="source_note" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_glass_rate_search" model="ir.ui.view">
+        <field name="name">aw.glass.rate.search</field>
+        <field name="model">aw.glass.rate</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="glass_type_id"/>
+                <field name="vendor_id"/>
+                <field name="thickness_mm"/>
+                <filter name="current" string="In force today"
+                        domain="['&amp;', ('date_from', '&lt;=', context_today().strftime('%Y-%m-%d')), '|', ('date_to', '=', False), ('date_to', '&gt;=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="future" string="Future"
+                        domain="[('date_from', '&gt;', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter name="closed" string="Superseded or expired"
+                        domain="[('date_to', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter name="group_vendor" string="Vendor"
+                            context="{'group_by': 'vendor_id'}"/>
+                    <filter name="group_type" string="Glass type"
+                            context="{'group_by': 'glass_type_id'}"/>
+                    <filter name="group_thickness" string="Thickness"
+                            context="{'group_by': 'thickness_mm'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_aw_glass_rate" model="ir.actions.act_window">
+        <field name="name">Glass rates in force</field>
+        <field name="res_model">aw.glass.rate</field>
+        <field name="view_mode">list</field>
+        <field name="views" eval="[(False, 'list')]"/>
+        <field name="context">{'search_default_current': 1}</field>
+    </record>
+
+</odoo>
