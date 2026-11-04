@@ -156,11 +156,19 @@ jobs:
       # Fresh database 1: the aluminum tenant.
       # --------------------------------------------------------------
       - name: Install the aluminum modules into a fresh database
+        # Our dependencies pull in only product, stock, mail and sale,
+        # so an xpath into a view that purchase or account (or their
+        # glue modules) change was never composed here, and a missing
+        # anchor reached production instead of failing this job. This is
+        # the set of core modules installed on production, so the
+        # composed views are the ones the real upgrade composes.
+        env:
+          PROD_CORE_MODULES: account,account_payment,mail,product,purchase,purchase_stock,sale,sale_management,sale_purchase,sale_stock,stock,stock_account
         run: |
           set -eu
           odoo -d aw_boot \
             --addons-path=/usr/lib/python3/dist-packages/odoo/addons,odoo/addons \
-            -i "${{ steps.modules.outputs.aluminum }}" \
+            -i "${{ steps.modules.outputs.aluminum }},$PROD_CORE_MODULES" \
             --without-demo=all --stop-after-init --no-http \
             --log-level=info 2>&1 | tee /tmp/aw_boot.log
 
