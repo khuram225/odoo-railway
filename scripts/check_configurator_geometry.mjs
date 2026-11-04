@@ -1343,5 +1343,35 @@ console.log("\n  the Frame label is the SHORT name:");
        "no short form falls back to the full name rather than going blank");
 }
 
+{
+    // The Panel tab's unit switch: display only, mm stays the stored value.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "FIXED"), panel(600, "FIXED"),
+    ] }], 1200, 1500);
+    c.notification = { add: () => {} };
+    c.selectLeaf([[0, 0]]);
+    c.setUnitMode("mm");
+    ok(c.state.unitMode === "mm" && !c.showIn && c.showMm, "mm shows only the mm boxes");
+    c.setUnitMode("in");
+    ok(c.showIn && !c.showMm, "in shows only the inch boxes");
+    c.setUnitMode("both");
+    ok(c.showIn && c.showMm, "both shows both");
+    c.setUnitMode("feet");
+    ok(c.state.unitMode === "both", "an unknown mode is ignored");
+    ok(c.panelWidthBox("mm") === "600", "the mm box shows the stored 600");
+    c.setPanelWidth("700", "mm");
+    near(c.state.data.rows[0].leaves[0].width_mm, 700, "typing mm stores exactly that");
+    c.setPanelWidth("24", "in");
+    near(c.state.data.rows[0].leaves[0].width_mm, 24 * 25.4, "typing inches stores mm");
+    const both = c.modeLengthPair(1829, 1791);
+    ok(both.includes(" mm") && both.includes(" in"), "both shows inches and mm");
+    c.setUnitMode("mm");
+    ok(c.modeLengthPair(1829, 1791) === "1829 \u00d7 1791 mm", "mm only reads in mm");
+    ok(c.profileText({ profile_code: "HD-14", profile_name: "Frame" }) === "HD-14 Frame",
+       "a piece reads as code and name");
+    ok(c.profileText({ profile_code: "HD-14", profile_name: "HD-14 Frame" }) === "HD-14 Frame",
+       "a name that already starts with the code is not doubled");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);
