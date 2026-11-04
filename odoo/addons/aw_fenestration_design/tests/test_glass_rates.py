@@ -176,3 +176,51 @@ class TestGlassRates(TransactionCase):
             'aw_fenestration.glass_vendor_seeded', '')
         partner = env['aw.glass.type']._seed_glass_vendor()
         self.assertEqual(partner.name, 'Ghani Glass Ltd')
+
+    def test_two_prices_for_one_type_and_thickness_are_a_conflict(self):
+        rate_list = self._list(
+            date(2026, 7, 1),
+            'Grey\t4mm\t323.56\nGrey\t4mm\t387.69\nClear\t6mm\t265.52'
+            '\nBlue\t4mm\t10\nBlue\t4mm\t10')
+        rate_list.action_apply()
+        grey = rate_list.line_ids.filtered(lambda l: l.code == 'Grey')
+        self.assertEqual(grey.mapped('status_code'), ['conflict', 'conflict'])
+        self.assertTrue(all(l.detail.startswith(
+            'Conflict: Grey 4mm has 323.56 and 387.69') for l in grey))
+        self.assertEqual(rate_list.conflict_count, 2)
+        self.assertFalse(self._rate('Grey', 4, date(2026, 8, 1)))
+        # equal prices are one price; the clean row is written
+        self.assertEqual(self._rate('Clear', 6, date(2026, 8, 1)).price, 265.52)
+        self.assertEqual(self._rate('Blue', 4, date(2026, 8, 1)).price, 10)
+
+    def test_ref_and_plain_stay_two_types_and_odd_spaces_separate_fields(self):
+        nb = chr(0xa0)
+        rate_list = self._list(
+            date(2026, 7, 1),
+            'Ref.' + nb + 'Grey' + nb + nb + '4mm ' + nb + '387.69\n'
+            'Grey   4mm\t323.56')
+        by = {l.code: l.rate_1 for l in rate_list.line_ids}
+        self.assertEqual(by, {'Ref. Grey': 387.69, 'Grey': 323.56})
+        rate_list.action_apply()
+        self.assertEqual(
+            self._rate('Ref. Grey', 4, date(2026, 8, 1)).price, 387.69)
+        self.assertEqual(self._rate('Grey', 4, date(2026, 8, 1)).price, 323.56)
+
+    def test_lines_that_are_not_rows_are_reported_not_dropped(self):
+        rate_list = self.env['aw.vendor.rate.list'].create({
+            'kind': 'glass', 'vendor_id': self.ghani.id,
+            'date': date(2026, 7, 1)})
+        rate_list.paste_text = (
+            'WC (Grn, Brw, Blue)\n5mm\t231.88\nGreen 4mm 287.36 336.95\n'
+            'Clear 6mm 265.52')
+        result = rate_list.action_parse_paste()
+        self.assertEqual(rate_list.line_ids.mapped('code'), ['Clear'])
+        self.assertEqual(result['params']['type'], 'warning')
+        self.assertIn('2 line(s) were NOT read', result['params']['message'])
+        self.assertIn('5mm 231.88', result['params']['message'])
+        self.assertIn('Green 4mm 287.36 336.95', result['params']['message'])
+        # all lines unread: an error that names them
+        rate_list.paste_text = '5mm\t231.88'
+        with self.assertRaises(UserError) as caught:
+            rate_list.action_parse_paste()
+        self.assertIn('5mm 231.88', str(caught.exception))

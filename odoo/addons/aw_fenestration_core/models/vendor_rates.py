@@ -14,7 +14,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from .finish_names import norm_name
-from .glass_paste import norm_type, parse_glass_paste, parse_thickness
+from .glass_paste import (
+    norm_type, parse_glass_paste_report, parse_thickness)
 from .rate_paste import normalise_code, normalise_text, parse_paste
 
 _logger = logging.getLogger(__name__)
@@ -637,7 +638,8 @@ class AwVendorRateList(models.Model):
                     types=rec.need_glass_type_count,
                     unknown=rec.unknown_thickness_count) if any(by_need) \
                     else ''
-                rec.conflict_count = 0
+                rec.conflict_count = len(
+                    rec.line_ids.filtered('cells_conflict'))
                 continue
             rec.need_summary = _(
                 "%(product)s need a product, %(thickness)s need a "
@@ -702,11 +704,13 @@ class AwVendorRateList(models.Model):
         """Glass type, thickness, price per sqft: one line per type and
         thickness. A colour list or "5mm/6mm" is split into its rates."""
         self.ensure_one()
-        rows = parse_glass_paste(self.paste_text)
+        rows, skipped = parse_glass_paste_report(self.paste_text)
         if not rows:
             raise UserError(_(
                 "No row reads as a glass type, a thickness (like 5mm) and "
-                "a price. Paste rows such as: Clear  6mm  265.52"))
+                "a price. Paste rows such as: Clear  6mm  265.52") + (
+                    ' ' + _("Not read: %s", ' | '.join(skipped[:5]))
+                    if skipped else ''))
         start = (self.line_ids[-1:].sequence or 0) + 10 \
             if self.line_ids else 10
         self.env['aw.vendor.rate.list.line'].create([{
@@ -714,6 +718,21 @@ class AwVendorRateList(models.Model):
             'code': row['type'], 'thickness_text': row['thickness'],
             'rate_1': row['price']} for index, row in enumerate(rows)])
         self.paste_text = False
+        if skipped:
+            # A line with a number that is not type + thickness + price is
+            # never guessed at, and never dropped quietly either.
+            message = _(
+                "%(count)s line(s) were NOT read (each needs a glass type, "
+                "a thickness with mm, and one price): %(lines)s",
+                count=len(skipped), lines=' | '.join(skipped))
+            self.message_post(body=message)
+            return {
+                'type': 'ir.actions.client', 'tag': 'display_notification',
+                'params': {'title': _("Some lines were not read"),
+                           'message': message, 'type': 'warning',
+                           'sticky': True,
+                           'next': {'type': 'ir.actions.client',
+                                    'tag': 'soft_reload'}}}
         return True
 
     # ------------------------------------------------------------ entry 3
@@ -1015,9 +1034,43 @@ class AwVendorRateList(models.Model):
         is not a number, is not applied; nothing is created."""
         self.ensure_one()
         Rate = self.env['aw.glass.rate']
-        written = skipped = 0
+        written = skipped = conflict_rows = 0
+        # Two rows for one type and thickness with different prices are a
+        # Conflict: both are marked and neither is written (equal prices
+        # are one price), as for profiles.
+        priced = {}
+        for line in self.line_ids:
+            line._refresh_need()
+            if not line.need and line.rate_1:
+                priced.setdefault(
+                    (line.glass_type_id.id,
+                     parse_thickness(line.thickness_text)[0]),
+                    []).append(line)
+        in_conflict = self.env['aw.vendor.rate.list.line']
+        for lines in priced.values():
+            if len({round(l.rate_1, 4) for l in lines}) > 1:
+                in_conflict |= self.env['aw.vendor.rate.list.line'].concat(
+                    *lines)
         for line in self.line_ids.sorted('sequence'):
             line._refresh_need()
+            if line in in_conflict:
+                same = in_conflict.filtered(
+                    lambda l: l.glass_type_id == line.glass_type_id
+                    and parse_thickness(l.thickness_text)
+                    == parse_thickness(line.thickness_text))
+                detail = _(
+                    "Conflict: %(type)s %(thickness)s has %(prices)s in this "
+                    "list; nothing written",
+                    type=line.glass_type_id.name,
+                    thickness=line.thickness_text,
+                    prices=' and '.join(
+                        '%g' % p for p in sorted({l.rate_1 for l in same})))
+                line.write({
+                    'result': detail, 'cells_applied': 0,
+                    'cells_skipped': 0, 'cells_failed': 0,
+                    'cells_conflict': 1, 'detail': detail})
+                conflict_rows += 1
+                continue
             reason = line.need_text if line.need else (
                 False if line.rate_1 else _("no price"))
             if reason:
@@ -1049,11 +1102,12 @@ class AwVendorRateList(models.Model):
             written += 1
         self.state = 'applied'
         summary = {'applied': written, 'skipped': 0, 'failed': 0,
-                   'rows_not_applied': skipped, 'conflicts': 0,
-                   'conflict_rows': 0}
+                   'rows_not_applied': skipped, 'conflicts': conflict_rows,
+                   'conflict_rows': conflict_rows}
         self.message_post(body=_(
-            "Applied: %(applied)s glass rate(s) written, "
-            "%(rows_not_applied)s row(s) not applied.", **summary))
+            "Applied: %(applied)s glass rate(s) written, %(conflicts)s "
+            "row(s) in conflict, %(rows_not_applied)s row(s) not applied.",
+            **summary))
         return summary
 
     def _follow_variant_costs(self, templates):
