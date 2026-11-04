@@ -1581,6 +1581,15 @@ class AwDesign(models.Model):
                 'panel_no': line.panel_no or 0,
                 'label': line.label or '',
                 **self._piece_part(line),
+                # The profile the piece is cut from, for the row's own
+                # "HD-14 Frame" link. Empty for a line with no product.
+                'profile_tmpl_id': line.product_id.product_tmpl_id.id or 0,
+                'profile_code': (line.product_id.default_code
+                                 or line.product_id.product_tmpl_id.default_code
+                                 or ''),
+                'profile_name': line.product_id.product_tmpl_id.name or '',
+                'size_w_mm': (line.glass_w or 0.0) if line.kind == 'mesh' else 0.0,
+                'size_h_mm': (line.glass_h or 0.0) if line.kind == 'mesh' else 0.0,
                 'group': line.group_label or '',
                 'qty': line.qty or 0,
                 'cut_angle': line.cut_angle or '',

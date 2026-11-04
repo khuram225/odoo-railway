@@ -61,7 +61,7 @@
                                    t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onHeaderChange('location', ev.target.value)"/>
                         </div>
-                        <div>
+                        <div t-if="showIn">
                             <label class="form-label small text-muted mb-0">
                                 Width (in)
                             </label>
@@ -75,7 +75,7 @@
                                       onCommit="(text) => this.commitSizeBox('width_mm', 'in', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div>
+                        <div t-if="showMm">
                             <label class="form-label small text-muted mb-0">
                                 Width (mm)
                             </label>
@@ -88,7 +88,7 @@
                                       onCommit="(text) => this.commitSizeBox('width_mm', 'mm', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div>
+                        <div t-if="showIn">
                             <label class="form-label small text-muted mb-0">
                                 Height (in)
                             </label>
@@ -102,7 +102,7 @@
                                       onCommit="(text) => this.commitSizeBox('height_mm', 'in', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div>
+                        <div t-if="showMm">
                             <label class="form-label small text-muted mb-0">
                                 Height (mm)
                             </label>
@@ -815,6 +815,21 @@
                         </ul>
 
                         <div t-if="activeRightTab === 'panel'"
+                             class="d-flex align-items-center gap-2 px-3 pt-2 flex-shrink-0">
+                            <span class="small text-muted">Units</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary"
+                                        t-att-class="{ active: state.unitMode === 'in' }"
+                                        t-on-click="() => this.setUnitMode('in')">In</button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                        t-att-class="{ active: state.unitMode === 'mm' }"
+                                        t-on-click="() => this.setUnitMode('mm')">mm</button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                        t-att-class="{ active: state.unitMode === 'both' }"
+                                        t-on-click="() => this.setUnitMode('both')">Both</button>
+                            </div>
+                        </div>
+                        <div t-if="activeRightTab === 'panel'"
                              class="d-flex gap-1 px-3 pt-2 flex-shrink-0">
                             <button class="btn btn-sm btn-link p-0 small"
                                     t-on-click="expandAllRight">Expand all</button>
@@ -878,21 +893,31 @@
 
                             <t t-else="">
                                 <div class="row g-2 mb-3">
-                                    <div class="col-6">
-                                        <label class="form-label small text-muted mb-0">
-                                            Width (<t t-esc="uomLabel"/>)
-                                        </label>
+                                    <div t-if="showIn" class="col">
+                                        <label class="form-label small text-muted mb-0">Width (in)</label>
                                         <SizeBox class="'form-control form-control-sm'"
-                                                 value="selectedPanelWidthText"
-                                                 onCommit="(text) => this.setPanelWidth(text)"/>
+                                                 value="panelWidthBox('in')"
+                                                 onCommit="(text) => this.setPanelWidth(text, 'in')"/>
                                     </div>
-                                    <div class="col-6">
-                                        <label class="form-label small text-muted mb-0">
-                                            Height (<t t-esc="uomLabel"/>)
-                                        </label>
+                                    <div t-if="showMm" class="col">
+                                        <label class="form-label small text-muted mb-0">Width (mm)</label>
                                         <SizeBox class="'form-control form-control-sm'"
-                                                 value="selectedPanelHeightText"
-                                                 onCommit="(text) => this.setPanelHeight(text)"/>
+                                                 inputmode="'decimal'"
+                                                 value="panelWidthBox('mm')"
+                                                 onCommit="(text) => this.setPanelWidth(text, 'mm')"/>
+                                    </div>
+                                    <div t-if="showIn" class="col">
+                                        <label class="form-label small text-muted mb-0">Height (in)</label>
+                                        <SizeBox class="'form-control form-control-sm'"
+                                                 value="panelHeightBox('in')"
+                                                 onCommit="(text) => this.setPanelHeight(text, 'in')"/>
+                                    </div>
+                                    <div t-if="showMm" class="col">
+                                        <label class="form-label small text-muted mb-0">Height (mm)</label>
+                                        <SizeBox class="'form-control form-control-sm'"
+                                                 inputmode="'decimal'"
+                                                 value="panelHeightBox('mm')"
+                                                 onCommit="(text) => this.setPanelHeight(text, 'mm')"/>
                                     </div>
                                 </div>
 
@@ -1054,6 +1079,9 @@
                                             </span>
                                             <span t-if="panelFollowsWindow"
                                                   class="badge text-bg-light ms-1">follows the window</span>
+                                        </div>
+                                        <div t-if="selectedPanelGlassSize" class="small text-muted mb-1">
+                                            Glass size: <t t-esc="selectedPanelGlassSize"/>
                                         </div>
                                         <t t-if="panelFollowsWindow">
                                             <div class="small mb-1" t-esc="stackSummary(headerStack) || 'No glass'"/>
@@ -1251,10 +1279,20 @@
                                                     <span class="fw-bold text-truncate" t-att-title="piece.label">
                                                         <t t-esc="piece.short_label or piece.label"/>
                                                     </span>
+                                                    <t t-if="piece.editable">
+                                                        <span class="text-muted">&#183;</span>
+                                                        <button t-if="piece.profile_tmpl_id" type="button"
+                                                                class="btn btn-link btn-sm p-0 text-truncate"
+                                                                title="Open this profile"
+                                                                t-on-click="() => this.openProfile(piece)">
+                                                            <t t-esc="profileText(piece)"/>
+                                                        </button>
+                                                        <span t-else="" class="small text-muted">no profile</span>
+                                                    </t>
                                                     <span t-if="piece.is_manual" class="badge text-bg-warning">Manual</span>
                                                     <span t-if="piece.is_orphan" class="badge text-bg-danger">Orphan</span>
                                                     <t t-if="!piece.editable">
-                                                        <span class="ms-auto small text-muted"><t t-esc="piece.size_text"/></span>
+                                                        <span class="ms-auto small text-muted"><t t-esc="pieceSizeText(piece)"/></span>
                                                     </t>
                                                     <t t-elif="piece.cut_on_site">
                                                         <span class="ms-auto small text-muted">Cut on site</span>
@@ -1262,15 +1300,18 @@
                                                     <t t-else="">
                                                         <SizeBox class="'form-control o_aw_touch_input ms-auto'"
                                                            style="'max-width: 9rem;'"
-                                                           value="pieceText(piece.length_mm)"
+                                                           value="pieceBoxValue(piece.length_mm)"
                                                            onInput="(text) => this.onPieceInput(piece, text)"
                                                            onCommit="(text) => this.commitPiece(piece, text)"/>
+                                                        <span t-if="state.unitMode === 'mm'" class="small text-muted">mm</span>
                                                     </t>
                                                     <div class="o_aw_tree_rule">
                                                         <t t-esc="piece.qty"/> pc<t t-if="piece.cut_angle"> · <t t-esc="piece.cut_angle"/>° ends</t>
                                                         <t t-if="piece.editable and !piece.cut_on_site">
-                                                            · was <t t-esc="pieceText(piece.computed_length_mm)"/>
-                                                            · <span t-att-data-aw-piece-mm="piece.id" t-esc="pieceMmText(piece.length_mm)"/> mm
+                                                            · was <t t-esc="pieceWasText(piece.computed_length_mm)"/>
+                                                            <t t-if="state.unitMode === 'both'">
+                                                                · <span t-att-data-aw-piece-mm="piece.id" t-esc="pieceMmText(piece.length_mm)"/> mm
+                                                            </t>
                                                         </t>
                                                     </div>
                                                 </div>

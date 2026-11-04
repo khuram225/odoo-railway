@@ -210,6 +210,8 @@ const PANE_MAX_FRACTION = 0.45;
 const PANE_DEFAULTS = { left: 220, right: 260 };
 const STORE_PANE = "aw_cfg_pane_";
 const STORE_COLLAPSED = "aw_cfg_collapsed";
+const STORE_UNIT_MODE = "aw_cfg_unit_mode";
+const UNIT_MODES = ["in", "mm", "both"];
 const STORE_RIGHT_TAB = "aw_cfg_right_tab";
 
 /**
@@ -269,6 +271,23 @@ function savePaneWidth(side, value) {
         window.localStorage.setItem(STORE_PANE + side, String(value));
     } catch {
         // Nothing to do: the width simply resets next time.
+    }
+}
+
+function loadUnitMode() {
+    try {
+        const mode = window.localStorage.getItem(STORE_UNIT_MODE);
+        return UNIT_MODES.includes(mode) ? mode : "both";
+    } catch {
+        return "both";
+    }
+}
+
+function saveUnitMode(mode) {
+    try {
+        window.localStorage.setItem(STORE_UNIT_MODE, mode);
+    } catch {
+        // Nothing to do: the choice simply resets next time.
     }
 }
 
@@ -341,6 +360,7 @@ export class DesignConfigurator extends Component {
             paneLeft: loadPaneWidth("left", 220),
             paneRight: loadPaneWidth("right", 260),
             collapsed: loadCollapsed(),
+            unitMode: loadUnitMode(),
             rightTab: loadRightTab(),
             // The name being typed for "Save as new spec". Not in
             // localStorage: it belongs to one unfinished action, not to
@@ -470,10 +490,56 @@ export class DesignConfigurator extends Component {
         });
     }
 
+    // -- unit switch (Panel tab) -------------------------------------------
+    // In / mm / Both for the size boxes, piece lengths and glass size.
+    // Display only: everything is stored in mm whichever is chosen.
+    get showIn() {
+        return this.state.unitMode !== "mm";
+    }
+
+    get showMm() {
+        return this.state.unitMode !== "in";
+    }
+
+    setUnitMode(mode) {
+        if (UNIT_MODES.includes(mode)) {
+            this.state.unitMode = mode;
+            saveUnitMode(mode);
+        }
+    }
+
+    /** What a typed box means, by the box's own unit rather than the mode. */
+    parseKind(text, kind) {
+        const str = String(text || "").trim();
+        if (!str) {
+            return 0;
+        }
+        return (kind === "mm" ? parseFloat(str) : parseInches(str)) || 0;
+    }
+
+    /** A read-only length in the chosen unit(s): "72 in", "1829 mm" or both. */
+    modeLengthText(mm) {
+        const metric = `${String(Math.round((mm || 0) * 100) / 100)} mm`;
+        const inches = `${formatInches(mm || 0, "fraction")} in`;
+        return { in: inches, mm: metric, both: `${inches} \u00b7 ${metric}` }[
+            this.state.unitMode] || inches;
+    }
+
+    /** Two read-only lengths: "72 x 70 1/2 in", "1829 x 1791 mm" or both. */
+    modeLengthPair(first, second) {
+        const trim = (v) => String(Math.round((v || 0) * 100) / 100);
+        const inches = `${formatInches(first || 0, "fraction")} \u00d7 ${
+            formatInches(second || 0, "fraction")} in`;
+        const metric = `${trim(first)} \u00d7 ${trim(second)} mm`;
+        return { in: inches, mm: metric, both: `${inches} \u00b7 ${metric}` }[
+            this.state.unitMode] || inches;
+    }
+
     // -- unit rendering ----------------------------------------------------
     // Mirrors aw.design._format_length server-side. The unit is a global
-    // setting, shown as a read-only label -- there is deliberately no
-    // per-screen toggle.
+    // setting for the canvas and the dimension lines. The Panel tab's
+    // In / mm / Both switch (above) is separate and only changes what the
+    // size boxes, piece lengths and glass size show.
     get uom() {
         // The retired "ftin" setting reads as inches.
         return this.state.data?.length_uom === "mm" ? "mm" : "in";
@@ -783,6 +849,48 @@ export class DesignConfigurator extends Component {
         return this.state.data?.orphan_count || 0;
     }
 
+    /** What a piece's length box shows, in the box's unit. */
+    pieceBoxValue(mm) {
+        return this.state.unitMode === "mm"
+            ? this.pieceMmText(mm) : this.pieceText(mm);
+    }
+
+    /** "was ..." in the unit(s) the box is not already telling. */
+    pieceWasText(mm) {
+        return this.state.unitMode === "mm"
+            ? `${this.pieceMmText(mm)} mm` : this.pieceText(mm);
+    }
+
+    /** A piece with a size of its own (the mesh cloth), in the chosen unit. */
+    pieceSizeText(piece) {
+        return piece.size_w_mm || piece.size_h_mm
+            ? this.modeLengthPair(piece.size_w_mm, piece.size_h_mm)
+            : piece.size_text;
+    }
+
+    /** "HD-14 Frame": the profile's code and name, as one label. */
+    profileText(piece) {
+        const code = piece.profile_code || "";
+        const name = piece.profile_name || "";
+        if (code && name && !name.startsWith(code)) {
+            return `${code} ${name}`;
+        }
+        return name || code;
+    }
+
+    openProfile(piece) {
+        if (!piece.profile_tmpl_id) {
+            return;
+        }
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "product.template",
+            res_id: piece.profile_tmpl_id,
+            view_mode: "form",
+            views: [[false, "form"]],
+        });
+    }
+
     /** Soot style, like every length the workshop reads. */
     pieceText(mm) {
         return mm ? formatInches(mm, "soot") : "0";
@@ -807,7 +915,7 @@ export class DesignConfigurator extends Component {
 
     /** The mm figure follows the box as it is typed. */
     onPieceInput(piece, text) {
-        const mm = parseInches(text);
+        const mm = this.parseKind(text, this.state.unitMode === "mm" ? "mm" : "in");
         const target = document.querySelector(
             `[data-aw-piece-mm="${piece.id}"]`);
         if (target && Number.isFinite(mm)) {
@@ -817,7 +925,7 @@ export class DesignConfigurator extends Component {
 
     /** A length typed in a Pieces box, committed on blur or Enter. */
     async commitPiece(piece, text) {
-        const mm = parseInches(text);
+        const mm = this.parseKind(text, this.state.unitMode === "mm" ? "mm" : "in");
         if (!Number.isFinite(mm) || mm < 0) {
             this.notification.add(
                 "That length cannot be read. Use inches (46-2, 46 1/4, 46.25) or mm (1170mm).",
@@ -4486,7 +4594,7 @@ export class DesignConfigurator extends Component {
         return true;
     }
 
-    setPanelWidth(text) {
+    setPanelWidth(text, kind) {
         const path = this.state.selected;
         if (!this.selectedPanel || !path || !path.length) {
             return;
@@ -4494,11 +4602,12 @@ export class DesignConfigurator extends Component {
         const rows = this.rowsAt(path.slice(0, -1));
         const [ri, li] = path[path.length - 1];
         this.resizeWithin(
-            rows[ri].leaves, li, this.parseLength(text), "width_mm",
-            _t("panel"));
+            rows[ri].leaves, li,
+            kind ? this.parseKind(text, kind) : this.parseLength(text),
+            "width_mm", _t("panel"));
     }
 
-    setPanelHeight(text) {
+    setPanelHeight(text, kind) {
         const path = this.state.selected;
         if (!this.selectedPanel || !path || !path.length) {
             return;
@@ -4506,22 +4615,43 @@ export class DesignConfigurator extends Component {
         const rows = this.rowsAt(path.slice(0, -1));
         const ri = path[path.length - 1][0];
         this.resizeWithin(
-            rows, ri, this.parseLength(text), "height_mm", _t("row"));
+            rows, ri,
+            kind ? this.parseKind(text, kind) : this.parseLength(text),
+            "height_mm", _t("row"));
     }
 
-    get selectedPanelWidthText() {
+    /** The selected panel's width as a box shows it, in one unit. */
+    panelWidthBox(kind) {
         const leaf = this.selectedPanel;
-        return leaf ? this.formatLength(leaf.width_mm || 0, false, "soot") : "";
+        return leaf ? this.boxText(leaf.width_mm || 0, kind) : "";
     }
 
-    get selectedPanelHeightText() {
+    panelHeightBox(kind) {
         const path = this.state.selected;
         if (!this.selectedPanel || !path || !path.length) {
             return "";
         }
         const rows = this.rowsAt(path.slice(0, -1));
         const row = rows[path[path.length - 1][0]];
-        return row ? this.formatLength(row.height_mm || 0, false, "soot") : "";
+        return row ? this.boxText(row.height_mm || 0, kind) : "";
+    }
+
+    boxText(mm, kind) {
+        if (kind === "mm") {
+            return mm ? String(Math.round(mm * 100) / 100) : "0";
+        }
+        return formatInches(mm, "soot");
+    }
+
+    /** The glass of the selected panel, W x H, in the chosen unit(s). */
+    get selectedPanelGlassSize() {
+        const number = this.piecesPanelNo;
+        if (!number) {
+            return "";
+        }
+        const line = (this.state.data?.bom?.glass || []).find(
+            (l) => l.panel_no === number && l.glass_w > 0 && l.glass_h > 0);
+        return line ? this.modeLengthPair(line.glass_w, line.glass_h) : "";
     }
 
     // -- attachments (spec 5.1-5.4) ----------------------------------------
