@@ -274,3 +274,20 @@ class TestGlassStack(TransactionCase):
             self.assertEqual(line.rate_list, 100.0)
             self.assertAlmostEqual(
                 line.line_cost, 100.0 * line.area_sqm * SQFT_PER_SQM, 2)
+
+    def test_changing_the_glass_clears_its_manual_rate(self):
+        self._set_header([self._sheet(6, rate_manual=True, manual_rate=55.0,
+                                      migrated=True)])
+        part = self.design.glass_part_ids
+        part.write({'remark': 'x'})                      # not glass: kept
+        self.assertTrue(part.rate_manual)
+        part.write({'thickness_mm': 6.0})                # same value: kept
+        self.assertTrue(part.rate_manual)
+        part.write({'thickness_mm': 8.0})
+        self.assertFalse(part.rate_manual or part.migrated)
+        self.assertEqual(part.manual_rate, 0.0)
+        # the same write that sets a rate keeps it
+        part.write({'rate_manual': True, 'manual_rate': 66.0})
+        part.write({'thickness_mm': 6.0, 'rate_manual': True, 'manual_rate': 70.0})
+        self.assertTrue(part.rate_manual)
+        self.assertEqual(part.manual_rate, 70.0)
