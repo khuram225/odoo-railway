@@ -102,6 +102,21 @@ check(len(skipped3) == 2 and '5mm' in skipped3[0] and '336.95' in skipped3[1],
 check(mod.split_row('Clear 6mm') is None, 'a row without a price is not a row')
 check(mod.split_row('Clear 6 265.52') is None, 'a thickness needs mm')
 
+# -- the REAL Ghani list as it was sent (flat lines, one rate each)
+REAL = os.path.join(
+    ROOT, 'odoo/addons/aw_fenestration_design/tests/data/'
+          'ghani_glass_2026_07_01.txt')
+with open(REAL, encoding='utf-8') as handle:
+    real_rows, real_skipped = mod.parse_glass_paste_report(handle.read())
+real = {(r['type'], r['thickness_mm']): r['price'] for r in real_rows}
+check(len(real_rows) == 61 and len(real) == 61,
+      'real list: %d rows, %d distinct' % (len(real_rows), len(real)))
+check(real_skipped == [], 'real list: unread lines %s' % real_skipped)
+for key, price in ((('Clear', 6.0), 265.52), (('Grey', 6.0), 399.91),
+                   (('Ref. Grey', 6.0), 482.32), (('WC Green', 6.0), 248.64)):
+    check(real.get(key) == price, 'real list %s: %s' % (key, real.get(key)))
+check(len({r['type'] for r in real_rows}) == 19, 'real list: 19 types')
+
 if fail:
     print('FAIL: glass price-list reader')
     for message in fail:
