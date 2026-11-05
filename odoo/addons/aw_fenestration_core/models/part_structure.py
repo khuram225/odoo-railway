@@ -19,7 +19,7 @@ SCOPES = [
     ('sash', 'Sash'),
     ('sliding', 'Sliding'),
     ('fixed', 'Fixed'),
-    ('mesh', 'Mesh'),
+    ('mesh', 'Mesh panel'),
     ('other', 'Other'),
 ]
 
@@ -29,11 +29,11 @@ PARTS = [
     ('lock', 'Lock bar'),
     ('interlock', 'Interlock'),
     ('divider', 'Divider'),
-    # Inside the Mesh scope the header already says Mesh, so the parts
-    # read the same as a sash's: Frame, Bead, and the cloth itself.
+    # Inside the Mesh panel scope the parts read the same as a sash's:
+    # Frame, Bead, and the cloth itself.
     ('mesh_frame', 'Frame'),
     ('mesh_bead', 'Bead'),
-    ('mesh_cloth', 'Mesh'),
+    ('mesh_cloth', 'Cloth'),
     ('other', 'Other'),
 ]
 

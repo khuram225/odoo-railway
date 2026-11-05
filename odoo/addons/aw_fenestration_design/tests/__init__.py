@@ -17,3 +17,4 @@ from . import test_glass_retire
 from . import test_hardware_panel
 from . import test_add_component
 from . import test_one_line_per_position
+from . import test_mesh_cloth

@@ -399,6 +399,29 @@ class AwDesign(models.Model):
                 unit_cost, rate_date, note = self._cost_glass_line(
                     line, on_date)
 
+            elif line.kind == 'mesh' and (line.glass_w or line.glass_h):
+                # The SIZED cloth line (a mesh type's own lines, such as
+                # the old generic "Mesh cloth" part, have no size and are
+                # costed as parts below). Cloth: ft2 x the cloth product's cost per ft2, unless
+                # a rate was typed for this panel. The piece count stays 1;
+                # the quantity the cloth is bought by is its area. Roll
+                # waste is NOT in this rate.
+                listed = line.product_id.standard_price or 0.0
+                name = line.product_id.display_name or line.label or _('mesh cloth')
+                area_sqft = (line.area_sqm or 0.0) * SQFT_PER_SQM
+                line.rate_list = listed
+                if line.rate_is_manual:
+                    unit_cost = line.manual_rate
+                    note = _(
+                        "%(name)s: manual rate %(used)g per sqft (product "
+                        "cost %(listed)g)",
+                        name=name, used=unit_cost, listed=listed)
+                else:
+                    unit_cost = listed
+                    if not unit_cost:
+                        note = _("%s has no cost per sqft", name)
+                line.line_cost = unit_cost * area_sqft
+
             elif line.kind == 'hardware':
                 # The product's cost unless a rate was typed for this
                 # panel; the list rate is kept either way so the Cost

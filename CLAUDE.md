@@ -637,6 +637,23 @@ flashes the row named by `data-aw-target`; a record opens in a
 so the configurator keeps its unsaved state. Every no-cost note names its
 product, so the grouped warning leads to a product.
 
+## Mesh cloth
+
+A mesh type points at a cloth product (`aw.mesh.type.cloth_product_id`) in
+Fenestration / Mesh cloth: Goods, ft2, never sold (no sales price on its form),
+its COST typed on the product page. One per ACTIVE mesh type of a mechanism
+with a name (Fixed, Hinged, Zig-zag, Roller), made by name from the registry
+hook, adopting a product of that name and never overwriting a link; a type
+activated later is picked up at the next start. The sized cloth line (the one
+with a width and height) is costed `area_sqft x rate`: the BOM `qty` stays the
+integer piece count, and `area_sqft` is derived from the mesh width and
+height. A rate typed on the panel is `mesh_rate_manual` / `mesh_manual_rate` on
+the leaf, flagged manual, an info note, and cleared when the mesh type
+changes. A mesh type's OWN lines (`aw.mesh.type.line`, kind `mesh` with no
+size) are parts, costed by `standard_price` as before: the old generic "Mesh
+cloth" product is still the product of those 9 lines. Roll waste is not in
+the rate.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

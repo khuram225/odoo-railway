@@ -5011,6 +5011,48 @@ export class DesignConfigurator extends Component {
         return false;
     }
 
+    // -- mesh cloth rate (Mesh section) -----------------------------------
+    // The cloth is costed per ft2 from the cloth product's cost; a rate
+    // typed here is for this panel only, flagged manual, and Reset returns
+    // the product's cost.
+    get meshClothListRate() {
+        return this.selectedMeshType?.cloth_cost || 0;
+    }
+
+    get meshClothRateUsed() {
+        const leaf = this.selectedPanel;
+        return leaf?.mesh_rate_manual ? leaf.mesh_manual_rate : this.meshClothListRate;
+    }
+
+    setMeshRate(value) {
+        const leaf = this.selectedPanel;
+        if (leaf) {
+            leaf.mesh_rate_manual = true;
+            leaf.mesh_manual_rate = parseFloat(value) || 0;
+            this.state.dirty = true;
+        }
+    }
+
+    resetMeshRate() {
+        const leaf = this.selectedPanel;
+        if (leaf) {
+            leaf.mesh_rate_manual = false;
+            leaf.mesh_manual_rate = 0;
+            this.state.dirty = true;
+        }
+    }
+
+    /** "19.65 sqft x 40 = 786.15", for the Pricing tab and cost breakdown. */
+    meshQtyText(line) {
+        return `${(line.area_sqft || 0).toFixed(2)} sqft \u00d7 ${this.costText(
+            line.unit_cost)} = ${this.costText(line.line_cost)}`;
+    }
+
+    /** Only the sized cloth lines; a mesh type's own parts have no area. */
+    get pricingMesh() {
+        return (this.bom.mesh || []).filter((l) => l.area_sqft);
+    }
+
     applyMesh(meshId) {
         if (!this.requireSelectedPanel(_t("mesh"))) {
             return;
@@ -5024,6 +5066,11 @@ export class DesignConfigurator extends Component {
                 _t("%s fits opening sashes only.", mesh.name),
                 { type: "warning" });
             return;
+        }
+        if (leaf.mesh_type_id !== (clearing ? false : meshId)) {
+            // A rate typed for one cloth is not the next one's.
+            leaf.mesh_rate_manual = false;
+            leaf.mesh_manual_rate = 0;
         }
         leaf.mesh_type_id = clearing ? false : meshId;
         leaf.mesh_type_code = clearing ? "" : mesh?.code || "";
@@ -5401,6 +5448,8 @@ export class DesignConfigurator extends Component {
                 return "glass";
             case "hardware":
                 return "hardware";
+            case "mesh":
+                return "mesh";
             case "piece":
                 return `piece:${chk.target_key}`;
             default:
@@ -5472,6 +5521,9 @@ export class DesignConfigurator extends Component {
         const next = { ...this.state.collapsed, panel: false };
         if (kind === "hardware") {
             next.hardware = false;
+        }
+        if (kind === "mesh") {
+            next.mesh = false;
         }
         this.state.collapsed = next;
         saveCollapsed(next);

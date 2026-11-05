@@ -291,6 +291,16 @@ class AwDesignBomLine(models.Model):
             vals = dict(vals, is_manual=True)
         return super().write(vals)
 
+    area_sqft = fields.Float(
+        compute='_compute_area_sqft', digits=(16, 4),
+        help="The same area in ft2: the quantity the mesh cloth is bought "
+             "and costed by.")
+
+    @api.depends('area_sqm')
+    def _compute_area_sqft(self):
+        for line in self:
+            line.area_sqft = (line.area_sqm or 0.0) * 10.7639104167
+
     @api.depends('glass_w', 'glass_h', 'qty')
     def _compute_area_sqm(self):
         for line in self:
