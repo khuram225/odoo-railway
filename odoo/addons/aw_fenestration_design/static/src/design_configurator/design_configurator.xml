@@ -1189,6 +1189,7 @@
                                         </div>
                                     </t>
                                     <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                         data-aw-target="mesh"
                                          t-on-click="() => this.toggleSection('mesh')">
                                         <i t-att-class="sectionIcon('mesh')"/>
                                         <span>Mesh</span>
@@ -1241,6 +1242,24 @@
                                         </div>
                                     </t>
 
+                                    <div t-if="selectedMeshType" class="border rounded p-1 mb-2 small">
+                                        <div class="text-muted">
+                                            Cloth: <t t-esc="selectedMeshType.cloth_name or 'no cloth product'"/>
+                                        </div>
+                                        <div class="d-flex gap-1 align-items-center mt-1 flex-wrap">
+                                            <span class="text-muted">List rate</span>
+                                            <strong><t t-esc="costText(meshClothListRate)"/></strong>
+                                            <span class="text-muted">per sqft; rate used</span>
+                                            <input type="number" min="0" step="any"
+                                                   class="form-control form-control-sm" style="width: 6rem;"
+                                                   t-att-value="meshClothRateUsed"
+                                                   t-on-change="(ev) => this.setMeshRate(ev.target.value)"/>
+                                            <span t-if="selectedPanel.mesh_rate_manual" class="badge text-bg-warning">manual</span>
+                                            <button t-if="selectedPanel.mesh_rate_manual" type="button"
+                                                    class="btn btn-sm btn-link p-0"
+                                                    t-on-click="resetMeshRate">Reset</button>
+                                        </div>
+                                    </div>
                                     </t>
                                     <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
                                          t-on-click="() => this.toggleSection('grid')">
@@ -1577,6 +1596,16 @@
                                     </tr>
                                 </table>
                             </div>
+                            <!-- Mesh cloth: area in sqft x the rate. -->
+                            <div t-if="pricingMesh.length" class="mt-3">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">Mesh cloth</div>
+                                <table class="table table-sm small mb-1">
+                                    <tr t-foreach="pricingMesh" t-as="ml" t-key="ml.id">
+                                        <td><span t-if="ml.panel_no" class="text-muted">P<t t-esc="ml.panel_no"/> </span><t t-esc="ml.product or ml.label"/></td>
+                                        <td class="text-end text-nowrap"><t t-esc="meshQtyText(ml)"/></td>
+                                    </tr>
+                                </table>
+                            </div>
                             <!-- Cost breakdown: every line the cost is
                                  built from. Replaces the BOM tab and the
                                  form's Bill of Materials. Read only. -->
@@ -1605,6 +1634,9 @@
                                                     &#215;<t t-esc="bl.qty"/>
                                                     <div t-if="grp.kind === 'profile'" class="text-muted">
                                                         <t t-esc="costLengthText(bl.length_mm)"/>
+                                                    </div>
+                                                    <div t-if="grp.kind === 'mesh' and bl.area_sqft" class="text-muted">
+                                                        <t t-esc="meshQtyText(bl)"/>
                                                     </div>
                                                 </td>
                                                 <td class="text-end text-nowrap small">

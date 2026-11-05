@@ -1446,5 +1446,31 @@ console.log("\n  the Frame label is the SHORT name:");
        "only a check with a target is a link");
 }
 
+{
+    // Mesh cloth: the rate used, a typed rate, Reset, the quantity text.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"),
+    ] }], 600, 1500);
+    c.notification = { add: () => {} };
+    c.state.data.mesh_types = [{
+        id: 9, name: "Zig-zag mesh", mechanism: "zigzag", cloth_cost: 40,
+        cloth_name: "Mesh cloth - Zig-zag",
+    }];
+    c.selectLeaf([[0, 0]]);
+    const leaf = c.state.data.rows[0].leaves[0];
+    leaf.mesh_type_id = 9;
+    ok(c.meshClothListRate === 40 && c.meshClothRateUsed === 40,
+       "the cloth rate used defaults to the product cost");
+    c.setMeshRate("50");
+    ok(leaf.mesh_rate_manual && c.meshClothRateUsed === 50, "a typed cloth rate is manual");
+    c.resetMeshRate();
+    ok(!leaf.mesh_rate_manual && c.meshClothRateUsed === 40, "Reset returns the product cost");
+    ok(c.meshQtyText({ area_sqft: 19.654, unit_cost: 40, line_cost: 786.16 })
+       === "19.65 sqft \u00d7 40.00 = 786.16", "the quantity reads in sqft with the unit");
+    c.setMeshRate("50");
+    c.applyMesh(9);                 // takes the mesh off again
+    ok(!leaf.mesh_rate_manual, "a rate typed for one cloth is not the next one's");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

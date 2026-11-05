@@ -584,14 +584,22 @@ class AwDesign(models.Model):
             for line in by_scope.get('mesh_attachment', []):
                 out.extend(self._profile_pieces(
                     line, context, '%s mesh' % label, leaf.panel_no))
+            # The sized cloth line below IS the cloth, so a mesh type's own
+            # line for the same product would be a second cost for it:
+            # never two cloth costs for one panel.
+            cloth = leaf.mesh_type_id.cloth_product_id
             out.extend(self._attachment_lines(
-                leaf.mesh_type_id.line_ids, context, 'mesh',
-                '%s mesh' % label, leaf.panel_no))
+                leaf.mesh_type_id.line_ids.filtered(
+                    lambda l: not (cloth and l.product_id == cloth)),
+                context, 'mesh', '%s mesh' % label, leaf.panel_no))
             mesh_w = self._deduction_value('mesh_w')
             mesh_h = self._deduction_value('mesh_h')
             out.append({
                 'kind': 'mesh',
-                'product_id': False,
+                'product_id': leaf.mesh_type_id.cloth_product_id.id or False,
+                'rate_is_manual': leaf.mesh_rate_manual,
+                'manual_rate': (leaf.mesh_manual_rate
+                                if leaf.mesh_rate_manual else 0.0),
                 'panel_no': leaf.panel_no,
                 'label': '%s %s' % (label, leaf.mesh_type_id.name),
                 'glass_w': evaluate_formula(mesh_w, context),
@@ -1177,8 +1185,8 @@ class AwDesign(models.Model):
                 other cost note leads to the product it is about."""
                 if line.rate_is_manual and line.panel_no:
                     return self._target(
-                        'glass' if line.kind == 'glass' else 'hardware',
-                        line.panel_no)
+                        {'glass': 'glass', 'mesh': 'mesh'}.get(
+                            line.kind, 'hardware'), line.panel_no)
                 return self._record_target(line.product_id)
 
             for note, count in sorted(infos.items()):
@@ -1445,7 +1453,7 @@ class AwDesignCheck(models.Model):
     # after either.
     target_kind = fields.Selection([
         ('panel', 'Panel'), ('glass', 'Glass'), ('hardware', 'Hardware'),
-        ('piece', 'Piece'), ('record', 'Record'),
+        ('piece', 'Piece'), ('mesh', 'Mesh'), ('record', 'Record'),
     ])
     panel_no = fields.Integer()
     target_key = fields.Char()

@@ -72,6 +72,12 @@
             <field name="parent_id" ref="product_category_fenestration"/>
         </record>
 
+        <!-- Mesh cloth: one product per mesh type, priced per ft2 by its cost -->
+        <record id="product_category_mesh_cloth" model="product.category">
+            <field name="name">Mesh cloth</field>
+            <field name="parent_id" ref="product_category_fenestration"/>
+        </record>
+
         <!-- Seed the 8 real Window Series (window_series.jpeg), replacing the
              earlier 6 Chawla-derived placeholder names. leaf_type_ids
              deliberately left unset: the Series->leaf-type mapping table

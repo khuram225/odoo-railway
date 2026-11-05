@@ -761,6 +761,8 @@ class AwDesign(models.Model):
                 'mesh_type_code': leaf.mesh_type_id.code or '',
                 'mesh_hinge_side': leaf.mesh_hinge_side or '',
                 'mesh_cassette_side': leaf.mesh_cassette_side or '',
+                'mesh_rate_manual': leaf.mesh_rate_manual,
+                'mesh_manual_rate': leaf.mesh_manual_rate,
                 'infill_type_id': leaf.infill_type_id.id,
                 'infill_kind': leaf.infill_type_id.kind or 'glass',
                 'infill_uses_glass': (
@@ -1285,6 +1287,9 @@ class AwDesign(models.Model):
                 'family_name': m.family_id.name or '',
                 'family_sequence': (
                     m.family_id.sequence if m.family_id else 999),
+                'cloth_product_id': m.cloth_product_id.id or False,
+                'cloth_name': m.cloth_product_id.display_name or '',
+                'cloth_cost': m.cloth_product_id.standard_price or 0.0,
             } for m in available['mesh']],
             'infill_types': [{
                 'id': i.id, 'name': i.display_name, 'code': i.code or '',
@@ -1593,6 +1598,7 @@ class AwDesign(models.Model):
                 'glass_w': line.glass_w or 0.0,
                 'glass_h': line.glass_h or 0.0,
                 'area_sqm': line.area_sqm or 0.0,
+                'area_sqft': line.area_sqft or 0.0,
                 'is_changed': line.is_changed,
                 'change_note': line.change_note or '',
                 'group': line.group_label or '',
@@ -1697,6 +1703,10 @@ class AwDesign(models.Model):
                     'mesh_hinge_side': leaf.get('mesh_hinge_side') or False,
                     'mesh_cassette_side': (
                         leaf.get('mesh_cassette_side') or False),
+                    'mesh_rate_manual': bool(leaf.get('mesh_rate_manual')),
+                    'mesh_manual_rate': (
+                        float(leaf.get('mesh_manual_rate') or 0.0)
+                        if leaf.get('mesh_rate_manual') else 0.0),
                     'infill_type_id': leaf.get('infill_type_id') or False,
                     'glass_part_ids': self.env['aw.glass.part']
                     ._commands_from(leaf.get('glass_parts') or []),

@@ -100,6 +100,12 @@ class AwDesignLeaf(models.Model):
         ('left', 'Left'), ('right', 'Right'),
     ], help="Shown only for leaf types with has_slide_dir set.")
 
+    mesh_rate_manual = fields.Boolean(
+        string='Manual cloth rate',
+        help="The cloth rate was typed for this panel, not taken from the "
+             "cloth product's cost. Reset returns it.")
+    mesh_manual_rate = fields.Float(
+        string='Cloth rate (per ft2)', digits='Product Price')
     hardware_ids = fields.One2many(
         'aw.design.hardware', 'leaf_id', string='Hardware',
         help="This panel's own hardware. With rows here the spec's "

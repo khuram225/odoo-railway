@@ -15,6 +15,7 @@ from . import design_preset_wizard
 from . import family
 from . import glass_part
 from . import design_hardware
+from . import mesh_cloth
 from . import glass_default_stack
 from . import glass_suggestion
 from . import override
