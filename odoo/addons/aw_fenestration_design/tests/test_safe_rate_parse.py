@@ -74,3 +74,26 @@ class TestSafeRateParse(TransactionCase):
         note = ' '.join(rate_list.message_ids.mapped('body'))
         self.assertIn('no price', note)
         self.assertIn('1 price cell', note)
+
+    def test_a_refusal_names_the_vendor_and_layout_and_keeps_the_text(self):
+        text = 'a\tb\tc\nD-1\t2MM\t5\n'                      # nobody's sheet
+        rate_list = self._list(text)
+        with self.assertRaises(UserError) as caught:
+            rate_list.action_parse_paste()
+        message = str(caught.exception)
+        self.assertIn('Safe parse vendor', message)         # the vendor
+        self.assertIn('4 columns', message)                 # the layout
+        self.assertIn('All rows have 3 cells', message)
+        self.assertIn('still in the box', message)
+        self.assertEqual(rate_list.paste_text, text)
+
+    def test_only_five_rows_are_listed_then_and_n_more(self):
+        rows = ''.join('D-%d\t1.6MM\t100\n' % n for n in range(1, 9))
+        rows += 'D-99\t1.6MM\t100\t110\n'
+        rate_list = self._list(rows)
+        with self.assertRaises(UserError) as caught:
+            rate_list.action_parse_paste()
+        message = str(caught.exception)
+        self.assertIn('Row 5', message)
+        self.assertNotIn('Row 6 ', message)
+        self.assertIn('and 3 more', message)

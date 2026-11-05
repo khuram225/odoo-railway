@@ -188,7 +188,27 @@ def split_cells(line, expected, kinds=None, has_header=False):
     return [cell.strip().strip('"').strip() for cell in cells]
 
 
-def validate_paste(text, columns):
+def wrong_vendor_message(count, expected, other_layouts):
+    """One line for a sheet whose every row has the same cell count, and it
+    is not this layout's. Names the other vendor whose layout has exactly
+    that many cells, if there is one. A sheet only one cell off is more
+    likely this vendor's with a column missing, so it is not called another
+    vendor's unless a layout matches."""
+    matches = [o['vendor'] for o in (other_layouts or ())
+               if o.get('width') == count and o.get('vendor')]
+    message = "All rows have %d cells, this layout has %d." % (count, expected)
+    if matches or abs(count - expected) >= 2:
+        message += " This looks like another vendor's sheet. Check the vendor."
+    else:
+        message += (" A column may be missing from the sheet. Check the "
+                    "vendor and the columns.")
+    if matches:
+        message += " A sheet with %d cells matches the layout of %s." % (
+            count, ' or '.join(matches))
+    return message
+
+
+def validate_paste(text, columns, other_layouts=()):
     """Read pasted rows against a layout, or say exactly what is wrong.
 
     `columns` is the layout in order: [{'kind', 'header', 'finish'}, ...]
@@ -202,6 +222,9 @@ def validate_paste(text, columns):
     `rates` has one entry per FINISH column of the layout, in order: a
     number, or None for "no price" -- never 0. Any error means nothing
     should be written.
+
+    `other_layouts` is [{'vendor': name, 'width': cells}] of the OTHER
+    vendors, so a sheet that is plainly another vendor's can say whose.
     """
     kinds = [c['kind'] for c in columns]
     finish_at = [i for i, kind in enumerate(kinds) if kind == 'finish']
@@ -215,6 +238,19 @@ def validate_paste(text, columns):
         return {'rows': [], 'errors': [{'line': 0, 'message':
                 'There is nothing to read.'}], 'header': None,
                 'summary': summary}
+
+    # -- one width for every line, and not this layout's ----------------------
+    # Judged here, on the whole sheet, because a row-by-row message for a
+    # sheet that is simply another vendor's buries the one useful sentence.
+    widths = {len(split_cells(line, len(columns), kinds))
+              for _n, line in numbered}
+    uniform = widths.pop() if len(widths) == 1 else None
+
+    def wrong_vendor():
+        return {'rows': [], 'errors': [{'line': 0, 'kind': 'vendor',
+                'message': wrong_vendor_message(
+                    uniform, len(columns), other_layouts)}],
+                'header': None, 'summary': summary}
 
     # -- the header row, if there is one --------------------------------------
     first_no, first_line = numbered[0]
@@ -254,8 +290,17 @@ def validate_paste(text, columns):
                            "The header has no code column."})
         expected = len(header)
         if errors:
+            # Several unknown headers on a sheet of another width: another
+            # vendor's sheet. A sheet that only lacks its code column keeps
+            # the sharper message.
+            unknown = [e for e in errors if 'header' in e['message'].lower()
+                       and 'no code column' not in e['message']]
+            if unknown and uniform is not None and uniform != len(columns):
+                return wrong_vendor()
             return {'rows': [], 'errors': errors, 'header': header,
                     'summary': summary}
+    elif uniform is not None and uniform != len(columns):
+        return wrong_vendor()
 
     # -- the rows ---------------------------------------------------------------
     series = ''
@@ -263,7 +308,8 @@ def validate_paste(text, columns):
     for line_no, line in numbered:
         cells = split_cells(line, expected, kinds, has_header=header is not None)
         if len(cells) != expected:
-            errors.append({'line': line_no, 'message': (
+            errors.append({'line': line_no, 'kind': 'cells', 'count': len(cells),
+                           'message': (
                 "Row %d has %d cells; %s has %d. A cell was dropped or added."
                 % (line_no, len(cells),
                    'the header' if header else 'the layout', expected))})
@@ -329,5 +375,13 @@ def validate_paste(text, columns):
             summary['no_price_cells'] += missing
             if missing == len(rates):
                 summary['no_price_rows'] += 1
+    cell_errors = [e for e in errors if e.get('kind') == 'cells']
+    if cell_errors and len(numbered) > 1 and len(cell_errors) == len(numbered) and len(
+            {e['count'] for e in cell_errors}) == 1:
+        # every row is the same wrong width: one sentence, not a list
+        errors = [e for e in errors if e.get('kind') != 'cells'] + [{
+            'line': 0, 'kind': 'cells', 'message': (
+                "All rows have %d cells, the header has %d."
+                % (cell_errors[0]['count'], expected))}]
     return {'rows': rows if not errors else [], 'errors': errors,
             'header': header, 'summary': summary}
