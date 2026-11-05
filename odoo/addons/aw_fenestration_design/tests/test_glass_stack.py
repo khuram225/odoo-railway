@@ -274,3 +274,46 @@ class TestGlassStack(TransactionCase):
             self.assertEqual(line.rate_list, 100.0)
             self.assertAlmostEqual(
                 line.line_cost, 100.0 * line.area_sqm * SQFT_PER_SQM, 2)
+
+    # -- glass size ----------------------------------------------------------------
+    RULES = ('glass_fixed_w', 'glass_fixed_h', 'glass_sash_w', 'glass_sash_h',
+             'mesh_w', 'mesh_h')
+
+    def test_a_spec_with_empty_glass_rules_uses_the_window_types(self):
+        spec = self.design.template_id
+        spec.write({f: False for f in self.RULES})
+        self.design.write({'width_mm': 2400.0, 'height_mm': 1800.0})
+        self._set_header([self._sheet(6), self._gap(), self._sheet(6)])
+        lines = self._lines()
+        sheets = lines.filtered(lambda l: l.glass_part_kind == 'sheet')
+        self.assertTrue(sheets)
+        for line in sheets:
+            self.assertGreater(line.glass_w, 0.0)
+            self.assertGreater(line.glass_h, 0.0)
+            self.assertAlmostEqual(
+                line.line_cost, 100.0 * line.area_sqm * SQFT_PER_SQM, 2)
+            self.assertIn('System', line.calc_source or '')
+        self.assertFalse(self.design.check_line_ids.filtered(
+            lambda c: 'glass size is 0' in c.message))
+
+    def test_a_spec_that_has_its_own_rules_keeps_them(self):
+        spec = self.design.template_id
+        spec.write({'glass_fixed_w': 'PW - 100', 'glass_fixed_h': 'PH - 100',
+                    'glass_sash_w': 'PW - 100', 'glass_sash_h': 'PH - 100'})
+        self._set_header([self._sheet(6)])
+        sheet = self._lines().filtered(
+            lambda l: l.glass_part_kind == 'sheet')[:1]
+        self.assertIn('Spec', sheet.calc_source or '')
+        self.assertIn('100', sheet.calc_rule or '')
+
+    def test_glass_of_size_zero_is_a_warning_naming_the_panel(self):
+        spec = self.design.template_id
+        system = spec.window_type_id
+        spec.write({f: False for f in self.RULES})
+        system.write({f: False for f in self.RULES})
+        self._set_header([self._sheet(6)])
+        self.design._explode()
+        warnings = self.design.check_line_ids.filtered(
+            lambda c: 'glass size is 0' in c.message)
+        self.assertTrue(warnings)
+        self.assertIn('Panel 1', warnings[0].message)

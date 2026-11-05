@@ -86,17 +86,44 @@ class AwDesign(models.Model):
         self.ensure_one()
         return self.template_id or self.window_series_id
 
-    def _deduction_source(self):
+    def _deduction_owner(self, field):
+        """The record a glass or mesh deduction is read from: the spec
+        when it has a value, else the window type. A spec made later than
+        the migration (the seeded Double Glaze - Openable one) can have
+        the formulas empty, and an empty formula is a glass of size 0 and
+        a sheet costed at 0: the type's own value is what the window was
+        always cut to."""
+        self.ensure_one()
+        spec = self.template_id
+        if spec and spec[field]:
+            return spec
+        system = self.window_series_id
+        if system and system[field]:
+            return system
+        return spec or system
+
+    def _deduction_value(self, field):
+        """The formula for `field`, with the fallback above."""
+        owner = self._deduction_owner(field)
+        return owner[field] if owner else False
+
+    def _deduction_source(self, *fields):
         """Where a glass or mesh deduction came from, in words.
 
-        Named off the same fallback _deduction_rules() uses, so the
+        Named off the same fallback _deduction_value() uses, so the
         calculation sheet cannot claim the spec supplied a rule that
         actually came from the system.
         """
         self.ensure_one()
-        if self.template_id:
-            return _('Spec: %s', self.template_id.display_name or '')
-        return _('System: %s', self.window_series_id.display_name or '')
+        owners = []
+        for field in (fields or (None,)):
+            owner = (self._deduction_owner(field) if field
+                     else (self.template_id or self.window_series_id))
+            if owner and owner not in owners:
+                owners.append(owner)
+        return ', '.join(
+            (_('Spec: %s', o.display_name or '') if o._name == 'aw.window.template'
+             else _('System: %s', o.display_name or '')) for o in owners)
 
     # ------------------------------------------------------------------
     # context building
@@ -560,19 +587,20 @@ class AwDesign(models.Model):
             out.extend(self._attachment_lines(
                 leaf.mesh_type_id.line_ids, context, 'mesh',
                 '%s mesh' % label, leaf.panel_no))
-            rules = self._deduction_rules()
+            mesh_w = self._deduction_value('mesh_w')
+            mesh_h = self._deduction_value('mesh_h')
             out.append({
                 'kind': 'mesh',
                 'product_id': False,
                 'panel_no': leaf.panel_no,
                 'label': '%s %s' % (label, leaf.mesh_type_id.name),
-                'glass_w': evaluate_formula(rules.mesh_w, context),
-                'glass_h': evaluate_formula(rules.mesh_h, context),
-                'calc_rule': rules.mesh_w or '',
-                'calc_rule_h': rules.mesh_h or '',
-                'calc_source': self._deduction_source(),
-                'calc_worked': substitute_formula(rules.mesh_w, context),
-                'calc_worked_h': substitute_formula(rules.mesh_h, context),
+                'glass_w': evaluate_formula(mesh_w, context),
+                'glass_h': evaluate_formula(mesh_h, context),
+                'calc_rule': mesh_w or '',
+                'calc_rule_h': mesh_h or '',
+                'calc_source': self._deduction_source('mesh_w', 'mesh_h'),
+                'calc_worked': substitute_formula(mesh_w, context),
+                'calc_worked_h': substitute_formula(mesh_h, context),
                 'qty': 1,
             })
 
@@ -584,9 +612,10 @@ class AwDesign(models.Model):
                 '%s %s' % (label, infill.name), leaf.panel_no))
 
         if uses_glass:
-            rules = self._deduction_rules()
-            rule_w = rules.glass_sash_w if opening else rules.glass_fixed_w
-            rule_h = rules.glass_sash_h if opening else rules.glass_fixed_h
+            field_w = 'glass_sash_w' if opening else 'glass_fixed_w'
+            field_h = 'glass_sash_h' if opening else 'glass_fixed_h'
+            rule_w = self._deduction_value(field_w)
+            rule_h = self._deduction_value(field_h)
             width = evaluate_formula(rule_w, context)
             height = evaluate_formula(rule_h, context)
             base = {
@@ -596,7 +625,7 @@ class AwDesign(models.Model):
                 'glass_h': height,
                 'calc_rule': rule_w or '',
                 'calc_rule_h': rule_h or '',
-                'calc_source': self._deduction_source(),
+                'calc_source': self._deduction_source(field_w, field_h),
                 'calc_worked': substitute_formula(rule_w, context),
                 'calc_worked_h': substitute_formula(rule_h, context),
                 'qty': 1,
@@ -1061,6 +1090,21 @@ class AwDesign(models.Model):
                     self._line_finish(line)))
         for reason in sorted(reasons):
             problems.append(('error', reason))
+
+        # A glass of size 0 is a sheet costed at 0 and cut at nothing, and
+        # it looks fine on screen. Named per panel so it can be found.
+        zero_glass = {}
+        for values in (exploded or []):
+            if (values.get('kind') == 'glass' and not values.get('missing_glass')
+                    and ((values.get('glass_w') or 0.0) <= 0
+                         or (values.get('glass_h') or 0.0) <= 0)):
+                zero_glass.setdefault(values.get('panel_no') or 0, values)
+        for panel_no, values in sorted(zero_glass.items()):
+            problems.append(('warning', _(
+                "Panel %(panel)s: glass size is 0 (%(w)s x %(h)s mm). Check "
+                "the glass deduction rules of the spec and the window type.",
+                panel=panel_no, w=round(values.get('glass_w') or 0.0),
+                h=round(values.get('glass_h') or 0.0))))
 
         # Glass is chosen once, so it is reported once -- naming the two
         # places it can be set, since "no product for P1 glass" told the
