@@ -278,7 +278,7 @@ class AwDesign(models.Model):
         # spec, and an unused one is a row for the form to grey out, not
         # a part of the window. This is the filter the configurator's
         # Profiles tab reads through as well.
-        return self.template_id.profile_line_ids.filtered('is_used')
+        return self.template_id._live_profile_lines()
 
     def _spec_hardware_lines(self):
         """This window's hardware lines: the spec's own."""

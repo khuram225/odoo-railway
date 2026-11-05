@@ -1352,13 +1352,22 @@ class AwDesign(models.Model):
             count = demand.get(position.scope, 0)
             singular, plural = SCOPE_DEMAND_LABEL.get(
                 position.scope, (position.scope, position.scope))
+            # "No line" means no USED line (the same definition the
+            # one-line-per-position rule uses). An unused row is there to
+            # be ticked, and the message says where.
+            spare = self.template_id.profile_line_ids.filtered(
+                lambda l, p=position: l.position_id == p and not l.is_used)[:1]
             problems.append(('warning', _(
                 "'%(spec)s' has no '%(position)s' line "
-                "(%(count)s %(what)s in this design).",
+                "(%(count)s %(what)s in this design).%(hint)s",
                 spec=(self.template_id.display_name
                       or (_('Custom window') if self.spec_custom else '')),
                 position=position.name,
-                count=count, what=singular if count == 1 else plural),
+                count=count, what=singular if count == 1 else plural,
+                hint=(_(" It has an unused row in the %s section: choose "
+                        "its profile to use it.",
+                        spare.spec_section_id.display_name or _('(no section)'))
+                      if spare else '')),
                 self._record_target(self.template_id)))
         return problems
 
