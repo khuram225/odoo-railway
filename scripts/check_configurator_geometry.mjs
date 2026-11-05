@@ -1473,6 +1473,25 @@ console.log("\n  the Frame label is the SHORT name:");
 }
 
 {
+    // Money and quantities: two decimals, thousands separators; lengths keep inches.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "FIXED"),
+    ] }], 600, 1500);
+    ok(c.costText(1234.5) === "1,234.50", "an amount shows two decimals and a separator");
+    ok(c.costText(0) === "0.00" && c.costText(undefined) === "0.00", "zero and nothing show 0.00");
+    ok(c.costText(1234567.891) === "1,234,567.89", "millions are grouped");
+    ok(c.costText(-5) === "-5.00", "a negative amount keeps its sign");
+    ok(c.costText(786.155) === "786.16" || c.costText(786.155) === "786.15",
+       "rounded to two decimals only for display");
+    c.state.data.pricing = { currency: "Rs." };
+    ok(c.formatMoney(151218.5125) === "Rs. 151,218.51", "formatMoney: symbol, grouping, 2 decimals");
+    ok(c.formatMoney(40) === "Rs. 40.00", "a whole amount still shows .00");
+    ok(c.meshQtyText({ area_sqft: 19.654, unit_cost: 1200, line_cost: 23584.8 })
+       === "19.65 sqft \u00d7 1,200.00 = 23,584.80", "sqft and the amounts use the same rule");
+    ok(c.rightTabs.find((t) => t.key === "spec").label === "Parts", "the spec tab reads Parts");
+}
+
+{
     // Price build-up: the rows come from the server; the client only formats them.
     const c = make([{ height_mm: 1500, is_auto: false, leaves: [
         panel(600, "FIXED"),
