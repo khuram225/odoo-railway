@@ -659,6 +659,20 @@ sized line IS the cloth: never two cloth costs for one panel. Any other type
 line is a part, costed by `standard_price`. Roll waste is not in
 the rate.
 
+## Price build-up
+
+`aw.design._price_build_up()` is THE place the price is calculated, and returns
+the rows: each kind of material, its wastage where it has one (profile, glass,
+mesh CLOTH; hardware, infill and grid have none), fabrication and installation
+labour (rate x the window's m2 x qty, a COST), cost, profit (a markup on cost),
+calculated price, and the manual-rate override when set. `_compute_pricing` (the
+stored cost and price) and the Pricing tab's "Price build-up" both read it, so
+what is shown cannot drift from what is charged. Mesh Wastage is a price
+structure kind at 0% by default (`_add_missing_lines` gives every structure the
+row, fill-only; a missing kind reads as 0), so adding it changed no price. The
+structure is per WINDOW. "Show on quote" is hidden on the structure form and
+nothing reads it; its data is kept.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

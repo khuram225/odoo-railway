@@ -1491,5 +1491,21 @@ console.log("\n  the Frame label is the SHORT name:");
     ok(c.rightTabs.find((t) => t.key === "spec").label === "Parts", "the spec tab reads Parts");
 }
 
+{
+    // Price build-up: the rows come from the server; the client only formats them.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "FIXED"),
+    ] }], 600, 1500);
+    c.state.data.pricing = { currency: "Rs.", margin_pct: 20, min_margin_pct: 15,
+        build_up: [{ key: "profiles", label: "Profiles", amount: 100, kind: "base" }] };
+    ok(c.pricingBuildUp.length === 1, "the Pricing tab reads the server's rows");
+    ok(c.buildUpRate({ percent: 8, unit: "%" }) === "8.00%", "a percentage row shows 8.00%");
+    ok(c.buildUpRate({ percent: 0, unit: "%" }) === "0.00%", "a 0% row still shows 0.00%");
+    ok(c.buildUpRate({ percent: null, rate: 450, unit: "per m\u00b2" }).endsWith("per m\u00b2"),
+       "a rate row shows its unit");
+    ok(c.buildUpRate({ percent: null, rate: 0, unit: "" }) === "", "a plain row shows no rate");
+    ok(c.buildUpClass({ kind: "total" }).includes("fw-bold"), "the price row is bold");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

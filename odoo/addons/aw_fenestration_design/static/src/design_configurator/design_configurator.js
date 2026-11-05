@@ -5749,6 +5749,31 @@ export class DesignConfigurator extends Component {
     }
 
     /** Soot style, like every length the workshop reads. */
+    /** The Pricing tab's price build-up: the server's own rows. */
+    get pricingBuildUp() {
+        return this.pricing?.build_up || [];
+    }
+
+    /** "8.00%" for a percentage row, "450.00 per m²" for a rate row. */
+    buildUpRate(row) {
+        if (row.percent !== null && row.percent !== undefined) {
+            return `${Number(row.percent).toFixed(2)}%`;
+        }
+        if (row.rate) {
+            return `${this.costText(row.rate)} ${row.unit}`;
+        }
+        return "";
+    }
+
+    buildUpClass(row) {
+        return {
+            subtotal: "fw-bold border-top",
+            total: "fw-bold border-top",
+            override: "fw-bold",
+            add: "text-muted",
+        }[row.kind] || "";
+    }
+
     get pricingHardware() {
         return this.bom.hardware || [];
     }
