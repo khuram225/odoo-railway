@@ -1565,5 +1565,18 @@ console.log("\n  the Frame label is the SHORT name:");
        "Mesh, Hardware and the Georgian bars have their arrows too");
 }
 
+{
+    // The Form is the History page: its button, its method, and no text that
+    // sends the user to "the form".
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    ok(/t-on-click="openHistory"[^>]*>\s*History\s*</.test(xml), "the top-bar button reads History");
+    ok(!/t-on-click="openForm"/.test(xml), "and nothing calls openForm any more");
+    ok(typeof DesignConfigurator.prototype.openHistory === "function"
+       && typeof DesignConfigurator.prototype.openForm === "undefined", "openHistory replaced openForm");
+    ok(!/from the form/i.test(xml), "no text says to generate the cut list from the form");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

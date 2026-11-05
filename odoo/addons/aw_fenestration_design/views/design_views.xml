@@ -272,7 +272,9 @@
         <field name="name">aw.design.list</field>
         <field name="model">aw.design</field>
         <field name="arch" type="xml">
-            <list>
+            <!-- A row opens the configurator, where a window is worked on.
+                 The form is the History page, reached from there. -->
+            <list action="action_open_configurator" type="object">
                 <field name="name"/>
                 <field name="location"/>
                 <field name="qty"/>
