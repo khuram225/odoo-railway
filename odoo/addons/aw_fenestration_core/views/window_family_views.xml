@@ -46,7 +46,7 @@
     </record>
 
     <record id="action_aw_window_family" model="ir.actions.act_window">
-        <field name="name">Glazing Families</field>
+        <field name="name">Families</field>
         <field name="res_model">aw.window.family</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">

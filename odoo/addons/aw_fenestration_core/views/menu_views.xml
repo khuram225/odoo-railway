@@ -2,18 +2,19 @@
 <odoo>
 
     <!--
-    Phase 7d reorganisation. Two groups, and the rule dividing them is
-    "would a quote be wrong if this were wrong?":
+    Five groups under Fenestration, by what you do there:
 
-      Window Systems   what a window is MADE OF. One menu, because a
-                       system's Specifications now live inside it, and
-                       a spec owns its own profile and hardware lines.
-                       Profile Sections, Hardware Sets and a top-level
-                       Specifications menu are GONE from the menu (the
-                       models and their actions survive, so a bookmark
-                       and the migration still work).
-      Configuration    the lists a system is assembled FROM, plus rates
-                       and imports.
+      Designs   the windows being quoted.
+      Library   the layouts and panel options you build a window from.
+      Rates     what things cost: the lists that put a rate in force, the
+                rates in force, glass extras and how each vendor's sheet
+                is read.
+      Setup     the lists a window is assembled FROM, set once and left.
+      Admin     one-off imports.
+
+    Menu ids are unchanged wherever a menu survives, so a bookmark still
+    works. Only parents, names and order moved. The groups are declared
+    first because every menuitem resolves its parent at parse time.
     -->
 
     <menuitem id="menu_aw_fenestration_root"
@@ -21,132 +22,137 @@
               sequence="45"
               web_icon="aw_fenestration_core,static/description/icon.png"/>
 
-    <menuitem id="menu_aw_window_series"
-              name="Types"
+    <menuitem id="menu_aw_group_designs"
+              name="Designs"
               parent="menu_aw_fenestration_root"
-              action="action_aw_window_series"
               sequence="10"/>
 
-    <menuitem id="menu_aw_fenestration_config"
-              name="Configuration"
+    <menuitem id="menu_aw_group_library"
+              name="Library"
               parent="menu_aw_fenestration_root"
-              sequence="100"
-              groups="group_fenestration_manager"/>
+              sequence="20"/>
 
-    <menuitem id="menu_aw_fenestration_settings"
-              name="Settings"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_fenestration_config_settings"
-              sequence="0"
-              groups="group_fenestration_manager"/>
-
-    <menuitem id="menu_aw_window_family"
-              name="Glazing Families"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_window_family"
-              sequence="2"/>
-
-    <menuitem id="menu_aw_spec_section"
-              name="Series Sections"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_spec_section"
-              sequence="4"/>
-
-    <menuitem id="menu_aw_profile_position"
-              name="Profile Positions"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_profile_position"
-              sequence="3"/>
-
-    <!-- "Panel Types" is what the configurator and every drawing call
-         them; aw.leaf.type keeps its model name. The leaf type Mesh
-         stays "Mesh panel": a sliding mesh on its own track, which is
-         a PANEL. A fly screen fitted to a panel is a Panel Option. -->
-    <menuitem id="menu_aw_leaf_type"
-              name="Panel Types"
-              parent="menu_aw_fenestration_config"
-              action="action_aw_leaf_type"
-              sequence="4"/>
-
-    <!-- Vendor rates: what is in force, the lists that put it there, and
-         how each vendor's sheet is read. Price Structures is separate: it
-         is how a cost becomes a price, not where a cost comes from. -->
+    <!-- Rates keeps the id it had as "Vendor Rates". -->
     <menuitem id="menu_aw_vendor_rates"
-              name="Vendor Rates"
-              parent="menu_aw_fenestration_config"
-              sequence="50"/>
+              name="Rates"
+              parent="menu_aw_fenestration_root"
+              sequence="30"
+              groups="group_fenestration_manager"/>
 
-    <menuitem id="menu_aw_profile_rate"
-              name="Rates in force"
-              parent="menu_aw_vendor_rates"
-              action="action_aw_profile_rate"
-              sequence="10"/>
+    <!-- Setup keeps the id it had as "Configuration". -->
+    <menuitem id="menu_aw_fenestration_config"
+              name="Setup"
+              parent="menu_aw_fenestration_root"
+              sequence="40"
+              groups="group_fenestration_manager"/>
 
+    <menuitem id="menu_aw_group_admin"
+              name="Admin"
+              parent="menu_aw_fenestration_root"
+              sequence="50"
+              groups="group_fenestration_manager"/>
+
+    <!-- Rates -->
     <menuitem id="menu_aw_vendor_rate_list"
               name="Rate Lists"
               parent="menu_aw_vendor_rates"
               action="action_aw_vendor_rate_list"
-              sequence="20"/>
-
-    <!-- Glass has its own group under Configuration, after Vendor Rates,
-         which keeps only the profile items. -->
-    <menuitem id="menu_aw_glass"
-              name="Glass"
-              parent="menu_aw_fenestration_config"
-              sequence="55"/>
-
-    <menuitem id="menu_aw_glass_type"
-              name="Glass Types"
-              parent="menu_aw_glass"
-              action="action_aw_glass_type"
               sequence="10"/>
 
-    <menuitem id="menu_aw_glass_rate_list"
-              name="Glass Rate Lists"
-              parent="menu_aw_glass"
-              action="action_aw_glass_rate_list"
+    <menuitem id="menu_aw_profile_rate"
+              name="Profile rates in force"
+              parent="menu_aw_vendor_rates"
+              action="action_aw_profile_rate"
               sequence="20"/>
 
     <menuitem id="menu_aw_glass_rate"
               name="Glass rates in force"
-              parent="menu_aw_glass"
+              parent="menu_aw_vendor_rates"
               action="action_aw_glass_rate"
               sequence="30"/>
 
     <menuitem id="menu_aw_glass_extra"
               name="Glass Extras"
-              parent="menu_aw_glass"
+              parent="menu_aw_vendor_rates"
               action="action_aw_glass_extra"
               sequence="40"/>
-
-    <menuitem id="menu_aw_glass_option"
-              name="Glass Options"
-              parent="menu_aw_glass"
-              action="action_aw_glass_option"
-              sequence="50"/>
 
     <menuitem id="menu_aw_vendor_layout"
               name="Vendor Layouts"
               parent="menu_aw_vendor_rates"
               action="action_aw_vendor_layout"
+              sequence="50"/>
+
+    <!-- Setup. "Panel Types" is what the configurator and every drawing
+         call them; aw.leaf.type keeps its model name. The leaf type Mesh
+         stays "Mesh panel": a sliding mesh on its own track, which is a
+         PANEL. A fly screen fitted to a panel is a Panel Option. -->
+    <menuitem id="menu_aw_window_series"
+              name="Window Types"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_window_series"
+              sequence="10"/>
+
+    <menuitem id="menu_aw_window_family"
+              name="Families"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_window_family"
+              sequence="15"/>
+
+    <menuitem id="menu_aw_leaf_type"
+              name="Panel Types"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_leaf_type"
+              sequence="20"/>
+
+    <menuitem id="menu_aw_spec_section"
+              name="Sections"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_spec_section"
               sequence="30"/>
+
+    <menuitem id="menu_aw_profile_position"
+              name="Profile Positions"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_profile_position"
+              sequence="40"/>
 
     <menuitem id="menu_aw_finish"
               name="Finishes"
               parent="menu_aw_fenestration_config"
               action="action_aw_finish"
-              sequence="25"/>
+              sequence="50"/>
 
-    <menuitem id="menu_aw_catalogue_import"
-              name="Import Catalogue"
+    <menuitem id="menu_aw_glass_type"
+              name="Glass Types"
               parent="menu_aw_fenestration_config"
-              action="action_aw_catalogue_import"
-              sequence="57"/>
+              action="action_aw_glass_type"
+              sequence="60"/>
+
+    <menuitem id="menu_aw_glass_option"
+              name="Glass Options"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_glass_option"
+              sequence="70"/>
 
     <menuitem id="menu_aw_price_structure"
               name="Price Structures"
               parent="menu_aw_fenestration_config"
               action="action_aw_price_structure"
-              sequence="70"/>
+              sequence="80"/>
+
+    <menuitem id="menu_aw_fenestration_settings"
+              name="Settings"
+              parent="menu_aw_fenestration_config"
+              action="action_aw_fenestration_config_settings"
+              sequence="90"
+              groups="group_fenestration_manager"/>
+
+    <!-- Admin -->
+    <menuitem id="menu_aw_catalogue_import"
+              name="Import Catalogue"
+              parent="menu_aw_group_admin"
+              action="action_aw_catalogue_import"
+              sequence="10"/>
 
 </odoo>
