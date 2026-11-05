@@ -11,6 +11,7 @@
             <list>
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
+                <field name="aw_names_text"/>
                 <field name="aw_customer_name" optional="show"/>
                 <field name="aw_owner_vendor_id" optional="hide"/>
             </list>

@@ -197,13 +197,32 @@
         </field>
     </record>
 
+    <record id="view_aw_vendor_rate_list_search" model="ir.ui.view">
+        <field name="name">aw.vendor.rate.list.search</field>
+        <field name="model">aw.vendor.rate.list</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="vendor_id"/>
+                <filter name="kind_profile" string="Profiles"
+                        domain="[('kind', '=', 'profile')]"/>
+                <filter name="kind_glass" string="Glass"
+                        domain="[('kind', '=', 'glass')]"/>
+                <group>
+                    <filter name="group_kind" string="Kind"
+                            context="{'group_by': 'kind'}"/>
+                    <filter name="group_vendor" string="Vendor"
+                            context="{'group_by': 'vendor_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
     <record id="action_aw_vendor_rate_list" model="ir.actions.act_window">
         <field name="name">Rate Lists</field>
         <field name="res_model">aw.vendor.rate.list</field>
         <field name="view_mode">list,form</field>
         <field name="views" eval="[(False, 'list'), (False, 'form')]"/>
-        <field name="domain">[('kind', '=', 'profile')]</field>
-        <field name="context">{'default_kind': 'profile'}</field>
+        <field name="search_view_id" ref="view_aw_vendor_rate_list_search"/>
     </record>
 
     <record id="action_aw_glass_rate_list" model="ir.actions.act_window">
