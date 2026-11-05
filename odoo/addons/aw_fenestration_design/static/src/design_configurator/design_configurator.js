@@ -222,7 +222,7 @@ const STORE_RIGHT_TAB = "aw_cfg_right_tab";
  * one column meant none of them had room. They are tabs now, and only
  * the panel's own sub-sections still collapse.
  */
-const RIGHT_SECTIONS = ["panel", "infill", "mesh", "hardware", "grid"];
+const RIGHT_SECTIONS = ["panel", "infill", "mesh", "glass", "hardware", "grid"];
 
 /** Right-hand tabs, in the order they appear. */
 /**
@@ -244,9 +244,24 @@ const PART_ORDER = [
 const COLLAPSED_BY_DEFAULT = ["pcs:", "pc:", "prof:", "profp:"];
 
 const RIGHT_TABS = ["panel", "spec", "pricing", "checks"];
+
+/**
+ * Every amount, rate, total, area in sqft and quantity the Pricing tab and
+ * the cost breakdown show: exactly two decimals and thousands separators.
+ * Display only -- the stored values keep full precision. Lengths are not
+ * numbers like these and keep the inch format (formatInches).
+ */
+function formatDecimal2(value) {
+    return (Number(value) || 0).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+// The tab KEY stays "spec" (Checks links, the saved tab and the code use it);
+// only the label the user reads changed.
 const RIGHT_TAB_LABELS = {
     panel: "Panel",
-    spec: "Profiles",
+    spec: "Parts",
     pricing: "Pricing",
     checks: "Checks",
 };
@@ -987,8 +1002,7 @@ export class DesignConfigurator extends Component {
     formatMoney(value) {
         const pricing = this.pricing;
         const symbol = pricing ? pricing.currency : "";
-        const rounded = Math.round((value || 0) * 100) / 100;
-        return `${symbol} ${rounded.toLocaleString()}`;
+        return `${symbol} ${formatDecimal2(value)}`;
     }
 
     // -- glazing family ----------------------------------------------
@@ -5044,7 +5058,7 @@ export class DesignConfigurator extends Component {
 
     /** "19.65 sqft x 40 = 786.15", for the Pricing tab and cost breakdown. */
     meshQtyText(line) {
-        return `${(line.area_sqft || 0).toFixed(2)} sqft \u00d7 ${this.costText(
+        return `${formatDecimal2(line.area_sqft)} sqft \u00d7 ${this.costText(
             line.unit_cost)} = ${this.costText(line.line_cost)}`;
     }
 
@@ -5525,6 +5539,9 @@ export class DesignConfigurator extends Component {
         if (kind === "mesh") {
             next.mesh = false;
         }
+        if (kind === "glass") {
+            next.glass = false;
+        }
         this.state.collapsed = next;
         saveCollapsed(next);
         if (kind === "piece") {
@@ -5744,8 +5761,9 @@ export class DesignConfigurator extends Component {
         return mm ? formatInches(mm, "soot") : "0";
     }
 
+    /** An amount, a rate or a total: two decimals and thousands separators. */
     costText(value) {
-        return (Number(value) || 0).toFixed(2);
+        return formatDecimal2(value);
     }
 
     openForm() {

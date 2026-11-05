@@ -1070,8 +1070,11 @@
                                          override, so this disappears for a
                                          louvre, fan, AC cutout or solid panel. -->
                                     <t t-if="selectedPanelUsesGlass">
-                                        <div class="small text-muted mb-1" data-aw-target="glass">
-                                            Glass
+                                        <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                             data-aw-target="glass"
+                                             t-on-click="() => this.toggleSection('glass')">
+                                            <i t-att-class="sectionIcon('glass')"/>
+                                            <span>Glass</span>
                                             <span t-if="selectedPanel.glass_suggested"
                                                   class="badge text-bg-info ms-1"
                                                   title="Suggested from the panel size or the window's location. Change it to replace it.">
@@ -1080,6 +1083,7 @@
                                             <span t-if="panelFollowsWindow"
                                                   class="badge text-bg-light ms-1">follows the window</span>
                                         </div>
+                                        <t t-if="!isCollapsed('glass')">
                                         <div t-if="selectedPanelGlassSize" class="small text-muted mb-1">
                                             Glass size: <t t-esc="selectedPanelGlassSize"/>
                                         </div>
@@ -1104,6 +1108,7 @@
                                                     Copy to other panels
                                                 </button>
                                             </div>
+                                        </t>
                                         </t>
                                     </t>
 
@@ -1353,9 +1358,9 @@
                                         <span class="o_aw_tree_chev"><i t-att-class="sectionIcon(pieceScopeKey(pscope))"/></span>
                                         <span class="o_aw_tree_title"><t t-esc="pscope.title"/></span>
                                         <button class="btn btn-sm btn-link p-0 o_aw_tree_link small"
-                                                title="Show this in the Profiles tab"
+                                                title="Show this in the Parts tab"
                                                 t-on-click.stop="() => this.showInProfiles(pscope.key, null)">
-                                            Profiles <i class="fa fa-arrow-right"/>
+                                            Parts <i class="fa fa-arrow-right"/>
                                         </button>
                                         <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="pscope.count"/></span>
                                     </div>
@@ -1366,9 +1371,9 @@
                                                 <span class="o_aw_tree_chev"><i t-att-class="sectionIcon(piecePartKey(pscope, ppart))"/></span>
                                                 <span class="o_aw_tree_title"><t t-esc="ppart.title"/></span>
                                                 <button class="btn btn-sm btn-link p-0 o_aw_tree_link small"
-                                                        title="Show this in the Profiles tab"
+                                                        title="Show this in the Parts tab"
                                                         t-on-click.stop="() => this.showInProfiles(pscope.key, ppart.key)">
-                                                    Profiles <i class="fa fa-arrow-right"/>
+                                                    Parts <i class="fa fa-arrow-right"/>
                                                 </button>
                                                 <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="ppart.pieces.length"/></span>
                                             </div>
