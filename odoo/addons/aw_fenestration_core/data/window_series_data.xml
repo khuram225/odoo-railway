@@ -50,6 +50,7 @@
         <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>
         <function model="aw.price.structure" name="_seed_default_structure"/>
         <function model="aw.price.structure" name="_add_missing_lines"/>
+        <function model="aw.vendor.rate.list" name="_migrate_steps"/>
         <function model="aw.profile.rate" name="_backfill_date_to"/>
         <function model="aw.profile.rate" name="_backfill_rate_list_ids"/>
         <!-- One time: Chawla into CHAWLA ALUMINIUM. After the backfills, so

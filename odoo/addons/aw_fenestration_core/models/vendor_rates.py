@@ -16,6 +16,7 @@ from odoo.exceptions import UserError, ValidationError
 from .finish_names import norm_name
 from .glass_paste import (
     norm_type, parse_glass_paste_report, parse_thickness)
+from odoo.tools.misc import format_date
 from .rate_paste import (
     normalise_code, normalise_text, parse_paste, validate_paste)
 
@@ -500,6 +501,14 @@ class AwVendorRateList(models.Model):
     state = fields.Selection([
         ('draft', 'Draft'), ('applied', 'Applied'),
     ], default='draft', required=True, tracking=True)
+    # The guided screen's steps. Review and Confirm come with the next
+    # releases; today a draft goes Choose -> Data in, and an applied list is
+    # at Confirm.
+    date_warning = fields.Char(compute='_compute_date_warning')
+    step = fields.Selection([
+        ('choose', '1. Choose'), ('data', '2. Data in'),
+        ('review', '3. Review'), ('confirm', '4. Confirm'),
+    ], default='choose', required=True, copy=False)
     line_ids = fields.One2many(
         'aw.vendor.rate.list.line', 'list_id', string='Lines')
     paste_text = fields.Text(
@@ -930,6 +939,84 @@ class AwVendorRateList(models.Model):
             "Set to draft: %s rate(s) removed; the lines are kept.",
             deleted))
         return True
+
+    # ------------------------------------------------------------ guided steps
+    def _newest_rate_date(self):
+        """The start date of the newest rate in force for this vendor and
+        kind (not counting rates this very list wrote), or nothing."""
+        self.ensure_one()
+        today = fields.Date.context_today(self)
+        domain = [('vendor_id', '=', self.vendor_id.id),
+                  ('date_from', '<=', today)]
+        if self._origin.id:
+            domain.append(('rate_list_id', '!=', self._origin.id))
+        latest = self.env[self._rate_model()].with_context(
+            active_test=False).search(domain, order='date_from desc', limit=1)
+        return latest.date_from
+
+    @api.depends('vendor_id', 'kind', 'date', 'state')
+    def _compute_date_warning(self):
+        """A warning, never a stop. A vendor-wide rule was too strict: a
+        list dated before the vendor's newest rates can still be right (it
+        touches other profiles, or it is an old list being re-applied). The
+        stop is per ROW, at Review: a row whose key already has a newer
+        rate in force."""
+        for rec in self:
+            newest = (rec._newest_rate_date()
+                      if rec.vendor_id and rec.state == 'draft' else False)
+            if not newest:
+                rec.date_warning = False
+                continue
+            text = _("Newest rate in force for this vendor: %s.",
+                     format_date(rec.env, newest, date_format='d MMM yyyy'))
+            if rec.date and rec.date < newest:
+                text += ' ' + _(
+                    "Your date is earlier, so any row whose product and "
+                    "thickness already have a newer rate will be stopped "
+                    "at Review.")
+            rec.date_warning = text
+
+    def action_next_step(self):
+        """Choose -> Data in, once vendor, kind and date are settled."""
+        self.ensure_one()
+        if self.state != 'draft':
+            raise UserError(_("This list is already applied."))
+        if not self.vendor_id:
+            raise UserError(_("Choose the vendor first."))
+        if not self.date:
+            raise UserError(_(
+                "Choose the date these rates start on. It has no default, "
+                "so that a list is never dated by accident."))
+        if self.kind == 'profile' and not self.layout_id:
+            raise UserError(_(
+                "%s has no rate sheet layout yet, so its columns cannot be "
+                "read. Describe them under Vendor Layouts first.",
+                self.vendor_id.display_name))
+        self.step = 'data'
+        return True
+
+    def action_back_to_choose(self):
+        self.ensure_one()
+        if self.state == 'draft':
+            self.step = 'choose'
+        return True
+
+    @api.model
+    def _migrate_steps(self):
+        """Lists from before the steps: an applied one is at Confirm, a
+        draft that has rows is at Data in. Once."""
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param('aw_fenestration.rate_list_steps_migrated'):
+            return 0
+        done = 0
+        for rate_list in self.with_context(active_test=False).search([]):
+            step = ('confirm' if rate_list.state == 'applied'
+                    else 'data' if rate_list.line_ids else 'choose')
+            if rate_list.step != step:
+                rate_list.step = step
+                done += 1
+        param.set_param('aw_fenestration.rate_list_steps_migrated', '1')
+        return done
 
     def action_apply(self):
         """Write the rates. Unmatched rows are never applied."""
