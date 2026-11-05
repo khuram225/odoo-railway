@@ -86,6 +86,36 @@ def choose_thickness(preferred, available):
         preferred, ', '.join(sorted(available)))
 
 
+def default_thickness(available, used=(), preferred=''):
+    """The thickness a component added to a window starts with. Never
+    empty while the profile offers any.
+
+    `available` are the value names the profile is sold in; `used` are
+    the names the window's other lines use, most common first. In order:
+    the preference when the profile offers it, the only one when there is
+    one, the first of `used` the profile offers, else the lowest (named
+    grades like Normal and Standard have no number and sort after the
+    numbered ones). The user can change it afterwards; asking them to
+    choose BEFORE the row exists is what this replaces.
+    """
+    names = sorted(available)
+    if not names:
+        return ''
+    if preferred and preferred in names:
+        return preferred
+    if len(names) == 1:
+        return names[0]
+    for name in used:
+        if name in names:
+            return name
+
+    def lowest(name):
+        millimetres = thickness_mm(name)
+        return (millimetres is None, millimetres or 0.0, name)
+
+    return min(names, key=lowest)
+
+
 def implausible_thickness(value):
     """True when a value cannot be a wall thickness.
 

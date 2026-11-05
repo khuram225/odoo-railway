@@ -15,3 +15,4 @@ from . import test_glass_products
 from . import test_glass_stack
 from . import test_glass_retire
 from . import test_hardware_panel
+from . import test_add_component
