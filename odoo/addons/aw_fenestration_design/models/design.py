@@ -1021,6 +1021,22 @@ class AwDesign(models.Model):
                   or '')
         return ' / '.join(f for f in (width, height) if f)
 
+    def _used_profile_thicknesses(self):
+        """Thickness values the window's profile lines use, most common
+        first: the spec's own lines and the profiles changed or added."""
+        self.ensure_one()
+        counts = {}
+        values = (self._spec_profile_lines().mapped('thickness_id')
+                  | self.override_ids.filtered(
+                      lambda o: o.kind == 'profile').mapped('thickness_id'))
+        for line in self._spec_profile_lines():
+            if line.thickness_id:
+                counts[line.thickness_id] = counts.get(line.thickness_id, 0) + 1
+        for change in self.override_ids.filtered(
+                lambda o: o.kind == 'profile' and o.thickness_id):
+            counts[change.thickness_id] = counts.get(change.thickness_id, 0) + 1
+        return sorted(values, key=lambda v: -counts.get(v, 0))
+
     def set_override(self, values):
         """Record (or update) one change for this window.
 
@@ -1069,15 +1085,17 @@ class AwDesign(models.Model):
             # spec's own line for this position uses.
             spec_line = self._spec_profile_lines().filtered(
                 lambda l, p=position: l.position_id == p)[:1]
-            thickness, problem = self.env['aw.profile.section']._seed_thickness_for(
-                template, spec_line.thickness_id)
             if values.get('thickness_id'):
                 thickness = self.env['product.attribute.value'].browse(
                     int(values['thickness_id']))
-            elif problem:
-                raise UserError(_(
-                    "%(problem)s. Pick the thickness on the Changes tab "
-                    "of the design form.", problem=problem))
+            else:
+                # Never empty and never an error: the position's own
+                # thickness if the profile has it, else what the window's
+                # other lines use, else the lowest offered. The row then
+                # shows its chips and the user changes it there.
+                thickness = self.env['aw.profile.section']._default_thickness_for(
+                    template, spec_line.thickness_id,
+                    self._used_profile_thicknesses())
             payload = {
                 'design_id': self.id,
                 'kind': 'profile',

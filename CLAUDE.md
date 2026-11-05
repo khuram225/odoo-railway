@@ -840,8 +840,13 @@ never a variant** — the design's finish resolves the variant, exactly as
 the spec's own lines do, so recolouring the window moves the change with
 it instead of stranding it on last week's finish. The client sends no
 thickness when picking a replacement: it cannot know which ones that
-profile is sold in, so the server decides with the same
-`choose_thickness()` the seed uses. Without that, a change would land on
+profile is sold in, so the server decides, with `default_thickness()`
+(Odoo-free, `scripts/check_default_thickness.py`): the position's own
+thickness if the profile has it, the only one if there is one, else what the
+window's other lines use, else the LOWEST. It is never empty and never an
+error: "offers no '' thickness" came from an added position having no spec
+line to take one from. The seed still uses `choose_thickness()`, which never
+guesses. Without that, a change would land on
 a thickness the template does not carry and resolve to **no variant at
 all**, silently — the RE bug again, one layer up.
 
