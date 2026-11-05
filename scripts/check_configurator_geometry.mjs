@@ -12,6 +12,7 @@ const Component = class {};
 const useState = (o) => o;
 const SizeBox = class {};
 const Many2One = class {};
+const FormViewDialog = class {};
 const useRef = () => ({ el: null });
 const onWillStart = () => {};
 const onMounted = () => {};
@@ -1408,6 +1409,41 @@ console.log("\n  the Frame label is the SHORT name:");
     c.selectLeaf([[0, 1]]);
     c.copyHardwareFromPanel({ target: { value: "1" } });
     ok(c.panelHardware.length === 0, "copying from a panel with none leaves none");
+}
+
+{
+    // Checks as links: a click selects the panel, opens the tab, opens the
+    // section; a record opens in a dialog.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"), panel(600, "CASEMENT"),
+    ] }], 1200, 1500);
+    c.notification = { add: () => {} };
+    c.state.collapsed = { hardware: true };
+    c.state.rightTab = "checks";
+    c.goToCheck({ target_kind: "hardware", panel_no: 2 });
+    ok(JSON.stringify(c.state.selected) === JSON.stringify([[0, 1]]),
+       "a hardware check selects panel 2");
+    ok(c.state.rightTab === "panel", "and opens the Panel tab");
+    ok(c.state.collapsed.hardware === false, "and opens the Hardware section");
+    ok(c.checkTargetName({ target_kind: "hardware" }) === "hardware"
+       && c.checkTargetName({ target_kind: "glass" }) === "glass",
+       "the row to flash is named by the check");
+    ok(c.checkTargetName({ target_kind: "piece", target_key: "5|1|1|1" })
+       === "piece:5|1|1|1", "a piece is found by its stable key");
+    c.goToCheck({ target_kind: "panel", panel_no: 0 });
+    ok(c.state.selected === null, "panel 0 is the frame: nothing selected");
+    let warned = 0;
+    c.notification = { add: () => { warned += 1; } };
+    c.goToCheck({ target_kind: "glass", panel_no: 9 });
+    ok(warned === 1, "a panel that is gone says so rather than doing nothing");
+    let opened = null;
+    c.dialog = { add: (component, props) => { opened = props; } };
+    c.goToCheck({ target_kind: "record", target_model: "product.product",
+                  target_res_id: 42, message: "Roller has no cost price" });
+    ok(opened && opened.resModel === "product.product" && opened.resId === 42
+       && opened.canExpand === true, "a record opens in a dialog with Expand");
+    ok(c.checkHasTarget({ target_kind: "panel" }) && !c.checkHasTarget({ target_kind: "" }),
+       "only a check with a target is a link");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

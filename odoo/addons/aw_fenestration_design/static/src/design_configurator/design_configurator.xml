@@ -1070,7 +1070,7 @@
                                          override, so this disappears for a
                                          louvre, fan, AC cutout or solid panel. -->
                                     <t t-if="selectedPanelUsesGlass">
-                                        <div class="small text-muted mb-1">
+                                        <div class="small text-muted mb-1" data-aw-target="glass">
                                             Glass
                                             <span t-if="selectedPanel.glass_suggested"
                                                   class="badge text-bg-info ms-1"
@@ -1109,6 +1109,7 @@
 
                                     </t>
                                     <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                         data-aw-target="hardware"
                                          t-on-click="() => this.toggleSection('hardware')">
                                         <i t-att-class="sectionIcon('hardware')"/>
                                         <span>Hardware</span>
@@ -1354,7 +1355,8 @@
                                             </div>
                                             <div t-if="!isCollapsed(piecePartKey(pscope, ppart))" class="o_aw_tree_rows">
                                                 <div t-foreach="ppart.pieces" t-as="piece" t-key="piece.id"
-                                                     class="o_aw_tree_row o_aw_piece">
+                                                     class="o_aw_tree_row o_aw_piece"
+                                                     t-att-data-aw-target="'piece:' + piece.piece_key">
                                                     <span class="fw-bold text-truncate" t-att-title="piece.label">
                                                         <t t-esc="piece.short_label or piece.label"/>
                                                     </span>
@@ -1632,16 +1634,28 @@
                             </div>
                             <t t-else="">
                                 <div t-foreach="checkErrors" t-as="chk" t-key="chk_index"
-                                     class="small text-danger mb-1">
+                                     class="small text-danger mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
                                     <i class="fa fa-times-circle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
                                 </div>
                                 <div t-foreach="checkWarnings" t-as="chk" t-key="chk_index"
-                                     class="small text-warning mb-1">
+                                     class="small text-warning mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
                                     <i class="fa fa-exclamation-triangle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
                                 </div>
                                 <div t-foreach="checkInfos" t-as="chk" t-key="chk_index"
-                                     class="small text-muted mb-1">
+                                     class="small text-muted mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
                                     <i class="fa fa-info-circle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
                                 </div>
                             </t>
                         </div>

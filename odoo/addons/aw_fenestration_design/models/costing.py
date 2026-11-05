@@ -162,42 +162,53 @@ class AwDesign(models.Model):
         return keys
 
     def _missing_rate_info(self):
-        """([text], {bom line ids}): the profiles the costing vendor has
-        no rate for, one text per profile and thickness, naming the
-        vendor whose rate stands in, or saying the price is incomplete.
-        The same lookup the costing does, so this cannot disagree with
-        the number."""
+        """([text], {bom line ids}): see _missing_rate_entries."""
+        self.ensure_one()
+        entries = self._missing_rate_entries()
+        return ([e[0] for e in entries],
+                set().union(*[e[2] for e in entries]) if entries else set())
+
+    def _missing_rate_entries(self):
+        """[(text, profile template, {bom line ids})]: the profiles the
+        costing vendor has no rate for, one entry per profile and
+        thickness, naming the vendor whose rate stands in, or saying the
+        price is incomplete. The same lookup the costing does, so this
+        cannot disagree with the number. The template is where a Checks
+        row leads."""
         self.ensure_one()
         on_date = self._costing_date()
         vendor = self._costing_vendor()
         fallback = self._fallback_vendor()
-        texts, line_ids, seen = [], set(), set()
+        entries, by_key = [], {}
         for line, template, thickness, finish in self._profile_rate_keys():
             rate, _level, used_fallback = self._rate_with_fallback(
                 template, thickness, finish, on_date)
             if rate and not used_fallback:
                 continue
-            line_ids.add(line.id)
             key = (template.id, thickness.id if thickness else 0)
-            if key in seen:
+            if key in by_key:
+                by_key[key].add(line.id)
                 continue
-            seen.add(key)
+            line_ids = {line.id}
+            by_key[key] = line_ids
             label = ' '.join(filter(None, [
                 template.default_code or template.name,
                 thickness.name if thickness else '']))
             if rate:
-                texts.append(_(
+                entries.append((_(
                     "%(profile)s: no %(vendor)s rate, %(standin)s rate used",
                     profile=label, vendor=vendor.display_name or _('profile'),
-                    standin=fallback.display_name))
+                    standin=fallback.display_name),
+                    template, line_ids))
             else:
-                texts.append(_(
+                entries.append((_(
                     "%(profile)s: no %(vendor)s rate%(also)s, price "
                     "incomplete",
                     profile=label, vendor=vendor.display_name or _('profile'),
                     also=(_(" and no %s rate", fallback.display_name)
-                          if fallback else '')))
-        return texts, line_ids
+                          if fallback else '')),
+                    template, line_ids))
+        return entries
 
     def _profile_cost_by_vendor(self):
         """This window's profile cost at each vendor's rates in force,
@@ -411,7 +422,8 @@ class AwDesign(models.Model):
                 unit_cost = line.product_id.standard_price or 0.0
                 line.line_cost = unit_cost * (line.qty or 0)
                 if not unit_cost:
-                    note = _("Product has no cost price")
+                    note = _("%s has no cost price",
+                             line.product_id.display_name or _('Product'))
 
             line.unit_cost = unit_cost
             line.rate_date = rate_date

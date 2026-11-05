@@ -5386,6 +5386,118 @@ export class DesignConfigurator extends Component {
         return this.checks.filter((c) => c.level === "info");
     }
 
+    // -- Checks as links ----------------------------------------------------
+    // A check carries where it leads: a panel NUMBER and a stable key (the
+    // piece key), or a record. Nothing here holds the id of a row that a
+    // Recompute or a save replaces, so a link still works after either.
+    checkHasTarget(chk) {
+        return !!chk.target_kind;
+    }
+
+    /** The element a check points at, as the data-aw-target the markup carries. */
+    checkTargetName(chk) {
+        switch (chk.target_kind) {
+            case "glass":
+                return "glass";
+            case "hardware":
+                return "hardware";
+            case "piece":
+                return `piece:${chk.target_key}`;
+            default:
+                return "";
+        }
+    }
+
+    selectPanelByNumber(panelNo) {
+        if (!panelNo) {
+            // 0 is the frame and the dividers.
+            this.state.selected = null;
+            this.state.multiSel = [];
+            return true;
+        }
+        const entry = (this.scene?.leaves || []).find((e) => e.panelNo === panelNo);
+        if (!entry) {
+            return false;
+        }
+        this.selectLeaf(entry.path);
+        return true;
+    }
+
+    /** Open the groups a piece sits under, so its row exists to scroll to. */
+    revealPiece(chk) {
+        const piece = (this.state.data?.pieces || []).find(
+            (p) => p.piece_key === chk.target_key && p.panel_no === chk.panel_no);
+        if (!piece) {
+            return;
+        }
+        const next = {
+            ...this.state.collapsed,
+            [`pcs:${piece.scope_key}`]: false,
+            [`pc:${piece.scope_key}:${piece.part_key}`]: false,
+        };
+        this.state.collapsed = next;
+        saveCollapsed(next);
+    }
+
+    flash(name) {
+        setTimeout(() => {
+            const el = name
+                ? document.querySelector(`[data-aw-target="${name}"]`) : null;
+            if (!el) {
+                return;
+            }
+            el.scrollIntoView({ block: "center" });
+            el.classList.add("o_aw_flash");
+            setTimeout(() => el.classList.remove("o_aw_flash"), 2000);
+        }, 80);
+    }
+
+    /** A click on a Checks row: select the panel, open the tab, show the row. */
+    goToCheck(chk) {
+        const kind = chk.target_kind;
+        if (!kind) {
+            return;
+        }
+        if (kind === "record") {
+            this.openCheckRecord(chk);
+            return;
+        }
+        if (!this.selectPanelByNumber(chk.panel_no)) {
+            this.notification.add(
+                _t("Panel %(no)s is not in the drawing any more.", { no: chk.panel_no }),
+                { type: "warning" });
+            return;
+        }
+        this.setRightTab("panel");
+        const next = { ...this.state.collapsed, panel: false };
+        if (kind === "hardware") {
+            next.hardware = false;
+        }
+        this.state.collapsed = next;
+        saveCollapsed(next);
+        if (kind === "piece") {
+            this.revealPiece(chk);
+        }
+        this.flash(this.checkTargetName(chk));
+    }
+
+    /**
+     * A product, a profile or a spec line opens in a dialog so the
+     * configurator keeps its unsaved state. The dialog's Expand button
+     * opens the full page.
+     */
+    openCheckRecord(chk) {
+        if (!chk.target_model || !chk.target_res_id) {
+            return;
+        }
+        this.dialog.add(FormViewDialog, {
+            resModel: chk.target_model,
+            resId: chk.target_res_id,
+            title: chk.message,
+            canExpand: true,
+        });
+    }
+
     /** BOM sections in a fixed reading order, empty ones dropped. */
     get bomGroups() {
         const titles = {

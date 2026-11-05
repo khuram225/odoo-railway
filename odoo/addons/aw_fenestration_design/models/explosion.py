@@ -1065,7 +1065,8 @@ class AwDesign(models.Model):
                 problems.append(('error', _(
                     "%(panel)s is a %(type)s, which %(series)s doesn't allow.",
                     panel=label, type=leaf.leaf_type_id.display_name,
-                    series=series.display_name)))
+                    series=series.display_name),
+                    self._target('panel', leaf.panel_no)))
 
         # Positions that can never contribute, so the absence of a
         # profile from the cut list has a stated reason.
@@ -1073,7 +1074,8 @@ class AwDesign(models.Model):
             if not position.scope:
                 problems.append(('warning', _(
                     "Profile position '%s' has no scope, so the BOM "
-                    "ignores it.", position.name)))
+                    "ignores it.", position.name),
+                    self._record_target(position)))
 
         problems.extend(self._missing_section_line_problems(demand or {}))
 
@@ -1082,15 +1084,21 @@ class AwDesign(models.Model):
         # panel, and twelve copies of the same sentence is how a real
         # warning gets scrolled past.
         reasons = set()
+        reason_line = {}
         for values in (exploded or []):
             if not values.get('missing_product'):
                 continue
             reason = values.get('missing_product_reason')
+            line_id = values.get('template_line_id')
             if reason:
                 reasons.add(reason)
+                if line_id:
+                    reason_line.setdefault(reason, line_id)
             else:
                 problems.append(('warning', _(
-                    "No product for '%s'.", values.get('label') or '')))
+                    "No product for '%s'.", values.get('label') or ''),
+                    self._target('record', model='aw.profile.section.line',
+                                 res_id=line_id) if line_id else {}))
         # ERROR, not a warning, since phase 7e. The commonest cause is now
         # a finish the profile is not sold in, and that is not a thing to
         # look at later: the window cannot be made as quoted, and the
@@ -1102,11 +1110,16 @@ class AwDesign(models.Model):
         # the two collapse into one line.
         for line in self._profile_rows():
             if line.position_id and not self._row_thickness(line):
-                reasons.add(self.env['aw.profile.section.line']._variant_problem(
+                reason = self.env['aw.profile.section.line']._variant_problem(
                     self._row_template(line), self.env['product.attribute.value'],
-                    self._line_finish(line)))
+                    self._line_finish(line))
+                reasons.add(reason)
+                reason_line.setdefault(reason, line.id)
         for reason in sorted(reasons):
-            problems.append(('error', reason))
+            line_id = reason_line.get(reason)
+            problems.append(('error', reason, self._target(
+                'record', model='aw.profile.section.line', res_id=line_id)
+                if line_id else {}))
 
         # A glass of size 0 is a sheet costed at 0 and cut at nothing, and
         # it looks fine on screen. Named per panel so it can be found.
@@ -1121,7 +1134,8 @@ class AwDesign(models.Model):
                 "Panel %(panel)s: glass size is 0 (%(w)s x %(h)s mm). Check "
                 "the glass deduction rules of the spec and the window type.",
                 panel=panel_no, w=round(values.get('glass_w') or 0.0),
-                h=round(values.get('glass_h') or 0.0))))
+                h=round(values.get('glass_h') or 0.0)),
+                self._target('glass', panel_no)))
 
         # Glass is chosen once, so it is reported once -- naming the two
         # places it can be set, since "no product for P1 glass" told the
@@ -1134,9 +1148,11 @@ class AwDesign(models.Model):
         # Pricing (spec 8). An incomplete price must never be mistaken
         # for a real one, so the lines that carry no cost are named
         # rather than quietly averaged into a number that looks fine.
-        missing_texts, missing_lines = self._missing_rate_info()
-        for text in missing_texts:
-            problems.append(('warning', text))
+        missing_entries = self._missing_rate_entries()
+        missing_lines = set().union(*[e[2] for e in missing_entries]) \
+            if missing_entries else set()
+        for text, template, _lines in missing_entries:
+            problems.append(('warning', text, self._record_target(template)))
         uncosted = self.bom_line_ids.filtered('cost_note').filtered(
             lambda l: l.id not in missing_lines)
         if uncosted:
@@ -1145,17 +1161,32 @@ class AwDesign(models.Model):
             # kept for a fallback to another vendor's rate; any other
             # costed note is a nearby rate.
             reasons, infos = {}, {}
+            first = {}
             for line in uncosted:
                 if line.rate_is_manual:
                     infos[line.cost_note] = infos.get(line.cost_note, 0) + 1
+                    first.setdefault(('info', line.cost_note), line)
                     continue
                 key = (line.cost_note, bool(line.line_cost),
                        bool(line.rate_is_standin))
                 reasons[key] = reasons.get(key, 0) + 1
+                first.setdefault(key, line)
+
+            def line_target(line):
+                """A typed rate leads to the panel's glass or hardware; any
+                other cost note leads to the product it is about."""
+                if line.rate_is_manual and line.panel_no:
+                    return self._target(
+                        'glass' if line.kind == 'glass' else 'hardware',
+                        line.panel_no)
+                return self._record_target(line.product_id)
+
             for note, count in sorted(infos.items()):
                 problems.append(('info', note if count == 1 else _(
-                    "%(note)s (%(count)s lines)", note=note, count=count)))
+                    "%(note)s (%(count)s lines)", note=note, count=count),
+                    line_target(first[('info', note)])))
             for (reason, costed, standin), count in sorted(reasons.items()):
+                target = line_target(first[(reason, costed, standin)])
                 if not costed:
                     text = _("%(count)s BOM line(s) have no cost: %(reason)s.",
                              count=count, reason=reason)
@@ -1165,7 +1196,7 @@ class AwDesign(models.Model):
                 else:
                     text = _("%(count)s BOM line(s) are priced from a nearby "
                              "rate: %(reason)s", count=count, reason=reason)
-                problems.append(('warning', text))
+                problems.append(('warning', text, target))
 
         # A divider carrying more than its option is rated for. Never a
         # block: the shop may know better than the table, and the table
@@ -1213,7 +1244,8 @@ class AwDesign(models.Model):
                 problems.append(('error', _(
                     "Panel %(panel)s has '%(mesh)s', which fits opening "
                     "sashes only.",
-                    panel=leaf.panel_no or 0, mesh=mesh.display_name)))
+                    panel=leaf.panel_no or 0, mesh=mesh.display_name),
+                    self._target('panel', leaf.panel_no)))
 
         floor = self._min_margin_pct()
         if self._below_margin_floor():
@@ -1239,7 +1271,8 @@ class AwDesign(models.Model):
                     "Panel %(panel)s (%(type)s): no hardware, so its "
                     "hardware cost is missing.",
                     panel=leaf.panel_no or 0,
-                    type=leaf.leaf_type_id.display_name)))
+                    type=leaf.leaf_type_id.display_name),
+                    self._target('hardware', leaf.panel_no)))
 
         # No joints and no couplers: every piece comes out of one bar,
         # so one that cannot is a hard error rather than something the
@@ -1253,12 +1286,29 @@ class AwDesign(models.Model):
                     "are never joined.",
                     label=line.label or '',
                     len=self._format_length(line.length_mm),
-                    max=self._format_length(limit))))
+                    max=self._format_length(limit)),
+                    self._target('piece', line.panel_no, line.piece_key)))
 
-        for level, message in problems:
-            self.env['aw.design.check'].create({
-                'design_id': self.id, 'level': level, 'message': message,
-            })
+        for entry in problems:
+            level, message = entry[0], entry[1]
+            target = entry[2] if len(entry) > 2 else {}
+            self.env['aw.design.check'].create(dict(
+                target, design_id=self.id, level=level, message=message))
+
+    @staticmethod
+    def _target(kind, panel_no=0, key='', model='', res_id=0):
+        """Where a Checks row leads. See aw.design.check."""
+        return {
+            'target_kind': kind, 'panel_no': panel_no or 0,
+            'target_key': key or '', 'target_model': model or '',
+            'target_res_id': res_id or 0,
+        }
+
+    def _record_target(self, record):
+        """A target that opens one record, or nothing when it has none."""
+        if not record:
+            return {}
+        return self._target('record', model=record._name, res_id=record.id)
 
     def _missing_section_line_problems(self, demand):
         """Required positions the layout needs and the section lacks.
@@ -1285,7 +1335,8 @@ class AwDesign(models.Model):
                 "%s has no profiles, so this design has none in its BOM "
                 "at all.",
                 self.template_id.display_name
-                or _("No Specification is set, and so")))]
+                or _("No Specification is set, and so")),
+                self._record_target(self.template_id))]
 
         configured = set(lines.mapped('position_id').ids)
         needed = [scope for scope, count in demand.items() if count]
@@ -1307,7 +1358,8 @@ class AwDesign(models.Model):
                 spec=(self.template_id.display_name
                       or (_('Custom window') if self.spec_custom else '')),
                 position=position.name,
-                count=count, what=singular if count == 1 else plural)))
+                count=count, what=singular if count == 1 else plural),
+                self._record_target(self.template_id)))
         return problems
 
     def _missing_panel_section_problems(self):
@@ -1340,7 +1392,9 @@ class AwDesign(models.Model):
             "'%(spec)s' has none.",
             panels=', '.join(numbers), section=name,
             spec=(self.template_id.display_name
-                  or _('this window')))) for name, numbers in missing.items()]
+                  or _('this window'))),
+            self._target('panel', int(numbers[0])))
+            for name, numbers in missing.items()]
 
     def _all_panels(self):
         """Every real panel, containers skipped."""
@@ -1375,3 +1429,16 @@ class AwDesignCheck(models.Model):
         ('info', 'Info'),
     ], required=True, default='warning')
     message = fields.Char(required=True)
+    # Where a click goes. Stored by panel NUMBER and a stable key (the
+    # piece key, the glass part or hardware row sequence), or by the
+    # record itself for a product or a spec line -- never by the id of a
+    # row that a Recompute or a save replaces, so the link still works
+    # after either.
+    target_kind = fields.Selection([
+        ('panel', 'Panel'), ('glass', 'Glass'), ('hardware', 'Hardware'),
+        ('piece', 'Piece'), ('record', 'Record'),
+    ])
+    panel_no = fields.Integer()
+    target_key = fields.Char()
+    target_model = fields.Char()
+    target_res_id = fields.Integer()
