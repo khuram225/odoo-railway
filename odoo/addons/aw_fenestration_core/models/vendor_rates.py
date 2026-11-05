@@ -934,9 +934,10 @@ class AwVendorRateList(models.Model):
             'result': False, 'detail': False, 'cells_applied': 0,
             'cells_skipped': 0, 'cells_failed': 0, 'cells_conflict': 0})
         self.state = 'draft'
+        self.step = 'data'
         self._follow_variant_costs(affected)
         self.message_post(body=_(
-            "Set to draft: %s rate(s) removed; the lines are kept.",
+            "Undone: %s rate(s) removed; the rows are kept.",
             deleted))
         return True
 
@@ -1025,6 +1026,21 @@ class AwVendorRateList(models.Model):
             raise UserError(_("This list is already applied."))
         self._apply()
         return True
+
+    def _unchanged(self, Rate, key, price):
+        """True when the rate in force for this key on the list's date is
+        already this price and started EARLIER: writing it again would only
+        add a new version with the same number. `key` is the apply key,
+        whose last term is the list's date."""
+        base = [term for term in key if term[0] != 'date_from']
+        current = Rate.with_context(active_test=False).search(
+            base + [('date_from', '<', self.date),
+                    ('rate_list_id', '!=', self.id)],
+            order='date_from desc, id desc', limit=1)
+        same_day = Rate.with_context(active_test=False).search_count(
+            base + [('date_from', '=', self.date)])
+        return bool(current) and not same_day \
+            and abs(current.price - price) < 0.005
 
     def _apply(self):
         """The work of Apply, repeatable: a rate is looked up by profile,
@@ -1118,6 +1134,9 @@ class AwVendorRateList(models.Model):
                     ('finish_id', '=', column.finish_id.id),
                     ('vendor_id', '=', self.vendor_id.id),
                     ('date_from', '=', self.date)]
+                if self.env.context.get('aw_skip_unchanged') \
+                        and self._unchanged(Rate, key, price):
+                    continue
                 existing = Rate.search(key, limit=1)
                 values = {
                     'price': price, 'vendor_series': line.series,
@@ -1220,6 +1239,12 @@ class AwVendorRateList(models.Model):
                    ('thickness_mm', '=', thickness),
                    ('vendor_id', '=', self.vendor_id.id),
                    ('date_from', '=', self.date)]
+            if self.env.context.get('aw_skip_unchanged') \
+                    and self._unchanged(Rate, key, line.rate_1):
+                line.write({'result': _("Unchanged"), 'cells_applied': 0,
+                            'cells_skipped': 0, 'cells_failed': 0,
+                            'cells_conflict': 0, 'detail': False})
+                continue
             values = {'price': line.rate_1, 'source_note': self.name,
                       'rate_list_id': self.id}
             existing = Rate.search(key, limit=1)

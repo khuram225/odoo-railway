@@ -719,6 +719,27 @@ holds write/create/unlink on rate lists, their lines, profile and glass rates an
 else reads. The paste box lives under an Advanced tab visible to the Rates
 manager only.
 
+## Review, Confirm and Undo
+
+Step 3 of the guided rate screen. `action_open_review` builds
+`aw.vendor.rate.review` rows by COMPARING, writing nothing: each priced cell
+against the rate in force on the list's date for the same key (profile,
+thickness, finish, vendor; or glass type, thickness, vendor). Unchanged and
+empty-price cells are only counted; changed rows show old, new and percent
+(over 15% is red and needs the tick "I checked these price changes"); a row is a
+**Problem**, which blocks Confirm, when the same key has two prices in the list
+or a NEWER rate for that key is already in force (the per-row date stop that
+replaced the vendor-wide one); a row whose product, thickness, finish or glass
+type is missing is **Not written**, listed but never blocking (a Chawla list
+with 63 rows waiting for products must still go through). `action_confirm_rates`
+re-checks on the rows as they are NOW, then applies with `aw_skip_unchanged` so a
+price already in force is not written again, attaches the typed table as a CSV
+if no pasted original is attached, and leaves the list at Confirm. Any edit to a
+row's input fields sends the review back to Data in and clears the tick;
+bookkeeping writes (need, match, results) do not. Undo is `action_set_to_draft`,
+which now returns to Data in. The form's old Apply button is gone; `action_apply`
+stays for code, migrations and tests and never date-checks.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
