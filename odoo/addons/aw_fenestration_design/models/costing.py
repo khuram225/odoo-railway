@@ -387,6 +387,25 @@ class AwDesign(models.Model):
                 unit_cost, rate_date, note = self._cost_glass_line(
                     line, on_date)
 
+            elif line.kind == 'hardware':
+                # The product's cost unless a rate was typed for this
+                # panel; the list rate is kept either way so the Cost
+                # breakdown can show both.
+                listed = line.product_id.standard_price or 0.0
+                name = line.product_id.display_name or _('hardware')
+                line.rate_list = listed
+                if line.rate_is_manual:
+                    unit_cost = line.manual_rate
+                    note = _(
+                        "%(name)s: manual rate %(used)g (product cost "
+                        "%(listed)g)",
+                        name=name, used=unit_cost, listed=listed)
+                else:
+                    unit_cost = listed
+                    if not unit_cost:
+                        note = _("%s has no cost price", name)
+                line.line_cost = unit_cost * (line.qty or 0)
+
             else:
                 unit_cost = line.product_id.standard_price or 0.0
                 line.line_cost = unit_cost * (line.qty or 0)

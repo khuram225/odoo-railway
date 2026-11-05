@@ -100,6 +100,11 @@ class AwDesignLeaf(models.Model):
         ('left', 'Left'), ('right', 'Right'),
     ], help="Shown only for leaf types with has_slide_dir set.")
 
+    hardware_ids = fields.One2many(
+        'aw.design.hardware', 'leaf_id', string='Hardware',
+        help="This panel's own hardware. With rows here the spec's "
+             "per-panel hardware lines are not used for this panel.")
+
     # -- attachments (spec 5.1-5.4) ----------------------------------------
     # All optional. A panel with none of these is plain glass, which is
     # why infill_type_id being empty means Glass rather than nothing.

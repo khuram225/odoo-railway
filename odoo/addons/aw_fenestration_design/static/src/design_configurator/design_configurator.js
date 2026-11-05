@@ -221,7 +221,7 @@ const STORE_RIGHT_TAB = "aw_cfg_right_tab";
  * one column meant none of them had room. They are tabs now, and only
  * the panel's own sub-sections still collapse.
  */
-const RIGHT_SECTIONS = ["panel", "infill", "mesh", "grid"];
+const RIGHT_SECTIONS = ["panel", "infill", "mesh", "hardware", "grid"];
 
 /** Right-hand tabs, in the order they appear. */
 /**
@@ -382,6 +382,7 @@ export class DesignConfigurator extends Component {
             // The other box of a Width/Height pair, shown live while one
             // is being typed into: { field, source, text }.
             sizeDraft: null,
+            hardwareNewName: "",
             familyFilter: null, // family id, or null for "All"
             builderOpen: false,
             builder: { panels: 2, tracks: 2, mesh: false, roles: [] },
@@ -1719,6 +1720,7 @@ export class DesignConfigurator extends Component {
         // The catalogue comes back too, so the library's mesh and infill
         // sections stay in step with whatever the new Series allows.
         for (const key of ["mesh_types", "infill_types", "glass_catalog",
+                           "hardware_products",
                            "grid_patterns", "families", "spec_options",
                            "spec_parts"]) {
             if (context[key]) {
@@ -2072,6 +2074,206 @@ export class DesignConfigurator extends Component {
             leaf.glass_chosen = false;
             this.state.dirty = true;
         }
+    }
+
+    // -- hardware (Panel tab) ----------------------------------------------
+    // A panel's own rows replace the spec's per-panel hardware lines for it;
+    // with none it follows the spec. The quantity is a plain number and the
+    // rate used defaults to the product's cost.
+    get hardwareProducts() {
+        return this.state.data?.hardware_products || [];
+    }
+
+    get panelHardware() {
+        return this.selectedPanel?.hardware || [];
+    }
+
+    get panelFollowsSpecHardware() {
+        return !this.panelHardware.length;
+    }
+
+    hardwareListRate(row) {
+        const product = this.hardwareProducts.find((p) => p.id === row.product_id);
+        return product ? product.cost : row.list_rate || 0;
+    }
+
+    hardwareRateUsed(row) {
+        return row.rate_manual ? row.manual_rate : this.hardwareListRate(row);
+    }
+
+    hardwareCost(row) {
+        return (row.qty || 0) * this.hardwareRateUsed(row);
+    }
+
+    get panelHardwareCost() {
+        return this.panelHardware.reduce(
+            (sum, row) => sum + this.hardwareCost(row), 0);
+    }
+
+    /** Every panel, with its number as the drawing shows it. */
+    get hardwarePanels() {
+        return (this.scene?.leaves || []).map((entry) => ({
+            no: entry.panelNo,
+            leaf: this.leafAt(entry.path),
+        })).filter((p) => p.leaf);
+    }
+
+    get otherHardwarePanels() {
+        return this.hardwarePanels.filter((p) => p.leaf !== this.selectedPanel);
+    }
+
+    cloneHardware(rows) {
+        return (rows || []).map((row) => ({ ...row, id: undefined }));
+    }
+
+    addHardware() {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        leaf.hardware = [...(leaf.hardware || []), {
+            product_id: false, name: "", qty: 1, rate_manual: false,
+            manual_rate: 0, list_rate: 0,
+        }];
+        this.state.dirty = true;
+    }
+
+    setHardwareProduct(index, value) {
+        const row = this.panelHardware[index];
+        if (!row) {
+            return;
+        }
+        const id = parseInt(value, 10) || false;
+        const product = this.hardwareProducts.find((p) => p.id === id);
+        row.product_id = id;
+        row.name = product ? product.name : "";
+        row.list_rate = product ? product.cost : 0;
+        this.state.dirty = true;
+    }
+
+    setHardwareQty(index, value) {
+        const row = this.panelHardware[index];
+        if (row) {
+            row.qty = parseFloat(value) || 0;
+            this.state.dirty = true;
+        }
+    }
+
+    /** Typing a rate is a manual rate for this panel; Reset undoes it. */
+    setHardwareRate(index, value) {
+        const row = this.panelHardware[index];
+        if (row) {
+            row.rate_manual = true;
+            row.manual_rate = parseFloat(value) || 0;
+            this.state.dirty = true;
+        }
+    }
+
+    resetHardwareRate(index) {
+        const row = this.panelHardware[index];
+        if (row) {
+            row.rate_manual = false;
+            row.manual_rate = 0;
+            this.state.dirty = true;
+        }
+    }
+
+    removeHardware(index) {
+        const leaf = this.selectedPanel;
+        if (leaf && leaf.hardware) {
+            leaf.hardware = leaf.hardware.filter((_row, i) => i !== index);
+            this.state.dirty = true;
+        }
+    }
+
+    followSpecHardware() {
+        const leaf = this.selectedPanel;
+        if (leaf) {
+            leaf.hardware = [];
+            this.state.dirty = true;
+        }
+    }
+
+    /** The spec's hardware for this panel, quantities as calculated. */
+    async addSpecHardware() {
+        const leaf = this.selectedPanel;
+        const entry = this.selectedSceneLeaf;
+        if (!leaf || !entry) {
+            return;
+        }
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const rows = await this.orm.call(
+            "aw.design", "hardware_from_spec", [[this.designId], entry.panelNo]);
+        if (!rows.length) {
+            this.notification.add(
+                _t("The spec gives this panel no hardware."), { type: "info" });
+            return;
+        }
+        leaf.hardware = [...(leaf.hardware || []), ...this.cloneHardware(rows)];
+        this.state.dirty = true;
+    }
+
+    /** Quick create: a name makes a product in Fenestration / Hardware. */
+    async createHardwareProduct() {
+        const name = (this.state.hardwareNewName || "").trim();
+        if (!name || !this.selectedPanel) {
+            return;
+        }
+        const product = await this.orm.call(
+            "aw.design", "create_hardware_product", [[this.designId], name]);
+        if (!product) {
+            return;
+        }
+        if (!this.hardwareProducts.some((p) => p.id === product.id)) {
+            this.state.data.hardware_products = [
+                ...this.hardwareProducts, product];
+        }
+        this.selectedPanel.hardware = [...(this.selectedPanel.hardware || []), {
+            product_id: product.id, name: product.name, qty: 1,
+            rate_manual: false, manual_rate: 0, list_rate: product.cost,
+        }];
+        this.state.hardwareNewName = "";
+        this.state.dirty = true;
+    }
+
+    setHardwareNewName(ev) {
+        this.state.hardwareNewName = ev.target.value;
+    }
+
+    copyHardwareFromPanel(ev) {
+        const value = ev.target.value;
+        ev.target.value = "";
+        const leaf = this.selectedPanel;
+        const source = this.hardwarePanels.find((p) => String(p.no) === String(value));
+        if (!leaf || !source || source.leaf === leaf) {
+            return;
+        }
+        leaf.hardware = this.cloneHardware(source.leaf.hardware);
+        this.state.dirty = true;
+    }
+
+    /** Copy this panel's hardware to the other panels whose type needs it. */
+    copyHardwareToOthers() {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        let copied = 0;
+        for (const { leaf: other } of this.otherHardwarePanels) {
+            const type = (this.state.data.leaf_types || []).find(
+                (lt) => lt.id === other.leaf_type_id);
+            if (type && type.needs_hardware === false) {
+                continue;
+            }
+            other.hardware = this.cloneHardware(leaf.hardware);
+            copied += 1;
+        }
+        this.state.dirty = true;
+        this.notification.add(
+            _t("Hardware copied to %(count)s other panel(s).", { count: copied }),
+            { type: "success" });
     }
 
     glassPanels() {
@@ -5329,6 +5531,14 @@ export class DesignConfigurator extends Component {
     }
 
     /** Soot style, like every length the workshop reads. */
+    get pricingHardware() {
+        return this.bom.hardware || [];
+    }
+
+    get pricingHardwareTotal() {
+        return this.pricingHardware.reduce((s, l) => s + (l.line_cost || 0), 0);
+    }
+
     costLengthText(mm) {
         return mm ? formatInches(mm, "soot") : "0";
     }

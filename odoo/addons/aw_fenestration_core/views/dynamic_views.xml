@@ -13,6 +13,7 @@
                 <field name="has_hinge_side" widget="boolean_toggle"/>
                 <field name="has_slide_dir" widget="boolean_toggle"/>
                 <field name="is_glazed" widget="boolean_toggle"/>
+                <field name="needs_hardware" widget="boolean_toggle"/>
             </list>
         </field>
     </record>

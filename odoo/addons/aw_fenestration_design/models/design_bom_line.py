@@ -120,6 +120,10 @@ class AwDesignBomLine(models.Model):
     glass_gas = fields.Char()
     glass_extra_id = fields.Many2one('aw.glass.extra', ondelete='restrict')
     glass_manual_rate = fields.Float(digits='Product Price')
+    manual_rate = fields.Float(
+        digits='Product Price',
+        help="The rate typed for this line (hardware today), used when "
+             "Manual rate is set.")
     rate_is_manual = fields.Boolean(
         string='Manual rate',
         help="The rate used was typed for this panel, not the list rate.")

@@ -601,6 +601,25 @@ the next upgrade. The seeded "Double Glaze - Openable" spec gets its default
 stack from the design module (`glass_default_stack.py`), found through the
 `aw_fenestration.spec_dg_openable_id` parameter because it is renamed 'RE'.
 
+## Hardware per panel
+
+A panel's own hardware is `aw.design.hardware` (product in Fenestration /
+Hardware, a plain-number qty, a rate used that defaults to the product's cost
+and is typed per row, flagged manual, with Reset). A panel with rows is built
+from THEM and the spec's per-panel hardware lines are not used for it; a panel
+with none follows the spec. Window and junction lines always come from the
+spec. The same shape as the glass stack: own, else the spec's. "Add the spec's
+set" copies what the spec gave that panel as CALCULATED quantities (read off
+the BOM), so it is only offered to a panel that follows the spec.
+
+The Checks warning is per panel and only for a panel type with
+`aw.leaf.type.needs_hardware`; the whole-spec "No hardware in this spec" is
+gone. The flag is seeded once (Fixed and Mesh off, via a parameter, since a
+Boolean has no empty state) and is editable on Panel Types. Quick create in the
+picker makes a price-free product through `sudo()` with fixed values, because
+a quoting user may not be able to create products. A hardware BOM line keeps
+the product cost in `rate_list`; its typed rate is `manual_rate`.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

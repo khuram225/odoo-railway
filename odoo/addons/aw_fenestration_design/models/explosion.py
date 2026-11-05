@@ -672,14 +672,31 @@ class AwDesign(models.Model):
                 leaf.grid_pattern_id.line_ids, context, 'grid',
                 '%s grid' % label, leaf.panel_no))
 
-        # Hardware scoped per panel, filtered by leaf type as before.
-        for line in self._spec_hardware_lines():
-            if line.scope != 'panel':
-                continue
-            if line.leaf_type_id and line.leaf_type_id != leaf_type:
-                continue
-            out.extend(self._hardware_line(
-                line, context, label, leaf.panel_no))
+        # Hardware scoped per panel. A panel's OWN rows replace the spec's
+        # per-panel lines for it; with none it follows the spec, filtered
+        # by leaf type as before.
+        if leaf.hardware_ids:
+            for row in leaf.hardware_ids.sorted('sequence'):
+                qty = int(round(row.qty or 0.0))
+                if qty <= 0 or not row.product_id:
+                    continue
+                out.append({
+                    'kind': 'hardware',
+                    'product_id': row.product_id.id,
+                    'qty': qty,
+                    'panel_no': leaf.panel_no,
+                    'label': '%s %s' % (label, row.product_id.display_name),
+                    'rate_is_manual': row.rate_manual,
+                    'manual_rate': row.manual_rate if row.rate_manual else 0.0,
+                })
+        else:
+            for line in self._spec_hardware_lines():
+                if line.scope != 'panel':
+                    continue
+                if line.leaf_type_id and line.leaf_type_id != leaf_type:
+                    continue
+                out.extend(self._hardware_line(
+                    line, context, label, leaf.panel_no))
 
     # ------------------------------------------------------------------
     # lock bar (phase 7d)
@@ -1195,16 +1212,21 @@ class AwDesign(models.Model):
                 "No Price Structure, so this design is costed with no "
                 "wastage, labour or profit.")))
 
-        # ONCE per design, not once per hardware line that did not
-        # appear: the absence is one fact about the spec, and a warning
-        # repeated per line is a warning people learn to scroll past.
-        # A spec may legitimately have no Hardware Set -- no hardware
-        # list exists for this business yet, and a placeholder set
-        # would put zero hardware into every quote while looking
-        # configured. Saying so is the honest alternative.
-        if not self._spec_hardware_lines():
-            problems.append(('warning', _(
-                "No hardware in this spec — hardware cost is missing.")))
+        # Per PANEL, and only for a panel type that needs hardware: a
+        # fixed light has none, and a warning that fires on it is one
+        # people learn to scroll past. A placeholder set would price
+        # hardware at zero while looking configured, so the absence is
+        # said, panel by panel, instead.
+        with_hardware = set(self.bom_line_ids.filtered(
+            lambda l: l.kind == 'hardware' and l.panel_no).mapped('panel_no'))
+        for leaf in self._all_panels():
+            if (leaf.leaf_type_id.needs_hardware
+                    and (leaf.panel_no or 0) not in with_hardware):
+                problems.append(('warning', _(
+                    "Panel %(panel)s (%(type)s): no hardware, so its "
+                    "hardware cost is missing.",
+                    panel=leaf.panel_no or 0,
+                    type=leaf.leaf_type_id.display_name)))
 
         # No joints and no couplers: every piece comes out of one bar,
         # so one that cannot is a hard error rather than something the
