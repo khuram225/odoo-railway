@@ -1507,5 +1507,63 @@ console.log("\n  the Frame label is the SHORT name:");
     ok(c.buildUpClass({ kind: "total" }).includes("fw-bold"), "the price row is bold");
 }
 
+{
+    // The Glass section collapses by its heading, remembers it, and is a
+    // section of its own beside Mesh and Hardware (not inside Infill).
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"),
+    ] }], 600, 1500);
+    const store = {};
+    const saved = globalThis.window.localStorage;
+    globalThis.window.localStorage = {
+        setItem: (k, v) => { store[k] = v; },
+        getItem: (k) => (k in store ? store[k] : null),
+    };
+    c.state.collapsed = {};
+    ok(!c.isCollapsed("glass"), "Glass starts open");
+    c.toggleSection("glass");
+    ok(c.isCollapsed("glass") && c.sectionIcon("glass") === "fa fa-chevron-right",
+       "clicking the heading closes it and turns the arrow");
+    ok(JSON.parse(store.aw_cfg_collapsed).glass === true, "and the state is kept");
+    c.toggleSection("glass");
+    ok(!c.isCollapsed("glass") && c.sectionIcon("glass") === "fa fa-chevron-down",
+       "clicking again opens it");
+    ok(JSON.parse(store.aw_cfg_collapsed).glass === false, "open is kept too");
+    c.toggleSection("glass");
+    c.toggleSection("infill");
+    ok(c.isCollapsed("glass"), "closing Infill does not touch Glass");
+    c.toggleSection("infill");
+    c.state.collapsed = { glass: true };
+    c.selectLeaf([[0, 0]]);
+    c.goToCheck({ target_kind: "glass", panel_no: 1 });
+    ok(c.state.collapsed.glass === false, "a Checks link to glass opens the section");
+    c.toggleSection("glass");
+    c.setAllCollapsed(["panel", "infill", "mesh", "glass", "hardware", "grid"], false);
+    ok(["panel", "infill", "mesh", "glass", "hardware", "grid"].every((k) => !c.isCollapsed(k)),
+       "Expand all opens Glass too");
+    globalThis.window.localStorage = saved;
+
+    // the markup: the heading's handler, and not nested inside Infill's content
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    const head = xml.indexOf("toggleSection('glass')");
+    const infill = xml.indexOf("<t t-if=\"!isCollapsed('infill')\">");
+    ok(head > 0 && infill > 0 && head > infill, "the Glass heading is bound to toggleSection('glass')");
+    let depth = 0;
+    for (const m of xml.slice(infill, head).matchAll(/<t(?=[\s>])[^>]*?(\/?)>|<\/t>/g)) {
+        if (m[0] === "</t>") {
+            depth -= 1;
+        } else if (m[1] !== "/") {
+            depth += 1;
+        }
+    }
+    ok(depth === 1, "and the heading sits outside Infill's content, inside only its own glazed-panel test (depth " + depth + ")");
+    ok(xml.includes("isCollapsed('glass')"), "the stack hides when the section is closed");
+    ok(xml.includes("toggleSection('grid')") && xml.includes("toggleSection('hardware')")
+       && xml.includes("toggleSection('mesh')"),
+       "Mesh, Hardware and the Georgian bars have their arrows too");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);
