@@ -1581,6 +1581,28 @@
                                 </t>
                             </div>
 
+                            <!-- Price build-up: every step from the BOM to the
+                                 price. The same rows the price is
+                                 calculated from. -->
+                            <div t-if="pricingBuildUp.length" class="mt-3">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">Price build-up</div>
+                                <table class="table table-sm small mb-1">
+                                    <tr t-foreach="pricingBuildUp" t-as="bu" t-key="bu.key"
+                                        t-att-class="buildUpClass(bu)">
+                                        <td><t t-esc="bu.label"/></td>
+                                        <td class="text-end text-nowrap text-muted">
+                                            <t t-esc="bu.detail"/>
+                                            <t t-if="bu.detail and buildUpRate(bu)"> &#183; </t>
+                                            <t t-esc="buildUpRate(bu)"/>
+                                        </td>
+                                        <td class="text-end text-nowrap"><t t-esc="costText(bu.amount)"/></td>
+                                    </tr>
+                                </table>
+                                <div class="small text-muted">
+                                    Margin <strong><t t-esc="costText(pricing.margin_pct)"/>%</strong>,
+                                    minimum <t t-esc="costText(pricing.min_margin_pct)"/>%
+                                </div>
+                            </div>
                             <!-- Hardware: each line and its cost, by panel. -->
                             <div t-if="pricingHardware.length" class="mt-3">
                                 <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">Hardware</div>
