@@ -673,6 +673,17 @@ row, fill-only; a missing kind reads as 0), so adding it changed no price. The
 structure is per WINDOW. "Show on quote" is hidden on the structure form and
 nothing reads it; its data is kept.
 
+## Chatter log of glass and hardware
+
+`aw.design._log_stack_changes()` (chatter_log.py) posts ONE note per save when
+the glass stacks (window default and each panel) or the panels' hardware rows
+changed: added, removed, product, quantity, a typed rate or Reset, with the
+panel number, by the user who saved. It is a DIFF of a snapshot taken at the
+start of `save_layout` against the stored state after `_suggest_glass`, because
+a save replaces the rows and a log written at create/unlink would say "added"
+and "removed" on every save. Rows are compared by position; a save that changes
+nothing posts nothing. The price is not logged (it changes on every explosion).
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

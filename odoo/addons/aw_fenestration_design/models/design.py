@@ -1773,6 +1773,9 @@ class AwDesign(models.Model):
         filtered; this is not a security boundary, only a business rule.
         """
         self.ensure_one()
+        # What the glass and hardware looked like before this save, so the
+        # chatter can say what the save changed (see chatter_log.py).
+        before = self._stack_snapshot()
         incoming = payload.get('header') or {}
         header = {
             key: value for key, value in incoming.items()
@@ -1815,6 +1818,7 @@ class AwDesign(models.Model):
         # After the panels are numbered and sized, before the explosion
         # prices them: a suggested glass is part of the BOM.
         self._suggest_glass()
+        self._log_stack_changes(before)
         # Validated here, once, over the finished tree -- NOT by a
         # constraint on the leaf. A container leaf is created before its
         # sub-rows exist (they need its id), so at create time it looks

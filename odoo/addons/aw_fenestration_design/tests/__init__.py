@@ -20,3 +20,4 @@ from . import test_one_line_per_position
 from . import test_mesh_cloth
 from . import test_price_build_up
 from . import test_open_configurator_directly
+from . import test_chatter_glass_hardware
