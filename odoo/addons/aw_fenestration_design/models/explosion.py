@@ -584,9 +584,14 @@ class AwDesign(models.Model):
             for line in by_scope.get('mesh_attachment', []):
                 out.extend(self._profile_pieces(
                     line, context, '%s mesh' % label, leaf.panel_no))
+            # The sized cloth line below IS the cloth, so a mesh type's own
+            # line for the same product would be a second cost for it:
+            # never two cloth costs for one panel.
+            cloth = leaf.mesh_type_id.cloth_product_id
             out.extend(self._attachment_lines(
-                leaf.mesh_type_id.line_ids, context, 'mesh',
-                '%s mesh' % label, leaf.panel_no))
+                leaf.mesh_type_id.line_ids.filtered(
+                    lambda l: not (cloth and l.product_id == cloth)),
+                context, 'mesh', '%s mesh' % label, leaf.panel_no))
             mesh_w = self._deduction_value('mesh_w')
             mesh_h = self._deduction_value('mesh_h')
             out.append({

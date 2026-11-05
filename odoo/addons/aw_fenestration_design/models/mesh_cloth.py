@@ -39,6 +39,7 @@ class AwMeshType(models.Model):
         try:
             with self.env.cr.savepoint():
                 self._seed_cloth_products()
+                self._move_cloth_lines()
         except Exception:
             _logger.exception("aw_fenestration_design: mesh cloth seed failed")
 
@@ -73,3 +74,47 @@ class AwMeshType(models.Model):
                 made += 1
             mesh.cloth_product_id = product
         return made
+
+    @api.model
+    def _move_cloth_lines(self):
+        """Move a mesh type's own cloth line onto that type's cloth product.
+
+        Each type used to carry one line for the generic "Mesh cloth"
+        product, quantity `OW * OH / 1000000` (the opening area, in m2).
+        That IS the cloth, now priced by the sqft on the cloth product, so
+        the line is pointed at it. The explosion skips a type line whose
+        product is the type's own cloth (the sized line is the cloth), which
+        is what keeps it to one cloth cost per panel.
+
+        Fill-only and idempotent: only a line still on the generic product
+        with exactly that formula moves, and only onto a type that HAS a
+        cloth product. Anything else is left alone and counted, so a line
+        that is not clearly the cloth is never guessed at. Nothing is
+        deleted.
+        """
+        Line = self.env['aw.mesh.type.line']
+        generic = self.env['product.product'].search([
+            ('name', '=', 'Mesh cloth'),
+            ('categ_id', '!=', self.env.ref(
+                'aw_fenestration_core.product_category_mesh_cloth').id)])
+        if not generic:
+            return {'moved': 0, 'waiting': 0, 'unclear': 0}
+        moved = waiting = unclear = 0
+        for line in Line.with_context(active_test=False).search(
+                [('product_id', 'in', generic.ids)]):
+            formula = ''.join((line.qty_formula or '').split())
+            if formula != 'OW*OH/1000000' or line.condition_formula:
+                unclear += 1
+                continue
+            cloth = line.mesh_type_id.cloth_product_id
+            if not cloth:
+                waiting += 1        # a type with no cloth product yet
+                continue
+            line.product_id = cloth
+            moved += 1
+        if moved or unclear:
+            _logger.info(
+                "aw_fenestration_design: mesh cloth lines: %s moved to their "
+                "type's cloth product, %s waiting for a cloth product, %s "
+                "unclear and left alone", moved, waiting, unclear)
+        return {'moved': moved, 'waiting': waiting, 'unclear': unclear}

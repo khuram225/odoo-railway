@@ -150,3 +150,62 @@ class TestMeshCloth(TransactionCase):
         for part in parts:
             self.assertEqual(part.area_sqft, 0.0)
             self.assertNotIn('per sqft', part.cost_note or '')
+
+    # -- the old type lines --------------------------------------------------------
+    def _generic_cloth(self):
+        return self.env['product.product'].create({
+            'name': 'Mesh cloth',
+            'categ_id': self.env.ref('aw_fenestration_core.product_category_fenestration').id})
+
+    def _type_line(self, product, formula='OW * OH / 1000000', **extra):
+        return self.env['aw.mesh.type.line'].create(dict({
+            'mesh_type_id': self.zig.id, 'product_id': product.id,
+            'qty_formula': formula}, **extra))
+
+    def test_a_zig_zag_panel_has_exactly_one_cloth_cost_line(self):
+        self.product.standard_price = 40.0
+        self._type_line(self.product)               # a type line for the cloth too
+        self.design._explode()
+        cloth = self.design.bom_line_ids.filtered(
+            lambda l: l.kind == 'mesh' and l.product_id == self.product
+            and l.panel_no == self.leaf.panel_no)
+        self.assertEqual(len(cloth), 1)
+        self.assertAlmostEqual(cloth.line_cost, 786.0, delta=0.5)
+        self.assertEqual(
+            len(self.design.bom_line_ids.filtered(
+                lambda l: l.kind == 'mesh' and l.line_cost)), 1)
+
+    def test_the_generic_cloth_line_moves_onto_the_types_cloth_product(self):
+        line = self._type_line(self._generic_cloth())
+        result = self.Mesh._move_cloth_lines()
+        self.assertGreaterEqual(result['moved'], 1)
+        self.assertEqual(line.product_id, self.product)
+        self.assertEqual(self.Mesh._move_cloth_lines()['moved'], 0)   # idempotent
+        # and the panel still has one cloth cost
+        self.design._explode()
+        self.assertEqual(len(self.design.bom_line_ids.filtered(
+            lambda l: l.kind == 'mesh' and l.product_id == self.product
+            and l.panel_no == self.leaf.panel_no)), 1)
+
+    def test_a_line_that_is_not_clearly_the_cloth_is_left_and_counted(self):
+        generic = self._generic_cloth()
+        other = self._type_line(generic, formula='2 * OW / 1000')
+        conditioned = self._type_line(generic, condition_formula='N > 1')
+        result = self.Mesh._move_cloth_lines()
+        self.assertGreaterEqual(result['unclear'], 2)
+        self.assertEqual(other.product_id, generic)
+        self.assertEqual(conditioned.product_id, generic)
+
+    def test_a_type_with_no_cloth_product_keeps_its_line_as_a_part(self):
+        pleated = self.Mesh.with_context(active_test=False).search(
+            [('mechanism', '=', 'pleated')], limit=1)
+        if not pleated:
+            self.skipTest("no pleated type")
+        pleated.write({'active': False, 'cloth_product_id': False})
+        generic = self._generic_cloth()
+        line = self.env['aw.mesh.type.line'].create({
+            'mesh_type_id': pleated.id, 'product_id': generic.id,
+            'qty_formula': 'OW * OH / 1000000'})
+        result = self.Mesh._move_cloth_lines()
+        self.assertGreaterEqual(result['waiting'], 1)
+        self.assertEqual(line.product_id, generic)

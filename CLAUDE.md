@@ -649,9 +649,14 @@ with a width and height) is costed `area_sqft x rate`: the BOM `qty` stays the
 integer piece count, and `area_sqft` is derived from the mesh width and
 height. A rate typed on the panel is `mesh_rate_manual` / `mesh_manual_rate` on
 the leaf, flagged manual, an info note, and cleared when the mesh type
-changes. A mesh type's OWN lines (`aw.mesh.type.line`, kind `mesh` with no
-size) are parts, costed by `standard_price` as before: the old generic "Mesh
-cloth" product is still the product of those 9 lines. Roll waste is not in
+changes. A mesh type's OWN lines (`aw.mesh.type.line`) that stood for the
+cloth (the generic "Mesh cloth" product, quantity `OW * OH / 1000000`) are
+MOVED onto the type's cloth product by `_move_cloth_lines()`: fill-only,
+idempotent, counts logged, a line with any other formula or a condition left
+alone, a type with no cloth product yet left waiting, nothing deleted. And the
+explosion skips a type line whose product is the type's own cloth, because the
+sized line IS the cloth: never two cloth costs for one panel. Any other type
+line is a part, costed by `standard_price`. Roll waste is not in
 the rate.
 
 ## Static checks
