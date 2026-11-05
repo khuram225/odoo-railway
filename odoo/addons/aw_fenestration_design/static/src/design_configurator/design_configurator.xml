@@ -1066,7 +1066,13 @@
                                         </t>
                                     </div>
 
-                                    <!-- Only a glazed panel has glass to
+                                    </t>
+
+                                    <!-- Glass is a section of its own, like
+                                         Mesh and Hardware: it used to sit
+                                         INSIDE Infill, so collapsing Infill hid
+                                         it and its heading was easy to miss.
+                                         Only a glazed panel has glass to
                                          override, so this disappears for a
                                          louvre, fan, AC cutout or solid panel. -->
                                     <t t-if="selectedPanelUsesGlass">
@@ -1112,7 +1118,6 @@
                                         </t>
                                     </t>
 
-                                    </t>
                                     <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
                                          data-aw-target="hardware"
                                          t-on-click="() => this.toggleSection('hardware')">
