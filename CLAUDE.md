@@ -701,6 +701,22 @@ the list. A blank Series is only put back in a space-typed row that starts like
 a profile code, so a row missing its code column is not mistaken for one with a
 blank series. `parse_paste` is kept for its callers and tests.
 
+## The guided rate screen (shell)
+
+Loading rates is a guided screen over the draft `aw.vendor.rate.list`: **Choose**
+(vendor, kind, effective date) then **Data in**, with Review and Confirm to
+come. `step` records where a list is (an applied list is at Confirm; old lists
+were placed by `_migrate_steps`). The date has **no default** in the menu
+actions (`default_date: False`; the field keeps its default for code and tests)
+and cannot be earlier than the newest rate IN FORCE (started, not future-dated,
+not counting this list's own) for that vendor and kind: `_check_effective_date`
+runs at Next and at the Apply button (`action_apply_checked`; `action_apply`
+itself is unchecked, so back-dated loads from code still work). The group
+**Rates manager** (included by Fenestration / Manager) holds write/create/unlink
+on rate lists, their lines, profile and glass rates and vendor layouts; everyone
+else reads. The paste box lives under an Advanced tab visible to the Rates
+manager only.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
