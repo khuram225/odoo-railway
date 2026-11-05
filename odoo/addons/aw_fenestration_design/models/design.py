@@ -1279,6 +1279,8 @@ class AwDesign(models.Model):
             'glass_catalog': self._glass_catalog(),
             'hardware_products': self.env['aw.design.hardware']
             ._product_catalogue(),
+            'hardware_category_id': self.env['aw.design.hardware']
+            ._hardware_category().id,
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
                 'kind': g.kind,

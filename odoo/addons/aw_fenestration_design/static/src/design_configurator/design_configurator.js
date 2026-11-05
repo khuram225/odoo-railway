@@ -16,6 +16,7 @@ import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
 import { SizeBox } from "./size_box";
+import { Many2One } from "@web/views/fields/many2one/many2one";
 
 const MM_PER_IN = 25.4;
 const MM_PER_SOOT = MM_PER_IN / 8; // 1 soot = 1/8 in
@@ -326,7 +327,7 @@ function saveRightTab(key) {
 
 export class DesignConfigurator extends Component {
     static template = "aw_fenestration_design.DesignConfigurator";
-    static components = { SizeBox };
+    static components = { SizeBox, Many2One };
     static props = { ...standardActionServiceProps };
 
     setup() {
@@ -382,7 +383,6 @@ export class DesignConfigurator extends Component {
             // The other box of a Width/Height pair, shown live while one
             // is being typed into: { field, source, text }.
             sizeDraft: null,
-            hardwareNewName: "",
             familyFilter: null, // family id, or null for "All"
             builderOpen: false,
             builder: { panels: 2, tracks: 2, mesh: false, roles: [] },
@@ -2215,31 +2215,64 @@ export class DesignConfigurator extends Component {
         this.state.dirty = true;
     }
 
-    /** Quick create: a name makes a product in Fenestration / Hardware. */
-    async createHardwareProduct() {
-        const name = (this.state.hardwareNewName || "").trim();
-        if (!name || !this.selectedPanel) {
+    // The picker is Odoo's own many2one: type to search, "Create" makes a
+    // product from the name, "Create and edit..." opens the product form.
+    // Both start in Fenestration / Hardware as Goods that cannot be sold.
+    // The search is over the category (children included), so a product
+    // made in Inventory in it appears here.
+    get hardwareCategoryId() {
+        return this.state.data?.hardware_category_id || false;
+    }
+
+    hardwareDomain() {
+        return [["categ_id", "child_of", this.hardwareCategoryId]];
+    }
+
+    get hardwareContext() {
+        return {
+            default_categ_id: this.hardwareCategoryId,
+            default_type: "consu",
+            default_sale_ok: false,
+            default_purchase_ok: true,
+        };
+    }
+
+    hardwareValue(row) {
+        return row.product_id
+            ? { id: row.product_id, display_name: row.name } : false;
+    }
+
+    /** What the many2one hands back: a pair, a typed name to create, or nothing. */
+    async setHardwareProductPair(index, pair) {
+        const row = this.panelHardware[index];
+        if (!row) {
             return;
         }
-        const product = await this.orm.call(
-            "aw.design", "create_hardware_product", [[this.designId], name]);
+        if (!pair) {
+            this.setHardwareProduct(index, "");
+            return;
+        }
+        let product;
+        if (pair.id) {
+            const [read] = await this.orm.read(
+                "product.product", [pair.id], ["display_name", "standard_price"]);
+            product = {
+                id: pair.id, name: read.display_name, cost: read.standard_price,
+            };
+        } else {
+            // "Create": a name makes a product, once (an existing one of
+            // that name in the category is reused).
+            product = await this.orm.call(
+                "aw.design", "create_hardware_product",
+                [[this.designId], pair.display_name]);
+        }
         if (!product) {
             return;
         }
         if (!this.hardwareProducts.some((p) => p.id === product.id)) {
-            this.state.data.hardware_products = [
-                ...this.hardwareProducts, product];
+            this.state.data.hardware_products = [...this.hardwareProducts, product];
         }
-        this.selectedPanel.hardware = [...(this.selectedPanel.hardware || []), {
-            product_id: product.id, name: product.name, qty: 1,
-            rate_manual: false, manual_rate: 0, list_rate: product.cost,
-        }];
-        this.state.hardwareNewName = "";
-        this.state.dirty = true;
-    }
-
-    setHardwareNewName(ev) {
-        this.state.hardwareNewName = ev.target.value;
+        this.setHardwareProduct(index, String(product.id));
     }
 
     copyHardwareFromPanel(ev) {
@@ -5347,6 +5380,10 @@ export class DesignConfigurator extends Component {
 
     get checkWarnings() {
         return this.checks.filter((c) => c.level === "warning");
+    }
+
+    get checkInfos() {
+        return this.checks.filter((c) => c.level === "info");
     }
 
     /** BOM sections in a fixed reading order, empty ones dropped. */

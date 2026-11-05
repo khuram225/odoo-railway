@@ -1140,19 +1140,32 @@ class AwDesign(models.Model):
         uncosted = self.bom_line_ids.filtered('cost_note').filtered(
             lambda l: l.id not in missing_lines)
         if uncosted:
-            reasons = {}
+            # A rate somebody typed is a decision, not a problem: it is an
+            # INFO note ("manual rate 70 (product cost 50)"). "Stand-in" is
+            # kept for a fallback to another vendor's rate; any other
+            # costed note is a nearby rate.
+            reasons, infos = {}, {}
             for line in uncosted:
-                key = (line.cost_note, bool(line.line_cost))
+                if line.rate_is_manual:
+                    infos[line.cost_note] = infos.get(line.cost_note, 0) + 1
+                    continue
+                key = (line.cost_note, bool(line.line_cost),
+                       bool(line.rate_is_standin))
                 reasons[key] = reasons.get(key, 0) + 1
-            for (reason, costed), count in sorted(reasons.items()):
-                # Costed with a stand-in is worth knowing, and is not the
-                # same thing as having no cost.
-                problems.append(('warning', _(
-                    "%(count)s BOM line(s) are priced with a stand-in: "
-                    "%(reason)s",
-                    count=count, reason=reason) if costed else _(
-                    "%(count)s BOM line(s) have no cost: %(reason)s.",
-                    count=count, reason=reason)))
+            for note, count in sorted(infos.items()):
+                problems.append(('info', note if count == 1 else _(
+                    "%(note)s (%(count)s lines)", note=note, count=count)))
+            for (reason, costed, standin), count in sorted(reasons.items()):
+                if not costed:
+                    text = _("%(count)s BOM line(s) have no cost: %(reason)s.",
+                             count=count, reason=reason)
+                elif standin:
+                    text = _("%(count)s BOM line(s) are priced with a stand-in: "
+                             "%(reason)s", count=count, reason=reason)
+                else:
+                    text = _("%(count)s BOM line(s) are priced from a nearby "
+                             "rate: %(reason)s", count=count, reason=reason)
+                problems.append(('warning', text))
 
         # A divider carrying more than its option is rated for. Never a
         # block: the shop may know better than the table, and the table
@@ -1359,5 +1372,6 @@ class AwDesignCheck(models.Model):
     level = fields.Selection([
         ('error', 'Error'),
         ('warning', 'Warning'),
+        ('info', 'Info'),
     ], required=True, default='warning')
     message = fields.Char(required=True)

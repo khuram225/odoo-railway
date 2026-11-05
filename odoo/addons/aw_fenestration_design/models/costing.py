@@ -355,6 +355,7 @@ class AwDesign(models.Model):
                         * rate.price * (line.qty or 0))
                     # A fallback is a rate for something else: never silent.
                     if used_fallback:
+                        line.rate_is_standin = True
                         note = _(
                             "No %(vendor)s rate for %(variant)s: %(standin)s "
                             "rate used.",

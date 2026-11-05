@@ -162,3 +162,29 @@ class TestHardwarePerPanel(TransactionCase):
         Type.search([('code', '=', 'FIXED')]).needs_hardware = True
         self.assertEqual(Type._seed_needs_hardware(), 0)       # once
         self.assertTrue(Type.search([('code', '=', 'FIXED')]).needs_hardware)
+
+    def test_following_the_spec_then_saving_gives_the_per_panel_warning(self):
+        """The Follow the spec button clears the panel's rows in the layout
+        it sends; saving explodes again, so the warning must come back."""
+        self._set(self.leaf_a, [self._row(1)])
+        data = self.design.get_configurator_data()
+        data['rows'][0]['leaves'][0]['hardware'] = []
+        self.design.save_layout({'header': data['header'], 'rows': data['rows']})
+        leaf = self.design.row_ids.leaf_ids.sorted('panel_no')[0]
+        self.assertFalse(leaf.hardware_ids)
+        text = ' '.join(self.design.check_line_ids.mapped('message'))
+        self.assertIn('Panel %s (%s): no hardware' % (
+            leaf.panel_no, self.needs.display_name), text)
+
+    def test_a_typed_rate_is_an_info_note_not_a_warning(self):
+        self._set(self.leaf_a, [self._row(2, rate_manual=True, manual_rate=70.0)])
+        self.design._explode()
+        infos = self.design.check_line_ids.filtered(lambda c: c.level == 'info')
+        self.assertTrue(any('manual rate' in c.message and '70' in c.message
+                            and '50' in c.message for c in infos))
+        warnings = self.design.check_line_ids.filtered(
+            lambda c: c.level == 'warning')
+        self.assertFalse([c for c in warnings if 'manual rate' in c.message])
+        self.assertFalse([c for c in warnings if 'stand-in' in c.message])
+        self.assertEqual(self.design.check_warning_count,
+                         len(warnings))

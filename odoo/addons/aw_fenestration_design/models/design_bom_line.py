@@ -124,6 +124,10 @@ class AwDesignBomLine(models.Model):
         digits='Product Price',
         help="The rate typed for this line (hardware today), used when "
              "Manual rate is set.")
+    rate_is_standin = fields.Boolean(
+        string='Stand-in rate',
+        help="Priced from ANOTHER vendor's rate because the order's vendor "
+             "has none.")
     rate_is_manual = fields.Boolean(
         string='Manual rate',
         help="The rate used was typed for this panel, not the list rate.")

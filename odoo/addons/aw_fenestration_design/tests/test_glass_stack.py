@@ -317,3 +317,12 @@ class TestGlassStack(TransactionCase):
             lambda c: 'glass size is 0' in c.message)
         self.assertTrue(warnings)
         self.assertIn('Panel 1', warnings[0].message)
+
+    def test_a_typed_glass_rate_is_an_info_note_not_a_stand_in_warning(self):
+        self._set_header([self._sheet(6, rate_manual=True, manual_rate=55.0)])
+        self.design._explode()
+        checks = self.design.check_line_ids
+        self.assertTrue(checks.filtered(
+            lambda c: c.level == 'info' and 'manual rate' in c.message))
+        self.assertFalse(checks.filtered(
+            lambda c: c.level == 'warning' and 'stand-in' in c.message))
