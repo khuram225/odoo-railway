@@ -1578,5 +1578,77 @@ console.log("\n  the Frame label is the SHORT name:");
     ok(!/from the form/i.test(xml), "no text says to generate the cut list from the form");
 }
 
+{
+    // Parts tab: glass (window default), glass on panels, hardware on panels.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"), panel(600, "FIXED"), panel(600, "CASEMENT"),
+    ] }], 1800, 1500);
+    c.notification = { add: () => {} };
+    c.state.data.hardware_products = [{ id: 7, name: "Roller", cost: 50 }];
+    c.state.data.header.glass_stack = [
+        { kind: "sheet", label: "6 mm Clear" }, { kind: "gap", label: "12 mm gap" },
+        { kind: "sheet", label: "6 mm Clear" }];
+    const leaves = c.state.data.rows[0].leaves;
+    leaves[2].glass_parts = [{ kind: "sheet", label: "8 mm Ford Blue" }];
+    leaves[0].hardware = [
+        { product_id: 7, name: "Roller", qty: 2, rate_manual: false, manual_rate: 0, list_rate: 50 },
+        { product_id: 7, name: "Roller", qty: 1, rate_manual: true, manual_rate: 70, list_rate: 50 }];
+
+    // the window default is a collapsed section like Outer frame
+    c.state.collapsed = {};
+    ok(c.isCollapsed("prof:glass"), "Glass (window default) starts collapsed");
+    const store = {};
+    const saved = globalThis.window.localStorage;
+    globalThis.window.localStorage = {
+        setItem: (k, v) => { store[k] = v; }, getItem: (k) => (k in store ? store[k] : null) };
+    c.toggleSection("prof:glass");
+    ok(!c.isCollapsed("prof:glass") && JSON.parse(store.aw_cfg_collapsed)["prof:glass"] === false,
+       "its heading opens it and the state is kept");
+    globalThis.window.localStorage = saved;
+    ok(c.headerStack.length === 3, "the badge is the number of layers");
+
+    // glass on panels: one row per panel that takes glass
+    const rows = c.panelGlassRows;
+    ok(rows.map((r) => r.no).join() === "1,2,3", "a row per panel");
+    ok(rows[0].follows && rows[0].summary === "6 mm Clear + 12 mm gap + 6 mm Clear",
+       "a panel that follows shows the window's stack");
+    ok(!rows[2].follows && rows[2].summary === "8 mm Ford Blue", "a panel with its own shows its own");
+
+    // hardware on panels: one row per hardware row, and the badge is the total
+    const hw = c.panelHardwareRows;
+    ok(hw.length === 2 && hw[0].no === 1 && hw[0].name === "Roller", "a row per hardware row, with its panel");
+    ok(hw[0].rate === 50 && hw[0].cost === 100 && !hw[0].manual, "list rate and cost");
+    ok(hw[1].rate === 70 && hw[1].cost === 70 && hw[1].manual, "a typed rate is shown as manual");
+    c.state.data.spec_parts = { hardware: [{ line_id: 1 }, { line_id: 2 }, { line_id: 3 }] };
+    ok(c.partsHardwareCount === 5, "the badge is the series set plus the panel rows");
+
+    // a click selects the panel and opens its section
+    c.state.collapsed = {};
+    c.state.rightTab = "spec";
+    c.goToPanelGlass(3);
+    ok(JSON.stringify(c.state.selected) === JSON.stringify([[0, 2]]) && c.state.rightTab === "panel"
+       && c.state.collapsed.glass === false, "a glass row selects the panel and opens Glass");
+    c.state.rightTab = "spec";
+    c.goToPanelHardware(1);
+    ok(JSON.stringify(c.state.selected) === JSON.stringify([[0, 0]]) && c.state.rightTab === "panel"
+       && c.state.collapsed.hardware === false, "a hardware row selects the panel and opens Hardware");
+    // Checks links still go the same way
+    c.goToCheck({ target_kind: "hardware", panel_no: 3 });
+    ok(JSON.stringify(c.state.selected) === JSON.stringify([[0, 2]]), "Checks links keep working");
+
+    // the markup
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    ok(xml.includes("Glass (window default)") && !xml.includes("Window glass (new panels start from this)"),
+       "the window glass section is renamed");
+    ok(xml.includes("toggleSection('prof:glass')") && xml.includes("toggleSection('prof:panelglass')"),
+       "both glass sections have an arrow");
+    ok(xml.includes('data-aw-parts="series-set"') && xml.includes('data-aw-parts="on-panels"'),
+       "Hardware has Series set and On panels");
+    ok(xml.includes("No hardware yet. Select a panel and use + Hardware in the Panel tab."),
+       "the empty text says what to do");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

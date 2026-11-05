@@ -2132,6 +2132,61 @@ export class DesignConfigurator extends Component {
         })).filter((p) => p.leaf);
     }
 
+    // -- Parts tab: glass and hardware ON PANELS ---------------------------
+    /** One row per panel that takes glass: a short summary of its stack and
+     * whether it follows the window. */
+    get panelGlassRows() {
+        return this.hardwarePanels.filter(({ leaf }) => {
+            const type = (this.state.data.leaf_types || []).find(
+                (lt) => lt.id === leaf.leaf_type_id);
+            return leaf.leaf_type_code !== "MESH"
+                && leaf.infill_uses_glass !== false
+                && !(type && type.code === "MESH");
+        }).map(({ no, leaf }) => {
+            const own = (leaf.glass_parts || []).length > 0;
+            return {
+                no,
+                follows: !own,
+                summary: this.stackSummary(own ? leaf.glass_parts : this.headerStack)
+                    || _t("No glass"),
+            };
+        });
+    }
+
+    /** One row per hardware row on a panel: panel, product, qty, rate, cost. */
+    get panelHardwareRows() {
+        const rows = [];
+        for (const { no, leaf } of this.hardwarePanels) {
+            (leaf.hardware || []).forEach((row, index) => {
+                rows.push({
+                    key: `${no}:${index}`,
+                    no,
+                    name: row.name || _t("(no product)"),
+                    qty: row.qty,
+                    rate: this.hardwareRateUsed(row),
+                    manual: !!row.rate_manual,
+                    cost: this.hardwareCost(row),
+                });
+            });
+        }
+        return rows;
+    }
+
+    /** The Hardware badge: the series set plus every row on a panel. */
+    get partsHardwareCount() {
+        return this.specHardware.length + this.panelHardwareRows.length;
+    }
+
+    /** A row click: select the panel and open its Glass section. */
+    goToPanelGlass(no) {
+        this.goToCheck({ target_kind: "glass", panel_no: no });
+    }
+
+    /** A row click: select the panel and open its Hardware section. */
+    goToPanelHardware(no) {
+        this.goToCheck({ target_kind: "hardware", panel_no: no });
+    }
+
     get otherHardwarePanels() {
         return this.hardwarePanels.filter((p) => p.leaf !== this.selectedPanel);
     }
