@@ -82,9 +82,9 @@ case('a missing code column (header)', '\n'.join([
     T.join(['Thickness', 'Series', 'DULL', 'BRO', 'H.23']),
     T.join(['1.6MM', 'S1', '100', '110', '120'])]), stops('no code column'))
 case('a missing code column (no header): the row is one cell short', T.join(
-    ['1.6MM', 'S1', '100', '110', '120']), stops('Row 1', '5 cells'))
+    ['1.6MM', 'S1', '100', '110', '120']), stops('All rows have 5 cells', 'this layout has 6'))
 case('a missing code column typed with spaces is not a blank series',
-     '1.6MM  100  110  120  130', stops('Row 1'))
+     '1.6MM  100  110  120  130', stops('All rows have 5 cells'))
 
 # cell counts
 case('a dropped middle cell', '\n'.join([
@@ -139,6 +139,110 @@ case('a space-typed row with a blank series', 'B-6  NOR  136 147 137',
      lambda r: '' if not r['errors'] and r['rows'][0]['code'] == 'B-6'
      and r['rows'][0]['rates'] == [136.0, 147.0, 137.0] else 'got %s' % r)
 case('nothing to read', '  \n \n', stops('nothing to read'))
+
+# -- the wrong vendor's sheet, said once ---------------------------------------
+CHAWLA = [
+    {'kind': 'code', 'header': 'profile_code', 'finish': ''},
+    {'kind': 'thickness', 'header': 'thickness', 'finish': ''},
+] + [{'kind': 'finish', 'header': h, 'finish': h} for h in (
+    'natural', 'h23_pc_ral', 'brown_pc_sahara', 'black_multi_ss_dull',
+    'designer', 'c_shine')]
+PREMIUM = LAYOUT[:3] + [{'kind': 'finish', 'header': h, 'finish': h} for h in (
+    'DULL', 'BRO', 'H.23', 'RAL P.C', 'BLACK', 'SHARA', 'WOOD')]
+OTHERS_FOR_CHAWLA = [{'vendor': 'Premium', 'width': len(PREMIUM)}]
+OTHERS_FOR_PREMIUM = [{'vendor': 'Chawla', 'width': len(CHAWLA)}]
+PREMIUM_SHEET = '\n'.join([
+    T.join(['Section #', 'Thickness', 'Series', 'DULL', 'BRO', 'H.23', 'RAL P.C',
+            'BLACK', 'SHARA', 'WOOD']),
+    T.join(['D-38', '1.6MM', 'S1'] + ['100'] * 7),
+    T.join(['D-40', '2MM', 'S1'] + ['200'] * 7),
+    T.join(['D-41', '2MM', 'S1'] + ['300'] * 7)])
+CHAWLA_SHEET = '\n'.join([
+    T.join(['Profile Name', 'Thick', 'Natural', 'H23 PC RAL', 'Brown', 'Black',
+            'Designer', 'C Shine']),
+    T.join(['D-38', '1.6MM'] + ['100'] * 6),
+    T.join(['D-40', '2MM'] + ['200'] * 6)])
+
+
+def vendor_case(name, text, layout, others, words, not_words=()):
+    global failed
+    result = validate(text, layout, others)
+    messages = [e['message'] for e in result['errors']]
+    joined = ' '.join(messages)
+    problem = ''
+    if len(messages) != 1:
+        problem = 'expected ONE line, got %d: %s' % (len(messages), messages)
+    elif result['rows']:
+        problem = 'rows were returned'
+    else:
+        missing = [w for w in words if w not in joined]
+        present = [w for w in not_words if w in joined]
+        if missing or present:
+            problem = 'missing %s, unexpected %s in: %s' % (missing, present, joined)
+    ok = not problem
+    failed += not ok
+    print(('  ok   ' if ok else '  FAIL ') + name + ('' if ok else '  -> ' + problem))
+
+
+vendor_case('a whole Premium sheet pasted into a Chawla list, said once',
+            PREMIUM_SHEET, CHAWLA, OTHERS_FOR_CHAWLA,
+            ['All rows have 10 cells, this layout has 8',
+             "another vendor's sheet", 'Check the vendor',
+             'A sheet with 10 cells matches the layout of Premium'],
+            not_words=['Row 2', 'Unknown header'])
+vendor_case('a Chawla sheet pasted into a Premium list, said once',
+            CHAWLA_SHEET, PREMIUM, OTHERS_FOR_PREMIUM,
+            ['All rows have 8 cells, this layout has 10',
+             'A sheet with 8 cells matches the layout of Chawla'],
+            not_words=['Row 2'])
+vendor_case('a sheet that matches no other vendor still says it once, without a name',
+            '\n'.join([T.join(['a', 'b', 'c']), T.join(['D-1', '2MM', '5'])]),
+            PREMIUM, OTHERS_FOR_PREMIUM,
+            ['All rows have 3 cells, this layout has 10', 'Check the vendor'],
+            not_words=['matches the layout'])
+vendor_case('with no header, every row the wrong width',
+            '\n'.join([T.join(['D-38', '1.6MM'] + ['100'] * 6),
+                       T.join(['D-40', '2MM'] + ['200'] * 6)]),
+            PREMIUM, OTHERS_FOR_PREMIUM,
+            ['All rows have 8 cells, this layout has 10', 'Chawla'])
+
+# one row with a dropped cell among good ones: the row, not a claim about the vendor
+ONE_DROPPED = '\n'.join([
+    T.join(['Section #', 'Thickness', 'Series', 'DULL', 'BRO', 'H.23']),
+    T.join(['D-38', '1.6MM', 'S1', '100', '110', '120']),
+    T.join(['D-39', '1.6MM', 'S1', '100', '120']),
+    T.join(['D-40', '1.6MM', 'S1', '100', '110', '120'])])
+result = validate(ONE_DROPPED, LAYOUT, OTHERS_FOR_PREMIUM)
+messages = [e['message'] for e in result['errors']]
+problem = ''
+if len(messages) != 1 or 'Row 3' not in messages[0] or 'another vendor' in messages[0]:
+    problem = str(messages)
+failed += bool(problem)
+print(('  ok   ' if not problem else '  FAIL ') + 'one row with a dropped cell names that row only'
+      + ('' if not problem else '  -> ' + problem))
+
+# several rows differ, but not all: each keeps its own error (the screen shows 5, then "and N more")
+SOME = '\n'.join([HEADER] + [T.join(['D-%d' % n, '1.6MM', 'S1', '100', '110'])
+                             for n in range(1, 9)]
+                 + [T.join(['D-99', '1.6MM', 'S1', '100', '110', '120'])])
+result = validate(SOME, LAYOUT, OTHERS_FOR_PREMIUM)
+problem = ''
+if len(result['errors']) != 8 or any('another vendor' in e['message'] for e in result['errors']):
+    problem = '%d errors' % len(result['errors'])
+failed += bool(problem)
+print(('  ok   ' if not problem else '  FAIL ') + 'some rows differing keep their per-row errors'
+      + ('' if not problem else '  -> ' + problem))
+
+# every row short by the same cell, with a header: one sentence
+ALL_DROPPED = '\n'.join([HEADER] + [T.join(['D-%d' % n, '1.6MM', 'S1', '100', '110'])
+                                    for n in range(1, 4)])
+result = validate(ALL_DROPPED, LAYOUT, OTHERS_FOR_PREMIUM)
+messages = [e['message'] for e in result['errors']]
+problem = '' if (len(messages) == 1
+                 and 'All rows have 5 cells, the header has 6' in messages[0]) else str(messages)
+failed += bool(problem)
+print(('  ok   ' if not problem else '  FAIL ') + 'every row short by the same cell is one sentence'
+      + ('' if not problem else '  -> ' + problem))
 
 if failed:
     print('%d FAILED' % failed)

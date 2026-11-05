@@ -674,15 +674,25 @@ class AwVendorRateList(models.Model):
             'kind': c.kind, 'header': c.header or '',
             'finish': c.finish_id.name or '',
         } for c in layout.column_ids.sorted('sequence')]
-        result = validate_paste(self.paste_text, columns)
+        others = [{
+            'vendor': other.vendor_id.display_name,
+            'width': len(other.column_ids),
+        } for other in self.env['aw.vendor.layout'].search(
+            [('vendor_id', '!=', self.vendor_id.id)])]
+        result = validate_paste(self.paste_text, columns, others)
         if result['errors']:
-            shown = result['errors'][:12]
+            shown = result['errors'][:5]
             more = len(result['errors']) - len(shown)
             raise UserError(_(
-                "Nothing was imported: the paste cannot be read safely.\n"
-                "%(problems)s%(more)s",
+                "Nothing was imported from this paste. Vendor: %(vendor)s. "
+                "Layout: %(layout)s, %(count)s columns (%(columns)s). Your "
+                "text is still in the box.\n%(problems)s%(more)s",
+                vendor=self.vendor_id.display_name,
+                layout=layout.display_name, count=len(columns),
+                columns=', '.join(c['header'] or c['finish'] or c['kind']
+                                  for c in columns),
                 problems='\n'.join(e['message'] for e in shown),
-                more=_("\n... and %s more.", more) if more else ''))
+                more=_("\nand %s more.", more) if more else ''))
         rows = result['rows']
         if not rows:
             columns = layout.column_ids.sorted('sequence')
