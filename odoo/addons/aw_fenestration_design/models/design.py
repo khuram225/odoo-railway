@@ -1279,6 +1279,8 @@ class AwDesign(models.Model):
             'glass_catalog': self._glass_catalog(),
             'hardware_products': self.env['aw.design.hardware']
             ._product_catalogue(),
+            'hardware_category_id': self.env['aw.design.hardware']
+            ._hardware_category().id,
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
                 'kind': g.kind,
@@ -1587,6 +1589,7 @@ class AwDesign(models.Model):
             'pieces': [{
                 'id': line.id,
                 'panel_no': line.panel_no or 0,
+                'piece_key': line.piece_key or '',
                 'label': line.label or '',
                 **self._piece_part(line),
                 # The profile the piece is cut from, for the row's own
@@ -1621,6 +1624,11 @@ class AwDesign(models.Model):
             'checks': [{
                 'level': c.level,
                 'message': c.message,
+                'target_kind': c.target_kind or '',
+                'panel_no': c.panel_no or 0,
+                'target_key': c.target_key or '',
+                'target_model': c.target_model or '',
+                'target_res_id': c.target_res_id or 0,
             } for c in self.check_line_ids],
         }
 

@@ -162,3 +162,94 @@ class TestHardwarePerPanel(TransactionCase):
         Type.search([('code', '=', 'FIXED')]).needs_hardware = True
         self.assertEqual(Type._seed_needs_hardware(), 0)       # once
         self.assertTrue(Type.search([('code', '=', 'FIXED')]).needs_hardware)
+
+    def test_following_the_spec_then_saving_gives_the_per_panel_warning(self):
+        """The Follow the spec button clears the panel's rows in the layout
+        it sends; saving explodes again, so the warning must come back."""
+        self._set(self.leaf_a, [self._row(1)])
+        data = self.design.get_configurator_data()
+        data['rows'][0]['leaves'][0]['hardware'] = []
+        self.design.save_layout({'header': data['header'], 'rows': data['rows']})
+        leaf = self.design.row_ids.leaf_ids.sorted('panel_no')[0]
+        self.assertFalse(leaf.hardware_ids)
+        text = ' '.join(self.design.check_line_ids.mapped('message'))
+        self.assertIn('Panel %s (%s): no hardware' % (
+            leaf.panel_no, self.needs.display_name), text)
+
+    def test_a_typed_rate_is_an_info_note_not_a_warning(self):
+        self._set(self.leaf_a, [self._row(2, rate_manual=True, manual_rate=70.0)])
+        self.design._explode()
+        infos = self.design.check_line_ids.filtered(lambda c: c.level == 'info')
+        self.assertTrue(any('manual rate' in c.message and '70' in c.message
+                            and '50' in c.message for c in infos))
+        warnings = self.design.check_line_ids.filtered(
+            lambda c: c.level == 'warning')
+        self.assertFalse([c for c in warnings if 'manual rate' in c.message])
+        self.assertFalse([c for c in warnings if 'stand-in' in c.message])
+        self.assertEqual(self.design.check_warning_count,
+                         len(warnings))
+
+    # -- Checks as links ---------------------------------------------------------
+    def _checks(self, text):
+        return self.design.check_line_ids.filtered(lambda c: text in c.message)
+
+    def test_the_no_hardware_warning_leads_to_the_panel_by_number(self):
+        self._set(self.leaf_a, [])
+        self.design._explode()
+        check = self._checks('no hardware')[:1]
+        self.assertEqual(check.target_kind, 'hardware')
+        self.assertEqual(check.panel_no, self.leaf_a.panel_no)
+        self.assertFalse(check.target_res_id)       # no row id to go stale
+
+    def test_a_link_is_the_same_after_a_recompute(self):
+        self._set(self.leaf_a, [])
+        self.design._explode()
+        before = [(c.target_kind, c.panel_no, c.target_key)
+                  for c in self.design.check_line_ids]
+        self.design.action_recompute_cut_list()
+        after = [(c.target_kind, c.panel_no, c.target_key)
+                 for c in self.design.check_line_ids]
+        self.assertEqual(sorted(before), sorted(after))
+
+    def test_glass_of_size_zero_leads_to_the_panels_glass(self):
+        spec = self.design.template_id
+        for record in (spec, spec.window_type_id):
+            record.write({f: False for f in (
+                'glass_fixed_w', 'glass_fixed_h', 'glass_sash_w',
+                'glass_sash_h', 'mesh_w', 'mesh_h')})
+        self._set(self.leaf_a, [self._row(1)])
+        self.design._explode()
+        check = self._checks('glass size is 0')[:1]
+        self.assertEqual((check.target_kind, check.panel_no),
+                         ('glass', self.leaf_a.panel_no))
+
+    def test_a_no_cost_warning_names_and_opens_the_product(self):
+        free = self.env['product.product'].create({
+            'name': 'Free latch',
+            'categ_id': self.env.ref('aw_fenestration_core.product_category_hardware').id,
+            'standard_price': 0.0})
+        self._set(self.leaf_a, [{'product_id': free.id, 'qty': 1}])
+        self.design._explode()
+        check = self._checks('Free latch has no cost price')[:1]
+        self.assertTrue(check)
+        self.assertEqual(
+            (check.target_kind, check.target_model, check.target_res_id),
+            ('record', 'product.product', free.id))
+
+    def test_a_typed_rate_note_leads_to_the_panels_hardware(self):
+        self._set(self.leaf_a, [self._row(1, rate_manual=True, manual_rate=70.0)])
+        self.design._explode()
+        check = self._checks('manual rate')[:1]
+        self.assertEqual((check.level, check.target_kind, check.panel_no),
+                         ('info', 'hardware', self.leaf_a.panel_no))
+
+    def test_the_payload_carries_the_target(self):
+        self._set(self.leaf_a, [])
+        self.design._explode()
+        checks = self.design.get_configurator_data()['checks']
+        mine = [c for c in checks if 'no hardware' in c['message']]
+        self.assertTrue(mine)
+        for key in ('target_kind', 'panel_no', 'target_key', 'target_model',
+                    'target_res_id'):
+            self.assertIn(key, mine[0])
+        self.assertEqual(mine[0]['target_kind'], 'hardware')

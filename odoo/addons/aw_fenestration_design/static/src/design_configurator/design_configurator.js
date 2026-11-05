@@ -16,6 +16,7 @@ import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
 import { SizeBox } from "./size_box";
+import { Many2One } from "@web/views/fields/many2one/many2one";
 
 const MM_PER_IN = 25.4;
 const MM_PER_SOOT = MM_PER_IN / 8; // 1 soot = 1/8 in
@@ -326,7 +327,7 @@ function saveRightTab(key) {
 
 export class DesignConfigurator extends Component {
     static template = "aw_fenestration_design.DesignConfigurator";
-    static components = { SizeBox };
+    static components = { SizeBox, Many2One };
     static props = { ...standardActionServiceProps };
 
     setup() {
@@ -382,7 +383,6 @@ export class DesignConfigurator extends Component {
             // The other box of a Width/Height pair, shown live while one
             // is being typed into: { field, source, text }.
             sizeDraft: null,
-            hardwareNewName: "",
             familyFilter: null, // family id, or null for "All"
             builderOpen: false,
             builder: { panels: 2, tracks: 2, mesh: false, roles: [] },
@@ -2215,31 +2215,64 @@ export class DesignConfigurator extends Component {
         this.state.dirty = true;
     }
 
-    /** Quick create: a name makes a product in Fenestration / Hardware. */
-    async createHardwareProduct() {
-        const name = (this.state.hardwareNewName || "").trim();
-        if (!name || !this.selectedPanel) {
+    // The picker is Odoo's own many2one: type to search, "Create" makes a
+    // product from the name, "Create and edit..." opens the product form.
+    // Both start in Fenestration / Hardware as Goods that cannot be sold.
+    // The search is over the category (children included), so a product
+    // made in Inventory in it appears here.
+    get hardwareCategoryId() {
+        return this.state.data?.hardware_category_id || false;
+    }
+
+    hardwareDomain() {
+        return [["categ_id", "child_of", this.hardwareCategoryId]];
+    }
+
+    get hardwareContext() {
+        return {
+            default_categ_id: this.hardwareCategoryId,
+            default_type: "consu",
+            default_sale_ok: false,
+            default_purchase_ok: true,
+        };
+    }
+
+    hardwareValue(row) {
+        return row.product_id
+            ? { id: row.product_id, display_name: row.name } : false;
+    }
+
+    /** What the many2one hands back: a pair, a typed name to create, or nothing. */
+    async setHardwareProductPair(index, pair) {
+        const row = this.panelHardware[index];
+        if (!row) {
             return;
         }
-        const product = await this.orm.call(
-            "aw.design", "create_hardware_product", [[this.designId], name]);
+        if (!pair) {
+            this.setHardwareProduct(index, "");
+            return;
+        }
+        let product;
+        if (pair.id) {
+            const [read] = await this.orm.read(
+                "product.product", [pair.id], ["display_name", "standard_price"]);
+            product = {
+                id: pair.id, name: read.display_name, cost: read.standard_price,
+            };
+        } else {
+            // "Create": a name makes a product, once (an existing one of
+            // that name in the category is reused).
+            product = await this.orm.call(
+                "aw.design", "create_hardware_product",
+                [[this.designId], pair.display_name]);
+        }
         if (!product) {
             return;
         }
         if (!this.hardwareProducts.some((p) => p.id === product.id)) {
-            this.state.data.hardware_products = [
-                ...this.hardwareProducts, product];
+            this.state.data.hardware_products = [...this.hardwareProducts, product];
         }
-        this.selectedPanel.hardware = [...(this.selectedPanel.hardware || []), {
-            product_id: product.id, name: product.name, qty: 1,
-            rate_manual: false, manual_rate: 0, list_rate: product.cost,
-        }];
-        this.state.hardwareNewName = "";
-        this.state.dirty = true;
-    }
-
-    setHardwareNewName(ev) {
-        this.state.hardwareNewName = ev.target.value;
+        this.setHardwareProduct(index, String(product.id));
     }
 
     copyHardwareFromPanel(ev) {
@@ -5347,6 +5380,122 @@ export class DesignConfigurator extends Component {
 
     get checkWarnings() {
         return this.checks.filter((c) => c.level === "warning");
+    }
+
+    get checkInfos() {
+        return this.checks.filter((c) => c.level === "info");
+    }
+
+    // -- Checks as links ----------------------------------------------------
+    // A check carries where it leads: a panel NUMBER and a stable key (the
+    // piece key), or a record. Nothing here holds the id of a row that a
+    // Recompute or a save replaces, so a link still works after either.
+    checkHasTarget(chk) {
+        return !!chk.target_kind;
+    }
+
+    /** The element a check points at, as the data-aw-target the markup carries. */
+    checkTargetName(chk) {
+        switch (chk.target_kind) {
+            case "glass":
+                return "glass";
+            case "hardware":
+                return "hardware";
+            case "piece":
+                return `piece:${chk.target_key}`;
+            default:
+                return "";
+        }
+    }
+
+    selectPanelByNumber(panelNo) {
+        if (!panelNo) {
+            // 0 is the frame and the dividers.
+            this.state.selected = null;
+            this.state.multiSel = [];
+            return true;
+        }
+        const entry = (this.scene?.leaves || []).find((e) => e.panelNo === panelNo);
+        if (!entry) {
+            return false;
+        }
+        this.selectLeaf(entry.path);
+        return true;
+    }
+
+    /** Open the groups a piece sits under, so its row exists to scroll to. */
+    revealPiece(chk) {
+        const piece = (this.state.data?.pieces || []).find(
+            (p) => p.piece_key === chk.target_key && p.panel_no === chk.panel_no);
+        if (!piece) {
+            return;
+        }
+        const next = {
+            ...this.state.collapsed,
+            [`pcs:${piece.scope_key}`]: false,
+            [`pc:${piece.scope_key}:${piece.part_key}`]: false,
+        };
+        this.state.collapsed = next;
+        saveCollapsed(next);
+    }
+
+    flash(name) {
+        setTimeout(() => {
+            const el = name
+                ? document.querySelector(`[data-aw-target="${name}"]`) : null;
+            if (!el) {
+                return;
+            }
+            el.scrollIntoView({ block: "center" });
+            el.classList.add("o_aw_flash");
+            setTimeout(() => el.classList.remove("o_aw_flash"), 2000);
+        }, 80);
+    }
+
+    /** A click on a Checks row: select the panel, open the tab, show the row. */
+    goToCheck(chk) {
+        const kind = chk.target_kind;
+        if (!kind) {
+            return;
+        }
+        if (kind === "record") {
+            this.openCheckRecord(chk);
+            return;
+        }
+        if (!this.selectPanelByNumber(chk.panel_no)) {
+            this.notification.add(
+                _t("Panel %(no)s is not in the drawing any more.", { no: chk.panel_no }),
+                { type: "warning" });
+            return;
+        }
+        this.setRightTab("panel");
+        const next = { ...this.state.collapsed, panel: false };
+        if (kind === "hardware") {
+            next.hardware = false;
+        }
+        this.state.collapsed = next;
+        saveCollapsed(next);
+        if (kind === "piece") {
+            this.revealPiece(chk);
+        }
+        this.flash(this.checkTargetName(chk));
+    }
+
+    /**
+     * A product, a profile or a spec line opens in a dialog so the
+     * configurator keeps its unsaved state. The dialog's Expand button
+     * opens the full page.
+     */
+    openCheckRecord(chk) {
+        if (!chk.target_model || !chk.target_res_id) {
+            return;
+        }
+        this.dialog.add(FormViewDialog, {
+            resModel: chk.target_model,
+            resId: chk.target_res_id,
+            title: chk.message,
+            canExpand: true,
+        });
     }
 
     /** BOM sections in a fixed reading order, empty ones dropped. */

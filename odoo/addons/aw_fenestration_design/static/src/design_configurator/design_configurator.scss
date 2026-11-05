@@ -318,3 +318,19 @@
     white-space: nowrap;
     text-overflow: ellipsis;
 }
+
+// Checks as links: a row with a target is clickable, and the row it leads to
+// flashes for a moment so the eye finds it.
+.o_aw_check_link {
+    cursor: pointer;
+    text-decoration: underline dotted;
+}
+
+.o_aw_flash {
+    animation: o_aw_flash 2s ease-out;
+}
+
+@keyframes o_aw_flash {
+    0%, 60% { background-color: rgba(255, 193, 7, 0.45); }
+    100% { background-color: transparent; }
+}

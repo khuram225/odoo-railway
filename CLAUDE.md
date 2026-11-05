@@ -620,6 +620,23 @@ picker makes a price-free product through `sudo()` with fixed values, because
 a quoting user may not be able to create products. A hardware BOM line keeps
 the product cost in `rate_list`; its typed rate is `manual_rate`.
 
+## Checks as links
+
+A Checks row (`aw.design.check`) can carry where it leads: `target_kind`
+(panel, glass, hardware, piece, record), a `panel_no`, a `target_key`, or a
+`target_model` + `target_res_id` for a record. **Targets are stored by panel
+NUMBER and a stable key** (the BOM line's `piece_key`), or by the record
+itself (a product, a spec line, the spec), never by the id of a BOM line, glass
+part or hardware row, because a Recompute or a save replaces those and the link
+would lead nowhere. Build a problem with `self._target(...)` /
+`self._record_target(record)` and pass it as the third item of the tuple; a
+check with no target stays plain text. In the configurator `goToCheck()`
+selects the panel (0 is the frame), opens the Panel tab and its sections, and
+flashes the row named by `data-aw-target`; a record opens in a
+`FormViewDialog` whose built-in Expand button is the "open full page" link,
+so the configurator keeps its unsaved state. Every no-cost note names its
+product, so the grouped warning leads to a product.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

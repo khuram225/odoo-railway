@@ -101,6 +101,7 @@ class AwDesignHardware(models.Model):
             'name': name,
             'categ_id': self._hardware_category().id,
             'type': 'consu',
+            'sale_ok': False,
         })
         return {'id': product.id, 'name': product.display_name,
                 'cost': product.standard_price or 0.0}

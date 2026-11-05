@@ -1070,7 +1070,7 @@
                                          override, so this disappears for a
                                          louvre, fan, AC cutout or solid panel. -->
                                     <t t-if="selectedPanelUsesGlass">
-                                        <div class="small text-muted mb-1">
+                                        <div class="small text-muted mb-1" data-aw-target="glass">
                                             Glass
                                             <span t-if="selectedPanel.glass_suggested"
                                                   class="badge text-bg-info ms-1"
@@ -1109,6 +1109,7 @@
 
                                     </t>
                                     <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                         data-aw-target="hardware"
                                          t-on-click="() => this.toggleSection('hardware')">
                                         <i t-att-class="sectionIcon('hardware')"/>
                                         <span>Hardware</span>
@@ -1124,14 +1125,15 @@
                                         <div t-foreach="panelHardware" t-as="hw" t-key="hw_index"
                                              class="border rounded p-1 mb-1 small">
                                             <div class="d-flex gap-1 align-items-center">
-                                                <select class="form-select form-select-sm"
-                                                        t-on-change="(ev) => this.setHardwareProduct(hw_index, ev.target.value)">
-                                                    <option value="" t-att-selected="!hw.product_id">Product...</option>
-                                                    <option t-foreach="hardwareProducts" t-as="prod" t-key="prod.id"
-                                                            t-att-value="prod.id"
-                                                            t-att-selected="prod.id === hw.product_id"
-                                                            t-esc="prod.name"/>
-                                                </select>
+                                                <Many2One relation="'product.product'"
+                                                          string="'Hardware'"
+                                                          placeholder="'Product...'"
+                                                          cssClass="'flex-grow-1'"
+                                                          value="hardwareValue(hw)"
+                                                          domain="() => this.hardwareDomain()"
+                                                          context="hardwareContext"
+                                                          canOpen="false"
+                                                          update="(pair) => this.setHardwareProductPair(hw_index, pair)"/>
                                                 <button type="button" class="btn btn-sm btn-link text-danger p-0"
                                                         title="Remove this row"
                                                         t-on-click="() => this.removeHardware(hw_index)">
@@ -1181,14 +1183,6 @@
                                                 <option t-foreach="otherHardwarePanels" t-as="op" t-key="op.no"
                                                         t-att-value="op.no" t-esc="op.no"/>
                                             </select>
-                                        </div>
-                                        <div class="d-flex gap-1 align-items-center mb-2">
-                                            <input type="text" class="form-control form-control-sm"
-                                                   placeholder="New hardware product name"
-                                                   t-att-value="state.hardwareNewName"
-                                                   t-on-input="(ev) => this.setHardwareNewName(ev)"/>
-                                            <button type="button" class="btn btn-sm btn-outline-secondary text-nowrap"
-                                                    t-on-click="createHardwareProduct">Create</button>
                                         </div>
                                         <div t-if="panelHardware.length" class="small text-end mb-2">
                                             Hardware cost <strong><t t-esc="formatMoney(panelHardwareCost)"/></strong>
@@ -1361,7 +1355,8 @@
                                             </div>
                                             <div t-if="!isCollapsed(piecePartKey(pscope, ppart))" class="o_aw_tree_rows">
                                                 <div t-foreach="ppart.pieces" t-as="piece" t-key="piece.id"
-                                                     class="o_aw_tree_row o_aw_piece">
+                                                     class="o_aw_tree_row o_aw_piece"
+                                                     t-att-data-aw-target="'piece:' + piece.piece_key">
                                                     <span class="fw-bold text-truncate" t-att-title="piece.label">
                                                         <t t-esc="piece.short_label or piece.label"/>
                                                     </span>
@@ -1639,12 +1634,28 @@
                             </div>
                             <t t-else="">
                                 <div t-foreach="checkErrors" t-as="chk" t-key="chk_index"
-                                     class="small text-danger mb-1">
+                                     class="small text-danger mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
                                     <i class="fa fa-times-circle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
                                 </div>
                                 <div t-foreach="checkWarnings" t-as="chk" t-key="chk_index"
-                                     class="small text-warning mb-1">
+                                     class="small text-warning mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
                                     <i class="fa fa-exclamation-triangle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
+                                </div>
+                                <div t-foreach="checkInfos" t-as="chk" t-key="chk_index"
+                                     class="small text-muted mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
+                                    <i class="fa fa-info-circle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
                                 </div>
                             </t>
                         </div>
