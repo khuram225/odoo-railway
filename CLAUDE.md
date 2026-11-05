@@ -684,6 +684,23 @@ a save replaces the rows and a log written at create/unlink would say "added"
 and "removed" on every save. Rows are compared by position; a save that changes
 nothing posts nothing. The price is not logged (it changes on every explosion).
 
+## Safe rate paste
+
+A pasted sheet is read by `rate_paste.validate_paste` (Odoo-free,
+`scripts/check_rate_parse.py`), not by the old positional `parse_paste`, which
+forgave everything: a sheet missing its code column was accepted and every
+price slid one column onto the wrong finish. With a header row, columns are
+matched by NAME (the layout's header text, the finish name, or a generic
+code/thickness/series word); an unknown or empty header, a missing code column,
+a row whose cell count differs from the header (or the layout, with no header),
+text in a price, a zero or negative price, and the same product, thickness and
+finish twice with different prices are all HARD STOPS that name the row and
+write nothing. An empty price (or "-") is "no price": counted in the chatter
+note, never written as 0 (Apply skips a 0). The pasted text stays attached to
+the list. A blank Series is only put back in a space-typed row that starts like
+a profile code, so a row missing its code column is not mistaken for one with a
+blank series. `parse_paste` is kept for its callers and tests.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

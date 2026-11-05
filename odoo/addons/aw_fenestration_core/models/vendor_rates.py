@@ -16,7 +16,8 @@ from odoo.exceptions import UserError, ValidationError
 from .finish_names import norm_name
 from .glass_paste import (
     norm_type, parse_glass_paste_report, parse_thickness)
-from .rate_paste import normalise_code, normalise_text, parse_paste
+from .rate_paste import (
+    normalise_code, normalise_text, parse_paste, validate_paste)
 
 _logger = logging.getLogger(__name__)
 
@@ -669,7 +670,20 @@ class AwVendorRateList(models.Model):
         if self.kind == 'glass':
             return self._parse_glass_paste()
         layout = self._require_layout()
-        rows = parse_paste(self.paste_text, layout._kinds())
+        columns = [{
+            'kind': c.kind, 'header': c.header or '',
+            'finish': c.finish_id.name or '',
+        } for c in layout.column_ids.sorted('sequence')]
+        result = validate_paste(self.paste_text, columns)
+        if result['errors']:
+            shown = result['errors'][:12]
+            more = len(result['errors']) - len(shown)
+            raise UserError(_(
+                "Nothing was imported: the paste cannot be read safely.\n"
+                "%(problems)s%(more)s",
+                problems='\n'.join(e['message'] for e in shown),
+                more=_("\n... and %s more.", more) if more else ''))
+        rows = result['rows']
         if not rows:
             columns = layout.column_ids.sorted('sequence')
             described = ', '.join(
@@ -697,8 +711,30 @@ class AwVendorRateList(models.Model):
             **{'rate_%s' % (i + 1): (rate or 0.0)
                for i, rate in enumerate(row['rates'][:count])})
             for index, row in enumerate(rows)])
+        summary = result['summary']
+        self._keep_original(self.paste_text)
+        if summary['no_price_cells']:
+            # An empty price is never written as 0: the line carries no
+            # price for that finish and Apply skips it.
+            self.message_post(body=_(
+                "Pasted %(rows)s row(s). %(cells)s price cell(s) are empty "
+                "(no price): they are kept empty and are not written.",
+                rows=summary['rows'], cells=summary['no_price_cells']))
         self.paste_text = False
         return True
+
+    def _keep_original(self, text, name=None):
+        """The pasted text stays attached to the list, so what was imported
+        can always be looked at again."""
+        self.ensure_one()
+        if not (text or '').strip():
+            return False
+        return self.env['ir.attachment'].create({
+            'name': name or 'pasted-%s.txt' % fields.Datetime.now().strftime(
+                '%Y-%m-%d-%H%M%S'),
+            'res_model': self._name, 'res_id': self.id,
+            'raw': text.encode('utf-8'), 'mimetype': 'text/plain',
+        })
 
     def _parse_glass_paste(self):
         """Glass type, thickness, price per sqft: one line per type and
@@ -717,6 +753,7 @@ class AwVendorRateList(models.Model):
             'list_id': self.id, 'sequence': start + 10 * index,
             'code': row['type'], 'thickness_text': row['thickness'],
             'rate_1': row['price']} for index, row in enumerate(rows)])
+        self._keep_original(self.paste_text)
         self.paste_text = False
         if skipped:
             # A line with a number that is not type + thickness + price is
