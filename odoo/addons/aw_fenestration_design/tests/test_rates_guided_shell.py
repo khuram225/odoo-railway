@@ -81,43 +81,80 @@ class TestRatesGuidedShell(TransactionCase):
         self.assertIn('no rate sheet layout', str(caught.exception))
         self.assertEqual(rate_list.step, 'choose')
 
-    # -- the date check ------------------------------------------------------------------
-    def test_a_date_before_the_rates_in_force_stops_with_a_plain_message(self):
+    # -- the date: a warning at Choose, never a stop ---------------------------------------
+    def test_a_date_before_the_rates_in_force_warns_but_goes_on(self):
         rate_list = self._list(date(2026, 5, 1))
-        with self.assertRaises(UserError) as caught:
-            rate_list.action_next_step()
-        message = str(caught.exception)
-        self.assertIn('earlier than the rates already in force', message)
-        self.assertIn('Shell glass vendor', message)
-        self.assertIn('2026-06-01', message)
-        self.assertEqual(rate_list.step, 'choose')
+        self.assertIn('Newest rate in force for this vendor: 1 Jun 2026',
+                      rate_list.date_warning)
+        self.assertIn('Your date is earlier', rate_list.date_warning)
+        rate_list.action_next_step()                    # not stopped
+        self.assertEqual(rate_list.step, 'data')
 
-    def test_the_same_day_and_later_days_go_on(self):
-        for day in (date(2026, 6, 1), date(2026, 9, 1)):
-            rate_list = self._list(day)
-            rate_list.action_next_step()
-            self.assertEqual(rate_list.step, 'data')
+    def test_a_later_date_still_names_the_newest_rate(self):
+        rate_list = self._list(date(2026, 9, 1))
+        self.assertIn('1 Jun 2026', rate_list.date_warning)
+        self.assertNotIn('Your date is earlier', rate_list.date_warning)
+        rate_list.action_next_step()
+        self.assertEqual(rate_list.step, 'data')
+
+    def test_no_warning_when_the_vendor_has_no_rates(self):
+        other = self.env['res.partner'].create({'name': 'Nobody yet'})
+        rate_list = self.env['aw.vendor.rate.list'].create({
+            'vendor_id': other.id, 'kind': 'glass', 'date': date(2026, 5, 1)})
+        self.assertFalse(rate_list.date_warning)
 
     def test_a_rate_that_has_not_started_is_not_in_force(self):
-        # the 2099 rate must not block a list dated this year
+        # the 2099 rate must not be named
         self.assertEqual(self._list(date(2026, 7, 1))._newest_rate_date(),
                          date(2026, 6, 1))
 
-    def test_the_list_does_not_block_itself(self):
+    def test_the_list_does_not_count_its_own_rates(self):
         rate_list = self._list(date(2026, 7, 1))
-        rate_list.action_next_step()
         self.env['aw.glass.rate'].create({
             'glass_type_id': self.clear.id, 'thickness_mm': 10,
             'vendor_id': self.vendor.id, 'price': 200.0,
             'date_from': date(2026, 7, 1), 'rate_list_id': rate_list.id})
         self.assertEqual(rate_list._newest_rate_date(), date(2026, 6, 1))
-        rate_list._check_effective_date()                       # no error
 
-    def test_apply_from_the_button_checks_the_date_too(self):
-        rate_list = self._list(date(2026, 5, 1))
-        with self.assertRaises(UserError):
-            rate_list.action_apply_checked()
-        self.assertEqual(rate_list.state, 'draft')
+    def test_a_list_dated_before_newer_rates_passes_next_like_chawla_jan_over_oct(self):
+        """The Chawla case in the abstract: rates dated 1 Oct exist, and a
+        list dated 1 Jan still goes through Choose."""
+        env = self.env
+        template = env['aw.profile.section.line'].search(
+            [('product_tmpl_id', '!=', False), ('thickness_id', '!=', False)],
+            limit=1)
+        finish = env.ref('aw_fenestration_core.aw_attribute_finish').value_ids[:1]
+        if not (template and finish):
+            self.skipTest("no profile with a thickness here")
+        vendor = env['res.partner'].create({'name': 'Chawla-like vendor'})
+        env['aw.vendor.layout'].create({
+            'vendor_id': vendor.id,
+            'column_ids': [
+                (0, 0, {'sequence': 10, 'header': 'Code', 'kind': 'code'}),
+                (0, 0, {'sequence': 20, 'header': 'Thickness', 'kind': 'thickness'}),
+                (0, 0, {'sequence': 30, 'header': 'One', 'kind': 'finish',
+                        'finish_id': finish.id})]})
+        env['aw.profile.rate'].create({
+            'product_tmpl_id': template.product_tmpl_id.id,
+            'thickness_id': template.thickness_id.id, 'finish_id': finish.id,
+            'price': 500.0, 'vendor_id': vendor.id,
+            'date_from': date(2026, 10, 1)})
+        january = env['aw.vendor.rate.list'].create({
+            'vendor_id': vendor.id, 'kind': 'profile', 'date': date(2026, 1, 1)})
+        self.assertIn('1 Oct 2026', january.date_warning)
+        january.action_next_step()
+        self.assertEqual(january.step, 'data')
+
+    def test_applying_and_reapplying_are_never_date_blocked(self):
+        rate_list = self._list(date(2026, 5, 1))            # before the 1 Jun rate
+        self.env['aw.vendor.rate.list.line'].create({
+            'list_id': rate_list.id, 'code': 'Clear', 'thickness_text': '5mm',
+            'rate_1': 90.0})
+        rate_list.action_apply()                            # the button path too
+        self.assertEqual(rate_list.state, 'applied')
+        rate_list.action_reapply()                          # not blocked
+        self.assertEqual(rate_list.state, 'applied')
+        rate_list.action_rematch()                          # nor re-match
 
     # -- Advanced ------------------------------------------------------------------------
     def test_the_paste_box_is_under_advanced_for_a_rates_manager_only(self):

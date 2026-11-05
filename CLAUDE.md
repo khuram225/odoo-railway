@@ -708,12 +708,14 @@ Loading rates is a guided screen over the draft `aw.vendor.rate.list`: **Choose*
 come. `step` records where a list is (an applied list is at Confirm; old lists
 were placed by `_migrate_steps`). The date has **no default** in the menu
 actions (`default_date: False`; the field keeps its default for code and tests)
-and cannot be earlier than the newest rate IN FORCE (started, not future-dated,
-not counting this list's own) for that vendor and kind: `_check_effective_date`
-runs at Next and at the Apply button (`action_apply_checked`; `action_apply`
-itself is unchecked, so back-dated loads from code still work). The group
-**Rates manager** (included by Fenestration / Manager) holds write/create/unlink
-on rate lists, their lines, profile and glass rates and vendor layouts; everyone
+and a **warning**, never a stop, names the newest rate IN FORCE (started, not
+future-dated, not counting this list's own) for that vendor and kind
+(`date_warning`): a vendor-wide stop was too strict, since a list dated
+before the vendor's newest rates can touch other keys or be an old list
+re-applied. The hard stop is per ROW at Review (PR 2): a row whose key
+already has a newer rate in force. Apply, Re-apply and Re-match never run a
+date check. The group **Rates manager** (included by Fenestration / Manager)
+holds write/create/unlink on rate lists, their lines, profile and glass rates and vendor layouts; everyone
 else reads. The paste box lives under an Advanced tab visible to the Rates
 manager only.
 

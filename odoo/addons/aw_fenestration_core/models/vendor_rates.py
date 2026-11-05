@@ -16,6 +16,7 @@ from odoo.exceptions import UserError, ValidationError
 from .finish_names import norm_name
 from .glass_paste import (
     norm_type, parse_glass_paste_report, parse_thickness)
+from odoo.tools.misc import format_date
 from .rate_paste import (
     normalise_code, normalise_text, parse_paste, validate_paste)
 
@@ -503,6 +504,7 @@ class AwVendorRateList(models.Model):
     # The guided screen's steps. Review and Confirm come with the next
     # releases; today a draft goes Choose -> Data in, and an applied list is
     # at Confirm.
+    date_warning = fields.Char(compute='_compute_date_warning')
     step = fields.Selection([
         ('choose', '1. Choose'), ('data', '2. Data in'),
         ('review', '3. Review'), ('confirm', '4. Confirm'),
@@ -946,28 +948,33 @@ class AwVendorRateList(models.Model):
         today = fields.Date.context_today(self)
         domain = [('vendor_id', '=', self.vendor_id.id),
                   ('date_from', '<=', today)]
-        if self._origin.id or self.id:
-            domain.append(('rate_list_id', '!=', self.id))
+        if self._origin.id:
+            domain.append(('rate_list_id', '!=', self._origin.id))
         latest = self.env[self._rate_model()].with_context(
             active_test=False).search(domain, order='date_from desc', limit=1)
         return latest.date_from
 
-    def _check_effective_date(self):
-        """A list cannot start before the rates already in force: they
-        would be quietly overruled or overrule it, and which one wins would
-        depend on the order things were loaded in."""
-        self.ensure_one()
-        newest = self._newest_rate_date()
-        if newest and self.date < newest:
-            raise UserError(_(
-                "The effective date %(date)s is earlier than the rates "
-                "already in force for %(vendor)s (%(kind)s), which start on "
-                "%(newest)s. Rates are loaded in date order: choose "
-                "%(newest)s or a later date.",
-                date=self.date, vendor=self.vendor_id.display_name,
-                kind=dict(self._fields['kind'].selection).get(self.kind),
-                newest=newest))
-        return True
+    @api.depends('vendor_id', 'kind', 'date', 'state')
+    def _compute_date_warning(self):
+        """A warning, never a stop. A vendor-wide rule was too strict: a
+        list dated before the vendor's newest rates can still be right (it
+        touches other profiles, or it is an old list being re-applied). The
+        stop is per ROW, at Review: a row whose key already has a newer
+        rate in force."""
+        for rec in self:
+            newest = (rec._newest_rate_date()
+                      if rec.vendor_id and rec.state == 'draft' else False)
+            if not newest:
+                rec.date_warning = False
+                continue
+            text = _("Newest rate in force for this vendor: %s.",
+                     format_date(rec.env, newest, date_format='d MMM yyyy'))
+            if rec.date and rec.date < newest:
+                text += ' ' + _(
+                    "Your date is earlier, so any row whose product and "
+                    "thickness already have a newer rate will be stopped "
+                    "at Review.")
+            rec.date_warning = text
 
     def action_next_step(self):
         """Choose -> Data in, once vendor, kind and date are settled."""
@@ -985,7 +992,6 @@ class AwVendorRateList(models.Model):
                 "%s has no rate sheet layout yet, so its columns cannot be "
                 "read. Describe them under Vendor Layouts first.",
                 self.vendor_id.display_name))
-        self._check_effective_date()
         self.step = 'data'
         return True
 
@@ -994,13 +1000,6 @@ class AwVendorRateList(models.Model):
         if self.state == 'draft':
             self.step = 'choose'
         return True
-
-    def action_apply_checked(self):
-        """The Apply button: the date check, then Apply."""
-        self.ensure_one()
-        if self.state == 'draft':
-            self._check_effective_date()
-        return self.action_apply()
 
     @api.model
     def _migrate_steps(self):

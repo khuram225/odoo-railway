@@ -78,7 +78,7 @@
                     <button name="action_back_to_choose" type="object"
                             string="Back to Choose"
                             invisible="state != 'draft' or step == 'choose'"/>
-                    <button name="action_apply_checked" type="object" string="Apply"
+                    <button name="action_apply" type="object" string="Apply"
                             class="btn-primary"
                             invisible="state != 'draft' or step == 'choose'"
                             confirm="Write these rates? Unmatched rows are not applied. An applied list becomes read only."/>
@@ -137,8 +137,11 @@
                          invisible="step != 'choose' or state != 'draft'">
                         Choose the vendor, what the list prices, and the date
                         the rates start on, then press Next. The date has no
-                        default and cannot be earlier than the rates already
-                        in force for this vendor.
+                        default.
+                    </div>
+                    <div class="alert alert-warning" role="status"
+                         invisible="not date_warning or state != 'draft'">
+                        <field name="date_warning" nolabel="1"/>
                     </div>
                     <group invisible="state != 'draft' or step == 'choose'">
                         <group string="Start from the rates in force"
