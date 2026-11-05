@@ -213,8 +213,9 @@
                                     title="Copy this window to a new quote line">
                                 Duplicate
                             </button>
-                            <button class="btn btn-sm btn-secondary" t-on-click="openForm">
-                                Form
+                            <button class="btn btn-sm btn-secondary" t-on-click="openHistory"
+                                    title="Open the history page: the window's facts, its price summary and its chatter">
+                                History
                             </button>
                             <button t-if="state.data.header.sale_order_id"
                                     class="btn btn-sm btn-secondary" t-on-click="openQuotation"
@@ -1353,8 +1354,8 @@
                                     The layout has unsaved changes; editing a piece saves it first.
                                 </div>
                                 <div t-if="!scopedPieces.length" class="small text-muted">
-                                    No cut lines here. Generate the cut list from the form,
-                                    or press Recompute.
+                                    No cut lines here. Press Recompute to generate the
+                                    cut list.
                                 </div>
                                 <div class="o_aw_tree">
                                 <t t-foreach="pieceTree" t-as="pscope" t-key="pscope.key">

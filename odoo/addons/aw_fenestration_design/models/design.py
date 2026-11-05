@@ -663,6 +663,8 @@ class AwDesign(models.Model):
         return res
 
     def action_open_design(self):
+        """The design's History page (its form): facts, price summary and
+        chatter. Windows are worked on in the configurator."""
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',

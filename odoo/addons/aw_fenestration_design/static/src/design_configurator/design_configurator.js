@@ -5791,7 +5791,8 @@ export class DesignConfigurator extends Component {
         return formatDecimal2(value);
     }
 
-    openForm() {
+    /** The design's History page (its form): facts, price summary, chatter. */
+    openHistory() {
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "aw.design",

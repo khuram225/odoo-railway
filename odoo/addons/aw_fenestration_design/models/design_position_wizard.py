@@ -23,7 +23,7 @@ class AwDesignPositionWizard(models.TransientModel):
     exists because aw.design.window_series_id is required and Add
     Position opens the design immediately, so a starting system has to
     be supplied before the user sees anything -- see _starting_system.
-    Name and location are a convenience, editable on the design form
+    Name and location are a convenience, editable in the configurator
     right afterwards."""
     _name = 'aw.design.position.wizard'
     _description = 'Add Fenestration Window'
@@ -167,6 +167,6 @@ class AwDesignPositionWizard(models.TransientModel):
             design = self.order_id._create_fenestration_position(
                 self._starting_system(), name=self.name,
                 location=self.location, family=self.family_id)
-        # Straight into the configurator (spec 4.4). The raw form stays
-        # reachable from there and from the Designs menu for admins.
+        # Straight into the configurator (spec 4.4). The History page (the
+        # design's form) is reached from there.
         return design.action_open_configurator()
