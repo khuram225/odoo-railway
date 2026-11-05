@@ -418,6 +418,16 @@ class AwWindowTemplate(models.Model):
             specs._sync_catalog_lines()
         return specs
 
+    def _live_profile_lines(self):
+        """The profile lines that count as part of this spec: the USED
+        ones. Every catalog position has a row on every spec and an unused
+        row is only a placeholder to tick, so it is not "a line". This is
+        the one definition: the explosion, the checks, the Profiles tab and
+        the one-line-per-position rule all go through it, so they cannot
+        disagree about whether a spec has a line for a position."""
+        self.ensure_one()
+        return self.profile_line_ids.filtered('is_used')
+
     def _sync_catalog_lines(self, positions=None):
         """Give every spec a line for every catalog position, UNUSED where
         the series does not map it. Idempotent: it only adds the rows that

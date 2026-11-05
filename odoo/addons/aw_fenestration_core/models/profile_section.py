@@ -58,7 +58,40 @@ class AwProfileSectionLine(models.Model):
                     self.env['aw.window.template'].browse(vals['spec_id']))
                 if section:
                     vals['spec_section_id'] = section.id
-        return super().create(vals_list)
+        # Every catalog position already has an UNUSED row on a spec. A
+        # new used line for that position takes that row over instead of
+        # becoming a second one: the row is the placeholder for exactly
+        # this, and a duplicate would leave two rows for one slot.
+        spare = {}
+        for index, vals in enumerate(vals_list):
+            row = self._spare_row(vals)
+            if row and row not in spare.values():
+                spare[index] = row
+        fresh = [v for i, v in enumerate(vals_list) if i not in spare]
+        created = super().create(fresh) if fresh else self.browse()
+        made = iter(created)
+        result = self.browse()
+        for index, vals in enumerate(vals_list):
+            if index in spare:
+                spare[index].write(dict(vals, is_used=True))
+                result |= spare[index]
+            else:
+                result |= next(made)
+        return result
+
+    @api.model
+    def _spare_row(self, vals):
+        """The unused catalog row a new used line for the same spec and
+        position should take over, or nothing."""
+        if not (vals.get('spec_id') and vals.get('position_id')):
+            return self.browse()
+        if not vals.get('is_used', True):
+            return self.browse()
+        return self.search([
+            ('spec_id', '=', vals['spec_id']),
+            ('position_id', '=', vals['position_id']),
+            ('is_used', '=', False),
+        ], limit=1)
 
     # Phase 7d: a line belongs to a SPECIFICATION now. section_id is
     # kept and no longer required so the migration can re-point existing
@@ -202,20 +235,25 @@ class AwProfileSectionLine(models.Model):
         they are dropped.
         """
         for line in self:
-            if not (line.spec_id and line.position_id):
+            # An unused row is a placeholder, not a line (see
+            # aw.window.template._live_profile_lines), so it neither
+            # clashes nor is clashed with.
+            if not (line.spec_id and line.position_id and line.is_used):
                 continue
-            clash = self.search([
-                ('id', '!=', line.id),
-                ('spec_id', '=', line.spec_id.id),
-                ('position_id', '=', line.position_id.id),
-            ], limit=1)
+            clash = (line.spec_id._live_profile_lines()
+                     - line).filtered(
+                lambda other: other.position_id == line.position_id)[:1]
             if clash:
                 raise ValidationError(_(
-                    "'%(spec)s' already has a line for %(position)s. Add "
-                    "the other profile to its Alternates instead of a "
-                    "second line.",
+                    "'%(spec)s' already has a line for %(position)s: "
+                    "%(profile)s, in the %(section)s section. Find it on "
+                    "the spec's Profiles tab, and add the other profile "
+                    "to its Alternates instead of a second line.",
                     spec=line.spec_id.display_name,
-                    position=line.position_id.display_name))
+                    position=line.position_id.display_name,
+                    profile=clash.product_tmpl_id.display_name or _('no profile'),
+                    section=clash.spec_section_id.display_name
+                    or _('(no section)')))
 
     @api.constrains('is_used', 'product_tmpl_id')
     def _check_used_has_product(self):
