@@ -15,6 +15,7 @@ from odoo.exceptions import ValidationError
 STRUCTURE_DEFAULTS = (
     ('profile_wastage', 'Profile Wastage', 'percent', 8.0),
     ('glass_wastage', 'Glass Wastage', 'percent', 5.0),
+    ('mesh_wastage', 'Mesh Wastage', 'percent', 0.0),
     ('fabrication_labour', 'Fabrication Labour', 'per_sqm', 450.0),
     ('install_labour', 'Installation Labour', 'per_sqm', 250.0),
     ('profit', 'Profit', 'percent', 25.0),
@@ -68,6 +69,27 @@ class AwPriceStructure(models.Model):
         for line in self.line_ids:
             values[line.kind] = line.value
         return values
+
+    @api.model
+    def _add_missing_lines(self):
+        """Give every structure a row for each kind it lacks, at the
+        kind's default. Fill-only: a row that exists is never touched, and
+        the one added today is Mesh Wastage at 0%, which changes no price.
+        (`_values()` already reads a missing kind as 0, so this is for the
+        form: the row is there to be edited.)"""
+        added = 0
+        for structure in self.with_context(active_test=False).search([]):
+            have = set(structure.line_ids.mapped('kind'))
+            top = max(structure.line_ids.mapped('sequence') or [0])
+            for kind, label, _unit, default in STRUCTURE_DEFAULTS:
+                if kind in have:
+                    continue
+                top += 10
+                structure.write({'line_ids': [(0, 0, {
+                    'sequence': top, 'name': label, 'kind': kind,
+                    'value': default})]})
+                added += 1
+        return added
 
     @api.model
     def _seed_default_structure(self):

@@ -147,7 +147,6 @@
                             <field name="kind"/>
                             <field name="value"/>
                             <field name="unit"/>
-                            <field name="show_on_quote"/>
                         </list>
                     </field>
                     <group string="Notes">
