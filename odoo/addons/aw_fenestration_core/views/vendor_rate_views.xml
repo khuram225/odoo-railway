@@ -78,18 +78,24 @@
                     <button name="action_back_to_choose" type="object"
                             string="Back to Choose"
                             invisible="state != 'draft' or step == 'choose'"/>
-                    <button name="action_apply" type="object" string="Apply"
+                    <button name="action_open_review" type="object" string="Review"
                             class="btn-primary"
-                            invisible="state != 'draft' or step == 'choose'"
-                            confirm="Write these rates? Unmatched rows are not applied. An applied list becomes read only."/>
+                            invisible="state != 'draft' or step != 'data'"/>
+                    <button name="action_back_to_data" type="object"
+                            string="Back to Data in"
+                            invisible="state != 'draft' or step != 'review'"/>
+                    <button name="action_confirm_rates" type="object"
+                            string="Confirm" class="btn-primary"
+                            invisible="state != 'draft' or step != 'review' or review_problem or (review_big and not ack_changes)"
+                            confirm="Write these rates? They start on the date of this list. You can undo the list afterwards."/>
                     <button name="action_rematch" type="object"
                             string="Re-match"/>
                     <button name="action_reapply" type="object"
                             string="Re-apply" invisible="state != 'applied'"
                             confirm="Delete the rates this list wrote and write them again?"/>
                     <button name="action_set_to_draft" type="object"
-                            string="Set to draft" invisible="state != 'applied'"
-                            confirm="Rates of this list are removed until you Apply again."/>
+                            string="Undo this list" invisible="state != 'applied'"
+                            confirm="Remove the rates this list wrote? The rows are kept, so you can fix them and load the list again."/>
                     <field name="step" widget="statusbar"
                            options="{'clickable': False}"/>
                 </header>
@@ -143,7 +149,46 @@
                          invisible="not date_warning or state != 'draft'">
                         <field name="date_warning" nolabel="1"/>
                     </div>
-                    <group invisible="state != 'draft' or step == 'choose'">
+                    <!-- Review: nothing is written before Confirm. -->
+                    <div invisible="step != 'review' or state != 'draft'">
+                        <field name="review_unchanged" invisible="1"/>
+                        <field name="review_changed" invisible="1"/>
+                        <field name="review_new" invisible="1"/>
+                        <field name="review_problem" invisible="1"/>
+                        <field name="review_notwritten" invisible="1"/>
+                        <field name="review_nopriced" invisible="1"/>
+                        <field name="review_big" invisible="1"/>
+                        <div class="alert alert-info" role="status">
+                            <strong><field name="review_summary" nolabel="1"/></strong>
+                            <div><field name="review_big_text" nolabel="1"/></div>
+                            Nothing is written until you press Confirm.
+                            Rows that are the same as now are not listed.
+                        </div>
+                        <div class="alert alert-danger" role="alert"
+                             invisible="not review_problem">
+                            Problems stop Confirm. Fix them (they are in red),
+                            or remove those rows, and press Review again.
+                        </div>
+                        <group invisible="not review_big">
+                            <field name="ack_changes"/>
+                        </group>
+                        <field name="review_ids" readonly="1" nolabel="1">
+                            <list decoration-danger="status == 'problem' or big"
+                                  decoration-warning="status == 'notwritten'"
+                                  decoration-info="status == 'new'">
+                                <field name="status"/>
+                                <field name="code"/>
+                                <field name="thickness"/>
+                                <field name="finish"/>
+                                <field name="old_price"/>
+                                <field name="new_price"/>
+                                <field name="pct"/>
+                                <field name="big" column_invisible="1"/>
+                                <field name="message"/>
+                            </list>
+                        </field>
+                    </div>
+                    <group invisible="state != 'draft' or step not in ('data',)">
                         <group string="Start from the rates in force"
                                invisible="kind == 'glass'">
                             <field name="fill_series"
@@ -163,7 +208,7 @@
                     <!-- The paste box is for managers and is kept out of
                          the way: a pasted sheet is the easiest way to put
                          a price on the wrong profile. -->
-                    <notebook invisible="state != 'draft' or step == 'choose'"
+                    <notebook invisible="state != 'draft' or step != 'data'"
                               groups="aw_fenestration_core.group_rates_manager">
                         <page string="Advanced" name="advanced">
                             <group string="Paste from the vendor's sheet">
@@ -178,7 +223,7 @@
                          vendor layout's own. Read only once applied. -->
                     <field name="grid_editable" invisible="1"/>
                     <field name="grid_meta" widget="aw_rate_grid" nolabel="1"
-                           colspan="2" invisible="step == 'choose'"/>
+                           colspan="2" invisible="step in ('choose', 'review')"/>
                 </sheet>
                 <chatter/>
             </form>
