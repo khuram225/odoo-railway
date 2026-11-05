@@ -68,6 +68,8 @@
         <function model="aw.profile.position" name="_seed_catalog"/>
         <function model="res.config.settings" name="_migrate_length_uom"/>
         <function model="aw.window.template" name="_sync_all_catalog_lines"/>
+        <!-- Fixed and Mesh panels need no hardware; once, then editable. -->
+        <function model="aw.leaf.type" name="_seed_needs_hardware"/>
         <!-- The old flat glass (11 specs, 11 products), once and last, in
              SQL: verified first, never fails the upgrade. -->
         <function model="aw.glass.type" name="_retire_flat_glass"/>

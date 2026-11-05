@@ -45,3 +45,5 @@ access_aw_panel_option_user,aw.panel.option.user,model_aw_panel_option,base.grou
 access_aw_cut_label_start_wizard_manager,aw.cut.label.start.wizard.manager,model_aw_cut_label_start_wizard,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_glass_part_user,aw.glass.part.user,model_aw_glass_part,base.group_user,1,0,0,0
 access_aw_glass_part_sales,aw.glass.part.sales,model_aw_glass_part,group_fenestration_sales,1,1,1,1
+access_aw_design_hardware_user,aw.design.hardware.user,model_aw_design_hardware,base.group_user,1,0,0,0
+access_aw_design_hardware_sales,aw.design.hardware.sales,model_aw_design_hardware,group_fenestration_sales,1,1,1,1

@@ -773,6 +773,10 @@ class AwDesign(models.Model):
                         'sequence')]),
                 'glass_suggested': leaf.glass_suggested,
                 'glass_chosen': leaf.glass_chosen,
+                # The panel's OWN hardware; empty means it follows the
+                # spec's per-panel lines.
+                'hardware': [h._as_dict() for h in leaf.hardware_ids.sorted(
+                    'sequence')],
                 'grid_pattern_id': leaf.grid_pattern_id.id,
                 'grid_rows': leaf.grid_rows or 0,
                 'grid_cols': leaf.grid_cols or 0,
@@ -800,6 +804,7 @@ class AwDesign(models.Model):
                 'name': lt.display_name,
                 'has_hinge_side': lt.has_hinge_side,
                 'has_slide_dir': lt.has_slide_dir,
+                'needs_hardware': lt.needs_hardware,
             } for lt in series.leaf_type_ids],
             'presets': [self._preset_payload(p) for p in presets],
             'families': self._families_payload(presets),
@@ -1272,6 +1277,8 @@ class AwDesign(models.Model):
                     i.family_id.sequence if i.family_id else 999),
             } for i in available['infill']],
             'glass_catalog': self._glass_catalog(),
+            'hardware_products': self.env['aw.design.hardware']
+            ._product_catalogue(),
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
                 'kind': g.kind,
@@ -1445,6 +1452,7 @@ class AwDesign(models.Model):
                 'name': lt.display_name,
                 'has_hinge_side': lt.has_hinge_side,
                 'has_slide_dir': lt.has_slide_dir,
+                'needs_hardware': lt.needs_hardware,
             } for lt in leaf_types],
             'presets': [self._preset_payload(p) for p in presets],
             'families': self._families_payload(presets),
@@ -1670,6 +1678,8 @@ class AwDesign(models.Model):
                         leaf.get('glass_suggested')
                         and leaf.get('glass_parts')),
                     'glass_chosen': bool(leaf.get('glass_chosen')),
+                    'hardware_ids': self.env['aw.design.hardware']
+                    ._commands_from(leaf.get('hardware') or []),
                     'grid_pattern_id': leaf.get('grid_pattern_id') or False,
                     'grid_rows': leaf.get('grid_rows') or 0,
                     'grid_cols': leaf.get('grid_cols') or 0,
@@ -1681,6 +1691,36 @@ class AwDesign(models.Model):
                     self._create_rows(
                         leaf_payload['rows'], parent_leaf=leaf,
                         depth=depth + 1)
+
+    def create_hardware_product(self, name):
+        """Quick create for the hardware picker: a name makes a product in
+        Fenestration / Hardware with no price."""
+        return self.env['aw.design.hardware']._create_product(name)
+
+    def hardware_from_spec(self, panel_no):
+        """The hardware the spec gives one panel, as rows a panel can own,
+        with the quantities as calculated. Read off the generated BOM, which
+        is exactly what the spec produced for that panel, so it is only
+        offered for a panel that follows the spec."""
+        self.ensure_one()
+        leaf = self._all_panels().filtered(
+            lambda l: l.panel_no == panel_no)[:1]
+        if not leaf:
+            return []
+        if leaf.hardware_ids:
+            raise UserError(_(
+                "Panel %s has its own hardware. Follow the spec first, then "
+                "add the spec's set.", panel_no))
+        units = max(1, self.qty or 1)
+        return [{
+            'product_id': line.product_id.id,
+            'name': line.product_id.display_name or '',
+            'qty': (line.qty or 0) / units,
+            'rate_manual': False, 'manual_rate': 0.0,
+            'list_rate': line.product_id.standard_price or 0.0,
+        } for line in self.bom_line_ids.filtered(
+            lambda l: l.kind == 'hardware' and l.panel_no == panel_no
+            and l.product_id)]
 
     def save_layout(self, payload):
         """Replace the whole row/leaf grid and the header in ONE call, so

@@ -1373,5 +1373,41 @@ console.log("\n  the Frame label is the SHORT name:");
        "a name that already starts with the code is not doubled");
 }
 
+{
+    // Hardware per panel: own rows, the rate used, copying.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"), panel(600, "CASEMENT"),
+    ] }], 1200, 1500);
+    c.notification = { add: () => {} };
+    c.state.data.hardware_products = [{ id: 7, name: "Roller", cost: 50 }];
+    c.selectLeaf([[0, 0]]);
+    ok(c.panelFollowsSpecHardware, "a panel with no rows follows the spec");
+    c.addHardware();
+    ok(!c.panelFollowsSpecHardware && c.panelHardware.length === 1,
+       "adding a row makes the panel use its own");
+    c.setHardwareProduct(0, "7");
+    c.setHardwareQty(0, "3");
+    const row = c.panelHardware[0];
+    ok(row.product_id === 7 && row.name === "Roller", "the product is picked by id");
+    ok(c.hardwareRateUsed(row) === 50, "the rate used defaults to the product cost");
+    near(c.hardwareCost(row), 150, "cost is qty x rate");
+    c.setHardwareRate(0, "70");
+    ok(row.rate_manual && c.hardwareRateUsed(row) === 70, "a typed rate is manual");
+    near(c.panelHardwareCost, 210, "the panel total follows the typed rate");
+    c.resetHardwareRate(0);
+    ok(!row.rate_manual && c.hardwareRateUsed(row) === 50, "Reset returns the product cost");
+    c.copyHardwareToOthers();
+    const other = c.state.data.rows[0].leaves[1];
+    ok((other.hardware || []).length === 1 && other.hardware[0] !== row
+       && other.hardware[0].qty === 3, "copied to the other panel as its own row");
+    other.hardware[0].qty = 9;
+    ok(row.qty === 3, "the copy is independent of the original");
+    c.followSpecHardware();
+    ok(c.panelFollowsSpecHardware, "Follow the spec clears the panel's rows");
+    c.selectLeaf([[0, 1]]);
+    c.copyHardwareFromPanel({ target: { value: "1" } });
+    ok(c.panelHardware.length === 0, "copying from a panel with none leaves none");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

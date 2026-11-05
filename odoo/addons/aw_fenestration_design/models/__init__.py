@@ -14,6 +14,7 @@ from . import design_position_wizard
 from . import design_preset_wizard
 from . import family
 from . import glass_part
+from . import design_hardware
 from . import glass_default_stack
 from . import glass_suggestion
 from . import override
