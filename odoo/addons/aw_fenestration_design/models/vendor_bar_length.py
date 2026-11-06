@@ -9,6 +9,11 @@ differs; a vendor with rows but none active is a stop, not a fallback,
 because switching every length off means "we cannot buy from them", not "use
 the default".
 
+A row may name a PROFILE (the product template); blank means every profile of
+the vendor. For one profile and vendor: the profile's own active rows, else the
+vendor-wide active rows, else (no vendor-wide rows at all) the global list. A
+profile whose own rows are all off stops that profile only.
+
 Its own model rather than a field on res.partner: a stored field on a core
 model read on every request is what took the site down once (see CLAUDE.md).
 Every change is written on the vendor's chatter with the user and the date.
@@ -27,22 +32,45 @@ class AwVendorBarLength(models.Model):
     vendor_id = fields.Many2one(
         'res.partner', string='Vendor', required=True, index=True,
         ondelete='cascade')
+    product_tmpl_id = fields.Many2one(
+        'product.template', string='Set profile', index=True,
+        ondelete='cascade',
+        domain=lambda self: self._profile_domain(),
+        help="Leave blank for every profile of this vendor.")
+    profile_label = fields.Char(
+        string='Profile', compute='_compute_profile_label')
     length_ft = fields.Float(string='Bar length (ft)', required=True)
     active = fields.Boolean(default=True)
 
-    @api.constrains('vendor_id', 'length_ft', 'active')
+    @api.model
+    def _profile_domain(self):
+        category = self.env.ref(
+            'aw_fenestration_core.product_category_profiles',
+            raise_if_not_found=False)
+        return [('categ_id', 'child_of', category.id)] if category else []
+
+    @api.depends('product_tmpl_id')
+    def _compute_profile_label(self):
+        for rec in self:
+            rec.profile_label = (
+                rec.product_tmpl_id.display_name or _("All profiles"))
+
+    @api.constrains('vendor_id', 'product_tmpl_id', 'length_ft', 'active')
     def _check_length(self):
         for rec in self:
             if rec.length_ft <= 0:
                 raise ValidationError(_("A bar length must be more than 0."))
             twin = self.with_context(active_test=False).search([
                 ('vendor_id', '=', rec.vendor_id.id),
+                ('product_tmpl_id', '=', rec.product_tmpl_id.id or False),
                 ('id', '!=', rec.id)]).filtered(
                 lambda o: abs(o.length_ft - rec.length_ft) < 1e-6)
             if twin:
                 raise ValidationError(_(
-                    "%(vendor)s already has a %(ft)g ft bar.",
-                    vendor=rec.vendor_id.display_name, ft=rec.length_ft))
+                    "%(vendor)s already has a %(ft)g ft bar for %(profile)s.",
+                    vendor=rec.vendor_id.display_name, ft=rec.length_ft,
+                    profile=rec.product_tmpl_id.display_name
+                    or _("all profiles")))
 
     # -- who changed what, on the vendor's chatter -------------------------
     def _log(self, vendor, text):
@@ -57,8 +85,8 @@ class AwVendorBarLength(models.Model):
         records = super().create(vals_list)
         for rec in records:
             self._log(rec.vendor_id, _(
-                "Bar length %(ft)g ft added by %(who)s on %(when)s.",
-                ft=rec.length_ft, who=self.env.user.name,
+                "Bar length %(ft)g ft (%(profile)s) added by %(who)s on %(when)s.",
+                ft=rec.length_ft, profile=rec.profile_label, who=self.env.user.name,
                 when=fields.Datetime.now()))
         return records
 
@@ -74,30 +102,59 @@ class AwVendorBarLength(models.Model):
             else:
                 continue
             self._log(rec.vendor_id, _(
-                "Bar length %(ft)g ft %(what)s by %(who)s on %(when)s.",
-                ft=rec.length_ft, what=what, who=self.env.user.name,
+                "Bar length %(ft)g ft (%(profile)s) %(what)s by %(who)s on %(when)s.",
+                ft=rec.length_ft, profile=rec.profile_label, what=what, who=self.env.user.name,
                 when=fields.Datetime.now()))
         return result
 
     def unlink(self):
         for rec in self:
             self._log(rec.vendor_id, _(
-                "Bar length %(ft)g ft removed by %(who)s on %(when)s.",
-                ft=rec.length_ft, who=self.env.user.name,
+                "Bar length %(ft)g ft (%(profile)s) removed by %(who)s on %(when)s.",
+                ft=rec.length_ft, profile=rec.profile_label, who=self.env.user.name,
                 when=fields.Datetime.now()))
         return super().unlink()
 
     @api.model
-    def _lengths_for(self, vendor, strict=False):
-        """Sorted ACTIVE lengths in ft; [] when the vendor has no rows at all
-        (use the global list). All rows off: UserError when strict, else []."""
+    def _profile_templates(self, vendor):
+        """The profiles this vendor has ACTIVE rows of their own for."""
+        if not vendor:
+            return self.env['product.template']
+        return self.sudo().search([
+            ('vendor_id', '=', vendor.id),
+            ('product_tmpl_id', '!=', False)]).mapped('product_tmpl_id')
+
+    @api.model
+    def _lengths_for(self, vendor, strict=False, template=None):
+        """Sorted ACTIVE lengths in ft for a vendor (and a profile template).
+
+        [] means "use the global list": the vendor has no rows, or none that
+        apply (only other profiles' rows). The profile's own active rows win;
+        if all of them are off that profile is a stop when strict (UserError
+        naming the profile), else it falls back to the vendor-wide rows. With
+        vendor-wide rows all off: a stop when strict, else [].
+        """
         if not vendor:
             return []
         rows = self.sudo().with_context(active_test=False).search(
             [('vendor_id', '=', vendor.id)])
         if not rows:
             return []
-        active = rows.filtered('active')
+        if template:
+            own = rows.filtered(lambda r: r.product_tmpl_id == template)
+            if own:
+                active = own.filtered('active')
+                if active:
+                    return sorted(active.mapped('length_ft'))
+                if strict:
+                    raise UserError(_(
+                        "%(vendor)s has no active bar length for %(profile)s",
+                        vendor=vendor.display_name,
+                        profile=template.display_name))
+        wide = rows.filtered(lambda r: not r.product_tmpl_id)
+        if not wide:
+            return []
+        active = wide.filtered('active')
         if not active and strict:
             raise UserError(_(
                 "%s has no active bar length.", vendor.display_name))

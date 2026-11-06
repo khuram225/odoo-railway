@@ -822,6 +822,18 @@ list; the fingerprint and the piece limit never stop (they use the global list
 then). A vendor with no rows at all still uses the global list. Every add,
 change, switch and removal is a note on the vendor's chatter with user and date.
 
+A row may name a PROFILE (`product_tmpl_id`; blank = all profiles of the vendor).
+Per profile and vendor: the profile's own active rows, else the vendor-wide active
+rows, else (the vendor has no vendor-wide rows) the global list. A profile whose
+own rows are all off stops THAT profile group only ("<vendor> has no active bar
+length for <profile>", listed on the plan as Not planned; the plan raises only if
+nothing could be planned). The planner resolves per group: a group is one product
+VARIANT, and its template picks the lengths, so finish and thickness do not change
+availability. The longest-piece check is per BOM line's template; the configurator's
+early limit uses the longest bar any of the vendor's profiles can come in. The plan
+fingerprint adds a per-profile entry only where a profile's lengths differ from the
+vendor's, so existing plans are not made stale by this change.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

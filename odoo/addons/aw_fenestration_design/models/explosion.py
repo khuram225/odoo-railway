@@ -59,7 +59,7 @@ class AwDesign(models.Model):
             design.check_warning_count = levels.count('warning')
 
     @api.model
-    def _max_piece_mm(self, vendor=None):
+    def _max_piece_mm(self, vendor=None, template=None, any_profile=False):
         """The longest piece that can be cut from one bar.
 
         Longest stock length, less the start trim, the safety margin and
@@ -67,8 +67,17 @@ class AwDesign(models.Model):
         than a square cut, so the number shown is the one that always
         holds.
         """
-        settings = self.env['aw.cut.plan']._settings(vendor)
-        longest = max(settings['stock_ft']) * 304.8
+        Plan = self.env['aw.cut.plan']
+        settings = Plan._settings(vendor, template=template)
+        feet = list(settings['stock_ft'])
+        if any_profile:
+            # The longest bar ANY profile of this vendor can come in: the
+            # configurator refuses early on that, the per-piece check below
+            # is the exact one.
+            for other in self.env['aw.vendor.bar.length']._profile_templates(
+                    vendor):
+                feet += Plan._settings(vendor, template=other)['stock_ft']
+        longest = max(feet) * 304.8
         return max_piece_mm(
             longest, settings['start_trim'], settings['safety_margin'],
             settings['kerf'], '45')
@@ -1285,9 +1294,16 @@ class AwDesign(models.Model):
         # No joints and no couplers: every piece comes out of one bar,
         # so one that cannot is a hard error rather than something the
         # optimiser works around.
-        limit = self._max_piece_mm(self.sale_order_id.aw_profile_vendor_id)
+        vendor = self.sale_order_id.aw_profile_vendor_id
+        limits = {}
         for line in self.bom_line_ids:
-            if line.kind == 'profile' and line.length_mm > limit:
+            if line.kind != 'profile':
+                continue
+            template = line.product_id.product_tmpl_id
+            if template.id not in limits:
+                limits[template.id] = self._max_piece_mm(vendor, template)
+            limit = limits[template.id]
+            if line.length_mm > limit:
                 problems.append(('error', _(
                     "'%(label)s' is %(len)s, longer than the %(max)s that "
                     "can be cut from one bar. Reduce the size — pieces "

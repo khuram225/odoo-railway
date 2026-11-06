@@ -1425,9 +1425,11 @@ class AwDesign(models.Model):
                 # moment a size is typed, rather than only after a save
                 # that runs the explosion.
                 'max_piece_mm': self._max_piece_mm(
-                    self.sale_order_id.aw_profile_vendor_id),
+                    self.sale_order_id.aw_profile_vendor_id,
+                    any_profile=True),
                 'max_piece_label': self._format_length(self._max_piece_mm(
-                    self.sale_order_id.aw_profile_vendor_id)),
+                    self.sale_order_id.aw_profile_vendor_id,
+                    any_profile=True)),
             },
             'family_options': [
                 {'id': family.id, 'name': family.display_name,
