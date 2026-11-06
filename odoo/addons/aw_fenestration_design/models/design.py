@@ -1424,8 +1424,10 @@ class AwDesign(models.Model):
                 # So the configurator can refuse an over-long piece the
                 # moment a size is typed, rather than only after a save
                 # that runs the explosion.
-                'max_piece_mm': self._max_piece_mm(),
-                'max_piece_label': self._format_length(self._max_piece_mm()),
+                'max_piece_mm': self._max_piece_mm(
+                    self.sale_order_id.aw_profile_vendor_id),
+                'max_piece_label': self._format_length(self._max_piece_mm(
+                    self.sale_order_id.aw_profile_vendor_id)),
             },
             'family_options': [
                 {'id': family.id, 'name': family.display_name,

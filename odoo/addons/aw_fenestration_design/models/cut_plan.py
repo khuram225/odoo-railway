@@ -140,7 +140,9 @@ class AwCutPlan(models.Model):
     # settings
     # ------------------------------------------------------------------
     @api.model
-    def _settings(self):
+    def _settings(self, vendor=None):
+        """The planning settings. Bar lengths are the VENDOR's when it has
+        any listed (aw.vendor.bar.length), else the global list."""
         param = self.env['ir.config_parameter'].sudo()
         raw = param.get_param(PARAM_STOCK, DEFAULT_STOCK)
         lengths = []
@@ -154,6 +156,8 @@ class AwCutPlan(models.Model):
                 continue
         if not lengths:
             lengths = [float(v) for v in DEFAULT_STOCK.split(',')]
+        lengths = (self.env['aw.vendor.bar.length']._lengths_for(vendor)
+                   or lengths)
 
         def number(key, fallback):
             try:
@@ -187,7 +191,7 @@ class AwCutPlan(models.Model):
 
     def _live_fingerprint(self):
         self.ensure_one()
-        settings = self._settings()
+        settings = self._settings(self.sale_order_id.aw_profile_vendor_id)
         payload = {
             'settings': [settings['stock_ft'], settings['kerf'],
                          settings['offcut_min'], settings['start_trim'],
@@ -210,7 +214,7 @@ class AwCutPlan(models.Model):
 
     def _generate(self):
         self.ensure_one()
-        settings = self._settings()
+        settings = self._settings(self.sale_order_id.aw_profile_vendor_id)
         stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
 
         # Overrides are the estimator's decision, not the algorithm's --
@@ -326,7 +330,8 @@ class AwCutPlan(models.Model):
             'start_trim_mm': settings['start_trim'],
             'safety_margin_mm': settings['safety_margin'],
             'solve_budget_s': settings['budget'],
-            'max_piece_mm': self.env['aw.design']._max_piece_mm(),
+            'max_piece_mm': self.env['aw.design']._max_piece_mm(
+                self.sale_order_id.aw_profile_vendor_id),
             'optimality': optimality,
             'optimality_note': optimality_note,
             'bom_fingerprint': self._live_fingerprint(),
@@ -684,7 +689,8 @@ class AwCutPlanGroup(models.Model):
     def _evaluate(self):
         """Re-run every option for this group."""
         self.ensure_one()
-        settings = self.plan_id._settings()
+        settings = self.plan_id._settings(
+            self.plan_id.sale_order_id.aw_profile_vendor_id)
         stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
         return evaluate(self._pieces(), stock_mm, kerf=settings['kerf'],
                         offcut_min=settings['offcut_min'],
@@ -704,7 +710,8 @@ class AwCutPlanGroup(models.Model):
         actually made.
         """
         self.ensure_one()
-        settings = self.plan_id._settings()
+        settings = self.plan_id._settings(
+            self.plan_id.sale_order_id.aw_profile_vendor_id)
         stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
         if key and key != 'mixed':
             wanted = [value for value in stock_mm
