@@ -75,4 +75,67 @@
             </form>
         </field>
     </record>
+
+    <!-- Match a Review row to a product: both names, a warning, an
+         unticked Remember box. -->
+    <record id="view_aw_vendor_rate_match_wizard_form" model="ir.ui.view">
+        <field name="name">aw.vendor.rate.match.wizard.form</field>
+        <field name="model">aw.vendor.rate.match.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Match to product">
+                <field name="review_id" invisible="1"/>
+                <group>
+                    <field name="vendor_code" readonly="1"/>
+                    <field name="thickness" readonly="1"/>
+                    <field name="row_series" readonly="1"
+                           invisible="not row_series"/>
+                    <field name="product_tmpl_id"
+                           options="{'no_create': True, 'no_open': True}"/>
+                    <field name="both_names" readonly="1"
+                           invisible="not both_names"/>
+                </group>
+                <div class="alert alert-warning" role="alert"
+                     invisible="not series_warning">
+                    <field name="series_warning" nolabel="1"/>
+                </div>
+                <group>
+                    <field name="remember"/>
+                </group>
+                <div class="alert alert-warning" role="alert"
+                     invisible="not already">
+                    <field name="already" nolabel="1"/>
+                </div>
+                <div class="text-muted">
+                    Ticked: the same code is matched to this profile on every
+                    later list from this vendor, and it is logged with your
+                    name and today's date. Unticked: this list only.
+                </div>
+                <footer>
+                    <button name="action_match" type="object" string="Match"
+                            class="btn-primary"
+                            invisible="not product_tmpl_id"/>
+                    <button string="Cancel" special="cancel"
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Remembered codes: who added each, and when. Delete to forget. -->
+    <record id="view_aw_vendor_alias_list" model="ir.ui.view">
+        <field name="name">aw.vendor.alias.list</field>
+        <field name="model">aw.vendor.alias</field>
+        <field name="arch" type="xml">
+            <list string="Remembered codes" create="0">
+                <field name="vendor_id"/>
+                <field name="code"/>
+                <field name="code_norm" optional="hide"/>
+                <field name="product_tmpl_id" string="Our profile"/>
+                <field name="thickness_text" optional="hide"/>
+                <field name="added_by"/>
+                <field name="added_on"/>
+                <field name="rate_list_id"/>
+            </list>
+        </field>
+    </record>
 </odoo>

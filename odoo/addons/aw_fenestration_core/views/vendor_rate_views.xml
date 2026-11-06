@@ -8,6 +8,15 @@
         <field name="arch" type="xml">
             <form string="Vendor layout">
                 <sheet>
+                    <!-- an extension point: keep this div -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_aliases" type="object"
+                                class="oe_stat_button" icon="fa-link"
+                                invisible="not id">
+                            <field name="alias_count" widget="statinfo"
+                                   string="Remembered codes"/>
+                        </button>
+                    </div>
                     <group>
                         <field name="vendor_id"/>
                         <field name="note"/>
@@ -161,6 +170,9 @@
                         <div class="alert alert-info" role="status">
                             <strong><field name="review_summary" nolabel="1"/></strong>
                             <div><field name="review_big_text" nolabel="1"/></div>
+                            <div invisible="not remembered_summary">
+                                <field name="remembered_summary" nolabel="1"/>
+                            </div>
                             Nothing is written until you press Confirm.
                             Rows that are the same as now are not listed.
                         </div>
@@ -185,6 +197,12 @@
                                 <field name="pct"/>
                                 <field name="big" column_invisible="1"/>
                                 <field name="message"/>
+                                <field name="can_match" column_invisible="1"/>
+                                <button name="action_match_product" type="object"
+                                        string="Match to product"
+                                        class="btn-link"
+                                        invisible="not can_match"
+                                        groups="aw_fenestration_core.group_rates_manager"/>
                             </list>
                         </field>
                     </div>
