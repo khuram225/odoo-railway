@@ -459,8 +459,7 @@ def read_template(data, kind, finish_headers=(), expected=None, lookup=None):
         # the hidden key must agree with the code and thickness beside it
         if key:
             if key in seen_keys:
-                fail("repeats row %d (same hidden key); delete one of them"
-                     % seen_keys[key])
+                row['repeats'] = seen_keys[key]
             else:
                 seen_keys[key] = number
             known = lookup(key) if lookup else None
@@ -494,10 +493,27 @@ def read_template(data, kind, finish_headers=(), expected=None, lookup=None):
             values.append(price)
         row['prices'] = values
         row['label'] = label
+        # the same key twice: identical prices count once (with a note),
+        # different prices stay a problem naming both rows
+        first = next((r for r in result['rows']
+                      if r['row'] == row.get('repeats')), None)
+        if first is not None and not row['problems']:
+            if first['prices'] == values:
+                result['repeated'] = result.get('repeated', 0) + 1
+                continue
+            row['problems'].append(
+                "repeats row %d (same hidden key) with different prices; "
+                "keep one of them" % first['row'])
+        elif first is not None:
+            row['problems'].append("also repeats row %d" % first['row'])
         result['rows'].append(row)
         for text in row['problems']:
             result['problems'].append("Row %d (%s): %s" % (number, label, text))
 
+    if result.get('repeated'):
+        result['notes'].append(
+            "%d repeated row(s) with the same prices were counted once."
+            % result['repeated'])
     if hidden_rows:
         result['notes'].append(
             "%d hidden row(s) on the Rates sheet were read like the rest."

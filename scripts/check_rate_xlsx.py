@@ -323,6 +323,27 @@ dupe = edit(data, lambda b: b['Rates'].cell(row=3, column=8, value='p:1:5'))
 check('same key twice', said(read(dupe), 'repeats row 2'), read(dupe)['problems'])
 check('a key that matches nothing', said(read(data, lookup={}), 'matches nothing'))
 
+# the same row twice: identical prices count once, different prices stay a problem
+def twin(book):
+    sheet = book['Rates']
+    for col in range(1, 9):
+        sheet.cell(row=3, column=col).value = sheet.cell(
+            row=2, column=col).value
+got = read(edit(data, twin))
+check('identical repeated row counts once', not got['problems']
+      and not got['errors'] and len(got['rows']) == 2
+      and got['rows'][1]['key'] == 'p:3:6'
+      and any('counted once' in n for n in got['notes']),
+      got['problems'] + got['notes'])
+
+
+def twin_different(book):
+    twin(book)
+    book['Rates'].cell(row=3, column=4).value = 999.0
+got = read(edit(data, twin_different))
+check('repeated row with another price is a problem naming both',
+      said(got, 'row 3', 'repeats row 2', 'different prices'), got['problems'])
+
 # things reported, not stopped
 def extras(book):
     book.create_sheet('Scratch')

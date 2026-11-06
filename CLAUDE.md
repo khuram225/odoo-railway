@@ -801,6 +801,17 @@ it was remembered. The Review summary lists the codes remembered on that list;
 the vendor layout's **Remembered codes** button opens them, and deleting one
 forgets it.
 
+### Data in: one upload, Clear all lines, repeated rows
+
+An upload is refused while the list has lines ("This list already has lines.
+Clear them first."), because it appends and loading the same file twice doubled
+the line count. **Clear all lines** (Rates manager, draft lists, with a
+confirmation) removes every line, sends a review back to Data in, clears the
+upload summary and logs who did it; it touches no rate. A row repeated with the
+same prices counts ONCE with a note, in the upload reader (same hidden key) and
+in Review (same profile/thickness/finish, or same glass type/thickness); the
+same key with different prices stays a Problem naming both rows.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
