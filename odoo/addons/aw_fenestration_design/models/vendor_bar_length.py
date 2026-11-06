@@ -41,6 +41,11 @@ class AwVendorBarLength(models.Model):
         string='Profile', compute='_compute_profile_label')
     length_ft = fields.Float(string='Bar length (ft)', required=True)
     active = fields.Boolean(default=True)
+    # Form only, never stored: "this length exists but is switched off".
+    inactive_twin_note = fields.Char(
+        compute='_compute_inactive_twin_note')
+    switch_on_existing = fields.Boolean(
+        string='Switch the existing one on instead', store=False)
 
     @api.model
     def _profile_domain(self):
@@ -48,6 +53,29 @@ class AwVendorBarLength(models.Model):
             'aw_fenestration_core.product_category_profiles',
             raise_if_not_found=False)
         return [('categ_id', 'child_of', category.id)] if category else []
+
+    def _twins(self, vendor, template, length, exclude=None):
+        """Rows (active or not) of the same vendor, profile and length."""
+        rows = self.with_context(active_test=False).search([
+            ('vendor_id', '=', vendor.id),
+            ('product_tmpl_id', '=', template.id or False)])
+        if exclude:
+            rows -= exclude
+        return rows.filtered(lambda o: abs(o.length_ft - length) < 1e-6)
+
+    @api.depends('vendor_id', 'product_tmpl_id', 'length_ft', 'active')
+    def _compute_inactive_twin_note(self):
+        for rec in self:
+            twin = rec._twins(
+                rec.vendor_id, rec.product_tmpl_id, rec.length_ft,
+                exclude=rec) if rec.vendor_id and rec.length_ft > 0 \
+                else self.browse()
+            off = twin.filtered(lambda o: not o.active)
+            rec.inactive_twin_note = _(
+                "A %(ft)g ft bar for %(profile)s exists but is switched "
+                "off.", ft=rec.length_ft,
+                profile=rec.product_tmpl_id.display_name or _(
+                    "all profiles")) if off and not rec.id else False
 
     @api.depends('product_tmpl_id')
     def _compute_profile_label(self):
@@ -60,17 +88,23 @@ class AwVendorBarLength(models.Model):
         for rec in self:
             if rec.length_ft <= 0:
                 raise ValidationError(_("A bar length must be more than 0."))
-            twin = self.with_context(active_test=False).search([
-                ('vendor_id', '=', rec.vendor_id.id),
-                ('product_tmpl_id', '=', rec.product_tmpl_id.id or False),
-                ('id', '!=', rec.id)]).filtered(
-                lambda o: abs(o.length_ft - rec.length_ft) < 1e-6)
+            twin = self._twins(rec.vendor_id, rec.product_tmpl_id,
+                               rec.length_ft, exclude=rec)
             if twin:
+                profile = rec.product_tmpl_id.display_name or _(
+                    "all profiles")
+                if twin.filtered(lambda o: not o.active):
+                    raise ValidationError(_(
+                        "%(vendor)s already has a %(ft)g ft bar for "
+                        "%(profile)s, and it is switched off. Switch it on "
+                        "with its toggle in the Bar Lengths list, or tick "
+                        "'Switch the existing one on instead' when adding.",
+                        vendor=rec.vendor_id.display_name, ft=rec.length_ft,
+                        profile=profile))
                 raise ValidationError(_(
                     "%(vendor)s already has a %(ft)g ft bar for %(profile)s.",
                     vendor=rec.vendor_id.display_name, ft=rec.length_ft,
-                    profile=rec.product_tmpl_id.display_name
-                    or _("all profiles")))
+                    profile=profile))
 
     # -- who changed what, on the vendor's chatter -------------------------
     def _log(self, vendor, text):
@@ -82,13 +116,30 @@ class AwVendorBarLength(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        records = super().create(vals_list)
+        # "Switch the existing one on instead": an identical switched-off row
+        # is turned on rather than a second one refused or made.
+        revived, fresh = self.browse(), []
+        for vals in vals_list:
+            vals = dict(vals)
+            if vals.pop('switch_on_existing', False):
+                twin = self._twins(
+                    self.env['res.partner'].browse(vals.get('vendor_id')),
+                    self.env['product.template'].browse(
+                        vals.get('product_tmpl_id') or False),
+                    vals.get('length_ft') or 0.0).filtered(
+                    lambda o: not o.active)[:1]
+                if twin:
+                    twin.write({'active': True})
+                    revived |= twin
+                    continue
+            fresh.append(vals)
+        records = super().create(fresh) if fresh else self.browse()
         for rec in records:
             self._log(rec.vendor_id, _(
                 "Bar length %(ft)g ft (%(profile)s) added by %(who)s on %(when)s.",
                 ft=rec.length_ft, profile=rec.profile_label, who=self.env.user.name,
                 when=fields.Datetime.now()))
-        return records
+        return records | revived
 
     def write(self, vals):
         before = {r.id: (r.length_ft, r.active) for r in self}

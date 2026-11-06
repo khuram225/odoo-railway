@@ -30,6 +30,7 @@
                         <group string="Built with">
                             <field name="sale_order_id" readonly="1"/>
                             <field name="date" readonly="1"/>
+                            <field name="profile_vendor_id" readonly="1"/>
                             <field name="stock_lengths_ft" readonly="1"/>
                             <field name="solve_budget_s" readonly="1"/>
                             <field name="kerf_mm" readonly="1"/>

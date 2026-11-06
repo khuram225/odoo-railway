@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """A quote plans with its profile vendor's bar lengths; no rows, the global list."""
+import unittest
+
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
@@ -211,3 +213,103 @@ class TestVendorBarLengthProfile(TransactionCase):
         self.own[12].active = False
         body = ' '.join(self.vendor.message_ids.mapped('body'))
         self.assertIn('12 ft (RE-A profile) switched off by', body)
+
+
+@tagged('post_install', '-at_install')
+class TestVendorBarLengthUi(TransactionCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.vendor = cls.env['res.partner'].create({'name': 'Ui vendor'})
+        cls.Length = cls.env['aw.vendor.bar.length']
+        cls.row = cls.Length.create(
+            {'vendor_id': cls.vendor.id, 'length_ft': 18})
+        cls.row.active = False
+
+    def test_message_says_the_row_is_switched_off_and_where(self):
+        with self.assertRaises(ValidationError) as caught:
+            self.Length.create({'vendor_id': self.vendor.id, 'length_ft': 18})
+        text = str(caught.exception)
+        self.assertIn('switched off', text)
+        self.assertIn('toggle in the Bar Lengths list', text)
+
+    def test_add_can_switch_the_existing_one_on(self):
+        made = self.Length.create({'vendor_id': self.vendor.id,
+                                   'length_ft': 18,
+                                   'switch_on_existing': True})
+        self.assertEqual(made, self.row)
+        self.assertTrue(self.row.active)
+        self.assertEqual(self.Length.with_context(active_test=False)
+                         .search_count([('vendor_id', '=', self.vendor.id)]), 1)
+
+    def test_form_note_appears_only_for_a_switched_off_twin(self):
+        draft = self.Length.new({'vendor_id': self.vendor.id, 'length_ft': 18})
+        self.assertIn('switched off', draft.inactive_twin_note)
+        other = self.Length.new({'vendor_id': self.vendor.id, 'length_ft': 20})
+        self.assertFalse(other.inactive_twin_note)
+
+    def test_action_shows_inactive_rows(self):
+        action = self.env.ref(
+            'aw_fenestration_design.action_aw_vendor_bar_length')
+        self.assertIn("'active_test': False", action.context)
+
+
+@tagged('post_install', '-at_install')
+class TestRegenerateUsesTheQuotesVendor(TransactionCase):
+    """Cutting plan > Regenerate (aw.cut.plan.action_generate) with the 18 ft
+    row of the QUOTE'S profile vendor switched off. The vendor that counts
+    is the quote's, not any other vendor's."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        family = env['aw.window.family'].search([]).filtered(
+            lambda f: f.series_ids.filtered('active').filtered(
+                lambda s: s.leaf_type_ids))[:1]
+        if not family:
+            raise unittest.SkipTest("No glazing family with a profile system")
+        series = family.series_ids.filtered('active').filtered(
+            lambda s: s.leaf_type_ids)[0]
+        cls.premium = env['res.partner'].create({'name': 'Premium (regen)'})
+        cls.chawla = env['res.partner'].create({'name': 'Chawla (regen)'})
+        Length = env['aw.vendor.bar.length']
+        cls.rows = {}
+        for vendor in (cls.premium, cls.chawla):
+            for ft in (14, 16, 18):
+                cls.rows[(vendor.id, ft)] = Length.create(
+                    {'vendor_id': vendor.id, 'length_ft': ft})
+        cls.order = env['sale.order'].create({
+            'partner_id': env['res.partner'].create(
+                {'name': 'Regen customer'}).id,
+            'aw_default_series_id': series.id,
+            'aw_profile_vendor_id': cls.premium.id})
+        design = cls.order._create_fenestration_position(series, family=family)
+        design.write({'width_mm': 2400.0, 'height_mm': 1800.0})
+        leaf = {'width_mm': 1200.0, 'leaf_type_id': series.leaf_type_ids[0].id}
+        design.save_layout({
+            'header': design.get_configurator_data()['header'],
+            'rows': [{'height_mm': 1800.0, 'leaves': [dict(leaf), dict(leaf)]}]})
+        design._explode()
+        cls.plan = env['aw.cut.plan'].create({'sale_order_id': cls.order.id})
+        if not cls.plan._profile_lines():
+            raise unittest.SkipTest("The test window has no profile lines")
+
+    def _bar_lengths(self):
+        return {round(bar.stock_mm / 304.8) for bar
+                in self.plan.group_ids.mapped('bar_ids')}
+
+    def test_switching_off_18_removes_18_from_a_regenerated_plan(self):
+        self.plan.action_generate()
+        self.assertEqual(self.plan.profile_vendor_id, self.premium)
+        self.assertEqual(self.plan.stock_lengths_ft, '14,16,18')
+        self.rows[(self.premium.id, 18)].active = False
+        self.plan.action_generate()
+        self.assertEqual(self.plan.stock_lengths_ft, '14,16')
+        self.assertNotIn(18, self._bar_lengths())
+
+    def test_another_vendors_switch_changes_nothing(self):
+        self.rows[(self.chawla.id, 18)].active = False
+        self.plan.action_generate()
+        self.assertEqual(self.plan.stock_lengths_ft, '14,16,18')
