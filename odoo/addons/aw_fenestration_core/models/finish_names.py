@@ -199,6 +199,16 @@ class ProductAttributeValue(models.Model):
         param = self.env['ir.config_parameter'].sudo()
         if param.get_param(MIGRATED_PARAM):
             return False
+        # On a fresh install this data function runs before the Finish
+        # attribute exists (chawla_attributes_data.xml loads later). There is
+        # nothing to migrate yet, which is not a failure: say so at INFO, leave
+        # the parameter unset, and the next upgrade does the work.
+        if not self.env.ref('aw_fenestration_core.aw_attribute_finish',
+                            raise_if_not_found=False):
+            _logger.info("aw_fenestration_core: finish names: the Finish "
+                         "attribute is not loaded yet; left for the next "
+                         "upgrade")
+            return False
         try:
             with self.env.cr.savepoint():
                 report = self._do_migrate_finish_names()
