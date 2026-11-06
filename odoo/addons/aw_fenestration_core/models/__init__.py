@@ -29,3 +29,5 @@ from . import glass_sheet
 from . import mesh_cloth_product
 from . import glass_extras
 from . import glass_retire
+from . import rate_xlsx
+from . import rate_template

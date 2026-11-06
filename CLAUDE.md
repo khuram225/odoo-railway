@@ -740,6 +740,26 @@ bookkeeping writes (need, match, results) do not. Undo is `action_set_to_draft`,
 which now returns to Data in. The form's old Apply button is gone; `action_apply`
 stays for code, migrations and tests and never date-checks.
 
+## Excel rate template (download)
+
+`models/rate_xlsx.py` (Odoo-free, `scripts/check_rate_xlsx.py`) writes the .xlsx
+with **XlsxWriter**; Upload (next change) reads it with **openpyxl**. Both are
+pinned in `odoo/Dockerfile` and imported in the RUN line, so a build without
+them fails there rather than when somebody clicks Download. The Rates sheet is a
+header row, then (prefilled files) one row per profile+thickness or glass
+type+thickness in force TODAY for the series chosen (or Everything, with a size
+warning over 400 rows), a hidden Key column, and a "New items" heading with 30
+open rows. The sheet is protected WITHOUT a password: identity and header cells
+locked, prices open, sort and filter allowed. The Code column is text format and
+dates on the Info sheet are text, so Excel cannot turn `1-2` into a date. Info
+carries vendor, vendor id, kind, effective date, **list id**, template version
+(1; bump it when the file's layout changes) and download time. Downloading
+writes nothing to the list or the rates. The wizard is
+`aw.vendor.rate.template.wizard` (Rates manager); a profile file asks "Which
+series?" first. Excel limit worth knowing: sorting a range that contains locked
+cells fails in Excel whatever the protection options say, so a sort works only
+on the unlocked New items block.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
