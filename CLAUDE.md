@@ -781,6 +781,26 @@ extra sheets, hidden sheets, merged cells, hidden rows (read like the rest).
 Any real Excel-saved file dropped into `aw_fenestration_design/tests/data/` is
 read by `scripts/check_rate_xlsx.py`.
 
+### Match to product at Review
+
+A Review row that is "Not written" because no profile carries the vendor's code
+gets a **Match to product** button (Rates manager only; `can_match` is set when
+the review rows are built, profile lists only). The dialog
+(`aw.vendor.rate.match.wizard`) shows the vendor's code and our profile by
+name, **warns but never stops** when the vendor lists that profile under a
+different series than the row says (read from the vendor's own rates, so a
+profile with no rates from them cannot warn), and has **Remember this code for
+this vendor**, UNTICKED by default. Matching writes the line as a manual match
+(without the old per-pick alias: an alias is now only made on that tick), then
+rebuilds the review in place, which also asks for the "I checked these price
+changes" tick again, since the rows Confirm will write have changed. A
+remembered code is an `aw.vendor.alias` for the code at any thickness, with the
+code as typed, the list it was made on, and (from `create_uid`/`create_date`)
+who and when; the same user and date go on the list's chatter, whether or not
+it was remembered. The Review summary lists the codes remembered on that list;
+the vendor layout's **Remembered codes** button opens them, and deleting one
+forgets it.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

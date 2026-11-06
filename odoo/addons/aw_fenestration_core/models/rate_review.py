@@ -125,6 +125,8 @@ class AwVendorRateList(models.Model):
         return dict({
             'line_id': line.id, 'sort': line.sequence, 'status': status,
             'code': line.code, 'thickness': line.thickness_text or '',
+            'can_match': (status == 'notwritten' and not line.product_tmpl_id
+                          and line.list_id.kind == 'profile'),
         }, **values)
 
     def _classify(self, current, newer, price):
