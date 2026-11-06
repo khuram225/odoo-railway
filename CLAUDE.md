@@ -796,8 +796,7 @@ the review rows are built, profile lists only). The dialog
 name, **warns but never stops** when the vendor lists that profile under a
 different series than the row says (read from the vendor's own rates, so a
 profile with no rates from them cannot warn), and has **Remember this code for
-this vendor**, UNTICKED by default. Matching writes the line as a manual match
-(without the old per-pick alias: an alias is now only made on that tick), then
+this vendor**, UNTICKED by default. Matching writes the line as a manual match, then
 rebuilds the review in place, which also asks for the "I checked these price
 changes" tick again, since the rows Confirm will write have changed. A
 remembered code is an `aw.vendor.alias` for the code at any thickness, with the
@@ -806,6 +805,14 @@ who and when; the same user and date go on the list's chatter, whether or not
 it was remembered. The Review summary lists the codes remembered on that list;
 the vendor layout's **Remembered codes** button opens them, and deleting one
 forgets it.
+
+**This dialog is the only way an alias is made.** The grid's "pick the
+profile" button used to write the product straight onto the line, and a line
+write used to save an alias on its own: unticked-by-default, Rates-manager-only
+and logging were all bypassed. Both now go through
+`aw.vendor.rate.list.line.action_match_product()` (the grid calls it over RPC and
+opens the dialog), and a plain write of `product_tmpl_id` saves no alias. The
+dialog works at the Data in step too (no review to rebuild there).
 
 ### Vendor bar lengths
 

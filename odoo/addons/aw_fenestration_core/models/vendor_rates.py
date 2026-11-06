@@ -459,8 +459,9 @@ class AwVendorThicknessAlias(models.Model):
 
 
 class AwVendorAlias(models.Model):
-    """A vendor's code (and thickness) mapped to one of our profiles,
-    saved the first time somebody picks the product for an unmatched row."""
+    """A vendor's code (and thickness) mapped to one of our profiles, saved
+    when a Rates manager ticks "Remember this code" in the Match to product
+    dialog; it is never saved on its own."""
     _name = 'aw.vendor.alias'
     _description = 'Vendor Profile Alias'
 
@@ -1567,10 +1568,9 @@ class AwVendorRateListLine(models.Model):
         if manual and not self.env.context.get('aw_no_alias'):
             vals = dict(vals, match_source='manual')
         result = super().write(vals)
-        if manual and vals.get('product_tmpl_id') \
-                and not self.env.context.get('aw_no_alias'):
-            for line in self:
-                line._save_alias()
+        # No alias is made here any more: a picked product is remembered only
+        # through the Match to product dialog (rate_match.py), where it is
+        # unticked by default, Rates manager only, and logged.
         if ('code' in vals or 'thickness_text' in vals) and not manual \
                 and not self.env.context.get('aw_auto_match'):
             self._auto_match()
@@ -1580,21 +1580,3 @@ class AwVendorRateListLine(models.Model):
                      or any(k.startswith('rate_') for k in vals)):
             self._refresh_need()
         return result
-
-    def _save_alias(self):
-        """The product was picked by hand: remember it, once."""
-        self.ensure_one()
-        Alias = self.env['aw.vendor.alias']
-        key = [('vendor_id', '=', self.vendor_id.id),
-               ('code_norm', '=', self.code_norm),
-               ('thickness_text', '=', self.thickness_norm or False)]
-        found = Alias.search(key, limit=1)
-        values = {'product_tmpl_id': self.product_tmpl_id.id}
-        if found:
-            found.write(values)
-        else:
-            Alias.create(dict(
-                values, vendor_id=self.vendor_id.id,
-                code_norm=self.code_norm,
-                thickness_text=self.thickness_norm or False))
-        self.with_context(aw_auto_match=True)._auto_match()

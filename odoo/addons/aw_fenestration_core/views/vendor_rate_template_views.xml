@@ -83,7 +83,7 @@
         <field name="model">aw.vendor.rate.match.wizard</field>
         <field name="arch" type="xml">
             <form string="Match to product">
-                <field name="review_id" invisible="1"/>
+                <field name="line_id" invisible="1"/>
                 <group>
                     <field name="vendor_code" readonly="1"/>
                     <field name="thickness" readonly="1"/>

@@ -54,7 +54,8 @@ class TestRatesMatch(TransactionCase):
     def _wizard(self, row, **values):
         return self.env['aw.vendor.rate.match.wizard'].with_user(
             self.rates_user).create(dict(
-                review_id=row.id, product_tmpl_id=self.profile.id, **values))
+                line_id=row.line_id.id, product_tmpl_id=self.profile.id,
+                **values))
 
     def test_only_a_row_without_a_product_can_be_matched(self):
         rate_list, row = self._review()
@@ -138,11 +139,40 @@ class TestRatesMatch(TransactionCase):
     def test_only_a_rates_manager_can_match(self):
         rate_list, row = self._review()
         wizard = self.env['aw.vendor.rate.match.wizard'].create({
-            'review_id': row.id, 'product_tmpl_id': self.profile.id})
+            'line_id': row.line_id.id, 'product_tmpl_id': self.profile.id})
         with self.assertRaises(UserError):
             wizard.with_user(self.plain_user).action_match()
         with self.assertRaises(UserError):
             row.with_user(self.plain_user).action_match_product()
+
+    def test_picking_a_product_in_the_grid_saves_no_alias(self):
+        """The old behaviour: a hand pick wrote an alias on its own."""
+        rate_list, row = self._review()
+        row.line_id.write({'product_tmpl_id': self.profile.id})
+        self.assertEqual(row.line_id.match_source, 'manual')
+        self.assertFalse(self.env['aw.vendor.alias'].search([
+            ('vendor_id', '=', self.vendor.id)]))
+
+    def test_the_grid_pick_opens_the_same_dialog(self):
+        rate_list, row = self._review()
+        action = row.line_id.with_user(self.rates_user).action_match_product()
+        wizard = self.env[action['res_model']].browse(action['res_id'])
+        self.assertEqual(wizard.line_id, row.line_id)
+        self.assertFalse(wizard.remember)
+        with self.assertRaises(UserError):
+            row.line_id.with_user(self.plain_user).action_match_product()
+
+    def test_matching_from_the_data_step_logs_and_keeps_the_step(self):
+        rate_list, row = self._review()
+        rate_list.action_back_to_data()
+        self.assertEqual(rate_list.step, 'data')
+        self._wizard(row, remember=True).action_match()
+        self.assertEqual(rate_list.step, 'data')
+        self.assertFalse(rate_list.review_ids)
+        self.assertEqual(self.env['aw.vendor.alias'].search_count([
+            ('vendor_id', '=', self.vendor.id)]), 1)
+        self.assertIn('Rates matcher', ' '.join(
+            rate_list.message_ids.mapped('body')))
 
     def test_the_layout_lists_remembered_codes(self):
         rate_list, row = self._review()
