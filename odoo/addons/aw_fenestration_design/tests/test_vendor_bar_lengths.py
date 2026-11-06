@@ -129,7 +129,7 @@ class TestVendorBarLengthActive(TransactionCase):
     def test_changes_are_logged_with_user_and_date(self):
         self.rows[18].active = False
         body = ' '.join(self.vendor.message_ids.mapped('body'))
-        self.assertIn('18 ft switched off by', body)
+        self.assertIn('18 ft (All profiles) switched off by', body)
         self.assertIn(self.env.user.name, body)
 
 
