@@ -2,15 +2,16 @@
 # Read an Odoo --test-enable log and fail unless tests really ran and none
 # failed or errored.
 #
-# `--stop-after-init` exits 0 whatever the tests did, so the exit code is not
-# the gate; the summary line Odoo prints is:
+# `--stop-after-init` exits 0 or 1 whatever the tests did, so the exit code is
+# not the gate; the summary line Odoo prints is:
 #     N failed, M error(s) of T tests when loading database 'db'
 # A log with NO such line means no test ran (wrong tags, module not updated),
 # which must not read as a pass.
 #
 # Every failing test is also written as a ::error:: annotation (name, then the
 # exception that ended its traceback), because the job log needs a signed-in
-# user to read and annotations do not.
+# user to read and annotations do not. GitHub shows only 10 annotations per
+# step, so they go out in chunks of 12 tests per annotation.
 #
 # Usage: scripts/ci_assert_tests.sh /tmp/tests.log
 set -eu
@@ -34,14 +35,19 @@ if [ "$total" -eq 0 ]; then
 fi
 
 if [ "$failed" -gt 0 ] || [ "$errors" -gt 0 ]; then
-    # one annotation per failing test, capped so the list stays readable
-    grep -E '(FAIL|ERROR): (Test|test)[A-Za-z0-9_.]*' "$log" \
-        | sed -E 's/.*((FAIL|ERROR): [A-Za-z0-9_.]+).*/\1/' | sort -u | head -60 \
+    list=$(mktemp)
+    grep -E '(FAIL|ERROR): [Tt]est[A-Za-z0-9_.]*' "$log" \
+        | sed -E 's/.*((FAIL|ERROR): [A-Za-z0-9_.]+).*/\1/' | sort -u \
     | while read -r kind name; do
         n=$(grep -n -m1 -F "$kind $name" "$log" | cut -d: -f1 || true)
         [ -n "$n" ] || continue
-        exc=$(awk -v n="$n" 'NR > n { if ($0 ~ /^20[0-9][0-9]-[0-9][0-9]-/) exit; if ($0 !~ /^[[:space:]]/) last = $0 } END { print last }' "$log" | cut -c1-300)
-        echo "::error::$kind $name -- $exc"
+        exc=$(awk -v n="$n" 'NR > n { if ($0 ~ /^20[0-9][0-9]-[0-9][0-9]-/) exit; if ($0 !~ /^[[:space:]]/) last = $0 } END { print last }' "$log" | cut -c1-220)
+        echo "$kind $name -- $exc"
+    done > "$list"
+    split -l 12 "$list" "$list.part."
+    for part in "$list".part.*; do
+        [ -f "$part" ] || continue
+        printf '::error::%s\n' "$(awk '{printf "%s%%0A", $0}' "$part")"
     done
     echo "::error::$failed failed, $errors errored of $total tests"
     exit 1
