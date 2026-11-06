@@ -35,6 +35,10 @@ if [ -n "$found" ]; then
     echo "::error::first error line: $first"
     at=$(grep -n -m1 -F -- "$first" "$log" | cut -d: -f1 || true)
     if [ -n "$at" ]; then
+        # A traceback ends in the line that says what went wrong: the
+        # last unindented line before the next timestamped log line.
+        exc=$(awk -v n="$at" 'NR > n { if ($0 ~ /^20[0-9][0-9]-[0-9][0-9]-/) exit; if ($0 !~ /^[[:space:]]/) last = $0 } END { print last }' "$log" | cut -c1-500)
+        [ -n "$exc" ] && echo "::error::exception: $exc"
         next=$(sed -n "$((at + 1)),$((at + 3))p" "$log" | tr '\n' ' ' | cut -c1-400)
         echo "::error::after it: $next"
     fi
