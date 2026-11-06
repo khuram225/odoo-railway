@@ -21,8 +21,14 @@ USER root
 # --break-system-packages: Debian 12 marks the system Python
 # externally-managed (PEP 668). This image has no venv and Odoo runs
 # against the system interpreter, so the package has to land there.
+# openpyxl reads and XlsxWriter writes the Excel rate template. Odoo's own
+# requirements list both, but the base image is not ours to rely on, and a
+# missing one would only show when somebody clicked Download. Pinned, and
+# imported here so a build without them fails now.
 RUN pip3 install --no-cache-dir --break-system-packages pulp==2.9.0 \
-    && python3 -c "import pulp; assert pulp.listSolvers(onlyAvailable=True), 'no CBC'"
+        openpyxl==3.1.5 XlsxWriter==3.2.0 \
+    && python3 -c "import pulp; assert pulp.listSolvers(onlyAvailable=True), 'no CBC'" \
+    && python3 -c "import openpyxl, xlsxwriter"
 
 COPY odoo.conf /etc/odoo/odoo.conf.base
 COPY entrypoint.sh /usr/local/bin/railway-entrypoint.sh

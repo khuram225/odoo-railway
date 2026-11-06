@@ -46,7 +46,7 @@ jobs:
         # rewrite with no bundled solver, so an unpinned install would
         # silently drop the cutting optimiser to its greedy fallback and
         # CI would be testing a different algorithm from production.
-        run: python -m pip install --upgrade pip pyflakes lxml pulp==2.9.0
+        run: python -m pip install --upgrade pip pyflakes lxml pulp==2.9.0 openpyxl==3.1.5 XlsxWriter==3.2.0
 
       # The checks read ../odoo-src to know what core Odoo defines: which
       # fields a product has, which methods BaseModel provides, Odoo's own

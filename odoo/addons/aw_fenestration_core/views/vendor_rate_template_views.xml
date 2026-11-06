@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Download the Excel template: asks which series first, then offers
+         the file. Reached by type="object" buttons on the rate list. -->
+    <record id="view_aw_vendor_rate_template_wizard_form" model="ir.ui.view">
+        <field name="name">aw.vendor.rate.template.wizard.form</field>
+        <field name="model">aw.vendor.rate.template.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Rate template">
+                <field name="list_id" invisible="1"/>
+                <field name="mode" invisible="1"/>
+                <field name="kind" invisible="1"/>
+                <div class="alert alert-info" role="status"
+                     invisible="file_data or mode != 'current' or kind != 'profile'">
+                    Which series? The file will hold the codes, thicknesses
+                    and prices in force today for it, so you only type the
+                    prices that change.
+                </div>
+                <group invisible="file_data or mode != 'current' or kind != 'profile'">
+                    <field name="series" placeholder="e.g. DG.SERIES"
+                           invisible="everything"/>
+                    <field name="series_choices"/>
+                    <field name="everything"/>
+                    <field name="row_count"/>
+                </group>
+                <div class="alert alert-warning" role="alert"
+                     invisible="not size_warning">
+                    <field name="size_warning" nolabel="1"/>
+                </div>
+                <group invisible="not file_data">
+                    <field name="file_data" filename="file_name"
+                           string="Your file"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+                <div class="text-muted" invisible="not file_data">
+                    Open the file in Excel and press Enable Editing before
+                    you type. Then upload it back on the same list.
+                </div>
+                <footer>
+                    <button name="action_make_file" type="object"
+                            string="Make the file" class="btn-primary"
+                            invisible="file_data"/>
+                    <button string="Close" special="cancel"
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

@@ -24,3 +24,4 @@ from . import test_chatter_glass_hardware
 from . import test_safe_rate_parse
 from . import test_rates_guided_shell
 from . import test_rates_review
+from . import test_rates_template

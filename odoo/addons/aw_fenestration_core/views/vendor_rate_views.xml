@@ -197,6 +197,21 @@
                                     string="Fill from current rates"
                                     class="btn-secondary"/>
                         </group>
+                        <group string="Excel template"
+                               groups="aw_fenestration_core.group_rates_manager">
+                            <div>
+                                <button name="action_template_blank" type="object"
+                                        string="Download blank template"
+                                        class="btn-secondary"/>
+                                <button name="action_template_current" type="object"
+                                        string="Download with current rates"
+                                        class="btn-secondary ms-2"/>
+                            </div>
+                            <div class="text-muted">
+                                Open the file in Excel and press Enable Editing
+                                before you type.
+                            </div>
+                        </group>
                         <group string="Type a few prices">
                             <div class="text-muted">
                                 Use the table below: add a row for each
