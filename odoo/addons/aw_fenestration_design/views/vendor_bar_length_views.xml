@@ -8,6 +8,7 @@
             <list editable="bottom">
                 <field name="vendor_id"/>
                 <field name="length_ft"/>
+                <field name="active" widget="boolean_toggle"/>
             </list>
         </field>
     </record>
@@ -18,6 +19,8 @@
         <field name="arch" type="xml">
             <search>
                 <field name="vendor_id"/>
+                <filter name="inactive" string="Show inactive"
+                        domain="[('active', '=', False)]"/>
                 <group>
                     <filter name="by_vendor" string="Vendor"
                             context="{'group_by': 'vendor_id'}"/>

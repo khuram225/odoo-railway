@@ -140,9 +140,12 @@ class AwCutPlan(models.Model):
     # settings
     # ------------------------------------------------------------------
     @api.model
-    def _settings(self, vendor=None):
+    def _settings(self, vendor=None, strict=False):
         """The planning settings. Bar lengths are the VENDOR's when it has
-        any listed (aw.vendor.bar.length), else the global list."""
+        any listed (aw.vendor.bar.length), else the global list. Only
+        ACTIVE lengths count. strict=True (generating a plan) stops for a
+        vendor whose lengths are all switched off; the fingerprint and the
+        piece limit do not stop, they fall back to the global list."""
         param = self.env['ir.config_parameter'].sudo()
         raw = param.get_param(PARAM_STOCK, DEFAULT_STOCK)
         lengths = []
@@ -156,7 +159,7 @@ class AwCutPlan(models.Model):
                 continue
         if not lengths:
             lengths = [float(v) for v in DEFAULT_STOCK.split(',')]
-        lengths = (self.env['aw.vendor.bar.length']._lengths_for(vendor)
+        lengths = (self.env['aw.vendor.bar.length']._lengths_for(vendor, strict)
                    or lengths)
 
         def number(key, fallback):
@@ -214,7 +217,8 @@ class AwCutPlan(models.Model):
 
     def _generate(self):
         self.ensure_one()
-        settings = self._settings(self.sale_order_id.aw_profile_vendor_id)
+        settings = self._settings(
+            self.sale_order_id.aw_profile_vendor_id, strict=True)
         stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
 
         # Overrides are the estimator's decision, not the algorithm's --
@@ -690,7 +694,7 @@ class AwCutPlanGroup(models.Model):
         """Re-run every option for this group."""
         self.ensure_one()
         settings = self.plan_id._settings(
-            self.plan_id.sale_order_id.aw_profile_vendor_id)
+            self.plan_id.sale_order_id.aw_profile_vendor_id, strict=True)
         stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
         return evaluate(self._pieces(), stock_mm, kerf=settings['kerf'],
                         offcut_min=settings['offcut_min'],
@@ -711,7 +715,7 @@ class AwCutPlanGroup(models.Model):
         """
         self.ensure_one()
         settings = self.plan_id._settings(
-            self.plan_id.sale_order_id.aw_profile_vendor_id)
+            self.plan_id.sale_order_id.aw_profile_vendor_id, strict=True)
         stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
         if key and key != 'mixed':
             wanted = [value for value in stock_mm

@@ -814,6 +814,14 @@ identical; it does not refill a vendor later left with no rows. Edit under
 Vendor Rates > Bar Lengths. The plan fingerprint includes the lengths, so
 changing them marks a plan stale.
 
+A length can be switched off (`active`; the list shows the toggle, the
+"Show inactive" filter lists the archived ones). Only ACTIVE lengths are used. A
+vendor with rows but none active is a STOP when a plan is generated, evaluated or
+re-solved ("<vendor> has no active bar length"), not a fallback to the global
+list; the fingerprint and the piece limit never stop (they use the global list
+then). A vendor with no rows at all still uses the global list. Every add,
+change, switch and removal is a note on the vendor's chatter with user and date.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
