@@ -760,6 +760,27 @@ series?" first. Excel limit worth knowing: sorting a range that contains locked
 cells fails in Excel whatever the protection options say, so a sort works only
 on the unlocked New items block.
 
+### Upload of the filled-in template
+
+`rate_xlsx.read_template` (same Odoo-free module) reads the Rates sheet only,
+and Info to know whose file it is. `aw.vendor.rate.list._load_uploaded` turns
+it into ordinary list lines (a keyed profile row gets its product and
+thickness straight from the key); it writes no rate, and Review and Confirm
+follow as always. Refused outright, nothing loaded: not an .xlsx, no
+Rates/Info sheets, a renamed or moved header, a file whose Info differs from
+the list (vendor, kind, date, then the **list id**: a file from another list
+is refused even for the same vendor, kind and date; also the template
+version). Refused with every cell named (row, plain words), as a bad paste is:
+a code Excel turned into a date or a number, a price that is text, has a
+thousands separator or a decimal comma, a typed 0 or negative, an Excel error,
+a hidden key that disagrees with the code or thickness beside it, the same key
+twice. Never guessed at, never auto-fixed. A BLANK price is "leave unchanged":
+it becomes 0.0 on the line (Apply and Review treat that as no price), is
+counted, and a row with no price at all is not loaded. Reported, not stopping:
+extra sheets, hidden sheets, merged cells, hidden rows (read like the rest).
+Any real Excel-saved file dropped into `aw_fenestration_design/tests/data/` is
+read by `scripts/check_rate_xlsx.py`.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
