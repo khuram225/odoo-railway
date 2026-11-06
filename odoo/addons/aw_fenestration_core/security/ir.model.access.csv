@@ -52,3 +52,4 @@ access_aw_glass_extra_manager,aw.glass.extra.manager,model_aw_glass_extra,group_
 access_aw_vendor_rate_review_user,aw.vendor.rate.review.user,model_aw_vendor_rate_review,base.group_user,1,0,0,0
 access_aw_vendor_rate_review_manager,aw.vendor.rate.review.manager,model_aw_vendor_rate_review,group_rates_manager,1,1,1,1
 access_aw_vendor_rate_template_wizard_manager,aw.vendor.rate.template.wizard.manager,model_aw_vendor_rate_template_wizard,group_rates_manager,1,1,1,1
+access_aw_vendor_rate_upload_wizard_manager,aw.vendor.rate.upload.wizard.manager,model_aw_vendor_rate_upload_wizard,group_rates_manager,1,1,1,1

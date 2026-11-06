@@ -188,6 +188,10 @@
                             </list>
                         </field>
                     </div>
+                    <div class="alert alert-info" role="status"
+                         invisible="not upload_summary or step != 'data'">
+                        <field name="upload_summary" nolabel="1" readonly="1"/>
+                    </div>
                     <group invisible="state != 'draft' or step not in ('data',)">
                         <group string="Start from the rates in force"
                                invisible="kind == 'glass'">
@@ -206,6 +210,9 @@
                                 <button name="action_template_current" type="object"
                                         string="Download with current rates"
                                         class="btn-secondary ms-2"/>
+                                <button name="action_upload_template" type="object"
+                                        string="Upload filled-in file"
+                                        class="btn-primary ms-2"/>
                             </div>
                             <div class="text-muted">
                                 Open the file in Excel and press Enable Editing

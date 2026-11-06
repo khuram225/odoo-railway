@@ -31,3 +31,4 @@ from . import glass_extras
 from . import glass_retire
 from . import rate_xlsx
 from . import rate_template
+from . import rate_upload

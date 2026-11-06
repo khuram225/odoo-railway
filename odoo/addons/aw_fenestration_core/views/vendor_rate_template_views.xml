@@ -46,4 +46,33 @@
             </form>
         </field>
     </record>
+
+    <!-- Upload: choose the filled-in file; any problem loads nothing. -->
+    <record id="view_aw_vendor_rate_upload_wizard_form" model="ir.ui.view">
+        <field name="name">aw.vendor.rate.upload.wizard.form</field>
+        <field name="model">aw.vendor.rate.upload.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Upload the file">
+                <field name="list_id" invisible="1"/>
+                <div class="alert alert-info" role="status">
+                    Choose the Excel file you downloaded from this list and
+                    filled in. If anything in it is wrong, nothing is loaded
+                    and you are told which cells to fix. Loading puts the
+                    prices on the list; nothing becomes a rate until you
+                    Review and Confirm.
+                </div>
+                <group>
+                    <field name="file_data" filename="file_name"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_read" type="object"
+                            string="Load the file" class="btn-primary"
+                            invisible="not file_data"/>
+                    <button string="Close" special="cancel"
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
 </odoo>
