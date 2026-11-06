@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_vendor_bar_length_list" model="ir.ui.view">
+        <field name="name">aw.vendor.bar.length.list</field>
+        <field name="model">aw.vendor.bar.length</field>
+        <field name="arch" type="xml">
+            <list editable="bottom">
+                <field name="vendor_id"/>
+                <field name="length_ft"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_vendor_bar_length_search" model="ir.ui.view">
+        <field name="name">aw.vendor.bar.length.search</field>
+        <field name="model">aw.vendor.bar.length</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="vendor_id"/>
+                <group>
+                    <filter name="by_vendor" string="Vendor"
+                            context="{'group_by': 'vendor_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_aw_vendor_bar_length" model="ir.actions.act_window">
+        <field name="name">Vendor Bar Lengths</field>
+        <field name="res_model">aw.vendor.bar.length</field>
+        <field name="view_mode">list</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No bar lengths yet
+            </p>
+            <p>
+                The lengths a vendor sells profiles in. A quote plans its
+                cuts with the lengths of its profile vendor; a vendor with
+                none listed uses the list in Settings.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_aw_vendor_bar_length"
+              name="Bar Lengths"
+              parent="aw_fenestration_core.menu_aw_vendor_rates"
+              action="action_aw_vendor_bar_length"
+              sequence="60"/>
+</odoo>

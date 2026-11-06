@@ -801,6 +801,19 @@ it was remembered. The Review summary lists the codes remembered on that list;
 the vendor layout's **Remembered codes** button opens them, and deleting one
 forgets it.
 
+### Vendor bar lengths
+
+`aw.vendor.bar.length` (vendor, length in ft) holds the lengths a vendor sells
+profiles in. `aw.cut.plan._settings(vendor)` and `aw.design._max_piece_mm(vendor)`
+take the order's `aw_profile_vendor_id`; a vendor with no rows uses the global
+`aw_fenestration.stock_lengths_ft`, so nothing changes until a row differs. Own
+model, not a `res.partner` field (no stored fields on core models). The seed
+runs once (parameter `aw_fenestration.vendor_bar_lengths_seeded`) and copies the
+global list to every vendor that has profile rates, so existing plans are
+identical; it does not refill a vendor later left with no rows. Edit under
+Vendor Rates > Bar Lengths. The plan fingerprint includes the lengths, so
+changing them marks a plan stale.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks

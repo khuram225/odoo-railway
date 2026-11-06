@@ -59,7 +59,7 @@ class AwDesign(models.Model):
             design.check_warning_count = levels.count('warning')
 
     @api.model
-    def _max_piece_mm(self):
+    def _max_piece_mm(self, vendor=None):
         """The longest piece that can be cut from one bar.
 
         Longest stock length, less the start trim, the safety margin and
@@ -67,7 +67,7 @@ class AwDesign(models.Model):
         than a square cut, so the number shown is the one that always
         holds.
         """
-        settings = self.env['aw.cut.plan']._settings()
+        settings = self.env['aw.cut.plan']._settings(vendor)
         longest = max(settings['stock_ft']) * 304.8
         return max_piece_mm(
             longest, settings['start_trim'], settings['safety_margin'],
@@ -1285,7 +1285,7 @@ class AwDesign(models.Model):
         # No joints and no couplers: every piece comes out of one bar,
         # so one that cannot is a hard error rather than something the
         # optimiser works around.
-        limit = self._max_piece_mm()
+        limit = self._max_piece_mm(self.sale_order_id.aw_profile_vendor_id)
         for line in self.bom_line_ids:
             if line.kind == 'profile' and line.length_mm > limit:
                 problems.append(('error', _(
