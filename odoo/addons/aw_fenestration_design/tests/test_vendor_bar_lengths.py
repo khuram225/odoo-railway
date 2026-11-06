@@ -129,3 +129,85 @@ class TestVendorBarLengthActive(TransactionCase):
         body = ' '.join(self.vendor.message_ids.mapped('body'))
         self.assertIn('18 ft switched off by', body)
         self.assertIn(self.env.user.name, body)
+
+
+@tagged('post_install', '-at_install')
+class TestVendorBarLengthProfile(TransactionCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        cls.vendor = env['res.partner'].create({'name': 'Profile vendor'})
+        cls.Length = env['aw.vendor.bar.length']
+        cls.Plan = env['aw.cut.plan']
+        cls.tmpl_a = env['product.template'].create({'name': 'RE-A profile'})
+        cls.tmpl_b = env['product.template'].create({'name': 'RE-B profile'})
+        for ft in (14, 16, 18):
+            cls.Length.create({'vendor_id': cls.vendor.id, 'length_ft': ft})
+        cls.own = {ft: cls.Length.create({
+            'vendor_id': cls.vendor.id, 'product_tmpl_id': cls.tmpl_a.id,
+            'length_ft': ft}) for ft in (12, 20)}
+
+    def _ft(self, template, strict=True):
+        return self.Plan._settings(
+            self.vendor, strict=strict, template=template)['stock_ft']
+
+    def test_profile_exception_overrides_the_vendor_list(self):
+        self.assertEqual(self._ft(self.tmpl_a), [12.0, 20.0])
+
+    def test_blank_row_applies_to_all_other_profiles(self):
+        self.assertEqual(self._ft(self.tmpl_b), [14.0, 16.0, 18.0])
+        self.assertEqual(self._ft(None), [14.0, 16.0, 18.0])
+
+    def test_profile_with_all_rows_off_stops_only_itself(self):
+        for row in self.own.values():
+            row.active = False
+        with self.assertRaises(UserError) as caught:
+            self._ft(self.tmpl_a)
+        self.assertIn('Profile vendor has no active bar length for RE-A',
+                      str(caught.exception))
+        self.assertEqual(self._ft(self.tmpl_b), [14.0, 16.0, 18.0])
+        # non-strict (fingerprint, longest piece) falls back to the vendor
+        self.assertEqual(self._ft(self.tmpl_a, strict=False),
+                         [14.0, 16.0, 18.0])
+
+    def test_vendor_with_only_other_profiles_rows_uses_global(self):
+        other = self.env['res.partner'].create({'name': 'Exceptions only'})
+        self.Length.create({'vendor_id': other.id,
+                            'product_tmpl_id': self.tmpl_a.id,
+                            'length_ft': 12})
+        self.assertEqual(
+            self.Plan._settings(other, template=self.tmpl_b)['stock_ft'],
+            self.Plan._settings()['stock_ft'])
+
+    def test_duplicate_check_includes_the_profile(self):
+        # 12 ft for another profile, and 14 ft vendor-wide, are fine ...
+        self.Length.create({'vendor_id': self.vendor.id,
+                            'product_tmpl_id': self.tmpl_b.id,
+                            'length_ft': 12})
+        self.Length.create({'vendor_id': self.vendor.id,
+                            'product_tmpl_id': self.tmpl_a.id,
+                            'length_ft': 14})
+        # ... the same profile and length twice is not
+        with self.assertRaises(ValidationError):
+            self.Length.create({'vendor_id': self.vendor.id,
+                                'product_tmpl_id': self.tmpl_a.id,
+                                'length_ft': 12})
+
+    def test_longest_piece_follows_the_profile(self):
+        Design = self.env['aw.design']
+        self.assertGreater(Design._max_piece_mm(self.vendor, self.tmpl_a),
+                           Design._max_piece_mm(self.vendor, self.tmpl_b))
+        self.assertEqual(
+            Design._max_piece_mm(self.vendor, any_profile=True),
+            Design._max_piece_mm(self.vendor, self.tmpl_a))
+
+    def test_label_and_log_name_the_profile(self):
+        wide = self.Length.search([('vendor_id', '=', self.vendor.id),
+                                   ('product_tmpl_id', '=', False)])[:1]
+        self.assertEqual(wide.profile_label, 'All profiles')
+        self.assertEqual(self.own[12].profile_label, 'RE-A profile')
+        self.own[12].active = False
+        body = ' '.join(self.vendor.message_ids.mapped('body'))
+        self.assertIn('12 ft (RE-A profile) switched off by', body)
