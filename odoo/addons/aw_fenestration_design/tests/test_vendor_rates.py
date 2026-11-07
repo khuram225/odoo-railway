@@ -200,11 +200,15 @@ class TestVendorRateLists(TransactionCase):
             [('vendor_id', '=', self.premium.id),
              ('source_note', '=', rate_list.name),
              ('price', 'in', (1.0, 2.0, 3.0))]))
-        # pick the product once; the alias is saved and used next time
+        # a plain pick matches the row but remembers nothing: an alias is
+        # only made by Match to product, with its tick (see test_rates_match)
         second = self._list(date(2026, 5, 1), 'ZZ-9  NOR  1 2 3')
         second.line_ids.product_tmpl_id = self.product
-        self.assertTrue(self.env['aw.vendor.alias'].search_count([
+        self.assertFalse(self.env['aw.vendor.alias'].search_count([
             ('vendor_id', '=', self.premium.id), ('code_norm', '=', 'ZZ9')]))
+        self.env['aw.vendor.alias'].create({
+            'vendor_id': self.premium.id, 'code': 'ZZ-9',
+            'product_tmpl_id': self.product.id})
         third = self._list(date(2026, 6, 1), 'zz 9  NOR  1 2 3')
         self.assertEqual(third.line_ids.product_tmpl_id, self.product)
 
@@ -243,10 +247,13 @@ class TestVendorRateLists(TransactionCase):
 
     def test_two_columns_for_one_finish(self):
         self._duplicate_finish_columns()
+        # a second profile for the second row: the same product, thickness
+        # and finish twice with other prices is a hard stop in a paste
+        self._profile('ZT-7', self.finishes)
         rate_list = self._list(
             date(2026, 4, 3),
             'ZT-6\tNOR\t\t100\t5\t100\n'     # equal: one rate
-            'ZT-6\tNOR\t\t-\t6\t120')        # only one has a number
+            'ZT-7\tNOR\t\t-\t6\t120')        # only one has a number
         rate_list.action_apply()
         # each row writes the shared finish once, never twice
         by_row = rate_list.line_ids.sorted('sequence')
@@ -355,6 +362,7 @@ class TestVendorRateLists(TransactionCase):
         unique = self._list(date(2026, 4, 3), 'ZT-6\tNOR\t\t1\t2\t3')
         unique.action_apply()
         rates = self._rates_of(unique)
+        self.env.flush_all()          # raw SQL below must see the rates
         self.env.cr.execute(
             "UPDATE aw_profile_rate SET rate_list_id = NULL WHERE id IN %s",
             (tuple(rates.ids),))
@@ -364,6 +372,7 @@ class TestVendorRateLists(TransactionCase):
         self.assertEqual(rates.rate_list_id, unique)
         # a second list with the same name makes the link ambiguous
         self._list(date(2026, 4, 3), 'ZZ-1\tNOR\t\t1\t2\t3')
+        self.env.flush_all()          # raw SQL below must see the rates
         self.env.cr.execute(
             "UPDATE aw_profile_rate SET rate_list_id = NULL WHERE id IN %s",
             (tuple(rates.ids),))
@@ -417,12 +426,12 @@ class TestVendorRateLists(TransactionCase):
         self.env['aw.vendor.thickness.alias'].create({
             'layout_id': self.layout.id, 'alias': 'X16',
             'thickness_id': other_thickness.id})
-        thin = self._profile('TH-1', self.finishes)
+        thin = self._profile('ZT-TH1', self.finishes)
         self._profile('UN-1', self.finishes)
         fin = self._profile('FI-1', self.finishes[:1])
         rows = '\n'.join([
             'ZZ-1\tNOR\t\t1\t2\t3',        # no product
-            'TH-1\tX16\t\t1\t2\t3',        # thickness not on the product
+            'ZT-TH1\tX16\t\t1\t2\t3',        # thickness not on the product
             'UN-1\tQQQ\t\t1\t2\t3',        # no such thickness at all
             'FI-1\tNOR\t\t1\t2\t3',        # finishes not on the product
             'ZT-6\tNOR\t\t136\t147\t137'])  # ready
@@ -439,8 +448,8 @@ class TestVendorRateLists(TransactionCase):
                          'No product ZZ-1: create it in Products, then '
                          'Re-match')
         self.assertEqual(
-            by_code['TH-1'].need_text,
-            'TH-1 has no thickness %s: add it on the product (Attributes & '
+            by_code['ZT-TH1'].need_text,
+            'ZT-TH1 has no thickness %s: add it on the product (Attributes & '
             'Variants), then Re-match' % other_thickness.name)
         self.assertEqual(by_code['UN-1'].need, 'unknown_thickness')
         self.assertIn("Unknown thickness 'QQQ'", by_code['UN-1'].need_text)
