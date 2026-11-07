@@ -20,7 +20,7 @@ class TestChatterGlassHardware(TransactionCase):
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
         env['aw.glass.type']._seed_glass_types()
-        env['aw.glass.type']._seed_glass_options()
+        env['aw.glass.option']._seed_glass_options()
         env['aw.glass.type']._seed_glass_sheet()
         cls.product = env['product.product'].create({
             'name': 'Chatter roller', 'standard_price': 50.0,

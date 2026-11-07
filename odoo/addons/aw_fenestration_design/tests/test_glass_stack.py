@@ -24,7 +24,7 @@ class TestGlassStack(TransactionCase):
             raise unittest.SkipTest("No glazing family with a profile system")
         cls.Type = env['aw.glass.type']
         cls.Type._seed_glass_types()
-        cls.Type._seed_glass_options()
+        env['aw.glass.option']._seed_glass_options()
         cls.Type._seed_glass_sheet()
         cls.vendor = env['res.partner'].create({'name': 'Glass vendor (test)'})
         cls.clear = cls.Type.search([('name', '=', 'Clear')])
