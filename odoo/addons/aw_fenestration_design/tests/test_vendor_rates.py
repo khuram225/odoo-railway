@@ -93,6 +93,8 @@ class TestRatePaste(TransactionCase):
 
 
 @tagged('post_install', '-at_install')
+# The product is "ZT-6", not "B-6": the Chawla import already carries a real
+# B-6, and two products with one code is (rightly) an ambiguous match.
 class TestVendorRateLists(TransactionCase):
 
     @classmethod
@@ -107,7 +109,7 @@ class TestVendorRateLists(TransactionCase):
         cls.standard = env.ref(
             'aw_fenestration_core.aw_attr_val_thickness_standard')
         cls.product = env['product.template'].create({
-            'name': 'B-6', 'default_code': 'B-6',
+            'name': 'ZT-6', 'default_code': 'ZT-6',
             'categ_id': env.ref(
                 'aw_fenestration_core.product_category_profiles').id,
             'attribute_line_ids': [
@@ -141,7 +143,7 @@ class TestVendorRateLists(TransactionCase):
             ('vendor_id', '=', (vendor or self.premium).id)])
 
     def test_paste_matches_and_applies_one_rate_per_finish(self):
-        rate_list = self._list(date(2026, 4, 3), 'B-6  NOR  136 147 137')
+        rate_list = self._list(date(2026, 4, 3), 'ZT-6  NOR  136 147 137')
         line = rate_list.line_ids
         self.assertEqual(line.product_tmpl_id, self.product)
         self.assertEqual(line.thickness_id, self.standard)
@@ -154,9 +156,9 @@ class TestVendorRateLists(TransactionCase):
         self.assertEqual(rate_list.state, 'applied')
 
     def test_a_newer_list_closes_the_old_line_the_day_before(self):
-        self._list(date(2026, 4, 3), 'B-6  NOR  136 147 137').action_apply()
+        self._list(date(2026, 4, 3), 'ZT-6  NOR  136 147 137').action_apply()
         # only the first finish changes; empty cells create nothing
-        self._list(date(2026, 10, 20), 'B-6  NOR  140 0 0').action_apply()
+        self._list(date(2026, 10, 20), 'ZT-6  NOR  140 - -').action_apply()
         natural = self.finishes[0]
         rates = self._rates().filtered(lambda r: r.finish_id == natural)
         old = rates.filtered(lambda r: r.date_from == date(2026, 4, 3))
@@ -170,7 +172,7 @@ class TestVendorRateLists(TransactionCase):
         self.assertEqual(len(self._rates()), 4)
 
     def test_another_vendors_rows_are_never_returned(self):
-        self._list(date(2026, 4, 3), 'B-6  NOR  136 147 137').action_apply()
+        self._list(date(2026, 4, 3), 'ZT-6  NOR  136 147 137').action_apply()
         rate, level = self.env['aw.profile.rate']._rate_lookup(
             self.product, self.standard, self.finishes[0],
             date(2026, 5, 1), self.other)
@@ -211,13 +213,13 @@ class TestVendorRateLists(TransactionCase):
             [('rate_list_id', '=', rate_list.id)])
 
     def test_apply_marks_its_rates_with_the_list(self):
-        rate_list = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137')
+        rate_list = self._list(date(2026, 4, 3), 'ZT-6\tNOR\t\t136\t147\t137')
         rate_list.action_apply()
         self.assertEqual(len(self._rates_of(rate_list)), 3)
 
     def test_reapply_deletes_only_this_lists_rates_and_reports(self):
         # two lists, one name: Re-apply on one must not touch the other
-        first = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137')
+        first = self._list(date(2026, 4, 3), 'ZT-6\tNOR\t\t136\t147\t137')
         first.action_apply()
         second = self.env['aw.vendor.rate.list'].create({
             'vendor_id': self.premium.id, 'date': date(2026, 4, 3),
@@ -243,8 +245,8 @@ class TestVendorRateLists(TransactionCase):
         self._duplicate_finish_columns()
         rate_list = self._list(
             date(2026, 4, 3),
-            'B-6\tNOR\t\t100\t5\t100\n'     # equal: one rate
-            'B-6\tNOR\t\t0\t6\t120')        # only one has a number
+            'ZT-6\tNOR\t\t100\t5\t100\n'     # equal: one rate
+            'ZT-6\tNOR\t\t-\t6\t120')        # only one has a number
         rate_list.action_apply()
         # each row writes the shared finish once, never twice
         by_row = rate_list.line_ids.sorted('sequence')
@@ -257,7 +259,7 @@ class TestVendorRateLists(TransactionCase):
     def test_differing_numbers_write_no_rate_and_say_so(self):
         self._duplicate_finish_columns()
         rate_list = self._list(
-            date(2026, 4, 3), 'B-6\tNOR\t\t959\t7\t1120')
+            date(2026, 4, 3), 'ZT-6\tNOR\t\t959\t7\t1120')
         rate_list.action_apply()
         line = rate_list.line_ids
         self.assertEqual(line.status_code, 'conflict')
@@ -272,9 +274,9 @@ class TestVendorRateLists(TransactionCase):
 
     def test_set_to_draft_removes_rates_and_keeps_lines(self):
         rate_list = self._list(
-            date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137')
+            date(2026, 4, 3), 'ZT-6\tNOR\t\t136\t147\t137')
         rate_list.action_apply()
-        other = self._list(date(2026, 5, 1), 'B-6\tNOR\t\t1\t2\t3')
+        other = self._list(date(2026, 5, 1), 'ZT-6\tNOR\t\t1\t2\t3')
         other.action_apply()
         lines = rate_list.line_ids
         rate_list.action_set_to_draft()
@@ -288,7 +290,7 @@ class TestVendorRateLists(TransactionCase):
 
     def test_grid_is_editable_on_a_draft_and_follows_the_state(self):
         rate_list = self._list(
-            date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137\nQQ-1\tNOR\t\t4\t5\t6')
+            date(2026, 4, 3), 'ZT-6\tNOR\t\t136\t147\t137\nQQ-1\tNOR\t\t4\t5\t6')
         self.assertTrue(rate_list.grid_editable)
         self.assertTrue(all(rate_list.line_ids.mapped('grid_editable')))
         rate_list.action_apply()
@@ -307,7 +309,7 @@ class TestVendorRateLists(TransactionCase):
         self.assertFalse(rate_list.grid_editable)
 
     def test_a_cell_changed_after_set_to_draft_is_stored(self):
-        rate_list = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t136\t147\t137')
+        rate_list = self._list(date(2026, 4, 3), 'ZT-6\tNOR\t\t136\t147\t137')
         rate_list.action_apply()
         rate_list.action_set_to_draft()
         line = rate_list.line_ids
@@ -323,13 +325,13 @@ class TestVendorRateLists(TransactionCase):
         self.assertIn(150.0, self._rates_of(rate_list).mapped('price'))
 
     def test_reapply_needs_an_applied_list(self):
-        draft = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
+        draft = self._list(date(2026, 4, 3), 'ZT-6\tNOR\t\t1\t2\t3')
         with self.assertRaises(UserError):
             draft.action_reapply()
 
     def test_rematch_on_an_applied_list_leaves_rates_and_matched_rows(self):
         rate_list = self._list(
-            date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3\nQQ-1\tNOR\t\t4\t5\t6')
+            date(2026, 4, 3), 'ZT-6\tNOR\t\t1\t2\t3\nQQ-1\tNOR\t\t4\t5\t6')
         rate_list.action_apply()
         rates = self._rates_of(rate_list)
         matched = rate_list.line_ids.filtered(
@@ -340,7 +342,7 @@ class TestVendorRateLists(TransactionCase):
         self.assertEqual(rate_list.unmatched_count, 1)
 
     def test_free_text_thickness_must_resolve_or_the_row_is_flagged(self):
-        rate_list = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
+        rate_list = self._list(date(2026, 4, 3), 'ZT-6\tNOR\t\t1\t2\t3')
         line = rate_list.line_ids
         line.write({'thickness_text': '9.9MM'})
         self.assertIn('Unknown thickness', line.problem)
@@ -350,7 +352,7 @@ class TestVendorRateLists(TransactionCase):
         self.assertFalse(line.problem)
 
     def test_backfill_links_rates_only_where_the_name_is_unique(self):
-        unique = self._list(date(2026, 4, 3), 'B-6\tNOR\t\t1\t2\t3')
+        unique = self._list(date(2026, 4, 3), 'ZT-6\tNOR\t\t1\t2\t3')
         unique.action_apply()
         rates = self._rates_of(unique)
         self.env.cr.execute(
@@ -373,7 +375,7 @@ class TestVendorRateLists(TransactionCase):
     def test_fill_from_current_rates_prefills_the_series(self):
         first = self.env['aw.vendor.rate.list'].create({
             'vendor_id': self.premium.id, 'date': date(2026, 4, 3),
-            'paste_text': 'B-6\tNOR\tDG.SERIES\t136\t147\t137'})
+            'paste_text': 'ZT-6\tNOR\tDG.SERIES\t136\t147\t137'})
         first.action_parse_paste()
         first.action_apply()
         again = self.env['aw.vendor.rate.list'].create({
@@ -423,7 +425,7 @@ class TestVendorRateLists(TransactionCase):
             'TH-1\tX16\t\t1\t2\t3',        # thickness not on the product
             'UN-1\tQQQ\t\t1\t2\t3',        # no such thickness at all
             'FI-1\tNOR\t\t1\t2\t3',        # finishes not on the product
-            'B-6\tNOR\t\t136\t147\t137'])  # ready
+            'ZT-6\tNOR\t\t136\t147\t137'])  # ready
         counts = {m: env[m].search_count([]) for m in (
             'product.template', 'product.product',
             'product.attribute.value')}
@@ -446,12 +448,12 @@ class TestVendorRateLists(TransactionCase):
             by_code['FI-1'].need_text,
             'FI-1 has no finish %s, %s: add them on the product, then '
             'Re-match' % (self.finishes[1].name, self.finishes[2].name))
-        self.assertFalse(by_code['B-6'].need)
+        self.assertFalse(by_code['ZT-6'].need)
         self.assertEqual(rate_list.action_show_need_product()['domain'][1],
                          ('need', '=', 'product'))
 
         rate_list.action_apply()
-        # B-6 in full, FI-1's one existing finish; nothing else written
+        # ZT-6 in full, FI-1's one existing finish; nothing else written
         self.assertEqual(len(self._rates_for(self.product)), 3)
         self.assertEqual(len(self._rates_for(fin)), 1)
         self.assertFalse(self._rates_for(thin))
