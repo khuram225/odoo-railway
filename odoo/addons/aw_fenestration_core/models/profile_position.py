@@ -234,8 +234,23 @@ class AwProfilePosition(models.Model):
             # =ilike is an exact match that ignores case, so "Palay bead
             # - Top" is recognised as the same position rather than
             # quietly becoming a third one.
-            candidates = self.with_context(active_test=False).search(
-                [('name', '=ilike', name)], order='id')
+            #
+            # The xmlid comes FIRST. _seed_catalog renames these to
+            # "Sash Bead - ..." once, so on any upgrade after it a search
+            # by the Palay name finds nothing and the seed used to make a
+            # second, unused set -- three "Palay Bead" positions beside the
+            # real ones, with the xmlid moved onto the wrong ones. The
+            # record the xmlid already names is the position; and a
+            # position under the catalog's own name is adopted too.
+            seeded = self.env.ref(
+                'aw_fenestration_core.%s' % xmlid, raise_if_not_found=False)
+            if seeded and seeded.exists():
+                candidates = seeded
+            else:
+                english = CATALOG_RENAMES.get(xmlid, ('', ''))[1] or name
+                candidates = self.with_context(active_test=False).search([
+                    '|', ('name', '=ilike', name),
+                    ('name', '=ilike', english)], order='id')
             if not candidates:
                 position = self.create({'name': name, 'sequence': sequence})
             else:
@@ -276,6 +291,59 @@ class AwProfilePosition(models.Model):
             }
             record.write(values) if record else data.create(values)
         return adopted
+
+    @api.model
+    def _retire_palay_bead_duplicates(self):
+        """Once: remove the "Palay Bead - ..." positions the old seed made
+        after the catalog renamed the real ones, and give the seed xmlids
+        back to the real ones.
+
+        A duplicate goes only if it has NO used section line and the real
+        position (the one carrying the catalog's English name, same edge)
+        exists; its unused catalog rows go with it. Anything else is left
+        alone and logged: a position somebody has started using is theirs.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(PALAY_RETIRED_PARAM):
+            return {}
+        data = self.env['ir.model.data'].sudo()
+        Line = self.env['aw.profile.section.line'].sudo().with_context(
+            active_test=False)
+        report = {'retired': [], 'kept': []}
+        for xmlid, _name, _sequence, edge, _length in PALAY_BEAD_SEED:
+            duplicate = self.env.ref(
+                'aw_fenestration_core.%s' % xmlid, raise_if_not_found=False)
+            english = CATALOG_RENAMES[xmlid][1]
+            if not duplicate or duplicate.name == english:
+                continue                       # already the real one
+            real = self.with_context(active_test=False).search([
+                ('name', '=ilike', english), ('id', '!=', duplicate.id)],
+                limit=1)
+            if not real or real.edge != duplicate.edge:
+                report['kept'].append(duplicate.name)
+                continue
+            lines = Line.search([('position_id', '=', duplicate.id)])
+            if lines.filtered('is_used'):
+                report['kept'].append(duplicate.name)
+                continue
+            try:
+                with self.env.cr.savepoint():
+                    record = data.search([
+                        ('module', '=', 'aw_fenestration_core'),
+                        ('name', '=', xmlid)])
+                    record.write({'res_id': real.id})
+                    lines.unlink()
+                    duplicate.unlink()
+            except Exception:
+                _logger.exception(
+                    "aw_fenestration_core: could not retire '%s'",
+                    duplicate.name)
+                report['kept'].append(duplicate.name)
+                continue
+            report['retired'].append(duplicate.name)
+        param.set_param(PALAY_RETIRED_PARAM, '1')
+        _logger.info("aw_fenestration_core: Palay Bead duplicates: %s", report)
+        return report
 
     @api.model
     def _seed_catalog(self):
@@ -372,6 +440,7 @@ class AwProfilePosition(models.Model):
 
 REQUIRED_SEEDED_PARAM = 'aw_fenestration.position_required_seeded'
 CATALOG_PARAM = 'aw_fenestration.position_catalog_seeded'
+PALAY_RETIRED_PARAM = 'aw_fenestration.palay_duplicates_retired'
 
 # xmlid -> (name it was seeded with, English catalog name). A position is
 # renamed only if it still carries the old seeded name, so a name somebody

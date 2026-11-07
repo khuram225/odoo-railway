@@ -102,3 +102,45 @@ class TestLengthUnitSetting(TransactionCase):
         self.assertTrue(settings._migrate_length_uom())
         self.assertEqual(param.get_param('aw_fenestration.length_uom'), 'in')
         self.assertFalse(settings._migrate_length_uom())
+
+
+@tagged('post_install', '-at_install')
+class TestPalayBeadSeed(TransactionCase):
+    """The Palay Bead seed must not make a second set after the catalog has
+    renamed the first (it did, on every database that had run both)."""
+
+    XMLIDS = ('pos_palay_bead_top', 'pos_palay_bead_bottom',
+              'pos_palay_bead_sides')
+
+    def _positions(self):
+        return self.env['aw.profile.position'].with_context(
+            active_test=False).search([])
+
+    def test_running_the_seed_again_makes_nothing(self):
+        Position = self.env['aw.profile.position']
+        before = len(self._positions())
+        Position._seed_palay_bead_positions()
+        self.assertEqual(len(self._positions()), before)
+        self.assertFalse([n for n in self._positions().mapped('name')
+                          if 'palay bead' in n.lower()])
+
+    def test_the_old_duplicates_are_retired_and_the_xmlids_go_back(self):
+        env = self.env
+        Position = env['aw.profile.position']
+        real = env.ref('aw_fenestration_core.pos_palay_bead_top')
+        duplicate = Position.create({
+            'name': 'Palay Bead - Top', 'scope': real.scope,
+            'edge': real.edge, 'is_required': False})
+        env['ir.model.data'].sudo().search([
+            ('module', '=', 'aw_fenestration_core'),
+            ('name', '=', 'pos_palay_bead_top')]).write(
+            {'res_id': duplicate.id})
+        env['ir.config_parameter'].sudo().set_param(
+            'aw_fenestration.palay_duplicates_retired', False)
+        report = Position._retire_palay_bead_duplicates()
+        self.assertEqual(report['retired'], ['Palay Bead - Top'])
+        self.assertFalse(duplicate.exists())
+        self.assertEqual(
+            env.ref('aw_fenestration_core.pos_palay_bead_top'), real)
+        # once only
+        self.assertEqual(Position._retire_palay_bead_duplicates(), {})
