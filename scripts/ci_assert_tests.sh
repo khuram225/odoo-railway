@@ -41,7 +41,9 @@ if [ "$failed" -gt 0 ] || [ "$errors" -gt 0 ]; then
     | while IFS= read -r key; do
         n=$(grep -n -m1 -F -- "$key" "$log" | cut -d: -f1 || true)
         [ -n "$n" ] || continue
-        exc=$(awk -v n="$n" 'NR > n { if ($0 ~ /^20[0-9][0-9]-[0-9][0-9]-/) exit; if ($0 !~ /^[[:space:]]/) last = $0 } END { print last }' "$log" | cut -c1-220)
+        # where in OUR tests it failed (file:line and that line of code), then
+        # the exception that ended the traceback
+        exc=$(awk -v n="$n" 'NR > n { if ($0 ~ /^20[0-9][0-9]-[0-9][0-9]-/) exit; if ($0 ~ /\/tests\/[A-Za-z0-9_]+\.py", line [0-9]+/) { f = $0; getline c; code = c } if ($0 !~ /^[[:space:]]/) last = $0 } END { gsub(/^[[:space:]]+/, "", code); sub(/.*\/tests\//, "", f); sub(/", in .*/, "", f); print "[" f "] " code " => " last }' "$log" | cut -c1-420)
         echo "$key -- $exc"
     done > "$list"
     split -l 12 "$list" "$list.part."
