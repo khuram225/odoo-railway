@@ -329,3 +329,38 @@ class TestGlassStack(TransactionCase):
             lambda c: c.level == 'info' and 'manual rate' in c.message))
         self.assertFalse(checks.filtered(
             lambda c: c.level == 'warning' and 'stand-in' in c.message))
+
+
+@tagged('post_install', '-at_install')
+class TestGlassThresholds(TransactionCase):
+    """The suggestion limits fall back to the defaults when unset or empty."""
+
+    def _thresholds(self):
+        return self.env['aw.design']._glass_thresholds()
+
+    def test_unset_and_empty_use_the_defaults(self):
+        param = self.env['ir.config_parameter'].sudo()
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.search([('key', '=', key)]).unlink()
+        self.assertEqual(self._thresholds(), (4.5, 7.0))
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.set_param(key, '0.0')
+        self.assertEqual(self._thresholds(), (4.5, 7.0))
+
+    def test_a_typed_limit_is_used(self):
+        param = self.env['ir.config_parameter'].sudo()
+        param.set_param('aw_fenestration.glass_threshold_1_m2', '3.0')
+        param.set_param('aw_fenestration.glass_threshold_2_m2', '6.5')
+        self.assertEqual(self._thresholds(), (3.0, 6.5))
+
+    def test_a_small_panel_is_not_suggested_anything_by_default(self):
+        param = self.env['ir.config_parameter'].sudo()
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.search([('key', '=', key)]).unlink()
+        design = self.env['aw.design'].new({})
+        leaf = self.env['aw.design.leaf'].new({'width_mm': 1200.0})
+        leaf.row_id = self.env['aw.design.row'].new({'height_mm': 1800.0})
+        self.assertEqual(design._suggested_glass_for(leaf), '')
