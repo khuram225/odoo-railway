@@ -469,6 +469,16 @@ and an action record defined *after* the view that references it via
 `%(xmlid)d` in the same file (that substitution resolves eagerly at parse
 time — see the load-order note above).
 
+**A window is one window (Brief Q1).** `aw.design.qty` is fixed at 1: `create`
+refuses another value and `write` refuses raising it, but leaves an older window
+that still carries more than 1 alone (every configurator save writes the header
+back, so an unchanged value must pass; lowering to 1 is allowed). More of the same
+is **Make copies** (`aw.design.copies.wizard`, on the design form, the quote
+line and the configurator): locations typed or pasted one per line, one window
+per line with its own quote line and location, the layout, glass, finish and
+changes of the source, and a note on the quote. The source is not touched and a
+copy of an older window is one window. At most 100 at once, quotation only.
+
 ## Process
 
 Merging to main deploys and upgrades aw_fenestration_core and

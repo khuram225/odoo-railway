@@ -5476,6 +5476,15 @@ export class DesignConfigurator extends Component {
         this.action.doAction(action);
     }
 
+    async makeCopies() {
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const action = await this.orm.call(
+            "aw.design", "action_make_copies", [[this.designId]]);
+        this.action.doAction(action);
+    }
+
     // -- BOM and checks (spec 6.5, 6.6) ------------------------------------
     get bom() {
         return this.state.data?.bom || {};

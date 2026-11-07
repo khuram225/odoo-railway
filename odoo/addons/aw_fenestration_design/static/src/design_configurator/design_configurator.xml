@@ -48,11 +48,10 @@
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Qty</label>
-                            <input type="number" min="1" class="form-control form-control-sm"
-                                   style="width: 5rem;"
-                                   t-att-value="state.data.header.qty"
-                                   t-on-input="() => this.markDirty()"
-                                   t-on-change="onQtyChange"/>
+                            <input type="number" class="form-control form-control-sm"
+                                   style="width: 5rem;" readonly="readonly"
+                                   title="A window is one window. Use Make copies for more."
+                                   t-att-value="state.data.header.qty"/>
                         </div>
                         <div>
                             <label class="form-label small text-muted mb-0">Location</label>
@@ -212,6 +211,10 @@
                             <button class="btn btn-sm btn-secondary" t-on-click="duplicatePosition"
                                     title="Copy this window to a new quote line">
                                 Duplicate
+                            </button>
+                            <button class="btn btn-sm btn-secondary" t-on-click="makeCopies"
+                                    title="Make one window per location, typed or pasted">
+                                Make copies
                             </button>
                             <button class="btn btn-sm btn-secondary" t-on-click="openHistory"
                                     title="Open the history page: the window's facts, its price summary and its chatter">
