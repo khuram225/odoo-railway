@@ -67,6 +67,8 @@ class AwCutPlan(models.Model):
     # The settings AS USED, not as they are now. A kerf changed next
     # month must not silently restate what the shop was told to cut.
     stock_lengths_ft = fields.Char(readonly=True)
+    profile_vendor_id = fields.Many2one(
+        'res.partner', string='Profile vendor', readonly=True)
     solve_budget_s = fields.Float(readonly=True)
     kerf_mm = fields.Float(readonly=True)
     offcut_min_mm = fields.Float(readonly=True)
@@ -360,6 +362,7 @@ class AwCutPlan(models.Model):
 
         self.write({
             'date': fields.Datetime.now(),
+            'profile_vendor_id': vendor.id or False,
             'stock_lengths_ft': ','.join(
                 '%g' % ft for ft in settings['stock_ft']),
             'kerf_mm': settings['kerf'],

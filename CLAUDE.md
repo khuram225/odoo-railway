@@ -855,6 +855,14 @@ early limit uses the longest bar any of the vendor's profiles can come in. The p
 fingerprint adds a per-profile entry only where a profile's lengths differ from the
 vendor's, so existing plans are not made stale by this change.
 
+The Bar Lengths list shows switched-off rows (greyed, with their toggle): the
+duplicate check counts them, so hiding them produced "already has a 18 ft bar" for a
+row nobody could see. Adding a length that exists but is off says so and where to
+switch it on, and the form offers "Switch the existing one on instead". A plan records
+the Profile vendor it was built with: Regenerate uses the QUOTE's vendor
+(`aw_profile_vendor_id`, default Chawla), so switching off a length of another vendor
+changes nothing for that quote.
+
 ## Odoo tests (the `odoo tests` job)
 
 `odoo tests` in `.github/workflows/checks.yml` installs the aluminum modules
