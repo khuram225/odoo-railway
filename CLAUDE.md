@@ -814,6 +814,17 @@ it was remembered. The Review summary lists the codes remembered on that list;
 the vendor layout's **Remembered codes** button opens them, and deleting one
 forgets it.
 
+### Data in: one upload, Clear all lines, repeated rows
+
+An upload is refused while the list has lines ("This list already has lines.
+Clear them first."), because it appends and loading the same file twice doubled
+the line count. **Clear all lines** (Rates manager, draft lists, with a
+confirmation) removes every line, sends a review back to Data in, clears the
+upload summary and logs who did it; it touches no rate. A row repeated with the
+same prices counts ONCE with a note, in the upload reader (same hidden key) and
+in Review (same profile/thickness/finish, or same glass type/thickness); the
+same key with different prices stays a Problem naming both rows.
+
 **This dialog is the only way an alias is made.** The grid's "pick the
 profile" button used to write the product straight onto the line, and a line
 write used to save an alias on its own: unticked-by-default, Rates-manager-only

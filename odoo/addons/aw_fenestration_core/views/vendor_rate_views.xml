@@ -166,6 +166,7 @@
                         <field name="review_problem" invisible="1"/>
                         <field name="review_notwritten" invisible="1"/>
                         <field name="review_nopriced" invisible="1"/>
+                        <field name="review_duplicates" invisible="1"/>
                         <field name="review_big" invisible="1"/>
                         <div class="alert alert-info" role="status">
                             <strong><field name="review_summary" nolabel="1"/></strong>
@@ -230,7 +231,13 @@
                                         class="btn-secondary ms-2"/>
                                 <button name="action_upload_template" type="object"
                                         string="Upload filled-in file"
-                                        class="btn-primary ms-2"/>
+                                        class="btn-primary ms-2"
+                                        invisible="line_count"/>
+                                <button name="action_clear_lines" type="object"
+                                        string="Clear all lines"
+                                        class="btn-secondary ms-2"
+                                        invisible="not line_count"
+                                        confirm="Remove every line from this list? The prices already written as rates are not touched."/>
                             </div>
                             <div class="text-muted">
                                 Open the file in Excel and press Enable Editing

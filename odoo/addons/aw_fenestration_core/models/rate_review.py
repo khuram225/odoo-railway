@@ -62,6 +62,7 @@ class AwVendorRateList(models.Model):
     review_notwritten = fields.Integer(readonly=True, copy=False)
     review_nopriced = fields.Integer(readonly=True, copy=False)
     review_big = fields.Integer(readonly=True, copy=False)
+    review_duplicates = fields.Integer(readonly=True, copy=False)
     ack_changes = fields.Boolean(
         string="I checked these price changes", copy=False)
     review_summary = fields.Char(compute='_compute_review_summary')
@@ -69,7 +70,7 @@ class AwVendorRateList(models.Model):
 
     @api.depends('review_unchanged', 'review_changed', 'review_new',
                  'review_problem', 'review_notwritten', 'review_nopriced',
-                 'review_big')
+                 'review_big', 'review_duplicates')
     def _compute_review_summary(self):
         for rec in self:
             rec.review_summary = _(
@@ -87,6 +88,10 @@ class AwVendorRateList(models.Model):
             if rec.review_nopriced:
                 parts.append(_(
                     "%s empty price cell(s) are ignored.", rec.review_nopriced))
+            if rec.review_duplicates:
+                parts.append(_(
+                    "%s repeated row(s) with the same price were counted "
+                    "once.", rec.review_duplicates))
             rec.review_big_text = ' '.join(parts)
 
     # -------------------------------------------------------------- building
@@ -156,7 +161,8 @@ class AwVendorRateList(models.Model):
         finish_attr = self.env.ref('aw_fenestration_core.aw_attribute_finish')
         rows, counts = [], dict.fromkeys(
             ('unchanged', 'changed', 'new', 'problem', 'notwritten',
-             'nopriced', 'big'), 0)
+             'nopriced', 'big', 'duplicate'), 0)
+        seen = self._profile_cells_seen(finish_columns)
         for line in self.line_ids.sorted('sequence'):
             line._refresh_need()
             if line.problem or line.need:
@@ -194,6 +200,20 @@ class AwVendorRateList(models.Model):
                         prices=' and '.join('%g' % p for _c, p in cells)))))
                     continue
                 price = cells[0][1]
+                same = seen.get(
+                    (template.id, line.thickness_id.id or False, finish.id), [])
+                if len({round(p, 4) for _l, p in same}) > 1:
+                    counts['problem'] += 1
+                    rows.append(self._row(line, 'problem', **dict(base, message=_(
+                        "%(code)s %(thickness)s / %(finish)s has %(prices)s in "
+                        "this list. Nothing is written for it; keep one "
+                        "price.", code=label, thickness=thickness,
+                        finish=finish.name, prices=' and '.join(
+                            '%g' % p for p in sorted({p for _l, p in same}))))))
+                    continue
+                if same and same[0][0] != line.id:
+                    counts['duplicate'] += 1       # the same price twice
+                    continue
                 if (line.thickness_id
                         and line.thickness_id not in offered_thickness) or (
                         finish not in offered_finish
@@ -223,6 +243,28 @@ class AwVendorRateList(models.Model):
                 self._review_cell(
                     rows, counts, line, base, current, newer, price)
         return {'rows': rows, 'counts': counts}
+
+    def _profile_cells_seen(self, finish_columns):
+        """{(profile, thickness, finish): [(line id, price), ...]} over the
+        priced cells of rows that can be written, to tell a row repeated with
+        the same price (counted once) from one with two prices (a problem)."""
+        seen = {}
+        self.line_ids._refresh_need()
+        for line in self.line_ids.sorted('sequence'):
+            if line.problem or line.need or not line.product_tmpl_id:
+                continue
+            by_finish = {}
+            for index, column in enumerate(finish_columns, start=1):
+                price = line['rate_%s' % index]
+                if price and column.finish_id:
+                    by_finish.setdefault(column.finish_id, []).append(price)
+            for finish, prices in by_finish.items():
+                if len(set(prices)) > 1:
+                    continue         # its own columns disagree: reported there
+                seen.setdefault(
+                    (line.product_tmpl_id.id, line.thickness_id.id or False,
+                     finish.id), []).append((line.id, prices[0]))
+        return seen
 
     def _review_cell(self, rows, counts, line, base, current, newer, price):
         status, old, pct = self._classify(current, newer, price)
@@ -259,7 +301,7 @@ class AwVendorRateList(models.Model):
         today = fields.Date.context_today(self)
         rows, counts = [], dict.fromkeys(
             ('unchanged', 'changed', 'new', 'problem', 'notwritten',
-             'nopriced', 'big'), 0)
+             'nopriced', 'big', 'duplicate'), 0)
         priced = {}
         for line in self.line_ids:
             line._refresh_need()
@@ -267,6 +309,7 @@ class AwVendorRateList(models.Model):
                 priced.setdefault(
                     (line.glass_type_id.id, parse_thickness(line.thickness_text)[0]),
                     []).append(line)
+        first_of = {key: lines[0].id for key, lines in priced.items()}
         conflicts = {}
         for key, lines in priced.items():
             if len({round(l.rate_1, 4) for l in lines}) > 1:
@@ -283,6 +326,11 @@ class AwVendorRateList(models.Model):
                 continue
             base = {'code': line.glass_type_id.name or line.code,
                     'thickness': line.thickness_text or ''}
+            if line.id not in conflicts and line.id != first_of[
+                    (line.glass_type_id.id,
+                     parse_thickness(line.thickness_text)[0])]:
+                counts['duplicate'] += 1          # the same price twice
+                continue
             if line.id in conflicts:
                 counts['problem'] += 1
                 rows.append(self._row(line, 'problem', **dict(base, message=_(
@@ -324,6 +372,7 @@ class AwVendorRateList(models.Model):
             'review_notwritten': counts['notwritten'],
             'review_nopriced': counts['nopriced'],
             'review_big': counts['big'],
+            'review_duplicates': counts.get('duplicate', 0),
             'ack_changes': False,
         })
 

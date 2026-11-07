@@ -30,10 +30,32 @@ class AwVendorRateListUpload(models.Model):
         readonly=True, copy=False,
         help="What the last uploaded file contained and what was done.")
 
+    def action_clear_lines(self):
+        """Take every row off a draft list, to start the data again. Rates
+        manager only; nothing already written as a rate is touched."""
+        self.ensure_one()
+        if not self.env.user.has_group(
+                'aw_fenestration_core.group_rates_manager'):
+            raise UserError(_("Only a Rates manager can clear a list."))
+        if self.state != 'draft':
+            raise UserError(_("An applied list is read only. Undo it first."))
+        count = len(self.line_ids)
+        self.line_ids.unlink()
+        self._reset_review()
+        self.write({'upload_summary': False, 'step': 'data'
+                    if self.step != 'choose' else 'choose'})
+        self.message_post(body=_(
+            "%(who)s cleared all %(count)s line(s) of this list.",
+            who=self.env.user.name, count=count))
+        return True
+
     def action_upload_template(self):
         self.ensure_one()
         if self.state != 'draft':
             raise UserError(_("An applied list is read only."))
+        if self.line_ids:
+            raise UserError(_(
+                "This list already has lines. Clear them first."))
         if self.kind == 'profile':
             self._require_layout()
         wizard = self.env['aw.vendor.rate.upload.wizard'].create({
@@ -87,6 +109,9 @@ class AwVendorRateListUpload(models.Model):
     def _load_uploaded(self, data, file_name):
         """Read the file and add its lines. Returns the summary text."""
         self.ensure_one()
+        if self.line_ids:
+            raise UserError(_(
+                "This list already has lines. Clear them first."))
         layout = self._require_layout() if self.kind == 'profile' else None
         finishes = layout._finish_columns() if layout else ()
         lookup = self._key_lookup(layout)

@@ -29,3 +29,4 @@ from . import test_rates_upload
 from . import test_rates_match
 from . import test_vendor_bar_lengths
 from . import test_gap_rate_warning
+from . import test_rates_data_in
