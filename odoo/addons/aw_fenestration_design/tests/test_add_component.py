@@ -9,6 +9,8 @@ from datetime import date
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.aw_fenestration_core.models.thickness import thickness_mm
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -27,13 +29,9 @@ class TestAddComponentThickness(TransactionCase):
             cls.template, attribute)
         if len(cls.offered) < 2:
             raise unittest.SkipTest("HD-3 GROOVE has one thickness here")
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         cls.order = env['sale.order'].create({
             'partner_id': env['res.partner'].create({'name': 'Thickness customer'}).id,
             'aw_default_series_id': series.id,

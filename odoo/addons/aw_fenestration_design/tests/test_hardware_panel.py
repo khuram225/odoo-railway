@@ -6,6 +6,8 @@ import unittest
 
 from odoo.exceptions import UserError
 from odoo.tests import TransactionCase, tagged
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -15,13 +17,11 @@ class TestHardwarePerPanel(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         env = cls.env
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: len(s.leaf_type_ids) >= 2))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No family with a system of two panel types")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: len(s.leaf_type_ids) >= 2)[0]
+        if len(series.leaf_type_ids) < 2:
+            raise unittest.SkipTest("No system with two panel types")
         cls.needs, cls.free = series.leaf_type_ids[:2]
         cls.needs.needs_hardware = True
         cls.free.needs_hardware = False

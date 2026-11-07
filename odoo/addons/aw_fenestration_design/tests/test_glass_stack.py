@@ -8,6 +8,8 @@ from odoo.tests import TransactionCase, tagged
 
 SQFT_PER_SQM = 10.7639104
 MM_PER_FOOT = 304.8
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -17,13 +19,9 @@ class TestGlassStack(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         env = cls.env
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         cls.Type = env['aw.glass.type']
         cls.Type._seed_glass_types()
         cls.Type._seed_glass_options()

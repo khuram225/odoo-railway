@@ -5,6 +5,8 @@ posts nothing."""
 import unittest
 
 from odoo.tests import TransactionCase, tagged
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -14,13 +16,9 @@ class TestChatterGlassHardware(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         env = cls.env
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         env['aw.glass.type']._seed_glass_types()
         env['aw.glass.type']._seed_glass_options()
         env['aw.glass.type']._seed_glass_sheet()

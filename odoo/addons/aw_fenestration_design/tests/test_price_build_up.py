@@ -12,6 +12,8 @@ AREA_SQM = 3658 * 2438 / 1000000.0
 LABOUR = (450.0 + 250.0) * AREA_SQM
 COST = PROFILES * 1.08 + LABOUR                  # 120,974.80
 PRICE = COST * 1.25                              # 151,218.51
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -21,13 +23,9 @@ class TestPriceBuildUp(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         env = cls.env
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         cls.order = env['sale.order'].create({
             'partner_id': env['res.partner'].create({'name': 'Price customer'}).id,
             'aw_default_series_id': series.id,
