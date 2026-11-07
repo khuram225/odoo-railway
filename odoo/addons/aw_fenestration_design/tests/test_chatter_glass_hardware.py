@@ -22,7 +22,7 @@ class TestChatterGlassHardware(TransactionCase):
         series = family.series_ids.filtered('active').filtered(
             lambda s: s.leaf_type_ids)[0]
         env['aw.glass.type']._seed_glass_types()
-        env['aw.glass.type']._seed_glass_options()
+        env['aw.glass.option']._seed_glass_options()
         env['aw.glass.type']._seed_glass_sheet()
         cls.product = env['product.product'].create({
             'name': 'Chatter roller', 'standard_price': 50.0,

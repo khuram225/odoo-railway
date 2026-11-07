@@ -96,7 +96,7 @@ class TestRatesTable(TransactionCase):
             self.standard.id, first.id, self.b.id)
         found = self.env['aw.profile.rate'].search(action['domain'])
         self.assertTrue(found)
-        self.assertEqual(set(found.mapped('vendor_id')), self.b)
+        self.assertEqual(found.mapped('vendor_id'), self.b)
         self.assertEqual(set(found.mapped('finish_id')), first)
         self.assertTrue(action['views'])
 
