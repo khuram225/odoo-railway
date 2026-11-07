@@ -37,14 +37,16 @@ class TestConfiguratorRoundTrip(TransactionCase):
             'width_mm': 2438.4,
             'height_mm': 1524.0,
         })
+        # a save fills a blank spec (by design); start from the resolved one
+        cls.design._resolve_spec()
 
     def _header_snapshot(self):
         """Every field a save is allowed to write, read off the record."""
         design = self.design
         return {
-            name: (design[name].id
-                   if design._fields[name].type == 'many2one'
-                   else design[name])
+            name: ((design[name].id
+                    if design._fields[name].type == 'many2one'
+                    else design[name]) or False)
             for name in design.CONFIGURATOR_HEADER_FIELDS
         }
 

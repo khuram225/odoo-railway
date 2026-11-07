@@ -100,6 +100,7 @@ class TestChatterGlassHardware(TransactionCase):
         self.assertIn('Window glass: added 6 mm Clear', text)
 
         def panel(data):
+            data['rows'][0]['leaves'][1]['glass_chosen'] = True
             data['rows'][0]['leaves'][1]['glass_parts'] = [
                 {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 8.0,
                  'rate_manual': True, 'manual_rate': 55.0}]
@@ -108,6 +109,7 @@ class TestChatterGlassHardware(TransactionCase):
         self.assertIn('Panel 2 glass: added 8 mm Clear', text)
 
         def change(data):
+            data['rows'][0]['leaves'][1]['glass_chosen'] = True
             part = data['rows'][0]['leaves'][1]['glass_parts'][0]
             part.update(thickness_mm=10.0, rate_manual=False, manual_rate=0.0)
         self._save(change)
