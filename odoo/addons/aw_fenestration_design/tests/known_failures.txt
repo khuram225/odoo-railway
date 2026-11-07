@@ -53,5 +53,5 @@ TestCutRules.test_scope_and_part_structure  cutting; TEST BUG (likely); the part
 TestCutRules.test_configurator_pieces_and_edit  cutting; TEST BUG (likely); holds a BOM line across an edit that replaces it
 TestPanelOpening.test_three_equal_panels  cutting; TEST BUG; the spec lines have no thickness, so no piece is made ("No thickness is chosen")
 TestPanelOpening.test_four_unequal_panels  cutting; TEST BUG; same
-TestPanelOpening.test_single_row_height  cutting; TEST BUG; same
 TestPanelOpening.test_nested_split_top_light_over_two_across  cutting; TEST BUG; same
+TestNotReal.test_gone  nowhere; TEST BUG; proves a stale line fails the job
