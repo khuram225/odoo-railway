@@ -61,9 +61,15 @@ logs `upgrade: done; versions: ...` read from `ir_module_module`.
 `ODOO_UPGRADE_MODULES` overrides the list and **set empty skips it**: the
 print service must set it empty, since its addons path has no `aw_*`
 modules. If the update exits non-zero the entrypoint exits 1 and the
-server never starts, so the healthcheck never passes and Railway keeps
-the previous deployment serving. The restart policy (`ON_FAILURE`, up to
-10) re-runs the update each time, which is harmless: it is idempotent.
+server never starts, so the healthcheck never passes. **That does NOT
+leave the previous version running** (this paragraph used to say it did,
+and an outage on 2026-11-07 proved it wrong): the service has a volume
+(`odoo-volume` at /var/lib/odoo), a volume can be mounted by one container
+at a time, so Railway STOPS the old container before the new one starts. A
+failed upgrade therefore means no service until the last good deployment is
+redeployed (Railway dashboard, Deployments, the last SUCCESS one, Redeploy)
+or a fix is merged. The restart policy (`ON_FAILURE`, up to 10) re-runs the
+update each time, which is harmless: it is idempotent.
 The update can fail part way, and modules commit as they go, so the old
 deployment may then be serving a partly upgraded database; fix forward.
 A new module is installed once from Apps, then added to the entrypoint list.
@@ -473,6 +479,14 @@ The data files are `noupdate`, and a reinstall re-applies them: it
 recreated the Chawla products and, through their `(0, 0)` attribute-line
 commands, added a second set of lines to the five that survived.
 
+**Is what runs what is on main?** `python scripts/deployed_check.py` (Railway
+CLI logged in and linked) compares the running deployment's commit with
+`origin/main` and lists any CODE file in between that was not deployed: a deploy
+wrongly skipped by the Railway Watch Paths, a failed one, or one still running.
+The watch paths themselves are in `scripts/railway_watch_paths.txt` and must
+match the dashboard; a change under them deploys, anything else (tests, `.md`,
+`.github`, `scripts`, docs) does not.
+
 ## Finish names
 
 A finish is one Finish attribute value; rates, variants and windows point at
@@ -790,8 +804,7 @@ the review rows are built, profile lists only). The dialog
 name, **warns but never stops** when the vendor lists that profile under a
 different series than the row says (read from the vendor's own rates, so a
 profile with no rates from them cannot warn), and has **Remember this code for
-this vendor**, UNTICKED by default. Matching writes the line as a manual match
-(without the old per-pick alias: an alias is now only made on that tick), then
+this vendor**, UNTICKED by default. Matching writes the line as a manual match, then
 rebuilds the review in place, which also asks for the "I checked these price
 changes" tick again, since the rows Confirm will write have changed. A
 remembered code is an `aw.vendor.alias` for the code at any thickness, with the
@@ -811,6 +824,98 @@ upload summary and logs who did it; it touches no rate. A row repeated with the
 same prices counts ONCE with a note, in the upload reader (same hidden key) and
 in Review (same profile/thickness/finish, or same glass type/thickness); the
 same key with different prices stays a Problem naming both rows.
+
+**This dialog is the only way an alias is made.** The grid's "pick the
+profile" button used to write the product straight onto the line, and a line
+write used to save an alias on its own: unticked-by-default, Rates-manager-only
+and logging were all bypassed. Both now go through
+`aw.vendor.rate.list.line.action_match_product()` (the grid calls it over RPC and
+opens the dialog), and a plain write of `product_tmpl_id` saves no alias. The
+dialog works at the Data in step too (no review to rebuild there).
+
+### Vendor bar lengths
+
+`aw.vendor.bar.length` (vendor, length in ft) holds the lengths a vendor sells
+profiles in. `aw.cut.plan._settings(vendor)` and `aw.design._max_piece_mm(vendor)`
+take the order's `aw_profile_vendor_id`; a vendor with no rows uses the global
+`aw_fenestration.stock_lengths_ft`, so nothing changes until a row differs. Own
+model, not a `res.partner` field (no stored fields on core models). The seed
+runs once (parameter `aw_fenestration.vendor_bar_lengths_seeded`) and copies the
+global list to every vendor that has profile rates, so existing plans are
+identical; it does not refill a vendor later left with no rows. Edit under
+Vendor Rates > Bar Lengths. The plan fingerprint includes the lengths, so
+changing them marks a plan stale.
+
+A length can be switched off (`active`; the list shows the toggle, the
+"Show inactive" filter lists the archived ones). Only ACTIVE lengths are used. A
+vendor with rows but none active is a STOP when a plan is generated, evaluated or
+re-solved ("<vendor> has no active bar length"), not a fallback to the global
+list; the fingerprint and the piece limit never stop (they use the global list
+then). A vendor with no rows at all still uses the global list. Every add,
+change, switch and removal is a note on the vendor's chatter with user and date.
+
+A row may name a PROFILE (`product_tmpl_id`; blank = all profiles of the vendor).
+Per profile and vendor: the profile's own active rows, else the vendor-wide active
+rows, else (the vendor has no vendor-wide rows) the global list. A profile whose
+own rows are all off stops THAT profile group only ("<vendor> has no active bar
+length for <profile>", listed on the plan as Not planned; the plan raises only if
+nothing could be planned). The planner resolves per group: a group is one product
+VARIANT, and its template picks the lengths, so finish and thickness do not change
+availability. The longest-piece check is per BOM line's template; the configurator's
+early limit uses the longest bar any of the vendor's profiles can come in. The plan
+fingerprint adds a per-profile entry only where a profile's lengths differ from the
+vendor's, so existing plans are not made stale by this change.
+
+The Bar Lengths list shows switched-off rows (greyed, with their toggle): the
+duplicate check counts them, so hiding them produced "already has a 18 ft bar" for a
+row nobody could see. Adding a length that exists but is off says so and where to
+switch it on, and the form offers "Switch the existing one on instead". A plan records
+the Profile vendor it was built with: Regenerate uses the QUOTE's vendor
+(`aw_profile_vendor_id`, default Chawla), so switching off a length of another vendor
+changes nothing for that quote.
+
+## Odoo tests (the `odoo tests` job)
+
+`odoo tests` in `.github/workflows/checks.yml` installs the aluminum modules
+the way the upgrade job does (core alone, production's core modules, the rest,
+then `-u`) and runs their tests with `--test-enable`. It is part of **all
+checks**. `scripts/ci_assert_tests.sh` reads the log, because the exit code
+means nothing, and compares the failures with
+`aw_fenestration_design/tests/known_failures.txt`: a failure that is not
+listed fails the job, and so does a listed test that now passes, so the list
+can only shrink. Each entry says area, TEST BUG / CODE BUG / UNDECIDED and why;
+remove the line in the PR that fixes it. Failures come out as annotations
+(readable without a login), with the line of the test, the addon frame and the
+assertion diff.
+
+**A database installed from scratch is not production.** Three things differ
+and each has produced test failures: the RE specification is not seeded (its
+seed runs before the Chawla profiles are imported and then marks itself done;
+`tests/common.py` seeds it the way production has it), the catalogue already
+carries real codes (`B-6`, `TH-1`: a test product with the same code is an
+ambiguous match, so use codes like `ZT-6`), and the test user lacks groups the
+people have (`product.group_product_pricelist`).
+
+**A green `all checks` before 2026-11-07 meant nothing about tests.** A code
+change was merged with its own test red (the job was not a gate) and took
+production down.
+
+## Rehearsal before a data-changing merge
+
+`scripts/rehearse.sh` restores a dump of production (a read-only `pg_dump`
+over `railway ssh`; 6.5 MB for the 91 MB database) into a scratch Postgres in
+Docker, runs the checked-out code's upgrade on it, counts the rows of the
+tables you name (`REHEARSE_TABLES`), re-explodes every design and compares
+cost, price and BOM with what is stored (`scripts/rehearse_explode.py`, rolled
+back), and calls `/aw/health/registry` and `/aw/health`. Run it before merging
+anything that adds or changes a `<function>` data call, a `_migrate*`, `_retire*`,
+`_seed*` or `_backfill*` that writes or deletes, or a stored field.
+
+**The dump is customer data.** It lives in `~/aw-rehearsal`, outside the
+repository; `scripts/rehearse.sh --clean` deletes it, the containers and the
+image. A failed upgrade does not leave the old version running (see "Module
+upgrade on deploy"), which is why this runs BEFORE the merge. Needs Docker; the
+dump step alone (`--dump-only`) needs only the Railway CLI.
 
 ## Static checks
 

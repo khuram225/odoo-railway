@@ -1,0 +1,8 @@
+# The Railway Watch Paths for the odoo service (Settings, Source, Watch Paths).
+# gitignore style, from the repository root; a later line wins; "!" excludes.
+# A push that changes only files these exclude does not deploy. Read by
+# scripts/deployed_check.py to tell a rightly skipped change from a wrong one,
+# so this file and the dashboard must say the same thing.
+/odoo/**
+!/odoo/addons/*/tests/**
+!/odoo/**/*.md

@@ -278,6 +278,12 @@ class AwDesign(models.Model):
         # spec, and an unused one is a row for the form to grey out, not
         # a part of the window. This is the filter the configurator's
         # Profiles tab reads through as well.
+        # A Custom window has no spec at all (template_id is empty by design);
+        # so does a design on a series nobody has made a spec for yet. Both
+        # have no spec lines, not an error: the checks say a window with no
+        # profile lines has none.
+        if not self.template_id:
+            return self.env['aw.profile.section.line']
         return self.template_id._live_profile_lines()
 
     def _spec_hardware_lines(self):
@@ -1424,8 +1430,12 @@ class AwDesign(models.Model):
                 # So the configurator can refuse an over-long piece the
                 # moment a size is typed, rather than only after a save
                 # that runs the explosion.
-                'max_piece_mm': self._max_piece_mm(),
-                'max_piece_label': self._format_length(self._max_piece_mm()),
+                'max_piece_mm': self._max_piece_mm(
+                    self.sale_order_id.aw_profile_vendor_id,
+                    any_profile=True),
+                'max_piece_label': self._format_length(self._max_piece_mm(
+                    self.sale_order_id.aw_profile_vendor_id,
+                    any_profile=True)),
             },
             'family_options': [
                 {'id': family.id, 'name': family.display_name,

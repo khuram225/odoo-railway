@@ -110,7 +110,14 @@ class AwVendorRateList(models.Model):
         if line.ambiguous_code:
             return _("The code %s could mean two profiles, so this row is "
                      "not written.", code)
-        if need == 'product' or (line.problem and not line.product_tmpl_id):
+        # A glass row has no product, so test the kind first: otherwise
+        # "no glass type Zorba" was worded as "no profile with the code".
+        if need == 'glass_type':
+            return _("There is no glass type %s yet, so this row is not "
+                     "written. Add the glass type first.", code)
+        if need == 'product' or (
+                line.problem and not line.product_tmpl_id
+                and line.list_id.kind != 'glass'):
             return _("There is no profile with the code %s yet, so this row "
                      "is not written. Add the product first.", code)
         if need == 'unknown_thickness' or (
@@ -119,9 +126,6 @@ class AwVendorRateList(models.Model):
             return _("%(code)s: the thickness '%(thickness)s' is not one we "
                      "know, so this row is not written.",
                      code=code, thickness=line.thickness_text or '')
-        if need == 'glass_type':
-            return _("There is no glass type %s yet, so this row is not "
-                     "written. Add the glass type first.", code)
         text = (line.need_text or '').replace(', then Re-match', '')
         return _("Not written: %s", text) if text else _(
             "%s cannot be written yet.", code)

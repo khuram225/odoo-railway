@@ -193,3 +193,35 @@ class TestFinishNames(TransactionCase):
         self.assertEqual(again['deleted'], [])
         self.assertEqual(len(sahara.aw_name_ids),
                          len(sahara.aw_name_ids.exists()))
+
+
+@tagged('post_install', '-at_install')
+class TestFinishNamesFreshInstall(TransactionCase):
+    """The migration runs from a data file that loads BEFORE the Finish
+    attribute exists. That is not an error: nothing is logged at ERROR, the
+    done-flag stays unset, and the next run migrates."""
+
+    def test_missing_attribute_is_quiet_then_next_run_migrates(self):
+        from odoo.addons.aw_fenestration_core.models.finish_names import (
+            MIGRATED_PARAM)
+        env = self.env
+        param = env['ir.config_parameter'].sudo()
+        param.set_param(MIGRATED_PARAM, '')
+        data = env['ir.model.data'].sudo().search([
+            ('module', '=', 'aw_fenestration_core'),
+            ('name', '=', 'aw_attribute_finish')])
+        self.assertTrue(data)
+        data.name = 'aw_attribute_finish_hidden'
+        env.registry.clear_cache()
+        Value = env['product.attribute.value']
+        with self.assertNoLogs('odoo.addons.aw_fenestration_core.models.'
+                               'finish_names', level='ERROR'):
+            self.assertFalse(Value._migrate_finish_names())
+        self.assertFalse(param.get_param(MIGRATED_PARAM))
+        data.name = 'aw_attribute_finish'
+        env.registry.clear_cache()
+        self.assertTrue(Value._migrate_finish_names())
+        self.assertTrue(param.get_param(MIGRATED_PARAM))
+        attr = env.ref('aw_fenestration_core.aw_attribute_finish')
+        self.assertTrue(env['aw.finish.name'].search_count([
+            ('finish_id', 'in', attr.value_ids.ids)]))

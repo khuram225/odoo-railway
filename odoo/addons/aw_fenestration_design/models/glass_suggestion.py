@@ -50,11 +50,16 @@ class AwDesign(models.Model):
         param = self.env['ir.config_parameter'].sudo()
 
         def read(key, default):
+            # get_param() answers False for a key never saved, and a
+            # Settings page saved with the box empty stores 0. float(False)
+            # is 0.0, and a threshold of 0 m2 suggested the heaviest glass
+            # (8+8+8) for EVERY panel on a database whose Settings had not
+            # been saved. Neither is a usable limit: use the default.
             try:
-                value = param.get_param(key)
-                return float(value) if value not in (None, '') else default
+                value = float(param.get_param(key) or 0.0)
             except ValueError:
                 return default
+            return value if value > 0.0 else default
 
         return (read(THRESHOLD_1, DEFAULT_THRESHOLD_1),
                 read(THRESHOLD_2, DEFAULT_THRESHOLD_2))

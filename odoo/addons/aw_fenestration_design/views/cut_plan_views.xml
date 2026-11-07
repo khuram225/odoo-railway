@@ -30,6 +30,7 @@
                         <group string="Built with">
                             <field name="sale_order_id" readonly="1"/>
                             <field name="date" readonly="1"/>
+                            <field name="profile_vendor_id" readonly="1"/>
                             <field name="stock_lengths_ft" readonly="1"/>
                             <field name="solve_budget_s" readonly="1"/>
                             <field name="kerf_mm" readonly="1"/>
@@ -61,6 +62,11 @@
                     <div class="alert alert-danger" role="alert"
                          invisible="not oversize_note">
                         <field name="oversize_note" nolabel="1" readonly="1"/>
+                    </div>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not blocked_note">
+                        <strong>Not planned:</strong>
+                        <field name="blocked_note" nolabel="1" readonly="1"/>
                     </div>
                     <field name="group_ids" readonly="1">
                         <list>

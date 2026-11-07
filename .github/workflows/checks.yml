@@ -450,6 +450,91 @@ jobs:
           echo "::notice::upgrade clean: -u of [${{ steps.modules.outputs.ours }}] on a database with $PROD_CORE_MODULES"
 
   # =====================================================================
+  # Odoo's own tests for our modules. The install and upgrade jobs prove the
+  # registry builds; they never run a test, so a test could be wrong for
+  # weeks. Same staged install as the upgrade job, then -u with --test-enable
+  # so the post_install tests run on a database laid out like production.
+  # Part of "all checks": it fails on any failure NOT listed in
+  # tests/known_failures.txt and on any listed failure that now passes, so
+  # the list can only shrink (scripts/ci_assert_tests.sh).
+  # =====================================================================
+  tests:
+    name: odoo tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    container:
+      image: odoo:19.0-20260723
+      options: --user root
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: odoo
+          POSTGRES_PASSWORD: odoo
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U odoo"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      PGHOST: postgres
+      PGUSER: odoo
+      PGPASSWORD: odoo
+      PROD_CORE_MODULES: account,account_payment,mail,product,purchase,purchase_stock,sale,sale_management,sale_purchase,sale_stock,stock,stock_account
+      ODOO_ADDONS: /usr/lib/python3/dist-packages/odoo/addons,odoo/addons
+
+    steps:
+      - name: Check out this repo
+        uses: actions/checkout@v4
+
+      - name: The python packages the image does not carry
+        # The image has none of these; the Dockerfile pip-installs them.
+        run: pip install --break-system-packages pulp==2.9.0 openpyxl==3.1.5 XlsxWriter==3.2.0
+
+      - name: Which modules are ours
+        id: modules
+        run: |
+          set -eu
+          ours=$(find odoo/addons -name __manifest__.py \
+            -not -path 'odoo/addons/addons_print/*' \
+            -printf '%h\n' | xargs -n1 basename | sort | paste -sd, -)
+          test -n "$ours" || { echo "::error::no aluminum modules found"; exit 1; }
+          tags=$(echo "$ours" | tr ',' '\n' | sed 's|^|/|' | paste -sd, -)
+          echo "ours=$ours" >> "$GITHUB_OUTPUT"
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "::notice::testing ours=[$ours] tags=[$tags]"
+
+      - name: Install our core alone, then production's core, then the rest of ours
+        run: |
+          set -eu
+          rest=$(echo "${{ steps.modules.outputs.ours }}" | tr ',' '\n' \
+            | grep -v '^aw_fenestration_core$' | paste -sd, -)
+          for step in "aw_fenestration_core" "$PROD_CORE_MODULES" "$rest"; do
+            odoo -d aw_test --addons-path="$ODOO_ADDONS" -i "$step" \
+              --without-demo=all --stop-after-init --no-http \
+              --log-level=info > /tmp/inst.log 2>&1 || { tail -60 /tmp/inst.log; exit 1; }
+            sh scripts/ci_assert_clean_log.sh /tmp/inst.log
+          done
+
+      - name: Run our tests
+        id: run
+        run: |
+          start=$(date +%s)
+          code=0
+          odoo -d aw_test --addons-path="$ODOO_ADDONS" \
+            -u "${{ steps.modules.outputs.ours }}" \
+            --test-enable --test-tags="${{ steps.modules.outputs.tags }}" \
+            --stop-after-init --no-http --log-level=info > /tmp/tests.log 2>&1 || code=$?
+          end=$(date +%s)
+          echo "::notice::odoo exited $code; the test run took $((end - start))s"
+          sh scripts/ci_assert_tests.sh /tmp/tests.log \
+            odoo/addons/aw_fenestration_design/tests/known_failures.txt
+
+  # =====================================================================
   # The single status Railway waits on. It has no steps: its only job is
   # to be red unless both of the above are green, so one status name
   # covers both and adding a third job later needs one line here.
@@ -457,7 +542,7 @@ jobs:
   all-checks:
     name: all checks
     runs-on: ubuntu-latest
-    needs: [static, boot, upgrade]
+    needs: [static, boot, upgrade, tests]
     if: always()
     steps:
       - name: Require all gates
@@ -465,7 +550,9 @@ jobs:
           echo "static: ${{ needs.static.result }}"
           echo "boot:   ${{ needs.boot.result }}"
           echo "upgrade: ${{ needs.upgrade.result }}"
+          echo "tests:   ${{ needs.tests.result }}"
           test "${{ needs.static.result }}" = "success" \
             && test "${{ needs.boot.result }}" = "success" \
             && test "${{ needs.upgrade.result }}" = "success" \
+            && test "${{ needs.tests.result }}" = "success" \
             || { echo "::error::a gate did not pass"; exit 1; }

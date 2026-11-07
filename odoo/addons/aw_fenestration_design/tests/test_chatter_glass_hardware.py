@@ -5,6 +5,8 @@ posts nothing."""
 import unittest
 
 from odoo.tests import TransactionCase, tagged
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -14,15 +16,11 @@ class TestChatterGlassHardware(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         env = cls.env
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         env['aw.glass.type']._seed_glass_types()
-        env['aw.glass.type']._seed_glass_options()
+        env['aw.glass.option']._seed_glass_options()
         env['aw.glass.type']._seed_glass_sheet()
         cls.product = env['product.product'].create({
             'name': 'Chatter roller', 'standard_price': 50.0,
@@ -102,6 +100,7 @@ class TestChatterGlassHardware(TransactionCase):
         self.assertIn('Window glass: added 6 mm Clear', text)
 
         def panel(data):
+            data['rows'][0]['leaves'][1]['glass_chosen'] = True
             data['rows'][0]['leaves'][1]['glass_parts'] = [
                 {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 8.0,
                  'rate_manual': True, 'manual_rate': 55.0}]
@@ -110,6 +109,7 @@ class TestChatterGlassHardware(TransactionCase):
         self.assertIn('Panel 2 glass: added 8 mm Clear', text)
 
         def change(data):
+            data['rows'][0]['leaves'][1]['glass_chosen'] = True
             part = data['rows'][0]['leaves'][1]['glass_parts'][0]
             part.update(thickness_mm=10.0, rate_manual=False, manual_rate=0.0)
         self._save(change)

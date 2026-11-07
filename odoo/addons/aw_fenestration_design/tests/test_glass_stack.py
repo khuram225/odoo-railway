@@ -8,6 +8,8 @@ from odoo.tests import TransactionCase, tagged
 
 SQFT_PER_SQM = 10.7639104
 MM_PER_FOOT = 304.8
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -17,16 +19,12 @@ class TestGlassStack(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         env = cls.env
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         cls.Type = env['aw.glass.type']
         cls.Type._seed_glass_types()
-        cls.Type._seed_glass_options()
+        env['aw.glass.option']._seed_glass_options()
         cls.Type._seed_glass_sheet()
         cls.vendor = env['res.partner'].create({'name': 'Glass vendor (test)'})
         cls.clear = cls.Type.search([('name', '=', 'Clear')])
@@ -50,6 +48,11 @@ class TestGlassStack(TransactionCase):
             'rows': [{'height_mm': 1800.0,
                       'leaves': [dict(leaf), dict(leaf)]}]})
         cls.leaves = cls.design.row_ids.leaf_ids.sorted('panel_no')
+        # The first save SUGGESTS glass for large panels (8 mm here). A panel
+        # the user has not chosen follows the suggestion, not the window, so
+        # give the tests panels that follow the window's stack.
+        cls.leaves.write({'glass_part_ids': [(5, 0, 0)],
+                          'glass_suggested': False, 'glass_chosen': False})
         cls.Part = env['aw.glass.part']
 
     # -- helpers ------------------------------------------------------------
@@ -275,6 +278,23 @@ class TestGlassStack(TransactionCase):
             self.assertAlmostEqual(
                 line.line_cost, 100.0 * line.area_sqm * SQFT_PER_SQM, 2)
 
+    def test_changing_the_glass_clears_its_manual_rate(self):
+        self._set_header([self._sheet(6, rate_manual=True, manual_rate=55.0,
+                                      migrated=True)])
+        part = self.design.glass_part_ids
+        part.write({'remark': 'x'})                      # not glass: kept
+        self.assertTrue(part.rate_manual)
+        part.write({'thickness_mm': 6.0})                # same value: kept
+        self.assertTrue(part.rate_manual)
+        part.write({'thickness_mm': 8.0})
+        self.assertFalse(part.rate_manual or part.migrated)
+        self.assertEqual(part.manual_rate, 0.0)
+        # the same write that sets a rate keeps it
+        part.write({'rate_manual': True, 'manual_rate': 66.0})
+        part.write({'thickness_mm': 6.0, 'rate_manual': True, 'manual_rate': 70.0})
+        self.assertTrue(part.rate_manual)
+        self.assertEqual(part.manual_rate, 70.0)
+
     # -- glass size ----------------------------------------------------------------
     RULES = ('glass_fixed_w', 'glass_fixed_h', 'glass_sash_w', 'glass_sash_h',
              'mesh_w', 'mesh_h')
@@ -326,3 +346,38 @@ class TestGlassStack(TransactionCase):
             lambda c: c.level == 'info' and 'manual rate' in c.message))
         self.assertFalse(checks.filtered(
             lambda c: c.level == 'warning' and 'stand-in' in c.message))
+
+
+@tagged('post_install', '-at_install')
+class TestGlassThresholds(TransactionCase):
+    """The suggestion limits fall back to the defaults when unset or empty."""
+
+    def _thresholds(self):
+        return self.env['aw.design']._glass_thresholds()
+
+    def test_unset_and_empty_use_the_defaults(self):
+        param = self.env['ir.config_parameter'].sudo()
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.search([('key', '=', key)]).unlink()
+        self.assertEqual(self._thresholds(), (4.5, 7.0))
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.set_param(key, '0.0')
+        self.assertEqual(self._thresholds(), (4.5, 7.0))
+
+    def test_a_typed_limit_is_used(self):
+        param = self.env['ir.config_parameter'].sudo()
+        param.set_param('aw_fenestration.glass_threshold_1_m2', '3.0')
+        param.set_param('aw_fenestration.glass_threshold_2_m2', '6.5')
+        self.assertEqual(self._thresholds(), (3.0, 6.5))
+
+    def test_a_small_panel_is_not_suggested_anything_by_default(self):
+        param = self.env['ir.config_parameter'].sudo()
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.search([('key', '=', key)]).unlink()
+        design = self.env['aw.design'].new({})
+        leaf = self.env['aw.design.leaf'].new({'width_mm': 1200.0})
+        leaf.row_id = self.env['aw.design.row'].new({'height_mm': 1800.0})
+        self.assertEqual(design._suggested_glass_for(leaf), '')

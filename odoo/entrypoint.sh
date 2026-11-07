@@ -172,15 +172,20 @@ export HOME=/var/lib/odoo
 # the aluminum modules, in the order Odoo resolves anyway (-u follows depends).
 #
 # If the update fails, so does the container: exit 1 here means the server
-# never starts, the healthcheck never passes, and Railway keeps serving the
-# previous deployment. Nothing below this block runs.
+# never starts and nothing below this block runs. That does NOT leave the
+# previous deployment serving: this service has a volume, so Railway has
+# already stopped the old container before this one started (the outage of
+# 2026-11-07). Recovery is to redeploy the last SUCCESS deployment in the
+# Railway dashboard, or to merge a fix. Rehearse a data-changing upgrade on a
+# copy of production BEFORE merging (scripts/rehearse.sh).
 UPGRADE_MODULES=${ODOO_UPGRADE_MODULES-aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle}
 if [ -n "$UPGRADE_MODULES" ]; then
     upgrade_db=${ODOO_DB_NAME:-odoo}
     echo "upgrade: odoo -u $UPGRADE_MODULES -d $upgrade_db --stop-after-init"
     if ! setpriv --reuid=odoo --regid=odoo --init-groups /entrypoint.sh odoo             -c /etc/odoo/odoo.conf -d "$upgrade_db" -u "$UPGRADE_MODULES"             --stop-after-init; then
         echo "FATAL: module upgrade failed; not starting the server." >&2
-        echo "       The previous deployment keeps serving." >&2
+        echo "       The old container is already stopped (the volume): redeploy" >&2
+        echo "       the last SUCCESS deployment in Railway, or merge a fix." >&2
         exit 1
     fi
     # One line, so a deploy log says what is now installed. Informational:

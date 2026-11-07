@@ -6,6 +6,8 @@ from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.aw_fenestration_core.models.part_structure import (
     PART_LABELS, SCOPE_LABELS)
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -20,13 +22,9 @@ class TestMeshCloth(TransactionCase):
         cls.zig = cls.Mesh.search([('mechanism', '=', 'zigzag')], limit=1)
         if not (cls.zig and cls.zig.cloth_product_id):
             raise unittest.SkipTest("No active zig-zag mesh type here")
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         cls.order = env['sale.order'].create({
             'partner_id': env['res.partner'].create({'name': 'Mesh customer'}).id,
             'aw_default_series_id': series.id,

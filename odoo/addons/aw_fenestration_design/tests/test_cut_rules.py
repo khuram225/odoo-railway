@@ -17,6 +17,7 @@ two sashes make four stiles.
 import unittest
 
 from odoo.addons.aw_fenestration_core.models.units import to_display, to_mm
+from odoo.addons.aw_fenestration_design.tests.common import first_thickness
 from odoo.tests import TransactionCase, tagged
 
 INCH = 25.4
@@ -93,10 +94,12 @@ class TestPanelOpening(TransactionCase):
             'profile_line_ids': [
                 (0, 0, {'position_id': pos_rail.id,
                         'product_tmpl_id': profile.id,
+                        'thickness_id': first_thickness(env, profile).id,
                         'length_formula': 'OW + soot(3)',
                         'qty_formula': '1'}),
                 (0, 0, {'position_id': pos_h.id,
                         'product_tmpl_id': profile.id,
+                        'thickness_id': first_thickness(env, profile).id,
                         'length_formula': 'OH', 'qty_formula': '1'}),
             ]})
         design = env['aw.design'].create({
@@ -190,7 +193,8 @@ class TestCutRules(TransactionCase):
                 'aw_fenestration_core.product_category_profiles').id)])
 
         def profile(code):
-            found = profiles.filtered(lambda p: p.default_code == code)[:1]
+            found = profiles.filtered(
+                lambda p: code in (p.default_code, p.name))[:1]
             return found or profiles[:1]
 
         def position(name, scope):
@@ -208,6 +212,7 @@ class TestCutRules(TransactionCase):
             return (0, 0, dict({
                 'position_id': pos.id,
                 'product_tmpl_id': profile(code).id,
+                'thickness_id': first_thickness(env, profile(code)).id,
                 'length_formula': length, 'qty_formula': qty,
             }, **extra))
 

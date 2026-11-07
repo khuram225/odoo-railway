@@ -252,6 +252,44 @@ class AwDesign(models.Model):
             })
         return sorted(out, key=lambda v: (not v['is_order_vendor'], v['name']))
 
+    def _glass_extra_problems(self):
+        """A gap whose spacer, or whose gas (other than Air), has no rate in
+        Glass Extras is costed at nothing, silently, by design: a missing
+        price there is expected until the supplier gives one. This names
+        each such panel and item so it can be seen. WARNING only: it
+        changes no price. The link goes to the panel's glass; Checks links
+        cannot open an action, so the text says where to add the rate.
+        """
+        self.ensure_one()
+        Extra = self.env['aw.glass.extra']
+        on_date = self._costing_date()
+        vendor = self._glass_vendor()
+        problems, seen = [], set()
+        for line in self.bom_line_ids.filtered(
+                lambda l: l.kind == 'glass' and l.glass_part_kind == 'gap'):
+            panel = line.panel_no or 0
+            spacer = (line.glass_spacer or '').strip()
+            gas = (line.glass_gas or '').strip()
+            key = ('spacer', panel, spacer.lower())
+            if spacer and key not in seen and not Extra._rate_for(
+                    'spacer', spacer, on_date, vendor):
+                seen.add(key)
+                problems.append(('warning', _(
+                    "Panel %(panel)s: the gap's spacer '%(spacer)s' has no "
+                    "rate, so the spacer is not in the price. Add it under "
+                    "Rates, Glass Extras.", panel=panel, spacer=spacer),
+                    self._target('glass', panel)))
+            key = ('gas', panel, gas.lower())
+            if gas and gas.lower() != 'air' and key not in seen \
+                    and not Extra._rate_for('gas', gas, on_date, vendor):
+                seen.add(key)
+                problems.append(('warning', _(
+                    "Panel %(panel)s: the gap's gas '%(gas)s' has no rate, so "
+                    "the gas is not in the price. Add it under Rates, Glass "
+                    "Extras.", panel=panel, gas=gas),
+                    self._target('glass', panel)))
+        return problems
+
     def _cost_glass_line(self, line, on_date):
         """(rate used, rate date, note) for one row of a panel's glass
         stack, and the line's cost.

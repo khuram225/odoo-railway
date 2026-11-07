@@ -67,6 +67,8 @@ class AwCutPlan(models.Model):
     # The settings AS USED, not as they are now. A kerf changed next
     # month must not silently restate what the shop was told to cut.
     stock_lengths_ft = fields.Char(readonly=True)
+    profile_vendor_id = fields.Many2one(
+        'res.partner', string='Profile vendor', readonly=True)
     solve_budget_s = fields.Float(readonly=True)
     kerf_mm = fields.Float(readonly=True)
     offcut_min_mm = fields.Float(readonly=True)
@@ -92,6 +94,7 @@ class AwCutPlan(models.Model):
 
     group_ids = fields.One2many('aw.cut.plan.group', 'plan_id', string='Profiles')
     oversize_note = fields.Text(readonly=True)
+    blocked_note = fields.Text(readonly=True)
 
     bar_count = fields.Integer(compute='_compute_totals', store=True)
     feet_bought = fields.Float(compute='_compute_totals', store=True)
@@ -140,7 +143,13 @@ class AwCutPlan(models.Model):
     # settings
     # ------------------------------------------------------------------
     @api.model
-    def _settings(self):
+    def _settings(self, vendor=None, strict=False, template=None):
+        """The planning settings. Bar lengths are the VENDOR's when it has
+        any listed (aw.vendor.bar.length), else the global list. Only
+        ACTIVE lengths count, and for a profile TEMPLATE its own rows win
+        over the vendor-wide ones. strict=True (generating a plan) stops for a
+        vendor whose lengths are all switched off; the fingerprint and the
+        piece limit do not stop, they fall back to the global list."""
         param = self.env['ir.config_parameter'].sudo()
         raw = param.get_param(PARAM_STOCK, DEFAULT_STOCK)
         lengths = []
@@ -154,6 +163,8 @@ class AwCutPlan(models.Model):
                 continue
         if not lengths:
             lengths = [float(v) for v in DEFAULT_STOCK.split(',')]
+        lengths = (self.env['aw.vendor.bar.length']._lengths_for(vendor, strict, template)
+                   or lengths)
 
         def number(key, fallback):
             try:
@@ -187,7 +198,7 @@ class AwCutPlan(models.Model):
 
     def _live_fingerprint(self):
         self.ensure_one()
-        settings = self._settings()
+        settings = self._settings(self.sale_order_id.aw_profile_vendor_id)
         payload = {
             'settings': [settings['stock_ft'], settings['kerf'],
                          settings['offcut_min'], settings['start_trim'],
@@ -197,6 +208,17 @@ class AwCutPlan(models.Model):
                  line.cut_angle or '', line.qty or 0, line.label or '']
                 for line in self._profile_lines()),
         }
+        # Only the profiles whose lengths differ from the vendor's, so a
+        # quote with no per-profile rows keeps the fingerprint it had.
+        vendor = self.sale_order_id.aw_profile_vendor_id
+        by_profile = {}
+        for template in self._profile_lines().mapped(
+                'product_id.product_tmpl_id'):
+            lengths = self._settings(vendor, template=template)['stock_ft']
+            if lengths != settings['stock_ft']:
+                by_profile[str(template.id)] = lengths
+        if by_profile:
+            payload['by_profile'] = by_profile
         blob = json.dumps(payload, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
@@ -210,8 +232,8 @@ class AwCutPlan(models.Model):
 
     def _generate(self):
         self.ensure_one()
-        settings = self._settings()
-        stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
+        vendor = self.sale_order_id.aw_profile_vendor_id
+        settings = self._settings(vendor)
 
         # Overrides are the estimator's decision, not the algorithm's --
         # keep them across a regeneration.
@@ -239,14 +261,30 @@ class AwCutPlan(models.Model):
                     'seq': index,
                 })
 
+        if not pooled:
+            self._settings(vendor, strict=True)     # nothing to plan, but
+            # a vendor with every bar length switched off still stops here
         oversize_notes = []
+        blocked = []
+        planned = 0
         methods, gap_feet, all_proven = set(), 0.0, True
         reused = 0
         for product_id, entry in pooled.items():
             product = entry['product']
+            # Each profile group plans with ITS lengths: the profile's own
+            # rows, else the vendor's, else the global list. A profile whose
+            # own rows are all off stops alone; the others still plan.
+            try:
+                group_settings = self._settings(
+                    vendor, strict=True, template=product.product_tmpl_id)
+            except UserError as error:
+                if str(error) not in blocked:
+                    blocked.append(str(error))
+                continue
+            stock_mm = [ft * MM_PER_FOOT for ft in group_settings['stock_ft']]
             rate, rate_date = self._rate_for_product(product)
             fingerprint = self._group_fingerprint(
-                entry['pieces'], settings, rate)
+                entry['pieces'], group_settings, rate)
 
             # Nothing about this profile moved, so re-solving it would
             # spend the budget to arrive back where it already is.
@@ -254,6 +292,7 @@ class AwCutPlan(models.Model):
             if (previous and previous.piece_fingerprint == fingerprint
                     and previous.bar_ids):
                 reused += 1
+                planned += 1
                 previous.rate_date = rate_date or False
                 methods.add(previous.solve_method or 'exact')
                 gap_feet += previous.gap_feet or 0.0
@@ -281,6 +320,7 @@ class AwCutPlan(models.Model):
                 'gap_feet': result.get('gap_feet') or 0.0,
                 'proven_optimal': bool(result.get('proven_optimal')),
             })
+            planned += 1
             methods.add(result.get('method') or 'none')
             gap_feet += result.get('gap_feet') or 0.0
             all_proven = all_proven and bool(result.get('proven_optimal'))
@@ -298,8 +338,11 @@ class AwCutPlan(models.Model):
                     product=product.display_name,
                     len=round(piece['length'])))
 
+        if blocked and not planned:
+            raise UserError('\n'.join(blocked))
+
         # Whatever is left in `existing` is a profile the BOM no longer
-        # uses.
+        # uses (or one that was just blocked).
         for stale in existing.values():
             stale.unlink()
 
@@ -319,6 +362,7 @@ class AwCutPlan(models.Model):
 
         self.write({
             'date': fields.Datetime.now(),
+            'profile_vendor_id': vendor.id or False,
             'stock_lengths_ft': ','.join(
                 '%g' % ft for ft in settings['stock_ft']),
             'kerf_mm': settings['kerf'],
@@ -326,11 +370,13 @@ class AwCutPlan(models.Model):
             'start_trim_mm': settings['start_trim'],
             'safety_margin_mm': settings['safety_margin'],
             'solve_budget_s': settings['budget'],
-            'max_piece_mm': self.env['aw.design']._max_piece_mm(),
+            'max_piece_mm': self.env['aw.design']._max_piece_mm(
+                self.sale_order_id.aw_profile_vendor_id),
             'optimality': optimality,
             'optimality_note': optimality_note,
             'bom_fingerprint': self._live_fingerprint(),
             'oversize_note': '\n'.join(oversize_notes),
+            'blocked_note': '\n'.join(blocked),
         })
 
     @api.model
@@ -684,7 +730,9 @@ class AwCutPlanGroup(models.Model):
     def _evaluate(self):
         """Re-run every option for this group."""
         self.ensure_one()
-        settings = self.plan_id._settings()
+        settings = self.plan_id._settings(
+            self.plan_id.sale_order_id.aw_profile_vendor_id, strict=True,
+            template=self.product_id.product_tmpl_id)
         stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
         return evaluate(self._pieces(), stock_mm, kerf=settings['kerf'],
                         offcut_min=settings['offcut_min'],
@@ -704,7 +752,9 @@ class AwCutPlanGroup(models.Model):
         actually made.
         """
         self.ensure_one()
-        settings = self.plan_id._settings()
+        settings = self.plan_id._settings(
+            self.plan_id.sale_order_id.aw_profile_vendor_id, strict=True,
+            template=self.product_id.product_tmpl_id)
         stock_mm = [ft * MM_PER_FOOT for ft in settings['stock_ft']]
         if key and key != 'mixed':
             wanted = [value for value in stock_mm

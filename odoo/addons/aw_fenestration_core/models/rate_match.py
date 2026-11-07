@@ -47,8 +47,23 @@ class AwVendorRateReviewMatch(models.Model):
         self.ensure_one()
         if not self.env.user.has_group(RATES_GROUP):
             raise UserError(_("Only a Rates manager can match a row."))
+        return self.line_id.action_match_product()
+
+
+class AwVendorRateListLineMatch(models.Model):
+    _inherit = 'aw.vendor.rate.list.line'
+
+    def action_match_product(self):
+        """The one door to choosing a product for a row, from Review and from
+        the grid alike."""
+        self.ensure_one()
+        if not self.env.user.has_group(RATES_GROUP):
+            raise UserError(_("Only a Rates manager can match a row."))
+        if self.list_id.state != 'draft' or self.list_id.kind != 'profile':
+            raise UserError(_("Only a row of a draft profile list can be "
+                              "matched to a product."))
         wizard = self.env['aw.vendor.rate.match.wizard'].create({
-            'review_id': self.id})
+            'line_id': self.id})
         return {
             'type': 'ir.actions.act_window', 'name': _("Match to product"),
             'res_model': wizard._name, 'res_id': wizard.id,
@@ -105,11 +120,11 @@ class AwVendorRateMatchWizard(models.TransientModel):
     _name = 'aw.vendor.rate.match.wizard'
     _description = 'Match a rate list row to a product'
 
-    review_id = fields.Many2one(
-        'aw.vendor.rate.review', required=True, ondelete='cascade')
-    vendor_code = fields.Char(related='review_id.code', string="Vendor's code")
-    thickness = fields.Char(related='review_id.thickness')
-    row_series = fields.Char(related='review_id.line_id.series',
+    line_id = fields.Many2one(
+        'aw.vendor.rate.list.line', required=True, ondelete='cascade')
+    vendor_code = fields.Char(related='line_id.code', string="Vendor's code")
+    thickness = fields.Char(related='line_id.thickness_text')
+    row_series = fields.Char(related='line_id.series',
                              string="Series on the row")
     product_tmpl_id = fields.Many2one(
         'product.template', string="Our profile",
@@ -126,17 +141,17 @@ class AwVendorRateMatchWizard(models.TransientModel):
             product = wiz.product_tmpl_id
             wiz.both_names = _(
                 "%(vendor)s's \"%(code)s\" = our %(product)s",
-                vendor=wiz.review_id.list_id.vendor_id.display_name,
+                vendor=wiz.line_id.list_id.vendor_id.display_name,
                 code=wiz.vendor_code or '',
                 product=product.display_name) if product else False
 
-    @api.depends('product_tmpl_id', 'remember', 'review_id')
+    @api.depends('product_tmpl_id', 'remember', 'line_id')
     def _compute_warning(self):
         Rate = self.env['aw.profile.rate']
         Alias = self.env['aw.vendor.alias']
         for wiz in self:
             wiz.series_warning = wiz.already = False
-            line = wiz.review_id.line_id
+            line = wiz.line_id
             product = wiz.product_tmpl_id
             if not (line and product):
                 continue
@@ -167,12 +182,10 @@ class AwVendorRateMatchWizard(models.TransientModel):
             raise UserError(_("Only a Rates manager can match a row."))
         if not self.product_tmpl_id:
             raise UserError(_("Pick our profile first."))
-        review = self.review_id
-        line = review.line_id
-        rate_list = review.list_id
-        if not line or rate_list.state != 'draft' or rate_list.step != 'review':
-            raise UserError(_("This row can no longer be matched. Press "
-                              "Review again."))
+        line = self.line_id
+        rate_list = line.list_id
+        if rate_list.state != 'draft':
+            raise UserError(_("This list is already applied."))
         product = self.product_tmpl_id
         # a match does not make the review on screen untrue by itself: it is
         # rebuilt below, so the reset that any edit of a row causes is skipped
@@ -205,11 +218,14 @@ class AwVendorRateMatchWizard(models.TransientModel):
         else:
             body += ' ' + _("This list only; not remembered.")
         rate_list.message_post(body=body)
-        rate_list._store_review(rate_list._review_data())
+        message = _("Matched.")
+        if rate_list.step == 'review':
+            rate_list._store_review(rate_list._review_data())
+            message = _("Matched. The review was rebuilt: check the price "
+                        "changes again before Confirm.")
         return {
             'type': 'ir.actions.client', 'tag': 'display_notification',
             'params': {
                 'title': _("Matched"), 'type': 'success', 'sticky': False,
-                'message': _("The review was rebuilt. Check the price "
-                             "changes again before Confirm."),
+                'message': message,
                 'next': {'type': 'ir.actions.act_window_close'}}}
