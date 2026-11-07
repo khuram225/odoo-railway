@@ -5,6 +5,8 @@ price are read from it. The numbers are the early S00010 test: profiles
 glass wastage 5%, fabrication 450 and installation 250 per m2, profit 25%)."""
 import unittest
 
+from decimal import ROUND_HALF_UP, Decimal
+
 from odoo.tests import TransactionCase, tagged
 
 PROFILES = 106233.39
@@ -16,8 +18,23 @@ from odoo.addons.aw_fenestration_design.tests.common import (
     seeded_family_series)
 
 
+def money(value):
+    """To 2 decimals, half up, on the number as written (not its binary
+    expansion), so 152468.505 is 152468.51."""
+    return float(Decimal(repr(round(value, 6))).quantize(
+        Decimal('0.01'), ROUND_HALF_UP))
+
+
+
 @tagged('post_install', '-at_install')
 class TestPriceBuildUp(TransactionCase):
+    def assertMoney(self, first, second, places=None):
+        """ONE rule for money: two decimals, half up. The stored totals are
+        rounded to the cent while the build-up rows carry the unrounded
+        intermediates, so a test that asked for 4 or 6 places was comparing
+        a rounded number with an unrounded one. `places` is accepted and
+        ignored."""
+        self.assertEqual(money(first), money(second))
 
     @classmethod
     def setUpClass(cls):
@@ -55,10 +72,10 @@ class TestPriceBuildUp(TransactionCase):
     # -- the S00010 numbers ---------------------------------------------------------
     def test_the_s00010_numbers(self):
         design = self._price()
-        self.assertAlmostEqual(design.cost_total, COST, 2)
-        self.assertAlmostEqual(design.price_total, PRICE, 2)
-        self.assertAlmostEqual(design.cost_total, 120974.80, 1)
-        self.assertAlmostEqual(design.price_total, 151218.51, 1)
+        self.assertMoney(design.cost_total, COST, 2)
+        self.assertMoney(design.price_total, PRICE, 2)
+        self.assertMoney(design.cost_total, 120974.80, 1)
+        self.assertMoney(design.price_total, 151218.51, 1)
 
     def test_the_rows_add_up_to_the_stored_cost_and_price(self):
         design = self._price()
@@ -66,13 +83,13 @@ class TestPriceBuildUp(TransactionCase):
         cost = sum(r['amount'] for r in rows
                    if r['kind'] in ('base', 'labour')
                    or (r['kind'] == 'add' and r['key'] != 'profit'))
-        self.assertAlmostEqual(cost, design.cost_total, 6)
+        self.assertMoney(cost, design.cost_total, 6)
         by = {r['key']: r for r in rows}
-        self.assertAlmostEqual(by['cost']['amount'], design.cost_total, 6)
-        self.assertAlmostEqual(
+        self.assertMoney(by['cost']['amount'], design.cost_total, 6)
+        self.assertMoney(
             by['cost']['amount'] + by['profit']['amount'],
             by['calculated_price']['amount'], 6)
-        self.assertAlmostEqual(by['price']['amount'], design.price_total, 6)
+        self.assertMoney(by['price']['amount'], design.price_total, 6)
 
     def test_every_row_the_pricing_tab_lists_is_there_in_order(self):
         keys = [r['key'] for r in self.design._price_build_up()['rows']]
@@ -86,14 +103,14 @@ class TestPriceBuildUp(TransactionCase):
         rows = self._rows()
         self.assertEqual((rows['profile_wastage']['percent'],
                           rows['profile_wastage']['unit']), (8.0, '%'))
-        self.assertAlmostEqual(
+        self.assertMoney(
             rows['profile_wastage']['amount'], PROFILES * 0.08, 6)
         self.assertEqual(rows['fabrication_labour']['rate'], 450.0)
         self.assertIn('m', rows['fabrication_labour']['unit'])
-        self.assertAlmostEqual(
+        self.assertMoney(
             rows['fabrication_labour']['amount'], 450.0 * AREA_SQM, 6)
         self.assertEqual(rows['profit']['percent'], 25.0)
-        self.assertAlmostEqual(rows['profit']['amount'], COST * 0.25, 4)
+        self.assertMoney(rows['profit']['amount'], COST * 0.25, 4)
 
     def test_a_manual_rate_adds_its_row_and_replaces_the_price(self):
         self.assertNotIn('manual_override', self._rows())
@@ -102,10 +119,10 @@ class TestPriceBuildUp(TransactionCase):
         rows = self._rows()
         self.assertIn('manual_override', rows)
         self.assertEqual(rows['manual_override']['unit'], 'per sqft')
-        self.assertAlmostEqual(
+        self.assertMoney(
             design.price_total, 50.0 * design.area_sqft, 4)
-        self.assertAlmostEqual(rows['price']['amount'], design.price_total, 6)
-        self.assertAlmostEqual(rows['calculated_price']['amount'], PRICE, 2)
+        self.assertMoney(rows['price']['amount'], design.price_total, 6)
+        self.assertMoney(rows['calculated_price']['amount'], PRICE, 2)
         self.design.manual_rate = 0.0
 
     # -- mesh wastage -------------------------------------------------------------------
@@ -118,16 +135,16 @@ class TestPriceBuildUp(TransactionCase):
         before = self._price().price_total
         cloth = self._cloth()
         with_cloth = self._price()
-        self.assertAlmostEqual(with_cloth.cost_total, COST + 1000.0, 2)
-        self.assertAlmostEqual(with_cloth.price_total, (COST + 1000.0) * 1.25, 2)
+        self.assertMoney(with_cloth.cost_total, COST + 1000.0, 2)
+        self.assertMoney(with_cloth.price_total, (COST + 1000.0) * 1.25, 2)
         # the same with the Mesh Wastage row gone altogether (an older
         # structure): a missing kind reads as 0%
         self.structure.line_ids.filtered(
             lambda l: l.kind == 'mesh_wastage').unlink()
         again = self._price()
-        self.assertAlmostEqual(again.price_total, with_cloth.price_total, 6)
+        self.assertMoney(again.price_total, with_cloth.price_total, 6)
         cloth.unlink()
-        self.assertAlmostEqual(self._price().price_total, before, 6)
+        self.assertMoney(self._price().price_total, before, 6)
 
     def test_mesh_wastage_applies_to_the_cloth_only(self):
         self._cloth(1000.0)
@@ -136,13 +153,13 @@ class TestPriceBuildUp(TransactionCase):
         base = self._price().cost_total
         self.structure.line_ids.filtered(
             lambda l: l.kind == 'mesh_wastage').value = 10.0
-        self.assertAlmostEqual(self._price().cost_total, base + 100.0, 4)
+        self.assertMoney(self._price().cost_total, base + 100.0, 4)
 
     def test_hardware_infill_and_grid_have_no_wastage(self):
         for kind in ('hardware', 'infill', 'grid'):
             self.Line.create({'design_id': self.design.id, 'kind': kind,
                               'label': kind, 'line_cost': 100.0})
-        self.assertAlmostEqual(self._price().cost_total, COST + 300.0, 4)
+        self.assertMoney(self._price().cost_total, COST + 300.0, 4)
 
     def test_the_missing_mesh_wastage_row_is_added_once_at_zero(self):
         old = self.env['aw.price.structure'].create({
