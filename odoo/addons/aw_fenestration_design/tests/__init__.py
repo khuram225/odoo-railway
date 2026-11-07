@@ -30,4 +30,5 @@ from . import test_rates_match
 from . import test_vendor_bar_lengths
 from . import test_gap_rate_warning
 from . import test_make_copies
+from . import test_cut_batches
 from . import test_rates_data_in

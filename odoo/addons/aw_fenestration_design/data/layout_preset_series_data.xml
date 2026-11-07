@@ -38,5 +38,8 @@
         <!-- Once: each vendor with profile rates gets today's global bar
              lengths, so no cut plan changes. -->
         <function model="aw.vendor.bar.length" name="_seed_vendor_bar_lengths"/>
+        <!-- Once: a cutting plan made before batches existed gets the
+             windows of its quote and batch number 1, 2, ... -->
+        <function model="aw.cut.plan" name="_backfill_batches"/>
     </data>
 </odoo>

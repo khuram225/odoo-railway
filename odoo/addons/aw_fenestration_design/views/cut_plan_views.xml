@@ -15,7 +15,12 @@
                             string="Labels (A4)"/>
                     <button name="action_print_thermal_labels" type="object"
                             string="Labels (50x30)"/>
-                    <field name="state" widget="statusbar"/>
+                    <button name="action_cancel_batch" type="object"
+                            string="Cancel batch"
+                            invisible="state != 'draft'"
+                            confirm="Cancel this batch? Its windows are free for another batch."/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,confirmed"/>
                 </header>
                 <sheet>
                     <div class="alert alert-warning" role="status"
@@ -26,6 +31,12 @@
                     <div class="oe_title">
                         <h1><field name="name" readonly="1"/></h1>
                     </div>
+                    <group>
+                        <field name="design_ids" widget="many2many_tags"
+                               readonly="state != 'draft'"
+                               options="{'no_create': True}"
+                               domain="[('sale_order_id', '=', sale_order_id)]"/>
+                    </group>
                     <group>
                         <group string="Built with">
                             <field name="sale_order_id" readonly="1"/>
@@ -168,8 +179,10 @@
         <field name="name">aw.cut.plan.list</field>
         <field name="model">aw.cut.plan</field>
         <field name="arch" type="xml">
-            <list decoration-warning="not is_current">
-                <field name="sale_order_id"/>
+            <list decoration-warning="not is_current"
+                  decoration-muted="state == 'cancel'">
+                <field name="name"/>
+                <field name="window_count"/>
                 <field name="date"/>
                 <field name="bar_count"/>
                 <field name="yield_pct"/>

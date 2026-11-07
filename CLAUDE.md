@@ -479,6 +479,18 @@ per line with its own quote line and location, the layout, glass, finish and
 changes of the source, and a note on the quote. The source is not touched and a
 copy of an older window is one window. At most 100 at once, quotation only.
 
+**A cutting plan is a batch (Brief Q2).** `aw.cut.plan` has `design_ids` (the
+windows ticked when it was made) and `batch_no`; on screen it is "Batch 1",
+"Batch 2". A window is in ONE active (not cancelled) batch only
+(`_check_windows`), and moves only while the batch is Draft; cancelling a draft
+batch frees its windows. The quote's **New batch** button opens a dialog with the
+free windows ticked; **Cutting batches** lists them. A batch plans only its own
+windows (`_profile_lines`), and goes stale when its window set changes (the
+fingerprint adds the window ids only for a partial batch, so a batch holding every
+window keeps the fingerprint it had). `_backfill_batches` ran once at the upgrade:
+each plan from before gave itself the quote's windows and a number. A window's shop
+drawing reads the batch it is in (`_sheet_plan`).
+
 ## Process
 
 Merging to main deploys and upgrades aw_fenestration_core and

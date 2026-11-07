@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Opened from sale.order.action_new_batch, which builds the action in
+         Python and points at this view with env.ref(): a runtime lookup, so
+         no load-order constraint. -->
+    <record id="view_aw_cut_batch_wizard_form" model="ir.ui.view">
+        <field name="name">aw.cut.batch.wizard.form</field>
+        <field name="model">aw.cut.batch.wizard</field>
+        <field name="arch" type="xml">
+            <form string="New batch">
+                <field name="order_id" invisible="1"/>
+                <div class="text-muted mb-2">
+                    Tick the windows that go into this batch. A window is in
+                    one batch only; the ones you untick wait for a later batch.
+                </div>
+                <field name="line_ids" nolabel="1">
+                    <list editable="bottom" create="0" delete="0">
+                        <field name="selected" widget="boolean_toggle"/>
+                        <field name="design_id"/>
+                        <field name="location"/>
+                        <field name="size_display"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_create" type="object"
+                            string="Make the batch" class="btn-primary"
+                            data-hotkey="q"/>
+                    <button string="Cancel" class="btn-secondary"
+                            special="cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

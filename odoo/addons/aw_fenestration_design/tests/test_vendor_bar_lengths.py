@@ -292,7 +292,9 @@ class TestRegenerateUsesTheQuotesVendor(TransactionCase):
             'header': design.get_configurator_data()['header'],
             'rows': [{'height_mm': 1800.0, 'leaves': [dict(leaf), dict(leaf)]}]})
         design._explode()
-        cls.plan = env['aw.cut.plan'].create({'sale_order_id': cls.order.id})
+        cls.plan = env['aw.cut.plan'].create({
+            'sale_order_id': cls.order.id,
+            'design_ids': [(6, 0, cls.order.aw_design_ids.ids)]})
         if not cls.plan._profile_lines():
             raise unittest.SkipTest("The test window has no profile lines")
 
