@@ -29,6 +29,11 @@ class TestRatesDataIn(TransactionCase):
         cls.plain = env['res.users'].create({
             'name': 'Plain', 'login': 'datain_plain',
             'group_ids': [(6, 0, [env.ref('base.group_user').id])]})
+        cls.manager = env['res.users'].create({
+            'name': 'Rates clearer', 'login': 'datain_manager',
+            'group_ids': [(6, 0, [
+                env.ref('base.group_user').id,
+                env.ref('aw_fenestration_core.group_rates_manager').id])]})
 
     def _list(self):
         rate_list = self.env['aw.vendor.rate.list'].create({
@@ -70,7 +75,7 @@ class TestRatesDataIn(TransactionCase):
     def test_clear_all_lines_then_upload_again(self):
         rate_list = self._list()
         self._upload(rate_list)
-        rate_list.action_clear_lines()
+        rate_list.with_user(self.manager).action_clear_lines()
         self.assertFalse(rate_list.line_ids)
         self.assertFalse(rate_list.upload_summary)
         self.assertIn('cleared all 1 line', ' '.join(
@@ -85,13 +90,13 @@ class TestRatesDataIn(TransactionCase):
             rate_list.with_user(self.plain).action_clear_lines()
         rate_list.state = 'applied'
         with self.assertRaises(UserError):
-            rate_list.action_clear_lines()
+            rate_list.with_user(self.manager).action_clear_lines()
 
     def test_clearing_sends_a_review_back_to_data_in(self):
         rate_list = self._list()
         self._line(rate_list, 100.0)
         rate_list.action_open_review()
-        rate_list.action_clear_lines()
+        rate_list.with_user(self.manager).action_clear_lines()
         self.assertEqual(rate_list.step, 'data')
         self.assertFalse(rate_list.review_ids)
 
