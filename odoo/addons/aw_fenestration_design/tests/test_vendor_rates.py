@@ -209,7 +209,7 @@ class TestVendorRateLists(TransactionCase):
         self.env['aw.vendor.alias'].create({
             'vendor_id': self.premium.id, 'code': 'ZZ-9', 'code_norm': 'ZZ9',
             'product_tmpl_id': self.product.id})
-        third = self._list(date(2026, 6, 1), 'zz 9  NOR  1 2 3')
+        third = self._list(date(2026, 6, 1), 'zz 9\tNOR\t\t1\t2\t3')
         self.assertEqual(third.line_ids.product_tmpl_id, self.product)
 
     def _rates_of(self, rate_list):
