@@ -43,7 +43,7 @@ if [ "$failed" -gt 0 ] || [ "$errors" -gt 0 ]; then
         [ -n "$n" ] || continue
         # where in OUR tests it failed (file:line and that line of code), then
         # the exception that ended the traceback
-        exc=$(awk -v n="$n" 'NR > n { if ($0 ~ /^20[0-9][0-9]-[0-9][0-9]-/) exit; if ($0 ~ /\/tests\/[A-Za-z0-9_]+\.py", line [0-9]+/) { f = $0; getline c; code = c } if ($0 !~ /^[[:space:]]/) last = $0 } END { gsub(/^[[:space:]]+/, "", code); sub(/.*\/tests\//, "", f); sub(/", in .*/, "", f); print "[" f "] " code " => " last }' "$log" | cut -c1-420)
+        exc=$(awk -v n="$n" 'NR > n { if ($0 ~ /^20[0-9][0-9]-[0-9][0-9]-/) exit; if ($0 ~ /\/tests\/[A-Za-z0-9_]+\.py", line [0-9]+/) { f = $0; getline c; code = c } if ($0 ~ /aw_fenestration_[a-z]+\/(models|wizard|controllers)\/[A-Za-z0-9_]+\.py", line [0-9]+/) { g = $0; getline d; gcode = d } if ($0 !~ /^[[:space:]]/) last = $0 } END { gsub(/^[[:space:]]+/, "", code); gsub(/^[[:space:]]+/, "", gcode); sub(/.*\/tests\//, "", f); sub(/.*addons\//, "", g); print "[" f "] " code " <= [" g "] " gcode " => " last }' "$log" | cut -c1-640)
         echo "$key -- $exc"
     done > "$list"
     split -l 12 "$list" "$list.part."
