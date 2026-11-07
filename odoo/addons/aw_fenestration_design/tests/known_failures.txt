@@ -11,7 +11,7 @@
 #        UNDECIDED not yet established which side is wrong. Do not guess.
 # "likely" = reasoned from the failure and the code, not yet proven by a fix.
 #
-# 28 entries: rates 8, glass 9, hardware 2, design/cut 9.
+# 27 entries: rates 8, glass 8, hardware 2, design/cut 9.
 
 # --- rates ---------------------------------------------------------------
 TestLayoutWithoutRateColumns.test_the_error_says_the_layout_has_no_rate_columns  rates; TEST BUG; the error wording was reworked ("All rows have 5 cells, this layout has 3")
@@ -31,7 +31,6 @@ TestGlassProducts.test_the_rates_table_has_types_as_rows_and_thicknesses_as_colu
 TestGlassProducts.test_the_glass_sheet_form_hides_price_cost_and_prices_tab  glass; TEST BUG; same missing pricelist group as the rates table test
 TestGlassRates.test_lines_that_are_not_rows_are_reported_not_dropped  glass; TEST BUG; the message echoes the typed tab, the test expects a space
 TestGlassStack.test_one_panel_can_differ_and_the_others_do_not  glass; TEST BUG (likely); reads a BOM line after the save replaced it
-TestChatterGlassHardware.test_the_window_default_and_a_panels_glass_are_logged  glass; UNDECIDED; the log says "added 8 mm Clear", the test expects "8 mm Clear to 10 mm Clear"
 TestVendorBarLengthActive.test_changes_are_logged_with_user_and_date  glass; TEST BUG; the log line now names the profile; fixed on fix/bar-length-ui, which was never merged
 
 # --- hardware ------------------------------------------------------------
