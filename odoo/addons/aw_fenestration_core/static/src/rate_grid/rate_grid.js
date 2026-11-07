@@ -3,7 +3,6 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { _t } from "@web/core/l10n/translation";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 
 const LINE = "aw.vendor.rate.list.line";
 const LIST = "aw.vendor.rate.list";
@@ -31,7 +30,7 @@ export class RateGrid extends Component {
 
     setup() {
         this.orm = useService("orm");
-        this.dialog = useService("dialog");
+        this.action = useService("action");
         this.root = useRef("root");
         this.state = useState({ lines: [], loaded: false });
         onWillStart(() => this.load());
@@ -200,19 +199,14 @@ export class RateGrid extends Component {
         }
     }
 
-    pickProduct(line) {
-        this.dialog.add(SelectCreateDialog, {
-            resModel: "product.template",
-            title: _t("Choose a profile for %s", line.code),
-            noCreate: true,
-            multiSelect: false,
-            domain: [["categ_id", "child_of", this.meta.profile_category_id]],
-            onSelected: async (ids) => {
-                // Written through the line, so the alias is saved as before.
-                await this.orm.write(LINE, [line.id], { product_tmpl_id: ids[0] });
-                await this.refresh();
-            },
-        });
+    /**
+     * The one dialog for choosing a profile: it shows both names, warns when
+     * the series differs, and only remembers the code when ticked (Rates
+     * manager). The row is written by the dialog, so nothing is saved here.
+     */
+    async pickProduct(line) {
+        const action = await this.orm.call(LINE, "action_match_product", [[line.id]]);
+        await this.action.doAction(action, { onClose: () => this.refresh() });
     }
 
     /**
