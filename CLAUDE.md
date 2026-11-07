@@ -866,6 +866,23 @@ people have (`product.group_product_pricelist`).
 change was merged with its own test red (the job was not a gate) and took
 production down.
 
+## Rehearsal before a data-changing merge
+
+`scripts/rehearse.sh` restores a dump of production (a read-only `pg_dump`
+over `railway ssh`; 6.5 MB for the 91 MB database) into a scratch Postgres in
+Docker, runs the checked-out code's upgrade on it, counts the rows of the
+tables you name (`REHEARSE_TABLES`), re-explodes every design and compares
+cost, price and BOM with what is stored (`scripts/rehearse_explode.py`, rolled
+back), and calls `/aw/health/registry` and `/aw/health`. Run it before merging
+anything that adds or changes a `<function>` data call, a `_migrate*`, `_retire*`,
+`_seed*` or `_backfill*` that writes or deletes, or a stored field.
+
+**The dump is customer data.** It lives in `~/aw-rehearsal`, outside the
+repository; `scripts/rehearse.sh --clean` deletes it, the containers and the
+image. A failed upgrade does not leave the old version running (see "Module
+upgrade on deploy"), which is why this runs BEFORE the merge. Needs Docker; the
+dump step alone (`--dump-only`) needs only the Railway CLI.
+
 ## Static checks
 
 Two scripts, both wired into `.githooks/pre-commit` (git only runs hooks
