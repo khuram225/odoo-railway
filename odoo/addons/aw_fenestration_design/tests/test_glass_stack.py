@@ -48,6 +48,11 @@ class TestGlassStack(TransactionCase):
             'rows': [{'height_mm': 1800.0,
                       'leaves': [dict(leaf), dict(leaf)]}]})
         cls.leaves = cls.design.row_ids.leaf_ids.sorted('panel_no')
+        # The first save SUGGESTS glass for large panels (8 mm here). A panel
+        # the user has not chosen follows the suggestion, not the window, so
+        # give the tests panels that follow the window's stack.
+        cls.leaves.write({'glass_part_ids': [(5, 0, 0)],
+                          'glass_suggested': False, 'glass_chosen': False})
         cls.Part = env['aw.glass.part']
 
     # -- helpers ------------------------------------------------------------
