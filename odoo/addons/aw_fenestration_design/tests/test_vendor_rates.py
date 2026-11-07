@@ -207,7 +207,7 @@ class TestVendorRateLists(TransactionCase):
         self.assertFalse(self.env['aw.vendor.alias'].search_count([
             ('vendor_id', '=', self.premium.id), ('code_norm', '=', 'ZZ9')]))
         self.env['aw.vendor.alias'].create({
-            'vendor_id': self.premium.id, 'code': 'ZZ-9',
+            'vendor_id': self.premium.id, 'code': 'ZZ-9', 'code_norm': 'ZZ9',
             'product_tmpl_id': self.product.id})
         third = self._list(date(2026, 6, 1), 'zz 9  NOR  1 2 3')
         self.assertEqual(third.line_ids.product_tmpl_id, self.product)

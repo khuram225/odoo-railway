@@ -52,10 +52,12 @@ class TestRatesMatch(TransactionCase):
         return rate_list, row
 
     def _wizard(self, row, **values):
+        """For a review row, or for a line (take the line BEFORE anything
+        that rebuilds the review: its rows are deleted and recreated)."""
+        line = row if row._name == 'aw.vendor.rate.list.line' else row.line_id
         return self.env['aw.vendor.rate.match.wizard'].with_user(
             self.rates_user).create(dict(
-                line_id=row.line_id.id, product_tmpl_id=self.profile.id,
-                **values))
+                line_id=line.id, product_tmpl_id=self.profile.id, **values))
 
     def test_only_a_row_without_a_product_can_be_matched(self):
         rate_list, row = self._review()
@@ -148,8 +150,9 @@ class TestRatesMatch(TransactionCase):
     def test_picking_a_product_in_the_grid_saves_no_alias(self):
         """The old behaviour: a hand pick wrote an alias on its own."""
         rate_list, row = self._review()
-        row.line_id.write({'product_tmpl_id': self.profile.id})
-        self.assertEqual(row.line_id.match_source, 'manual')
+        line = row.line_id          # an edit sends the review back: row goes
+        line.write({'product_tmpl_id': self.profile.id})
+        self.assertEqual(line.match_source, 'manual')
         self.assertFalse(self.env['aw.vendor.alias'].search([
             ('vendor_id', '=', self.vendor.id)]))
 
@@ -164,9 +167,10 @@ class TestRatesMatch(TransactionCase):
 
     def test_matching_from_the_data_step_logs_and_keeps_the_step(self):
         rate_list, row = self._review()
+        line = row.line_id
         rate_list.action_back_to_data()
         self.assertEqual(rate_list.step, 'data')
-        self._wizard(row, remember=True).action_match()
+        self._wizard(line, remember=True).action_match()
         self.assertEqual(rate_list.step, 'data')
         self.assertFalse(rate_list.review_ids)
         self.assertEqual(self.env['aw.vendor.alias'].search_count([
