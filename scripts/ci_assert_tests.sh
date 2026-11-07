@@ -36,13 +36,13 @@ fi
 
 if [ "$failed" -gt 0 ] || [ "$errors" -gt 0 ]; then
     list=$(mktemp)
-    grep -E '(FAIL|ERROR): [Tt]est[A-Za-z0-9_.]*' "$log" \
-        | sed -E 's/.*((FAIL|ERROR): [A-Za-z0-9_.]+).*/\1/' | sort -u \
-    | while read -r kind name; do
-        n=$(grep -n -m1 -F "$kind $name" "$log" | cut -d: -f1 || true)
+    grep -E '(FAIL|ERROR): (setUpClass|[Tt]est)' "$log" \
+        | sed -E 's/.*((FAIL|ERROR): .*)$/\1/' | cut -c1-200 | sort -u \
+    | while IFS= read -r key; do
+        n=$(grep -n -m1 -F -- "$key" "$log" | cut -d: -f1 || true)
         [ -n "$n" ] || continue
         exc=$(awk -v n="$n" 'NR > n { if ($0 ~ /^20[0-9][0-9]-[0-9][0-9]-/) exit; if ($0 !~ /^[[:space:]]/) last = $0 } END { print last }' "$log" | cut -c1-220)
-        echo "$kind $name -- $exc"
+        echo "$key -- $exc"
     done > "$list"
     split -l 12 "$list" "$list.part."
     for part in "$list".part.*; do
