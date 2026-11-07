@@ -122,3 +122,15 @@ class TestRatesDataIn(TransactionCase):
         self.assertEqual(rate_list.review_duplicates, 0)
         with self.assertRaises(UserError):
             rate_list.action_confirm_rates()
+
+    def test_the_button_is_only_in_the_form_of_a_rates_manager(self):
+        List = self.env['aw.vendor.rate.list']
+        manager = List.with_user(self.manager).get_view(
+            view_type='form')['arch']
+        plain = List.with_user(self.plain).get_view(view_type='form')['arch']
+        self.assertIn('action_clear_lines', manager)
+        self.assertNotIn('action_clear_lines', plain)
+        # hiding is cosmetic: the server still refuses a non-manager
+        rate_list = self._list()
+        with self.assertRaises(UserError):
+            rate_list.with_user(self.plain).action_clear_lines()

@@ -236,6 +236,7 @@
                                 <button name="action_clear_lines" type="object"
                                         string="Clear all lines"
                                         class="btn-secondary ms-2"
+                                        groups="aw_fenestration_core.group_rates_manager"
                                         invisible="not line_count"
                                         confirm="Remove every line from this list? The prices already written as rates are not touched."/>
                             </div>
