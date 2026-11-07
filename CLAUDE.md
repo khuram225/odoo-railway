@@ -61,9 +61,15 @@ logs `upgrade: done; versions: ...` read from `ir_module_module`.
 `ODOO_UPGRADE_MODULES` overrides the list and **set empty skips it**: the
 print service must set it empty, since its addons path has no `aw_*`
 modules. If the update exits non-zero the entrypoint exits 1 and the
-server never starts, so the healthcheck never passes and Railway keeps
-the previous deployment serving. The restart policy (`ON_FAILURE`, up to
-10) re-runs the update each time, which is harmless: it is idempotent.
+server never starts, so the healthcheck never passes. **That does NOT
+leave the previous version running** (this paragraph used to say it did,
+and an outage on 2026-11-07 proved it wrong): the service has a volume
+(`odoo-volume` at /var/lib/odoo), a volume can be mounted by one container
+at a time, so Railway STOPS the old container before the new one starts. A
+failed upgrade therefore means no service until the last good deployment is
+redeployed (Railway dashboard, Deployments, the last SUCCESS one, Redeploy)
+or a fix is merged. The restart policy (`ON_FAILURE`, up to 10) re-runs the
+update each time, which is harmless: it is idempotent.
 The update can fail part way, and modules commit as they go, so the old
 deployment may then be serving a partly upgraded database; fix forward.
 A new module is installed once from Apps, then added to the entrypoint list.
@@ -833,6 +839,49 @@ availability. The longest-piece check is per BOM line's template; the configurat
 early limit uses the longest bar any of the vendor's profiles can come in. The plan
 fingerprint adds a per-profile entry only where a profile's lengths differ from the
 vendor's, so existing plans are not made stale by this change.
+
+## Odoo tests (the `odoo tests` job)
+
+`odoo tests` in `.github/workflows/checks.yml` installs the aluminum modules
+the way the upgrade job does (core alone, production's core modules, the rest,
+then `-u`) and runs their tests with `--test-enable`. It is part of **all
+checks**. `scripts/ci_assert_tests.sh` reads the log, because the exit code
+means nothing, and compares the failures with
+`aw_fenestration_design/tests/known_failures.txt`: a failure that is not
+listed fails the job, and so does a listed test that now passes, so the list
+can only shrink. Each entry says area, TEST BUG / CODE BUG / UNDECIDED and why;
+remove the line in the PR that fixes it. Failures come out as annotations
+(readable without a login), with the line of the test, the addon frame and the
+assertion diff.
+
+**A database installed from scratch is not production.** Three things differ
+and each has produced test failures: the RE specification is not seeded (its
+seed runs before the Chawla profiles are imported and then marks itself done;
+`tests/common.py` seeds it the way production has it), the catalogue already
+carries real codes (`B-6`, `TH-1`: a test product with the same code is an
+ambiguous match, so use codes like `ZT-6`), and the test user lacks groups the
+people have (`product.group_product_pricelist`).
+
+**A green `all checks` before 2026-11-07 meant nothing about tests.** A code
+change was merged with its own test red (the job was not a gate) and took
+production down.
+
+## Rehearsal before a data-changing merge
+
+`scripts/rehearse.sh` restores a dump of production (a read-only `pg_dump`
+over `railway ssh`; 6.5 MB for the 91 MB database) into a scratch Postgres in
+Docker, runs the checked-out code's upgrade on it, counts the rows of the
+tables you name (`REHEARSE_TABLES`), re-explodes every design and compares
+cost, price and BOM with what is stored (`scripts/rehearse_explode.py`, rolled
+back), and calls `/aw/health/registry` and `/aw/health`. Run it before merging
+anything that adds or changes a `<function>` data call, a `_migrate*`, `_retire*`,
+`_seed*` or `_backfill*` that writes or deletes, or a stored field.
+
+**The dump is customer data.** It lives in `~/aw-rehearsal`, outside the
+repository; `scripts/rehearse.sh --clean` deletes it, the containers and the
+image. A failed upgrade does not leave the old version running (see "Module
+upgrade on deploy"), which is why this runs BEFORE the merge. Needs Docker; the
+dump step alone (`--dump-only`) needs only the Railway CLI.
 
 ## Static checks
 

@@ -50,7 +50,7 @@ fi
 work=$(mktemp -d)
 
 # the key of every failing test, as the known-failures file spells it
-grep -E '(FAIL|ERROR): (setUpClass|[Tt]est)' "$log" \
+grep -E '(FAIL|ERROR): ([A-Za-z0-9_]+[.][A-Za-z0-9_]+|setUpClass)' "$log" \
     | sed -E 's/.*(FAIL|ERROR): (.*)$/\2/' \
     | sed -E 's/^setUpClass \([A-Za-z0-9_.]*\.([A-Za-z0-9_]+)\).*/setUpClass:\1/' \
     | awk '{print $1}' | sort -u > "$work/failing" || true
@@ -59,6 +59,14 @@ if [ -n "$known" ]; then
     grep -vE '^[[:space:]]*(#|$)' "$known" | awk '{print $1}' | sort -u > "$work/listed"
 else
     : > "$work/listed"
+fi
+
+# Every failure must have been recognised: a test class whose name the pattern
+# above does not know would otherwise slip through (it did, in a probe).
+found=$(wc -l < "$work/failing" | tr -d ' ')
+if [ "$found" -ne $((failed + errors)) ]; then
+    echo "::error::the summary says $((failed + errors)) failure(s) but $found were recognised in the log -- the gate cannot tell which one is new"
+    exit 1
 fi
 
 comm -23 "$work/failing" "$work/listed" > "$work/new"       # failing, not listed
