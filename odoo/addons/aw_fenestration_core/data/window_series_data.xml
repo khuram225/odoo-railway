@@ -28,6 +28,9 @@
              already point at the surviving records when it looks them
              up. -->
         <function model="aw.profile.position" name="_seed_palay_bead_positions"/>
+        <!-- Once: the three unused "Palay Bead" positions the seed above
+             used to make after the catalog had renamed the real ones. -->
+        <function model="aw.profile.position" name="_retire_palay_bead_duplicates"/>
         <function model="aw.profile.position" name="_seed_bom_defaults"/>
         <function model="aw.profile.position" name="_seed_required_flags"/>
         <function model="aw.profile.position" name="_seed_part_groups"/>
