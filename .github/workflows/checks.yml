@@ -454,8 +454,9 @@ jobs:
   # registry builds; they never run a test, so a test could be wrong for
   # weeks. Same staged install as the upgrade job, then -u with --test-enable
   # so the post_install tests run on a database laid out like production.
-  # NOT part of "all checks" yet: it is added there once the failures it
-  # finds are fixed or agreed as known (see CLAUDE.md).
+  # Part of "all checks": it fails on any failure NOT listed in
+  # tests/known_failures.txt and on any listed failure that now passes, so
+  # the list can only shrink (scripts/ci_assert_tests.sh).
   # =====================================================================
   tests:
     name: odoo tests
@@ -530,7 +531,8 @@ jobs:
             --stop-after-init --no-http --log-level=info > /tmp/tests.log 2>&1 || code=$?
           end=$(date +%s)
           echo "::notice::odoo exited $code; the test run took $((end - start))s"
-          sh scripts/ci_assert_tests.sh /tmp/tests.log
+          sh scripts/ci_assert_tests.sh /tmp/tests.log \
+            odoo/addons/aw_fenestration_design/tests/known_failures.txt
 
   # =====================================================================
   # The single status Railway waits on. It has no steps: its only job is
@@ -540,7 +542,7 @@ jobs:
   all-checks:
     name: all checks
     runs-on: ubuntu-latest
-    needs: [static, boot, upgrade]
+    needs: [static, boot, upgrade, tests]
     if: always()
     steps:
       - name: Require all gates
@@ -548,7 +550,9 @@ jobs:
           echo "static: ${{ needs.static.result }}"
           echo "boot:   ${{ needs.boot.result }}"
           echo "upgrade: ${{ needs.upgrade.result }}"
+          echo "tests:   ${{ needs.tests.result }}"
           test "${{ needs.static.result }}" = "success" \
             && test "${{ needs.boot.result }}" = "success" \
             && test "${{ needs.upgrade.result }}" = "success" \
+            && test "${{ needs.tests.result }}" = "success" \
             || { echo "::error::a gate did not pass"; exit 1; }

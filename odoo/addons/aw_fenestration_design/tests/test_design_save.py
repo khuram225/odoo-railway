@@ -19,6 +19,8 @@ bookkeeping is exercised rather than skipped.
 import unittest
 
 from odoo.tests import TransactionCase, tagged
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -30,14 +32,10 @@ class TestDesignSave(TransactionCase):
         # A family with at least one active system, which is what the
         # save path needs: _resolve_system() picks the system from the
         # family once the panels are known.
-        cls.family = cls.env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        cls.family, cls.series = seeded_family_series(cls.env)
         if not cls.family:
             raise unittest.SkipTest(
                 "No glazing family with a configured profile system")
-        cls.series = cls.family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         cls.leaf_type = cls.series.leaf_type_ids[0]
         cls.design = cls.env['aw.design'].create({
             'name': 'SAVE1',
@@ -223,3 +221,20 @@ class TestDesignSave(TransactionCase):
         self.assertFalse(
             set(before) & set(self.design.check_line_ids.ids),
             "Old check rows survived a re-save.")
+
+
+@tagged('post_install', '-at_install')
+class TestDesignWithoutSpec(TransactionCase):
+    """A Custom window has no specification, and neither does a design on a
+    series that has none. Opening and saving it must not crash."""
+
+    def test_a_design_with_no_spec_opens_and_has_no_spec_lines(self):
+        series = self.env['aw.window.series'].search([], limit=1)
+        design = self.env['aw.design'].create({
+            'name': 'NOSPEC', 'window_series_id': series.id,
+            'spec_custom': True, 'width_mm': 1200.0, 'height_mm': 1200.0})
+        self.assertFalse(design.template_id)
+        self.assertFalse(design._spec_profile_lines())
+        self.assertFalse(design._spec_hardware_lines())
+        data = design.get_configurator_data()
+        self.assertTrue(data['header'])

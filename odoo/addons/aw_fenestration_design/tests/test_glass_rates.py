@@ -53,7 +53,7 @@ class TestGlassRates(TransactionCase):
 
     def test_the_types_and_the_supplier_are_seeded_once(self):
         self.assertTrue(self.ghani)
-        names = set(self.Type.mapped('name'))
+        names = set(self.Type.search([]).mapped('name'))
         for name in ('Clear', 'WC Green', 'CC Grey', 'Ref. Ford Blue'):
             self.assertIn(name, names)
         self.assertTrue(self.Type.search([('name', '=', 'Ref. Grey')]).reflective)
@@ -82,7 +82,7 @@ class TestGlassRates(TransactionCase):
         rates = self.env['aw.glass.rate'].search(
             [('rate_list_id', '=', rate_list.id)])
         self.assertEqual(len(rates), 17)
-        self.assertEqual(set(rates.mapped('vendor_id')), self.ghani)
+        self.assertEqual(rates.mapped('vendor_id'), self.ghani)
         self.assertEqual(self._rate('Clear', 10, date(2026, 7, 1)).price, 611.92)
         self.assertEqual(self._rate('Clear', 6, date(2026, 12, 1)).price, 265.52)
         # before the list starts there is no rate; another vendor has none
@@ -218,7 +218,7 @@ class TestGlassRates(TransactionCase):
         self.assertEqual(rate_list.line_ids.mapped('code'), ['Clear'])
         self.assertEqual(result['params']['type'], 'warning')
         self.assertIn('2 line(s) were NOT read', result['params']['message'])
-        self.assertIn('5mm 231.88', result['params']['message'])
+        self.assertIn('5mm\t231.88', result['params']['message'])
         self.assertIn('Green 4mm 287.36 336.95', result['params']['message'])
         # all lines unread: an error that names them
         rate_list.paste_text = '5mm\t231.88'

@@ -278,6 +278,12 @@ class AwDesign(models.Model):
         # spec, and an unused one is a row for the form to grey out, not
         # a part of the window. This is the filter the configurator's
         # Profiles tab reads through as well.
+        # A Custom window has no spec at all (template_id is empty by design);
+        # so does a design on a series nobody has made a spec for yet. Both
+        # have no spec lines, not an error: the checks say a window with no
+        # profile lines has none.
+        if not self.template_id:
+            return self.env['aw.profile.section.line']
         return self.template_id._live_profile_lines()
 
     def _spec_hardware_lines(self):

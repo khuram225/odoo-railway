@@ -1162,6 +1162,8 @@ class AwDesign(models.Model):
                 "No glass for %s — build the glass stack in the header, "
                 "or on the panel.", self.display_name)))
 
+        problems.extend(self._glass_extra_problems())
+
         # Pricing (spec 8). An incomplete price must never be mistaken
         # for a real one, so the lines that carry no cost are named
         # rather than quietly averaged into a number that looks fine.
