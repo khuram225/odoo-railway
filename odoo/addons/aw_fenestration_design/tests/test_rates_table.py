@@ -97,7 +97,7 @@ class TestRatesTable(TransactionCase):
         found = self.env['aw.profile.rate'].search(action['domain'])
         self.assertTrue(found)
         self.assertEqual(found.mapped('vendor_id'), self.b)
-        self.assertEqual(set(found.mapped('finish_id')), first)
+        self.assertEqual(found.mapped('finish_id'), first)
         self.assertTrue(action['views'])
 
     def test_profile_variants_list_has_no_price_or_cost(self):
