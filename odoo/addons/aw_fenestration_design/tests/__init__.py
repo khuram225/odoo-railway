@@ -29,3 +29,4 @@ from . import test_rates_upload
 from . import test_rates_match
 from . import test_vendor_bar_lengths
 
+from . import test_zz_debug
