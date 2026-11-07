@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Opened from aw.design.action_make_copies, which builds the action
+         in Python and points view_id here with env.ref(): a runtime lookup,
+         so no load-order constraint. -->
+    <record id="view_aw_design_copies_wizard_form" model="ir.ui.view">
+        <field name="name">aw.design.copies.wizard.form</field>
+        <field name="model">aw.design.copies.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Make copies">
+                <group>
+                    <field name="design_id" readonly="1"/>
+                    <field name="locations" nolabel="0"
+                           placeholder="One location per line, e.g.&#10;Drawing room&#10;Bedroom 1&#10;Bedroom 2"/>
+                    <field name="count"/>
+                </group>
+                <div class="text-muted">
+                    One window is made for each line, with the same layout,
+                    glass and finish and its own quote line. This window is
+                    not changed.
+                </div>
+                <footer>
+                    <button name="action_make" type="object"
+                            string="Make copies" class="btn-primary"
+                            invisible="count == 0" data-hotkey="q"/>
+                    <button string="Cancel" class="btn-secondary"
+                            special="cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

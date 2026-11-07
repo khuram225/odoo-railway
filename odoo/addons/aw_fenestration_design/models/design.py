@@ -629,11 +629,23 @@ class AwDesign(models.Model):
         # it out too.
         for vals in vals_list:
             vals.setdefault('suggest_glass', True)
+            if vals.get('qty', 1) != 1:
+                raise UserError(_(
+                    "A window is one window. To get more of the same, use "
+                    "Make copies."))
         designs = super().create(vals_list)
         designs._sync_sale_order_line()
         return designs
 
     def write(self, vals):
+        # A window is one window. A quantity can only be left as it is (an
+        # older window may still carry more than 1, and every save writes
+        # the header back) or brought down to 1.
+        if 'qty' in vals and vals['qty'] != 1 and any(
+                d.qty != vals['qty'] for d in self):
+            raise UserError(_(
+                "A window is one window. To get more of the same, use "
+                "Make copies."))
         # Picking a spec ends "custom": the two cannot both be true.
         if vals.get('template_id') and 'spec_custom' not in vals:
             vals = dict(vals, spec_custom=False)
@@ -1982,7 +1994,6 @@ class AwDesign(models.Model):
             spec=self.template_id,
             lock_system=self.system_locked)
         copy.write({
-            'qty': self.qty,
             'width_mm': self.width_mm,
             'height_mm': self.height_mm,
             'finish_id': self.finish_id.id,
@@ -2007,6 +2018,21 @@ class AwDesign(models.Model):
     def action_duplicate_position(self):
         self.ensure_one()
         return self.copy_position().action_open_configurator()
+
+    def action_make_copies(self):
+        """Ask for the locations, one per line, and make one window each."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Make copies"),
+            'res_model': 'aw.design.copies.wizard',
+            'view_mode': 'form',
+            'views': [(self.env.ref(
+                'aw_fenestration_design.view_aw_design_copies_wizard_form'
+            ).id, 'form')],
+            'target': 'new',
+            'context': {'default_design_id': self.id},
+        }
 
     def _incomplete_dimension_designs(self):
         """Designs still sitting at a zero width or height. Dimensions

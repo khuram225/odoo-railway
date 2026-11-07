@@ -99,6 +99,8 @@
                             string="Open Configurator" class="btn-primary"/>
                     <button name="action_print_shop_drawing" type="object"
                             string="Shop Drawing"/>
+                    <button name="action_make_copies" type="object"
+                            string="Make copies"/>
                 </header>
                 <sheet>
                     <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"

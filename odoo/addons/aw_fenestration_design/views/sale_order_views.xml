@@ -71,6 +71,10 @@
                             <button name="action_duplicate_position" type="object"
                                     icon="fa-copy" title="Duplicate this window"
                                     invisible="parent.state not in ('draft', 'sent')"/>
+                            <button name="action_make_copies" type="object"
+                                    icon="fa-clone"
+                                    title="Make copies (one window per location)"
+                                    invisible="parent.state not in ('draft', 'sent')"/>
                         </list>
                     </field>
                 </page>

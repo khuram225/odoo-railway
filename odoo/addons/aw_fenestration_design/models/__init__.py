@@ -11,6 +11,7 @@ from . import layout_family
 from . import layout_preset
 from . import library_seed
 from . import design_position_wizard
+from . import design_copies_wizard
 from . import design_preset_wizard
 from . import family
 from . import glass_part
