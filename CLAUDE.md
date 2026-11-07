@@ -479,6 +479,14 @@ The data files are `noupdate`, and a reinstall re-applies them: it
 recreated the Chawla products and, through their `(0, 0)` attribute-line
 commands, added a second set of lines to the five that survived.
 
+**Is what runs what is on main?** `python scripts/deployed_check.py` (Railway
+CLI logged in and linked) compares the running deployment's commit with
+`origin/main` and lists any CODE file in between that was not deployed: a deploy
+wrongly skipped by the Railway Watch Paths, a failed one, or one still running.
+The watch paths themselves are in `scripts/railway_watch_paths.txt` and must
+match the dashboard; a change under them deploys, anything else (tests, `.md`,
+`.github`, `scripts`, docs) does not.
+
 ## Finish names
 
 A finish is one Finish attribute value; rates, variants and windows point at
