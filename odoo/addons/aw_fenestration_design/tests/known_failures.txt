@@ -11,10 +11,9 @@
 #        UNDECIDED not yet established which side is wrong. Do not guess.
 # "likely" = reasoned from the failure and the code, not yet proven by a fix.
 #
-# 29 entries, 2026-11-07 (was 35): rates 9, glass 9, hardware 2, design/cut 9.
+# 28 entries: rates 8, glass 9, hardware 2, design/cut 9.
 
 # --- rates ---------------------------------------------------------------
-TestVendorRateLists.test_an_unmatched_row_is_not_applied_and_the_pick_is_remembered  rates; CODE BUG on main; a plain pick still saves an alias (the rule "Match to product is the only way" is commit 05330f2 on feat/rates-match-product, never merged)
 TestLayoutWithoutRateColumns.test_the_error_says_the_layout_has_no_rate_columns  rates; TEST BUG; the error wording was reworked ("All rows have 5 cells, this layout has 3")
 TestPremiumSeed.test_seed_creates_what_is_missing_and_only_once  rates; TEST BUG; its guard 'created' in report matches "nothing created", and BRO is mapped now
 TestChawlaSeed.test_seed_makes_the_layout_once  rates; TEST BUG; same guard matches "already exists; nothing created"
