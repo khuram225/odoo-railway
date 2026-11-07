@@ -112,7 +112,8 @@ class AwMeshType(models.Model):
                 continue
             line.product_id = cloth
             moved += 1
-        if moved or unclear:
+        # Logged at each start, but only when something moved or is waiting.
+        if moved or waiting:
             _logger.info(
                 "aw_fenestration_design: mesh cloth lines: %s moved to their "
                 "type's cloth product, %s waiting for a cloth product, %s "
