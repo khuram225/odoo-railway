@@ -61,9 +61,15 @@ logs `upgrade: done; versions: ...` read from `ir_module_module`.
 `ODOO_UPGRADE_MODULES` overrides the list and **set empty skips it**: the
 print service must set it empty, since its addons path has no `aw_*`
 modules. If the update exits non-zero the entrypoint exits 1 and the
-server never starts, so the healthcheck never passes and Railway keeps
-the previous deployment serving. The restart policy (`ON_FAILURE`, up to
-10) re-runs the update each time, which is harmless: it is idempotent.
+server never starts, so the healthcheck never passes. **That does NOT
+leave the previous version running** (this paragraph used to say it did,
+and an outage on 2026-11-07 proved it wrong): the service has a volume
+(`odoo-volume` at /var/lib/odoo), a volume can be mounted by one container
+at a time, so Railway STOPS the old container before the new one starts. A
+failed upgrade therefore means no service until the last good deployment is
+redeployed (Railway dashboard, Deployments, the last SUCCESS one, Redeploy)
+or a fix is merged. The restart policy (`ON_FAILURE`, up to 10) re-runs the
+update each time, which is harmless: it is idempotent.
 The update can fail part way, and modules commit as they go, so the old
 deployment may then be serving a partly upgraded database; fix forward.
 A new module is installed once from Apps, then added to the entrypoint list.
@@ -473,6 +479,14 @@ The data files are `noupdate`, and a reinstall re-applies them: it
 recreated the Chawla products and, through their `(0, 0)` attribute-line
 commands, added a second set of lines to the five that survived.
 
+**Is what runs what is on main?** `python scripts/deployed_check.py` (Railway
+CLI logged in and linked) compares the running deployment's commit with
+`origin/main` and lists any CODE file in between that was not deployed: a deploy
+wrongly skipped by the Railway Watch Paths, a failed one, or one still running.
+The watch paths themselves are in `scripts/railway_watch_paths.txt` and must
+match the dashboard; a change under them deploys, anything else (tests, `.md`,
+`.github`, `scripts`, docs) does not.
+
 ## Finish names
 
 A finish is one Finish attribute value; rates, variants and windows point at
@@ -658,6 +672,250 @@ explosion skips a type line whose product is the type's own cloth, because the
 sized line IS the cloth: never two cloth costs for one panel. Any other type
 line is a part, costed by `standard_price`. Roll waste is not in
 the rate.
+
+## Price build-up
+
+`aw.design._price_build_up()` is THE place the price is calculated, and returns
+the rows: each kind of material, its wastage where it has one (profile, glass,
+mesh CLOTH; hardware, infill and grid have none), fabrication and installation
+labour (rate x the window's m2 x qty, a COST), cost, profit (a markup on cost),
+calculated price, and the manual-rate override when set. `_compute_pricing` (the
+stored cost and price) and the Pricing tab's "Price build-up" both read it, so
+what is shown cannot drift from what is charged. Mesh Wastage is a price
+structure kind at 0% by default (`_add_missing_lines` gives every structure the
+row, fill-only; a missing kind reads as 0), so adding it changed no price. The
+structure is per WINDOW. "Show on quote" is hidden on the structure form and
+nothing reads it; its data is kept.
+
+## Chatter log of glass and hardware
+
+`aw.design._log_stack_changes()` (chatter_log.py) posts ONE note per save when
+the glass stacks (window default and each panel) or the panels' hardware rows
+changed: added, removed, product, quantity, a typed rate or Reset, with the
+panel number, by the user who saved. It is a DIFF of a snapshot taken at the
+start of `save_layout` against the stored state after `_suggest_glass`, because
+a save replaces the rows and a log written at create/unlink would say "added"
+and "removed" on every save. Rows are compared by position; a save that changes
+nothing posts nothing. The price is not logged (it changes on every explosion).
+
+## Safe rate paste
+
+A pasted sheet is read by `rate_paste.validate_paste` (Odoo-free,
+`scripts/check_rate_parse.py`), not by the old positional `parse_paste`, which
+forgave everything: a sheet missing its code column was accepted and every
+price slid one column onto the wrong finish. With a header row, columns are
+matched by NAME (the layout's header text, the finish name, or a generic
+code/thickness/series word); an unknown or empty header, a missing code column,
+a row whose cell count differs from the header (or the layout, with no header),
+text in a price, a zero or negative price, and the same product, thickness and
+finish twice with different prices are all HARD STOPS that name the row and
+write nothing. An empty price (or "-") is "no price": counted in the chatter
+note, never written as 0 (Apply skips a 0). The pasted text stays attached to
+the list. A blank Series is only put back in a space-typed row that starts like
+a profile code, so a row missing its code column is not mistaken for one with a
+blank series. `parse_paste` is kept for its callers and tests.
+
+## The guided rate screen (shell)
+
+Loading rates is a guided screen over the draft `aw.vendor.rate.list`: **Choose**
+(vendor, kind, effective date) then **Data in**, with Review and Confirm to
+come. `step` records where a list is (an applied list is at Confirm; old lists
+were placed by `_migrate_steps`). The date has **no default** in the menu
+actions (`default_date: False`; the field keeps its default for code and tests)
+and a **warning**, never a stop, names the newest rate IN FORCE (started, not
+future-dated, not counting this list's own) for that vendor and kind
+(`date_warning`): a vendor-wide stop was too strict, since a list dated
+before the vendor's newest rates can touch other keys or be an old list
+re-applied. The hard stop is per ROW at Review (PR 2): a row whose key
+already has a newer rate in force. Apply, Re-apply and Re-match never run a
+date check. The group **Rates manager** (included by Fenestration / Manager)
+holds write/create/unlink on rate lists, their lines, profile and glass rates and vendor layouts; everyone
+else reads. The paste box lives under an Advanced tab visible to the Rates
+manager only.
+
+## Review, Confirm and Undo
+
+Step 3 of the guided rate screen. `action_open_review` builds
+`aw.vendor.rate.review` rows by COMPARING, writing nothing: each priced cell
+against the rate in force on the list's date for the same key (profile,
+thickness, finish, vendor; or glass type, thickness, vendor). Unchanged and
+empty-price cells are only counted; changed rows show old, new and percent
+(over 15% is red and needs the tick "I checked these price changes"); a row is a
+**Problem**, which blocks Confirm, when the same key has two prices in the list
+or a NEWER rate for that key is already in force (the per-row date stop that
+replaced the vendor-wide one); a row whose product, thickness, finish or glass
+type is missing is **Not written**, listed but never blocking (a Chawla list
+with 63 rows waiting for products must still go through). `action_confirm_rates`
+re-checks on the rows as they are NOW, then applies with `aw_skip_unchanged` so a
+price already in force is not written again, attaches the typed table as a CSV
+if no pasted original is attached, and leaves the list at Confirm. Any edit to a
+row's input fields sends the review back to Data in and clears the tick;
+bookkeeping writes (need, match, results) do not. Undo is `action_set_to_draft`,
+which now returns to Data in. The form's old Apply button is gone; `action_apply`
+stays for code, migrations and tests and never date-checks.
+
+## Excel rate template (download)
+
+`models/rate_xlsx.py` (Odoo-free, `scripts/check_rate_xlsx.py`) writes the .xlsx
+with **XlsxWriter**; Upload (next change) reads it with **openpyxl**. Both are
+pinned in `odoo/Dockerfile` and imported in the RUN line, so a build without
+them fails there rather than when somebody clicks Download. The Rates sheet is a
+header row, then (prefilled files) one row per profile+thickness or glass
+type+thickness in force TODAY for the series chosen (or Everything, with a size
+warning over 400 rows), a hidden Key column, and a "New items" heading with 30
+open rows. The sheet is protected WITHOUT a password: identity and header cells
+locked, prices open, sort and filter allowed. The Code column is text format and
+dates on the Info sheet are text, so Excel cannot turn `1-2` into a date. Info
+carries vendor, vendor id, kind, effective date, **list id**, template version
+(1; bump it when the file's layout changes) and download time. Downloading
+writes nothing to the list or the rates. The wizard is
+`aw.vendor.rate.template.wizard` (Rates manager); a profile file asks "Which
+series?" first. Excel limit worth knowing: sorting a range that contains locked
+cells fails in Excel whatever the protection options say, so a sort works only
+on the unlocked New items block.
+
+### Upload of the filled-in template
+
+`rate_xlsx.read_template` (same Odoo-free module) reads the Rates sheet only,
+and Info to know whose file it is. `aw.vendor.rate.list._load_uploaded` turns
+it into ordinary list lines (a keyed profile row gets its product and
+thickness straight from the key); it writes no rate, and Review and Confirm
+follow as always. Refused outright, nothing loaded: not an .xlsx, no
+Rates/Info sheets, a renamed or moved header, a file whose Info differs from
+the list (vendor, kind, date, then the **list id**: a file from another list
+is refused even for the same vendor, kind and date; also the template
+version). Refused with every cell named (row, plain words), as a bad paste is:
+a code Excel turned into a date or a number, a price that is text, has a
+thousands separator or a decimal comma, a typed 0 or negative, an Excel error,
+a hidden key that disagrees with the code or thickness beside it, the same key
+twice. Never guessed at, never auto-fixed. A BLANK price is "leave unchanged":
+it becomes 0.0 on the line (Apply and Review treat that as no price), is
+counted, and a row with no price at all is not loaded. Reported, not stopping:
+extra sheets, hidden sheets, merged cells, hidden rows (read like the rest).
+Any real Excel-saved file dropped into `aw_fenestration_design/tests/data/` is
+read by `scripts/check_rate_xlsx.py`.
+
+### Match to product at Review
+
+A Review row that is "Not written" because no profile carries the vendor's code
+gets a **Match to product** button (Rates manager only; `can_match` is set when
+the review rows are built, profile lists only). The dialog
+(`aw.vendor.rate.match.wizard`) shows the vendor's code and our profile by
+name, **warns but never stops** when the vendor lists that profile under a
+different series than the row says (read from the vendor's own rates, so a
+profile with no rates from them cannot warn), and has **Remember this code for
+this vendor**, UNTICKED by default. Matching writes the line as a manual match, then
+rebuilds the review in place, which also asks for the "I checked these price
+changes" tick again, since the rows Confirm will write have changed. A
+remembered code is an `aw.vendor.alias` for the code at any thickness, with the
+code as typed, the list it was made on, and (from `create_uid`/`create_date`)
+who and when; the same user and date go on the list's chatter, whether or not
+it was remembered. The Review summary lists the codes remembered on that list;
+the vendor layout's **Remembered codes** button opens them, and deleting one
+forgets it.
+
+### Data in: one upload, Clear all lines, repeated rows
+
+An upload is refused while the list has lines ("This list already has lines.
+Clear them first."), because it appends and loading the same file twice doubled
+the line count. **Clear all lines** (Rates manager, draft lists, with a
+confirmation) removes every line, sends a review back to Data in, clears the
+upload summary and logs who did it; it touches no rate. A row repeated with the
+same prices counts ONCE with a note, in the upload reader (same hidden key) and
+in Review (same profile/thickness/finish, or same glass type/thickness); the
+same key with different prices stays a Problem naming both rows.
+
+**This dialog is the only way an alias is made.** The grid's "pick the
+profile" button used to write the product straight onto the line, and a line
+write used to save an alias on its own: unticked-by-default, Rates-manager-only
+and logging were all bypassed. Both now go through
+`aw.vendor.rate.list.line.action_match_product()` (the grid calls it over RPC and
+opens the dialog), and a plain write of `product_tmpl_id` saves no alias. The
+dialog works at the Data in step too (no review to rebuild there).
+
+### Vendor bar lengths
+
+`aw.vendor.bar.length` (vendor, length in ft) holds the lengths a vendor sells
+profiles in. `aw.cut.plan._settings(vendor)` and `aw.design._max_piece_mm(vendor)`
+take the order's `aw_profile_vendor_id`; a vendor with no rows uses the global
+`aw_fenestration.stock_lengths_ft`, so nothing changes until a row differs. Own
+model, not a `res.partner` field (no stored fields on core models). The seed
+runs once (parameter `aw_fenestration.vendor_bar_lengths_seeded`) and copies the
+global list to every vendor that has profile rates, so existing plans are
+identical; it does not refill a vendor later left with no rows. Edit under
+Vendor Rates > Bar Lengths. The plan fingerprint includes the lengths, so
+changing them marks a plan stale.
+
+A length can be switched off (`active`; the list shows the toggle, the
+"Show inactive" filter lists the archived ones). Only ACTIVE lengths are used. A
+vendor with rows but none active is a STOP when a plan is generated, evaluated or
+re-solved ("<vendor> has no active bar length"), not a fallback to the global
+list; the fingerprint and the piece limit never stop (they use the global list
+then). A vendor with no rows at all still uses the global list. Every add,
+change, switch and removal is a note on the vendor's chatter with user and date.
+
+A row may name a PROFILE (`product_tmpl_id`; blank = all profiles of the vendor).
+Per profile and vendor: the profile's own active rows, else the vendor-wide active
+rows, else (the vendor has no vendor-wide rows) the global list. A profile whose
+own rows are all off stops THAT profile group only ("<vendor> has no active bar
+length for <profile>", listed on the plan as Not planned; the plan raises only if
+nothing could be planned). The planner resolves per group: a group is one product
+VARIANT, and its template picks the lengths, so finish and thickness do not change
+availability. The longest-piece check is per BOM line's template; the configurator's
+early limit uses the longest bar any of the vendor's profiles can come in. The plan
+fingerprint adds a per-profile entry only where a profile's lengths differ from the
+vendor's, so existing plans are not made stale by this change.
+
+The Bar Lengths list shows switched-off rows (greyed, with their toggle): the
+duplicate check counts them, so hiding them produced "already has a 18 ft bar" for a
+row nobody could see. Adding a length that exists but is off says so and where to
+switch it on, and the form offers "Switch the existing one on instead". A plan records
+the Profile vendor it was built with: Regenerate uses the QUOTE's vendor
+(`aw_profile_vendor_id`, default Chawla), so switching off a length of another vendor
+changes nothing for that quote.
+
+## Odoo tests (the `odoo tests` job)
+
+`odoo tests` in `.github/workflows/checks.yml` installs the aluminum modules
+the way the upgrade job does (core alone, production's core modules, the rest,
+then `-u`) and runs their tests with `--test-enable`. It is part of **all
+checks**. `scripts/ci_assert_tests.sh` reads the log, because the exit code
+means nothing, and compares the failures with
+`aw_fenestration_design/tests/known_failures.txt`: a failure that is not
+listed fails the job, and so does a listed test that now passes, so the list
+can only shrink. Each entry says area, TEST BUG / CODE BUG / UNDECIDED and why;
+remove the line in the PR that fixes it. Failures come out as annotations
+(readable without a login), with the line of the test, the addon frame and the
+assertion diff.
+
+**A database installed from scratch is not production.** Three things differ
+and each has produced test failures: the RE specification is not seeded (its
+seed runs before the Chawla profiles are imported and then marks itself done;
+`tests/common.py` seeds it the way production has it), the catalogue already
+carries real codes (`B-6`, `TH-1`: a test product with the same code is an
+ambiguous match, so use codes like `ZT-6`), and the test user lacks groups the
+people have (`product.group_product_pricelist`).
+
+**A green `all checks` before 2026-11-07 meant nothing about tests.** A code
+change was merged with its own test red (the job was not a gate) and took
+production down.
+
+## Rehearsal before a data-changing merge
+
+`scripts/rehearse.sh` restores a dump of production (a read-only `pg_dump`
+over `railway ssh`; 6.5 MB for the 91 MB database) into a scratch Postgres in
+Docker, runs the checked-out code's upgrade on it, counts the rows of the
+tables you name (`REHEARSE_TABLES`), re-explodes every design and compares
+cost, price and BOM with what is stored (`scripts/rehearse_explode.py`, rolled
+back), and calls `/aw/health/registry` and `/aw/health`. Run it before merging
+anything that adds or changes a `<function>` data call, a `_migrate*`, `_retire*`,
+`_seed*` or `_backfill*` that writes or deletes, or a stored field.
+
+**The dump is customer data.** It lives in `~/aw-rehearsal`, outside the
+repository; `scripts/rehearse.sh --clean` deletes it, the containers and the
+image. A failed upgrade does not leave the old version running (see "Module
+upgrade on deploy"), which is why this runs BEFORE the merge. Needs Docker; the
+dump step alone (`--dump-only`) needs only the Railway CLI.
 
 ## Static checks
 

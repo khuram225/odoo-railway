@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_vendor_bar_length_list" model="ir.ui.view">
+        <field name="name">aw.vendor.bar.length.list</field>
+        <field name="model">aw.vendor.bar.length</field>
+        <field name="arch" type="xml">
+            <list decoration-muted="not active">
+                <field name="vendor_id"/>
+                <field name="profile_label"/>
+                <field name="length_ft"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_aw_vendor_bar_length_form" model="ir.ui.view">
+        <field name="name">aw.vendor.bar.length.form</field>
+        <field name="model">aw.vendor.bar.length</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not inactive_twin_note">
+                        <field name="inactive_twin_note" readonly="1"/>
+                        Tick the box below to switch it on instead of
+                        adding another.
+                    </div>
+                    <group>
+                        <field name="vendor_id"/>
+                        <field name="product_tmpl_id"
+                               placeholder="All profiles"
+                               options="{'no_create': True}"/>
+                        <field name="length_ft"/>
+                        <field name="active"/>
+                        <field name="switch_on_existing"
+                               invisible="not inactive_twin_note"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_aw_vendor_bar_length_search" model="ir.ui.view">
+        <field name="name">aw.vendor.bar.length.search</field>
+        <field name="model">aw.vendor.bar.length</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="vendor_id"/>
+                <field name="product_tmpl_id"/>
+                <filter name="active_only" string="Active only"
+                        domain="[('active', '=', True)]"/>
+                <filter name="inactive" string="Switched off"
+                        domain="[('active', '=', False)]"/>
+                <filter name="own_profile" string="Profile exceptions"
+                        domain="[('product_tmpl_id', '!=', False)]"/>
+                <group>
+                    <filter name="by_vendor" string="Vendor"
+                            context="{'group_by': 'vendor_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_aw_vendor_bar_length" model="ir.actions.act_window">
+        <field name="name">Vendor Bar Lengths</field>
+        <field name="res_model">aw.vendor.bar.length</field>
+        <field name="view_mode">list,form</field>
+        <!-- Switched-off rows stay in the list, greyed, with their toggle:
+             a hidden row still counts for the duplicate check. -->
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No bar lengths yet
+            </p>
+            <p>
+                The lengths a vendor sells profiles in. A row with a profile
+                applies to that profile only and wins over the vendor's
+                other rows; a row with no profile applies to all profiles.
+                A vendor with no rows uses the list in Settings.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_aw_vendor_bar_length"
+              name="Bar Lengths"
+              parent="aw_fenestration_core.menu_aw_vendor_rates"
+              action="action_aw_vendor_bar_length"
+              sequence="60"/>
+</odoo>

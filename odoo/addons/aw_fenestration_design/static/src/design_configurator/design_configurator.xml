@@ -213,8 +213,9 @@
                                     title="Copy this window to a new quote line">
                                 Duplicate
                             </button>
-                            <button class="btn btn-sm btn-secondary" t-on-click="openForm">
-                                Form
+                            <button class="btn btn-sm btn-secondary" t-on-click="openHistory"
+                                    title="Open the history page: the window's facts, its price summary and its chatter">
+                                History
                             </button>
                             <button t-if="state.data.header.sale_order_id"
                                     class="btn btn-sm btn-secondary" t-on-click="openQuotation"
@@ -1066,12 +1067,21 @@
                                         </t>
                                     </div>
 
-                                    <!-- Only a glazed panel has glass to
+                                    </t>
+
+                                    <!-- Glass is a section of its own, like
+                                         Mesh and Hardware: it used to sit
+                                         INSIDE Infill, so collapsing Infill hid
+                                         it and its heading was easy to miss.
+                                         Only a glazed panel has glass to
                                          override, so this disappears for a
                                          louvre, fan, AC cutout or solid panel. -->
                                     <t t-if="selectedPanelUsesGlass">
-                                        <div class="small text-muted mb-1" data-aw-target="glass">
-                                            Glass
+                                        <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                             data-aw-target="glass"
+                                             t-on-click="() => this.toggleSection('glass')">
+                                            <i t-att-class="sectionIcon('glass')"/>
+                                            <span>Glass</span>
                                             <span t-if="selectedPanel.glass_suggested"
                                                   class="badge text-bg-info ms-1"
                                                   title="Suggested from the panel size or the window's location. Change it to replace it.">
@@ -1080,6 +1090,7 @@
                                             <span t-if="panelFollowsWindow"
                                                   class="badge text-bg-light ms-1">follows the window</span>
                                         </div>
+                                        <t t-if="!isCollapsed('glass')">
                                         <div t-if="selectedPanelGlassSize" class="small text-muted mb-1">
                                             Glass size: <t t-esc="selectedPanelGlassSize"/>
                                         </div>
@@ -1105,9 +1116,9 @@
                                                 </button>
                                             </div>
                                         </t>
+                                        </t>
                                     </t>
 
-                                    </t>
                                     <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
                                          data-aw-target="hardware"
                                          t-on-click="() => this.toggleSection('hardware')">
@@ -1343,8 +1354,8 @@
                                     The layout has unsaved changes; editing a piece saves it first.
                                 </div>
                                 <div t-if="!scopedPieces.length" class="small text-muted">
-                                    No cut lines here. Generate the cut list from the form,
-                                    or press Recompute.
+                                    No cut lines here. Press Recompute to generate the
+                                    cut list.
                                 </div>
                                 <div class="o_aw_tree">
                                 <t t-foreach="pieceTree" t-as="pscope" t-key="pscope.key">
@@ -1353,9 +1364,9 @@
                                         <span class="o_aw_tree_chev"><i t-att-class="sectionIcon(pieceScopeKey(pscope))"/></span>
                                         <span class="o_aw_tree_title"><t t-esc="pscope.title"/></span>
                                         <button class="btn btn-sm btn-link p-0 o_aw_tree_link small"
-                                                title="Show this in the Profiles tab"
+                                                title="Show this in the Parts tab"
                                                 t-on-click.stop="() => this.showInProfiles(pscope.key, null)">
-                                            Profiles <i class="fa fa-arrow-right"/>
+                                            Parts <i class="fa fa-arrow-right"/>
                                         </button>
                                         <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="pscope.count"/></span>
                                     </div>
@@ -1366,9 +1377,9 @@
                                                 <span class="o_aw_tree_chev"><i t-att-class="sectionIcon(piecePartKey(pscope, ppart))"/></span>
                                                 <span class="o_aw_tree_title"><t t-esc="ppart.title"/></span>
                                                 <button class="btn btn-sm btn-link p-0 o_aw_tree_link small"
-                                                        title="Show this in the Profiles tab"
+                                                        title="Show this in the Parts tab"
                                                         t-on-click.stop="() => this.showInProfiles(pscope.key, ppart.key)">
-                                                    Profiles <i class="fa fa-arrow-right"/>
+                                                    Parts <i class="fa fa-arrow-right"/>
                                                 </button>
                                                 <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="ppart.pieces.length"/></span>
                                             </div>
@@ -1581,6 +1592,28 @@
                                 </t>
                             </div>
 
+                            <!-- Price build-up: every step from the BOM to the
+                                 price. The same rows the price is
+                                 calculated from. -->
+                            <div t-if="pricingBuildUp.length" class="mt-3">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">Price build-up</div>
+                                <table class="table table-sm small mb-1">
+                                    <tr t-foreach="pricingBuildUp" t-as="bu" t-key="bu.key"
+                                        t-att-class="buildUpClass(bu)">
+                                        <td><t t-esc="bu.label"/></td>
+                                        <td class="text-end text-nowrap text-muted">
+                                            <t t-esc="bu.detail"/>
+                                            <t t-if="bu.detail and buildUpRate(bu)"> &#183; </t>
+                                            <t t-esc="buildUpRate(bu)"/>
+                                        </td>
+                                        <td class="text-end text-nowrap"><t t-esc="costText(bu.amount)"/></td>
+                                    </tr>
+                                </table>
+                                <div class="small text-muted">
+                                    Margin <strong><t t-esc="costText(pricing.margin_pct)"/>%</strong>,
+                                    minimum <t t-esc="costText(pricing.min_margin_pct)"/>%
+                                </div>
+                            </div>
                             <!-- Hardware: each line and its cost, by panel. -->
                             <div t-if="pricingHardware.length" class="mt-3">
                                 <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">Hardware</div>
@@ -1867,9 +1900,10 @@
                                  t-on-click="() => this.toggleSection('prof:hardware')">
                                 <span class="o_aw_tree_chev"><i t-att-class="sectionIcon('prof:hardware')"/></span>
                                 <span class="o_aw_tree_title">Hardware</span>
-                                <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="specHardware.length"/></span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="partsHardwareCount"/></span>
                             </div>
                             <t t-if="!isCollapsed('prof:hardware')">
+                                <div class="o_aw_tree_part px-2" data-aw-parts="series-set">Series set</div>
                                 <div t-if="!specHardware.length" class="o_aw_tree_row small text-muted">
                                     No Hardware Set, so there is no hardware to show.
                                 </div>
@@ -1901,17 +1935,68 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="o_aw_tree_part px-2" data-aw-parts="on-panels">On panels</div>
+                                <div t-if="!panelHardwareRows.length" class="o_aw_tree_row small text-muted">
+                                    No hardware yet. Select a panel and use + Hardware in the Panel tab.
+                                </div>
+                                <div t-else="" class="o_aw_tree_rows">
+                                    <div t-foreach="panelHardwareRows" t-as="ph" t-key="ph.key"
+                                         class="o_aw_tree_row" style="cursor: pointer;"
+                                         title="Select this panel and open its Hardware section"
+                                         t-on-click="() => this.goToPanelHardware(ph.no)">
+                                        <span class="fw-bold">Panel <t t-esc="ph.no"/></span>
+                                        <span class="small text-truncate" t-esc="ph.name"/>
+                                        <span class="ms-auto text-nowrap small">
+                                            &#215;<t t-esc="ph.qty"/>
+                                            &#183; <t t-esc="costText(ph.rate)"/>
+                                            <span t-if="ph.manual" class="badge text-bg-warning">manual</span>
+                                            &#183; <strong><t t-esc="costText(ph.cost)"/></strong>
+                                        </span>
+                                    </div>
+                                </div>
                             </t>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label small text-muted mb-0">
-                                    Window glass (new panels start from this)
-                                </label>
-                                <t t-set="stackScope" t-value="'header'"/>
-                                <t t-set="stackItems" t-value="headerStack"/>
-                                <t t-call="aw_fenestration_design.GlassStack"/>
+                            <!-- Glass, in the same scope-band style as the
+                                 Outer frame: the window's default (new
+                                 panels start from it), and each panel's own. -->
+                            <div class="o_aw_tree_scope"
+                                 t-on-click="() => this.toggleSection('prof:glass')">
+                                <span class="o_aw_tree_chev"><i t-att-class="sectionIcon('prof:glass')"/></span>
+                                <span class="o_aw_tree_title">Glass (window default)</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="headerStack.length"/></span>
                             </div>
+                            <t t-if="!isCollapsed('prof:glass')">
+                                <div class="small text-muted px-2 mb-1">New panels start from this.</div>
+                                <div class="px-2 mb-2">
+                                    <t t-set="stackScope" t-value="'header'"/>
+                                    <t t-set="stackItems" t-value="headerStack"/>
+                                    <t t-call="aw_fenestration_design.GlassStack"/>
+                                </div>
+                            </t>
+
+                            <div class="o_aw_tree_scope"
+                                 t-on-click="() => this.toggleSection('prof:panelglass')">
+                                <span class="o_aw_tree_chev"><i t-att-class="sectionIcon('prof:panelglass')"/></span>
+                                <span class="o_aw_tree_title">Glass on panels</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="panelGlassRows.length"/></span>
+                            </div>
+                            <t t-if="!isCollapsed('prof:panelglass')">
+                                <div t-if="!panelGlassRows.length" class="o_aw_tree_row small text-muted">
+                                    No panel takes glass.
+                                </div>
+                                <div t-else="" class="o_aw_tree_rows">
+                                    <div t-foreach="panelGlassRows" t-as="pg" t-key="pg.no"
+                                         class="o_aw_tree_row" style="cursor: pointer;"
+                                         title="Select this panel and open its Glass section"
+                                         t-on-click="() => this.goToPanelGlass(pg.no)">
+                                        <span class="fw-bold">Panel <t t-esc="pg.no"/></span>
+                                        <span class="small text-truncate" t-esc="pg.summary"/>
+                                        <span t-if="pg.follows" class="badge text-bg-light ms-auto">follows the window</span>
+                                        <span t-else="" class="badge text-bg-info ms-auto">own</span>
+                                    </div>
+                                </div>
+                            </t>
 
                             <!-- Saving copies the section and the hardware
                                  set with the changes applied. The originals

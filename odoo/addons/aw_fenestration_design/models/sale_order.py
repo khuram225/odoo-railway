@@ -334,7 +334,8 @@ class SaleOrderLine(models.Model):
         'aw.design', 'sale_order_line_id', string='Fenestration Design')
 
     def action_open_design(self):
-        """Kept for the raw form; the quote tab uses the configurator."""
+        """The design's History page. The quote tab uses the configurator
+        (action_open_configurator)."""
         self.ensure_one()
         return self.aw_design_ids[:1].action_open_design()
 

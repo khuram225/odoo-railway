@@ -222,7 +222,7 @@ const STORE_RIGHT_TAB = "aw_cfg_right_tab";
  * one column meant none of them had room. They are tabs now, and only
  * the panel's own sub-sections still collapse.
  */
-const RIGHT_SECTIONS = ["panel", "infill", "mesh", "hardware", "grid"];
+const RIGHT_SECTIONS = ["panel", "infill", "mesh", "glass", "hardware", "grid"];
 
 /** Right-hand tabs, in the order they appear. */
 /**
@@ -244,9 +244,24 @@ const PART_ORDER = [
 const COLLAPSED_BY_DEFAULT = ["pcs:", "pc:", "prof:", "profp:"];
 
 const RIGHT_TABS = ["panel", "spec", "pricing", "checks"];
+
+/**
+ * Every amount, rate, total, area in sqft and quantity the Pricing tab and
+ * the cost breakdown show: exactly two decimals and thousands separators.
+ * Display only -- the stored values keep full precision. Lengths are not
+ * numbers like these and keep the inch format (formatInches).
+ */
+function formatDecimal2(value) {
+    return (Number(value) || 0).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+// The tab KEY stays "spec" (Checks links, the saved tab and the code use it);
+// only the label the user reads changed.
 const RIGHT_TAB_LABELS = {
     panel: "Panel",
-    spec: "Profiles",
+    spec: "Parts",
     pricing: "Pricing",
     checks: "Checks",
 };
@@ -987,8 +1002,7 @@ export class DesignConfigurator extends Component {
     formatMoney(value) {
         const pricing = this.pricing;
         const symbol = pricing ? pricing.currency : "";
-        const rounded = Math.round((value || 0) * 100) / 100;
-        return `${symbol} ${rounded.toLocaleString()}`;
+        return `${symbol} ${formatDecimal2(value)}`;
     }
 
     // -- glazing family ----------------------------------------------
@@ -1997,13 +2011,37 @@ export class DesignConfigurator extends Component {
         if (!part) {
             return;
         }
+        const before = part[field];
         if (field === "thickness_mm" || field === "gap_mm") {
             part[field] = parseFloat(value) || 0;
         } else {
             part[field] = parseInt(value, 10) || false;
         }
+        if (field === "thickness_mm" && part[field] !== before) {
+            this.dropManualRate(part);
+        }
         this.relabel(part);
         this.touchStack(scope);
+    }
+
+    /**
+     * A manual rate was typed for the glass the part WAS. When its type or
+     * thickness changes the rate no longer applies, so the part goes back
+     * to the list rate and the user is told.
+     */
+    dropManualRate(part) {
+        if (!part.rate_manual && !part.migrated) {
+            return;
+        }
+        const had = part.rate_manual;
+        part.rate_manual = false;
+        part.manual_rate = 0;
+        part.migrated = false;
+        if (had) {
+            this.notification.add(
+                _t("The glass changed, so this part is back on the list rate."),
+                { type: "info" });
+        }
     }
 
     setPartColourOrKind(scope, index, which, value) {
@@ -2019,6 +2057,9 @@ export class DesignConfigurator extends Component {
                 _t("There is no %(kind)s %(colour)s glass type.", { kind, colour }),
                 { type: "warning" });
             return;
+        }
+        if (part.glass_type_id !== found.id) {
+            this.dropManualRate(part);
         }
         part.glass_type_id = found.id;
         this.relabel(part);
@@ -2116,6 +2157,61 @@ export class DesignConfigurator extends Component {
             no: entry.panelNo,
             leaf: this.leafAt(entry.path),
         })).filter((p) => p.leaf);
+    }
+
+    // -- Parts tab: glass and hardware ON PANELS ---------------------------
+    /** One row per panel that takes glass: a short summary of its stack and
+     * whether it follows the window. */
+    get panelGlassRows() {
+        return this.hardwarePanels.filter(({ leaf }) => {
+            const type = (this.state.data.leaf_types || []).find(
+                (lt) => lt.id === leaf.leaf_type_id);
+            return leaf.leaf_type_code !== "MESH"
+                && leaf.infill_uses_glass !== false
+                && !(type && type.code === "MESH");
+        }).map(({ no, leaf }) => {
+            const own = (leaf.glass_parts || []).length > 0;
+            return {
+                no,
+                follows: !own,
+                summary: this.stackSummary(own ? leaf.glass_parts : this.headerStack)
+                    || _t("No glass"),
+            };
+        });
+    }
+
+    /** One row per hardware row on a panel: panel, product, qty, rate, cost. */
+    get panelHardwareRows() {
+        const rows = [];
+        for (const { no, leaf } of this.hardwarePanels) {
+            (leaf.hardware || []).forEach((row, index) => {
+                rows.push({
+                    key: `${no}:${index}`,
+                    no,
+                    name: row.name || _t("(no product)"),
+                    qty: row.qty,
+                    rate: this.hardwareRateUsed(row),
+                    manual: !!row.rate_manual,
+                    cost: this.hardwareCost(row),
+                });
+            });
+        }
+        return rows;
+    }
+
+    /** The Hardware badge: the series set plus every row on a panel. */
+    get partsHardwareCount() {
+        return this.specHardware.length + this.panelHardwareRows.length;
+    }
+
+    /** A row click: select the panel and open its Glass section. */
+    goToPanelGlass(no) {
+        this.goToCheck({ target_kind: "glass", panel_no: no });
+    }
+
+    /** A row click: select the panel and open its Hardware section. */
+    goToPanelHardware(no) {
+        this.goToCheck({ target_kind: "hardware", panel_no: no });
     }
 
     get otherHardwarePanels() {
@@ -5044,7 +5140,7 @@ export class DesignConfigurator extends Component {
 
     /** "19.65 sqft x 40 = 786.15", for the Pricing tab and cost breakdown. */
     meshQtyText(line) {
-        return `${(line.area_sqft || 0).toFixed(2)} sqft \u00d7 ${this.costText(
+        return `${formatDecimal2(line.area_sqft)} sqft \u00d7 ${this.costText(
             line.unit_cost)} = ${this.costText(line.line_cost)}`;
     }
 
@@ -5525,6 +5621,9 @@ export class DesignConfigurator extends Component {
         if (kind === "mesh") {
             next.mesh = false;
         }
+        if (kind === "glass") {
+            next.glass = false;
+        }
         this.state.collapsed = next;
         saveCollapsed(next);
         if (kind === "piece") {
@@ -5732,6 +5831,31 @@ export class DesignConfigurator extends Component {
     }
 
     /** Soot style, like every length the workshop reads. */
+    /** The Pricing tab's price build-up: the server's own rows. */
+    get pricingBuildUp() {
+        return this.pricing?.build_up || [];
+    }
+
+    /** "8.00%" for a percentage row, "450.00 per m²" for a rate row. */
+    buildUpRate(row) {
+        if (row.percent !== null && row.percent !== undefined) {
+            return `${Number(row.percent).toFixed(2)}%`;
+        }
+        if (row.rate) {
+            return `${this.costText(row.rate)} ${row.unit}`;
+        }
+        return "";
+    }
+
+    buildUpClass(row) {
+        return {
+            subtotal: "fw-bold border-top",
+            total: "fw-bold border-top",
+            override: "fw-bold",
+            add: "text-muted",
+        }[row.kind] || "";
+    }
+
     get pricingHardware() {
         return this.bom.hardware || [];
     }
@@ -5744,11 +5868,13 @@ export class DesignConfigurator extends Component {
         return mm ? formatInches(mm, "soot") : "0";
     }
 
+    /** An amount, a rate or a total: two decimals and thousands separators. */
     costText(value) {
-        return (Number(value) || 0).toFixed(2);
+        return formatDecimal2(value);
     }
 
-    openForm() {
+    /** The design's History page (its form): facts, price summary, chatter. */
+    openHistory() {
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "aw.design",

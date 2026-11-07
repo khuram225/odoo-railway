@@ -15,6 +15,7 @@ from . import alternates_migration
 from . import finish_migration
 from . import profile_rate
 from . import vendor_rates
+from . import rate_review
 from . import price_structure
 from . import thickness
 from . import product_catalogue
@@ -28,3 +29,7 @@ from . import glass_sheet
 from . import mesh_cloth_product
 from . import glass_extras
 from . import glass_retire
+from . import rate_xlsx
+from . import rate_template
+from . import rate_upload
+from . import rate_match

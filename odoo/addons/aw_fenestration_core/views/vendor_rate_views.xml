@@ -8,6 +8,15 @@
         <field name="arch" type="xml">
             <form string="Vendor layout">
                 <sheet>
+                    <!-- an extension point: keep this div -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_aliases" type="object"
+                                class="oe_stat_button" icon="fa-link"
+                                invisible="not id">
+                            <field name="alias_count" widget="statinfo"
+                                   string="Remembered codes"/>
+                        </button>
+                    </div>
                     <group>
                         <field name="vendor_id"/>
                         <field name="note"/>
@@ -72,31 +81,49 @@
         <field name="arch" type="xml">
             <form string="Rate list">
                 <header>
-                    <button name="action_apply" type="object" string="Apply"
-                            class="btn-primary" invisible="state != 'draft'"
-                            confirm="Write these rates? Unmatched rows are not applied. An applied list becomes read only."/>
+                    <button name="action_next_step" type="object" string="Next"
+                            class="btn-primary"
+                            invisible="state != 'draft' or step != 'choose'"/>
+                    <button name="action_back_to_choose" type="object"
+                            string="Back to Choose"
+                            invisible="state != 'draft' or step == 'choose'"/>
+                    <button name="action_open_review" type="object" string="Review"
+                            class="btn-primary"
+                            invisible="state != 'draft' or step != 'data'"/>
+                    <button name="action_back_to_data" type="object"
+                            string="Back to Data in"
+                            invisible="state != 'draft' or step != 'review'"/>
+                    <button name="action_confirm_rates" type="object"
+                            string="Confirm" class="btn-primary"
+                            invisible="state != 'draft' or step != 'review' or review_problem or (review_big and not ack_changes)"
+                            confirm="Write these rates? They start on the date of this list. You can undo the list afterwards."/>
                     <button name="action_rematch" type="object"
                             string="Re-match"/>
                     <button name="action_reapply" type="object"
                             string="Re-apply" invisible="state != 'applied'"
                             confirm="Delete the rates this list wrote and write them again?"/>
                     <button name="action_set_to_draft" type="object"
-                            string="Set to draft" invisible="state != 'applied'"
-                            confirm="Rates of this list are removed until you Apply again."/>
-                    <field name="state" widget="statusbar"/>
+                            string="Undo this list" invisible="state != 'applied'"
+                            confirm="Remove the rates this list wrote? The rows are kept, so you can fix them and load the list again."/>
+                    <field name="step" widget="statusbar"
+                           options="{'clickable': False}"/>
                 </header>
                 <sheet>
                     <group>
                         <group>
-                            <field name="kind" readonly="state != 'draft' or line_count"/>
-                            <field name="vendor_id" readonly="state != 'draft'"/>
-                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="kind"
+                                   readonly="state != 'draft' or step != 'choose' or line_count"/>
+                            <field name="vendor_id"
+                                   readonly="state != 'draft' or step != 'choose'"/>
+                            <field name="date" placeholder="Choose the start date"
+                                   readonly="state != 'draft' or step != 'choose'"/>
                             <field name="note" readonly="state != 'draft'"/>
+                            <field name="state" readonly="1"/>
                         </group>
                         <group>
                             <field name="layout_id" readonly="1"
                                    invisible="kind == 'glass'"/>
-                            <field name="line_count"/>
+                            <field name="line_count" invisible="step == 'choose'"/>
                             <field name="unmatched_count"/>
                             <field name="conflict_count"
                                    invisible="not conflict_count"/>
@@ -121,14 +148,71 @@
                                 string="Show glass types" class="btn-link"
                                 invisible="not need_glass_type_count"/>
                     </div>
-                    <group invisible="state != 'draft'">
-                        <group string="Paste from the vendor's sheet">
-                            <field name="paste_text" nolabel="1" colspan="2"
-                                   placeholder="Paste tab-separated rows here, with or without the header row..."/>
-                            <button name="action_parse_paste" type="object"
-                                    string="Add pasted rows" class="btn-secondary"/>
+                    <div class="alert alert-info" role="status"
+                         invisible="step != 'choose' or state != 'draft'">
+                        Choose the vendor, what the list prices, and the date
+                        the rates start on, then press Next. The date has no
+                        default.
+                    </div>
+                    <div class="alert alert-warning" role="status"
+                         invisible="not date_warning or state != 'draft'">
+                        <field name="date_warning" nolabel="1"/>
+                    </div>
+                    <!-- Review: nothing is written before Confirm. -->
+                    <div invisible="step != 'review' or state != 'draft'">
+                        <field name="review_unchanged" invisible="1"/>
+                        <field name="review_changed" invisible="1"/>
+                        <field name="review_new" invisible="1"/>
+                        <field name="review_problem" invisible="1"/>
+                        <field name="review_notwritten" invisible="1"/>
+                        <field name="review_nopriced" invisible="1"/>
+                        <field name="review_duplicates" invisible="1"/>
+                        <field name="review_big" invisible="1"/>
+                        <div class="alert alert-info" role="status">
+                            <strong><field name="review_summary" nolabel="1"/></strong>
+                            <div><field name="review_big_text" nolabel="1"/></div>
+                            <div invisible="not remembered_summary">
+                                <field name="remembered_summary" nolabel="1"/>
+                            </div>
+                            Nothing is written until you press Confirm.
+                            Rows that are the same as now are not listed.
+                        </div>
+                        <div class="alert alert-danger" role="alert"
+                             invisible="not review_problem">
+                            Problems stop Confirm. Fix them (they are in red),
+                            or remove those rows, and press Review again.
+                        </div>
+                        <group invisible="not review_big">
+                            <field name="ack_changes"/>
                         </group>
-                        <group string="Or start from the rates in force"
+                        <field name="review_ids" readonly="1" nolabel="1">
+                            <list decoration-danger="status == 'problem' or big"
+                                  decoration-warning="status == 'notwritten'"
+                                  decoration-info="status == 'new'">
+                                <field name="status"/>
+                                <field name="code"/>
+                                <field name="thickness"/>
+                                <field name="finish"/>
+                                <field name="old_price"/>
+                                <field name="new_price"/>
+                                <field name="pct"/>
+                                <field name="big" column_invisible="1"/>
+                                <field name="message"/>
+                                <field name="can_match" column_invisible="1"/>
+                                <button name="action_match_product" type="object"
+                                        string="Match to product"
+                                        class="btn-link"
+                                        invisible="not can_match"
+                                        groups="aw_fenestration_core.group_rates_manager"/>
+                            </list>
+                        </field>
+                    </div>
+                    <div class="alert alert-info" role="status"
+                         invisible="not upload_summary or step != 'data'">
+                        <field name="upload_summary" nolabel="1" readonly="1"/>
+                    </div>
+                    <group invisible="state != 'draft' or step not in ('data',)">
+                        <group string="Start from the rates in force"
                                invisible="kind == 'glass'">
                             <field name="fill_series"
                                    placeholder="e.g. DG.SERIES"/>
@@ -136,12 +220,57 @@
                                     string="Fill from current rates"
                                     class="btn-secondary"/>
                         </group>
+                        <group string="Excel template"
+                               groups="aw_fenestration_core.group_rates_manager">
+                            <div>
+                                <button name="action_template_blank" type="object"
+                                        string="Download blank template"
+                                        class="btn-secondary"/>
+                                <button name="action_template_current" type="object"
+                                        string="Download with current rates"
+                                        class="btn-secondary ms-2"/>
+                                <button name="action_upload_template" type="object"
+                                        string="Upload filled-in file"
+                                        class="btn-primary ms-2"
+                                        invisible="line_count"/>
+                                <button name="action_clear_lines" type="object"
+                                        string="Clear all lines"
+                                        class="btn-secondary ms-2"
+                                        invisible="not line_count"
+                                        confirm="Remove every line from this list? The prices already written as rates are not touched."/>
+                            </div>
+                            <div class="text-muted">
+                                Open the file in Excel and press Enable Editing
+                                before you type.
+                            </div>
+                        </group>
+                        <group string="Type a few prices">
+                            <div class="text-muted">
+                                Use the table below: add a row for each
+                                profile and thickness, and type the prices
+                                under the finish names.
+                            </div>
+                        </group>
                     </group>
+                    <!-- The paste box is for managers and is kept out of
+                         the way: a pasted sheet is the easiest way to put
+                         a price on the wrong profile. -->
+                    <notebook invisible="state != 'draft' or step != 'data'"
+                              groups="aw_fenestration_core.group_rates_manager">
+                        <page string="Advanced" name="advanced">
+                            <group string="Paste from the vendor's sheet">
+                                <field name="paste_text" nolabel="1" colspan="2"
+                                       placeholder="Paste tab-separated rows here, with the header row..."/>
+                                <button name="action_parse_paste" type="object"
+                                        string="Add pasted rows" class="btn-secondary"/>
+                            </group>
+                        </page>
+                    </notebook>
                     <!-- The lines, as a grid whose rate columns are the
                          vendor layout's own. Read only once applied. -->
                     <field name="grid_editable" invisible="1"/>
                     <field name="grid_meta" widget="aw_rate_grid" nolabel="1"
-                           colspan="2"/>
+                           colspan="2" invisible="step in ('choose', 'review')"/>
                 </sheet>
                 <chatter/>
             </form>
@@ -223,6 +352,8 @@
         <field name="view_mode">list,form</field>
         <field name="views" eval="[(False, 'list'), (False, 'form')]"/>
         <field name="search_view_id" ref="view_aw_vendor_rate_list_search"/>
+        <!-- No default date: a list is never dated by accident. -->
+        <field name="context">{'default_date': False}</field>
     </record>
 
     <record id="action_aw_glass_rate_list" model="ir.actions.act_window">
@@ -231,7 +362,7 @@
         <field name="view_mode">list,form</field>
         <field name="views" eval="[(False, 'list'), (False, 'form')]"/>
         <field name="domain">[('kind', '=', 'glass')]</field>
-        <field name="context">{'default_kind': 'glass'}</field>
+        <field name="context">{'default_kind': 'glass', 'default_date': False}</field>
     </record>
 
 

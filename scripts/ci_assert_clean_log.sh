@@ -28,6 +28,16 @@ found=$(grep -E ' (ERROR|CRITICAL) |Traceback \(most recent call last\)' "$log" 
 if [ -n "$found" ]; then
     echo "::error::the install logged errors -- the registry or a data file did not load"
     printf '%s\n' "$found"
+    # The job log needs a signed-in user to read; annotations do not. Put
+    # the first error line, and what follows it, where the check-runs API
+    # shows them.
+    first=$(printf '%s\n' "$found" | head -1 | cut -c1-400)
+    echo "::error::first error line: $first"
+    at=$(grep -n -m1 -F -- "$first" "$log" | cut -d: -f1 || true)
+    if [ -n "$at" ]; then
+        next=$(sed -n "$((at + 1)),$((at + 3))p" "$log" | tr '\n' ' ' | cut -c1-400)
+        echo "::error::after it: $next"
+    fi
     exit 1
 fi
 

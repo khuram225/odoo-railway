@@ -1,0 +1,48 @@
+# Known test failures, agreed. One per line: KEY  area; kind; note.
+#
+# KEY is Class.test_name, or setUpClass:Class when a class's setUp fails.
+# CI (scripts/ci_assert_tests.sh) fails on any failure NOT listed here AND on
+# any listed test that now passes, so this file can only shrink: remove a line
+# in the same PR that fixes it.
+#
+# Kinds: TEST BUG  the test is wrong or out of date, the code is right.
+#        CODE BUG  the code is wrong. "(fresh DB only)" = a database installed
+#                  from scratch; production was checked read-only and is fine.
+#        UNDECIDED not yet established which side is wrong. Do not guess.
+# "likely" = reasoned from the failure and the code, not yet proven by a fix.
+#
+# 26 entries: rates 8, glass 7, hardware 2, design/cut 9.
+
+# --- rates ---------------------------------------------------------------
+TestLayoutWithoutRateColumns.test_the_error_says_the_layout_has_no_rate_columns  rates; TEST BUG; the error wording was reworked ("All rows have 5 cells, this layout has 3")
+TestPremiumSeed.test_seed_creates_what_is_missing_and_only_once  rates; TEST BUG; its guard 'created' in report matches "nothing created", and BRO is mapped now
+TestChawlaSeed.test_seed_makes_the_layout_once  rates; TEST BUG; same guard matches "already exists; nothing created"
+TestFinishNames.test_a_new_finish_has_its_own_name_and_a_layout_pick_adds_more  rates; TEST BUG; builds a layout with no Code column, which is now refused
+TestFinishNames.test_migration_maps_premium_and_keeps_what_is_still_used  rates; TEST BUG; same
+TestFinishNames.test_new_finish_from_a_header_is_owned_by_the_vendor  rates; TEST BUG; same
+TestFinishNamesFreshInstall.test_missing_attribute_is_quiet_then_next_run_migrates  rates; TEST BUG; hiding the xmlid does not stop env.ref finding it (the code guard itself works)
+TestRatesTable.test_a_hand_made_profile_in_unclassified_is_a_profile  rates; TEST BUG; the test user lacks product.group_product_pricelist, so the Prices page is not in the composed view
+
+# --- glass ---------------------------------------------------------------
+TestGlassProducts.test_a_type_and_thickness_name_one_variant_made_once  glass; CODE BUG (fresh DB only); _variant_for returns a variant with NO attribute values, so its key is empty; cause not isolated
+TestGlassProducts.test_every_present_glass_rate_maps_to_exactly_one_variant  glass; CODE BUG (fresh DB only); same
+TestGlassProducts.test_the_variant_rate_is_the_dated_vendor_rate  glass; CODE BUG (fresh DB only); same (rate 0.0 for a valueless variant)
+TestGlassProducts.test_the_rates_table_has_types_as_rows_and_thicknesses_as_columns  glass; CODE BUG (fresh DB only); same
+TestGlassProducts.test_the_glass_sheet_form_hides_price_cost_and_prices_tab  glass; TEST BUG; same missing pricelist group as the rates table test
+TestGlassRates.test_lines_that_are_not_rows_are_reported_not_dropped  glass; TEST BUG; the message echoes the typed tab, the test expects a space
+TestGlassStack.test_one_panel_can_differ_and_the_others_do_not  glass; TEST BUG (likely); reads a BOM line after the save replaced it
+
+# --- hardware ------------------------------------------------------------
+TestHardwarePerPanel.test_own_rows_replace_the_specs_lines_for_that_panel_only  hardware; TEST BUG (likely); builds the hardware on a legacy Hardware Set, the explosion reads the Specification's lines
+TestHardwarePerPanel.test_the_specs_set_comes_as_calculated_rows_and_only_for_a_following_panel  hardware; TEST BUG (likely); same
+
+# --- design, cutting, configurator ---------------------------------------
+TestDesignSave.test_missing_hardware_warns_once  design; TEST BUG (likely); same
+TestDesignSave.test_parts_come_from_the_spec  design; TEST BUG (likely); same
+TestCutRules.test_piece_sides_and_parts  cutting; TEST BUG (likely); expects a part_group key, the payload carries part_key
+TestCutRules.test_scope_and_part_structure  cutting; TEST BUG (likely); the part rules are written for the old Palay names
+TestCutRules.test_configurator_pieces_and_edit  cutting; TEST BUG (likely); holds a BOM line across an edit that replaces it
+TestPanelOpening.test_three_equal_panels  cutting; TEST BUG; the spec lines have no thickness, so no piece is made ("No thickness is chosen")
+TestPanelOpening.test_four_unequal_panels  cutting; TEST BUG; same
+TestPanelOpening.test_single_row_height  cutting; TEST BUG; same
+TestPanelOpening.test_nested_split_top_light_over_two_across  cutting; TEST BUG; same

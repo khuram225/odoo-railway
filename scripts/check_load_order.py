@@ -35,6 +35,22 @@ ID_RE = re.compile(r'\bid="([^"]+)"')
 MODEL_XMLID_RE = re.compile(r'^model_[a-z0-9_]+$')
 REF_RE = re.compile(r'ref="([a-zA-Z_][a-zA-Z0-9_]*)"')
 ACTION_RE = re.compile(r'action="([a-zA-Z_][a-zA-Z0-9_]*)"')
+TAG_RE = re.compile(r'<[^<>]*action="[^"]*"[^<>]*>')
+
+
+def action_refs(text):
+    """The xmlids named by action="..." in a block. A tag that also says
+    type="object" (a list row-click such as
+    <list action="action_open_configurator" type="object">) names a METHOD,
+    not an xmlid, so it is not a forward reference."""
+    found = set()
+    for tag in TAG_RE.findall(text):
+        if 'type="object"' in tag:
+            continue
+        found |= set(ACTION_RE.findall(tag))
+    return found
+
+
 PARENT_RE = re.compile(r'parent="([a-zA-Z_][a-zA-Z0-9_]*)"')
 PCT_RE = re.compile(r'%\(([a-zA-Z_][a-zA-Z0-9_]*)\)[ds]')
 
@@ -61,7 +77,7 @@ def check_module(module_dir: Path) -> list[str]:
             this_id_match = ID_RE.search(block_text)
             this_id = this_id_match.group(1) if this_id_match else None
 
-            refs = (set(REF_RE.findall(block_text)) | set(ACTION_RE.findall(block_text))
+            refs = (set(REF_RE.findall(block_text)) | action_refs(block_text)
                     | set(PCT_RE.findall(block_text)) | set(PARENT_RE.findall(block_text)))
             for r in refs:
                 if '.' in r:
