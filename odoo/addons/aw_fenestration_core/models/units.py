@@ -47,6 +47,7 @@ The JavaScript twin is formatInches / parseInches in
 design_configurator.js; scripts/check_inch_display.mjs holds both to the
 same test vectors.
 """
+import math
 import re
 
 MM_PER_INCH = 25.4
@@ -115,7 +116,19 @@ def to_mm(text):
                          + float(after) * MM_PER_SOOT)
         else:
             value = _inches(raw) * MM_PER_INCH
-    return round(sign * value, 2)
+    return _round_mm(sign * value)
+
+
+def _round_mm(value):
+    """To 0.01 mm, half away from zero, ignoring binary noise.
+
+    round() works on the exact binary value, and 25.4 has none: 34.125 in
+    is exactly 866.775 mm but computes as 866.7749999999999, which round()
+    sends DOWN to 866.77 while every document here (and the workshop's own
+    arithmetic) says 866.78. The 1e-7 below is 1e-9 mm, far under anything
+    a person can measure and far over the noise."""
+    sign = -1.0 if value < 0 else 1.0
+    return sign * math.floor(abs(value) * 100 + 0.5 + 1e-7) / 100
 
 
 def edited_mm(text, current_mm, style='fraction'):

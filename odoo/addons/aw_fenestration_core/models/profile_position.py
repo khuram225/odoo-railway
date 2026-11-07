@@ -326,6 +326,7 @@ class AwProfilePosition(models.Model):
             if lines.filtered('is_used'):
                 report['kept'].append(duplicate.name)
                 continue
+            retired_name = duplicate.name
             try:
                 with self.env.cr.savepoint():
                     record = data.search([
@@ -340,7 +341,7 @@ class AwProfilePosition(models.Model):
                     duplicate.name)
                 report['kept'].append(duplicate.name)
                 continue
-            report['retired'].append(duplicate.name)
+            report['retired'].append(retired_name)
         param.set_param(PALAY_RETIRED_PARAM, '1')
         _logger.info("aw_fenestration_core: Palay Bead duplicates: %s", report)
         return report
