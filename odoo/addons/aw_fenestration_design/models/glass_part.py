@@ -74,6 +74,24 @@ class AwGlassPart(models.Model):
         string='Default gap, not checked',
         help="The migration filled this gap with defaults.")
 
+    def write(self, vals):
+        """A manual rate belongs to the glass it was typed for. Change the
+        type or the thickness and it no longer applies: the part goes back
+        to the list rate, unless the same write sets a rate."""
+        if 'rate_manual' in vals or not (
+                'glass_type_id' in vals or 'thickness_mm' in vals):
+            return super().write(vals)
+        stale = self.filtered(lambda p: p.rate_manual and (
+            ('glass_type_id' in vals
+             and (vals['glass_type_id'] or False) != (p.glass_type_id.id or False))
+            or ('thickness_mm' in vals
+                and (vals['thickness_mm'] or 0.0) != p.thickness_mm)))
+        result = super().write(vals)
+        if stale:
+            super(AwGlassPart, stale).write(
+                {'rate_manual': False, 'manual_rate': 0.0, 'migrated': False})
+        return result
+
     @api.depends('leaf_id.row_id.design_id', 'design_id', 'leaf_id.panel_no',
                  'kind', 'glass_type_id', 'thickness_mm', 'gap_mm')
     def _compute_owner(self):

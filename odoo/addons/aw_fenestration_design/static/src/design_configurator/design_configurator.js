@@ -2011,13 +2011,37 @@ export class DesignConfigurator extends Component {
         if (!part) {
             return;
         }
+        const before = part[field];
         if (field === "thickness_mm" || field === "gap_mm") {
             part[field] = parseFloat(value) || 0;
         } else {
             part[field] = parseInt(value, 10) || false;
         }
+        if (field === "thickness_mm" && part[field] !== before) {
+            this.dropManualRate(part);
+        }
         this.relabel(part);
         this.touchStack(scope);
+    }
+
+    /**
+     * A manual rate was typed for the glass the part WAS. When its type or
+     * thickness changes the rate no longer applies, so the part goes back
+     * to the list rate and the user is told.
+     */
+    dropManualRate(part) {
+        if (!part.rate_manual && !part.migrated) {
+            return;
+        }
+        const had = part.rate_manual;
+        part.rate_manual = false;
+        part.manual_rate = 0;
+        part.migrated = false;
+        if (had) {
+            this.notification.add(
+                _t("The glass changed, so this part is back on the list rate."),
+                { type: "info" });
+        }
     }
 
     setPartColourOrKind(scope, index, which, value) {
@@ -2033,6 +2057,9 @@ export class DesignConfigurator extends Component {
                 _t("There is no %(kind)s %(colour)s glass type.", { kind, colour }),
                 { type: "warning" });
             return;
+        }
+        if (part.glass_type_id !== found.id) {
+            this.dropManualRate(part);
         }
         part.glass_type_id = found.id;
         this.relabel(part);
