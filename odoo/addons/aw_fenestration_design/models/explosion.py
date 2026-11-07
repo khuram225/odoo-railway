@@ -59,7 +59,7 @@ class AwDesign(models.Model):
             design.check_warning_count = levels.count('warning')
 
     @api.model
-    def _max_piece_mm(self):
+    def _max_piece_mm(self, vendor=None, template=None, any_profile=False):
         """The longest piece that can be cut from one bar.
 
         Longest stock length, less the start trim, the safety margin and
@@ -67,8 +67,17 @@ class AwDesign(models.Model):
         than a square cut, so the number shown is the one that always
         holds.
         """
-        settings = self.env['aw.cut.plan']._settings()
-        longest = max(settings['stock_ft']) * 304.8
+        Plan = self.env['aw.cut.plan']
+        settings = Plan._settings(vendor, template=template)
+        feet = list(settings['stock_ft'])
+        if any_profile:
+            # The longest bar ANY profile of this vendor can come in: the
+            # configurator refuses early on that, the per-piece check below
+            # is the exact one.
+            for other in self.env['aw.vendor.bar.length']._profile_templates(
+                    vendor):
+                feet += Plan._settings(vendor, template=other)['stock_ft']
+        longest = max(feet) * 304.8
         return max_piece_mm(
             longest, settings['start_trim'], settings['safety_margin'],
             settings['kerf'], '45')
@@ -86,17 +95,44 @@ class AwDesign(models.Model):
         self.ensure_one()
         return self.template_id or self.window_series_id
 
-    def _deduction_source(self):
+    def _deduction_owner(self, field):
+        """The record a glass or mesh deduction is read from: the spec
+        when it has a value, else the window type. A spec made later than
+        the migration (the seeded Double Glaze - Openable one) can have
+        the formulas empty, and an empty formula is a glass of size 0 and
+        a sheet costed at 0: the type's own value is what the window was
+        always cut to."""
+        self.ensure_one()
+        spec = self.template_id
+        if spec and spec[field]:
+            return spec
+        system = self.window_series_id
+        if system and system[field]:
+            return system
+        return spec or system
+
+    def _deduction_value(self, field):
+        """The formula for `field`, with the fallback above."""
+        owner = self._deduction_owner(field)
+        return owner[field] if owner else False
+
+    def _deduction_source(self, *fields):
         """Where a glass or mesh deduction came from, in words.
 
-        Named off the same fallback _deduction_rules() uses, so the
+        Named off the same fallback _deduction_value() uses, so the
         calculation sheet cannot claim the spec supplied a rule that
         actually came from the system.
         """
         self.ensure_one()
-        if self.template_id:
-            return _('Spec: %s', self.template_id.display_name or '')
-        return _('System: %s', self.window_series_id.display_name or '')
+        owners = []
+        for field in (fields or (None,)):
+            owner = (self._deduction_owner(field) if field
+                     else (self.template_id or self.window_series_id))
+            if owner and owner not in owners:
+                owners.append(owner)
+        return ', '.join(
+            (_('Spec: %s', o.display_name or '') if o._name == 'aw.window.template'
+             else _('System: %s', o.display_name or '')) for o in owners)
 
     # ------------------------------------------------------------------
     # context building
@@ -557,22 +593,31 @@ class AwDesign(models.Model):
             for line in by_scope.get('mesh_attachment', []):
                 out.extend(self._profile_pieces(
                     line, context, '%s mesh' % label, leaf.panel_no))
+            # The sized cloth line below IS the cloth, so a mesh type's own
+            # line for the same product would be a second cost for it:
+            # never two cloth costs for one panel.
+            cloth = leaf.mesh_type_id.cloth_product_id
             out.extend(self._attachment_lines(
-                leaf.mesh_type_id.line_ids, context, 'mesh',
-                '%s mesh' % label, leaf.panel_no))
-            rules = self._deduction_rules()
+                leaf.mesh_type_id.line_ids.filtered(
+                    lambda l: not (cloth and l.product_id == cloth)),
+                context, 'mesh', '%s mesh' % label, leaf.panel_no))
+            mesh_w = self._deduction_value('mesh_w')
+            mesh_h = self._deduction_value('mesh_h')
             out.append({
                 'kind': 'mesh',
-                'product_id': False,
+                'product_id': leaf.mesh_type_id.cloth_product_id.id or False,
+                'rate_is_manual': leaf.mesh_rate_manual,
+                'manual_rate': (leaf.mesh_manual_rate
+                                if leaf.mesh_rate_manual else 0.0),
                 'panel_no': leaf.panel_no,
                 'label': '%s %s' % (label, leaf.mesh_type_id.name),
-                'glass_w': evaluate_formula(rules.mesh_w, context),
-                'glass_h': evaluate_formula(rules.mesh_h, context),
-                'calc_rule': rules.mesh_w or '',
-                'calc_rule_h': rules.mesh_h or '',
-                'calc_source': self._deduction_source(),
-                'calc_worked': substitute_formula(rules.mesh_w, context),
-                'calc_worked_h': substitute_formula(rules.mesh_h, context),
+                'glass_w': evaluate_formula(mesh_w, context),
+                'glass_h': evaluate_formula(mesh_h, context),
+                'calc_rule': mesh_w or '',
+                'calc_rule_h': mesh_h or '',
+                'calc_source': self._deduction_source('mesh_w', 'mesh_h'),
+                'calc_worked': substitute_formula(mesh_w, context),
+                'calc_worked_h': substitute_formula(mesh_h, context),
                 'qty': 1,
             })
 
@@ -584,9 +629,10 @@ class AwDesign(models.Model):
                 '%s %s' % (label, infill.name), leaf.panel_no))
 
         if uses_glass:
-            rules = self._deduction_rules()
-            rule_w = rules.glass_sash_w if opening else rules.glass_fixed_w
-            rule_h = rules.glass_sash_h if opening else rules.glass_fixed_h
+            field_w = 'glass_sash_w' if opening else 'glass_fixed_w'
+            field_h = 'glass_sash_h' if opening else 'glass_fixed_h'
+            rule_w = self._deduction_value(field_w)
+            rule_h = self._deduction_value(field_h)
             width = evaluate_formula(rule_w, context)
             height = evaluate_formula(rule_h, context)
             base = {
@@ -596,7 +642,7 @@ class AwDesign(models.Model):
                 'glass_h': height,
                 'calc_rule': rule_w or '',
                 'calc_rule_h': rule_h or '',
-                'calc_source': self._deduction_source(),
+                'calc_source': self._deduction_source(field_w, field_h),
                 'calc_worked': substitute_formula(rule_w, context),
                 'calc_worked_h': substitute_formula(rule_h, context),
                 'qty': 1,
@@ -643,14 +689,31 @@ class AwDesign(models.Model):
                 leaf.grid_pattern_id.line_ids, context, 'grid',
                 '%s grid' % label, leaf.panel_no))
 
-        # Hardware scoped per panel, filtered by leaf type as before.
-        for line in self._spec_hardware_lines():
-            if line.scope != 'panel':
-                continue
-            if line.leaf_type_id and line.leaf_type_id != leaf_type:
-                continue
-            out.extend(self._hardware_line(
-                line, context, label, leaf.panel_no))
+        # Hardware scoped per panel. A panel's OWN rows replace the spec's
+        # per-panel lines for it; with none it follows the spec, filtered
+        # by leaf type as before.
+        if leaf.hardware_ids:
+            for row in leaf.hardware_ids.sorted('sequence'):
+                qty = int(round(row.qty or 0.0))
+                if qty <= 0 or not row.product_id:
+                    continue
+                out.append({
+                    'kind': 'hardware',
+                    'product_id': row.product_id.id,
+                    'qty': qty,
+                    'panel_no': leaf.panel_no,
+                    'label': '%s %s' % (label, row.product_id.display_name),
+                    'rate_is_manual': row.rate_manual,
+                    'manual_rate': row.manual_rate if row.rate_manual else 0.0,
+                })
+        else:
+            for line in self._spec_hardware_lines():
+                if line.scope != 'panel':
+                    continue
+                if line.leaf_type_id and line.leaf_type_id != leaf_type:
+                    continue
+                out.extend(self._hardware_line(
+                    line, context, label, leaf.panel_no))
 
     # ------------------------------------------------------------------
     # lock bar (phase 7d)
@@ -1019,7 +1082,8 @@ class AwDesign(models.Model):
                 problems.append(('error', _(
                     "%(panel)s is a %(type)s, which %(series)s doesn't allow.",
                     panel=label, type=leaf.leaf_type_id.display_name,
-                    series=series.display_name)))
+                    series=series.display_name),
+                    self._target('panel', leaf.panel_no)))
 
         # Positions that can never contribute, so the absence of a
         # profile from the cut list has a stated reason.
@@ -1027,7 +1091,8 @@ class AwDesign(models.Model):
             if not position.scope:
                 problems.append(('warning', _(
                     "Profile position '%s' has no scope, so the BOM "
-                    "ignores it.", position.name)))
+                    "ignores it.", position.name),
+                    self._record_target(position)))
 
         problems.extend(self._missing_section_line_problems(demand or {}))
 
@@ -1036,15 +1101,21 @@ class AwDesign(models.Model):
         # panel, and twelve copies of the same sentence is how a real
         # warning gets scrolled past.
         reasons = set()
+        reason_line = {}
         for values in (exploded or []):
             if not values.get('missing_product'):
                 continue
             reason = values.get('missing_product_reason')
+            line_id = values.get('template_line_id')
             if reason:
                 reasons.add(reason)
+                if line_id:
+                    reason_line.setdefault(reason, line_id)
             else:
                 problems.append(('warning', _(
-                    "No product for '%s'.", values.get('label') or '')))
+                    "No product for '%s'.", values.get('label') or ''),
+                    self._target('record', model='aw.profile.section.line',
+                                 res_id=line_id) if line_id else {}))
         # ERROR, not a warning, since phase 7e. The commonest cause is now
         # a finish the profile is not sold in, and that is not a thing to
         # look at later: the window cannot be made as quoted, and the
@@ -1056,11 +1127,32 @@ class AwDesign(models.Model):
         # the two collapse into one line.
         for line in self._profile_rows():
             if line.position_id and not self._row_thickness(line):
-                reasons.add(self.env['aw.profile.section.line']._variant_problem(
+                reason = self.env['aw.profile.section.line']._variant_problem(
                     self._row_template(line), self.env['product.attribute.value'],
-                    self._line_finish(line)))
+                    self._line_finish(line))
+                reasons.add(reason)
+                reason_line.setdefault(reason, line.id)
         for reason in sorted(reasons):
-            problems.append(('error', reason))
+            line_id = reason_line.get(reason)
+            problems.append(('error', reason, self._target(
+                'record', model='aw.profile.section.line', res_id=line_id)
+                if line_id else {}))
+
+        # A glass of size 0 is a sheet costed at 0 and cut at nothing, and
+        # it looks fine on screen. Named per panel so it can be found.
+        zero_glass = {}
+        for values in (exploded or []):
+            if (values.get('kind') == 'glass' and not values.get('missing_glass')
+                    and ((values.get('glass_w') or 0.0) <= 0
+                         or (values.get('glass_h') or 0.0) <= 0)):
+                zero_glass.setdefault(values.get('panel_no') or 0, values)
+        for panel_no, values in sorted(zero_glass.items()):
+            problems.append(('warning', _(
+                "Panel %(panel)s: glass size is 0 (%(w)s x %(h)s mm). Check "
+                "the glass deduction rules of the spec and the window type.",
+                panel=panel_no, w=round(values.get('glass_w') or 0.0),
+                h=round(values.get('glass_h') or 0.0)),
+                self._target('glass', panel_no)))
 
         # Glass is chosen once, so it is reported once -- naming the two
         # places it can be set, since "no product for P1 glass" told the
@@ -1070,28 +1162,60 @@ class AwDesign(models.Model):
                 "No glass for %s — build the glass stack in the header, "
                 "or on the panel.", self.display_name)))
 
+        problems.extend(self._glass_extra_problems())
+
         # Pricing (spec 8). An incomplete price must never be mistaken
         # for a real one, so the lines that carry no cost are named
         # rather than quietly averaged into a number that looks fine.
-        missing_texts, missing_lines = self._missing_rate_info()
-        for text in missing_texts:
-            problems.append(('warning', text))
+        missing_entries = self._missing_rate_entries()
+        missing_lines = set().union(*[e[2] for e in missing_entries]) \
+            if missing_entries else set()
+        for text, template, _lines in missing_entries:
+            problems.append(('warning', text, self._record_target(template)))
         uncosted = self.bom_line_ids.filtered('cost_note').filtered(
             lambda l: l.id not in missing_lines)
         if uncosted:
-            reasons = {}
+            # A rate somebody typed is a decision, not a problem: it is an
+            # INFO note ("manual rate 70 (product cost 50)"). "Stand-in" is
+            # kept for a fallback to another vendor's rate; any other
+            # costed note is a nearby rate.
+            reasons, infos = {}, {}
+            first = {}
             for line in uncosted:
-                key = (line.cost_note, bool(line.line_cost))
+                if line.rate_is_manual:
+                    infos[line.cost_note] = infos.get(line.cost_note, 0) + 1
+                    first.setdefault(('info', line.cost_note), line)
+                    continue
+                key = (line.cost_note, bool(line.line_cost),
+                       bool(line.rate_is_standin))
                 reasons[key] = reasons.get(key, 0) + 1
-            for (reason, costed), count in sorted(reasons.items()):
-                # Costed with a stand-in is worth knowing, and is not the
-                # same thing as having no cost.
-                problems.append(('warning', _(
-                    "%(count)s BOM line(s) are priced with a stand-in: "
-                    "%(reason)s",
-                    count=count, reason=reason) if costed else _(
-                    "%(count)s BOM line(s) have no cost: %(reason)s.",
-                    count=count, reason=reason)))
+                first.setdefault(key, line)
+
+            def line_target(line):
+                """A typed rate leads to the panel's glass or hardware; any
+                other cost note leads to the product it is about."""
+                if line.rate_is_manual and line.panel_no:
+                    return self._target(
+                        {'glass': 'glass', 'mesh': 'mesh'}.get(
+                            line.kind, 'hardware'), line.panel_no)
+                return self._record_target(line.product_id)
+
+            for note, count in sorted(infos.items()):
+                problems.append(('info', note if count == 1 else _(
+                    "%(note)s (%(count)s lines)", note=note, count=count),
+                    line_target(first[('info', note)])))
+            for (reason, costed, standin), count in sorted(reasons.items()):
+                target = line_target(first[(reason, costed, standin)])
+                if not costed:
+                    text = _("%(count)s BOM line(s) have no cost: %(reason)s.",
+                             count=count, reason=reason)
+                elif standin:
+                    text = _("%(count)s BOM line(s) are priced with a stand-in: "
+                             "%(reason)s", count=count, reason=reason)
+                else:
+                    text = _("%(count)s BOM line(s) are priced from a nearby "
+                             "rate: %(reason)s", count=count, reason=reason)
+                problems.append(('warning', text, target))
 
         # A divider carrying more than its option is rated for. Never a
         # block: the shop may know better than the table, and the table
@@ -1139,7 +1263,8 @@ class AwDesign(models.Model):
                 problems.append(('error', _(
                     "Panel %(panel)s has '%(mesh)s', which fits opening "
                     "sashes only.",
-                    panel=leaf.panel_no or 0, mesh=mesh.display_name)))
+                    panel=leaf.panel_no or 0, mesh=mesh.display_name),
+                    self._target('panel', leaf.panel_no)))
 
         floor = self._min_margin_pct()
         if self._below_margin_floor():
@@ -1151,35 +1276,65 @@ class AwDesign(models.Model):
                 "No Price Structure, so this design is costed with no "
                 "wastage, labour or profit.")))
 
-        # ONCE per design, not once per hardware line that did not
-        # appear: the absence is one fact about the spec, and a warning
-        # repeated per line is a warning people learn to scroll past.
-        # A spec may legitimately have no Hardware Set -- no hardware
-        # list exists for this business yet, and a placeholder set
-        # would put zero hardware into every quote while looking
-        # configured. Saying so is the honest alternative.
-        if not self._spec_hardware_lines():
-            problems.append(('warning', _(
-                "No hardware in this spec — hardware cost is missing.")))
+        # Per PANEL, and only for a panel type that needs hardware: a
+        # fixed light has none, and a warning that fires on it is one
+        # people learn to scroll past. A placeholder set would price
+        # hardware at zero while looking configured, so the absence is
+        # said, panel by panel, instead.
+        with_hardware = set(self.bom_line_ids.filtered(
+            lambda l: l.kind == 'hardware' and l.panel_no).mapped('panel_no'))
+        for leaf in self._all_panels():
+            if (leaf.leaf_type_id.needs_hardware
+                    and (leaf.panel_no or 0) not in with_hardware):
+                problems.append(('warning', _(
+                    "Panel %(panel)s (%(type)s): no hardware, so its "
+                    "hardware cost is missing.",
+                    panel=leaf.panel_no or 0,
+                    type=leaf.leaf_type_id.display_name),
+                    self._target('hardware', leaf.panel_no)))
 
         # No joints and no couplers: every piece comes out of one bar,
         # so one that cannot is a hard error rather than something the
         # optimiser works around.
-        limit = self._max_piece_mm()
+        vendor = self.sale_order_id.aw_profile_vendor_id
+        limits = {}
         for line in self.bom_line_ids:
-            if line.kind == 'profile' and line.length_mm > limit:
+            if line.kind != 'profile':
+                continue
+            template = line.product_id.product_tmpl_id
+            if template.id not in limits:
+                limits[template.id] = self._max_piece_mm(vendor, template)
+            limit = limits[template.id]
+            if line.length_mm > limit:
                 problems.append(('error', _(
                     "'%(label)s' is %(len)s, longer than the %(max)s that "
                     "can be cut from one bar. Reduce the size — pieces "
                     "are never joined.",
                     label=line.label or '',
                     len=self._format_length(line.length_mm),
-                    max=self._format_length(limit))))
+                    max=self._format_length(limit)),
+                    self._target('piece', line.panel_no, line.piece_key)))
 
-        for level, message in problems:
-            self.env['aw.design.check'].create({
-                'design_id': self.id, 'level': level, 'message': message,
-            })
+        for entry in problems:
+            level, message = entry[0], entry[1]
+            target = entry[2] if len(entry) > 2 else {}
+            self.env['aw.design.check'].create(dict(
+                target, design_id=self.id, level=level, message=message))
+
+    @staticmethod
+    def _target(kind, panel_no=0, key='', model='', res_id=0):
+        """Where a Checks row leads. See aw.design.check."""
+        return {
+            'target_kind': kind, 'panel_no': panel_no or 0,
+            'target_key': key or '', 'target_model': model or '',
+            'target_res_id': res_id or 0,
+        }
+
+    def _record_target(self, record):
+        """A target that opens one record, or nothing when it has none."""
+        if not record:
+            return {}
+        return self._target('record', model=record._name, res_id=record.id)
 
     def _missing_section_line_problems(self, demand):
         """Required positions the layout needs and the section lacks.
@@ -1206,7 +1361,8 @@ class AwDesign(models.Model):
                 "%s has no profiles, so this design has none in its BOM "
                 "at all.",
                 self.template_id.display_name
-                or _("No Specification is set, and so")))]
+                or _("No Specification is set, and so")),
+                self._record_target(self.template_id))]
 
         configured = set(lines.mapped('position_id').ids)
         needed = [scope for scope, count in demand.items() if count]
@@ -1222,13 +1378,23 @@ class AwDesign(models.Model):
             count = demand.get(position.scope, 0)
             singular, plural = SCOPE_DEMAND_LABEL.get(
                 position.scope, (position.scope, position.scope))
+            # "No line" means no USED line (the same definition the
+            # one-line-per-position rule uses). An unused row is there to
+            # be ticked, and the message says where.
+            spare = self.template_id.profile_line_ids.filtered(
+                lambda l, p=position: l.position_id == p and not l.is_used)[:1]
             problems.append(('warning', _(
                 "'%(spec)s' has no '%(position)s' line "
-                "(%(count)s %(what)s in this design).",
+                "(%(count)s %(what)s in this design).%(hint)s",
                 spec=(self.template_id.display_name
                       or (_('Custom window') if self.spec_custom else '')),
                 position=position.name,
-                count=count, what=singular if count == 1 else plural)))
+                count=count, what=singular if count == 1 else plural,
+                hint=(_(" It has an unused row in the %s section: choose "
+                        "its profile to use it.",
+                        spare.spec_section_id.display_name or _('(no section)'))
+                      if spare else '')),
+                self._record_target(self.template_id)))
         return problems
 
     def _missing_panel_section_problems(self):
@@ -1261,7 +1427,9 @@ class AwDesign(models.Model):
             "'%(spec)s' has none.",
             panels=', '.join(numbers), section=name,
             spec=(self.template_id.display_name
-                  or _('this window')))) for name, numbers in missing.items()]
+                  or _('this window'))),
+            self._target('panel', int(numbers[0])))
+            for name, numbers in missing.items()]
 
     def _all_panels(self):
         """Every real panel, containers skipped."""
@@ -1293,5 +1461,19 @@ class AwDesignCheck(models.Model):
     level = fields.Selection([
         ('error', 'Error'),
         ('warning', 'Warning'),
+        ('info', 'Info'),
     ], required=True, default='warning')
     message = fields.Char(required=True)
+    # Where a click goes. Stored by panel NUMBER and a stable key (the
+    # piece key, the glass part or hardware row sequence), or by the
+    # record itself for a product or a spec line -- never by the id of a
+    # row that a Recompute or a save replaces, so the link still works
+    # after either.
+    target_kind = fields.Selection([
+        ('panel', 'Panel'), ('glass', 'Glass'), ('hardware', 'Hardware'),
+        ('piece', 'Piece'), ('mesh', 'Mesh'), ('record', 'Record'),
+    ])
+    panel_no = fields.Integer()
+    target_key = fields.Char()
+    target_model = fields.Char()
+    target_res_id = fields.Integer()

@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-from odoo import fields, models
+from odoo import api, fields, models
+
+NEEDS_HARDWARE_PARAM = 'aw_fenestration.needs_hardware_seeded'
+# Panel types that carry no hardware to start with. Editable afterwards.
+NO_HARDWARE_CODES = ('FIXED', 'MESH')
 
 
 class AwLeafType(models.Model):
@@ -36,6 +40,30 @@ class AwLeafType(models.Model):
              "explosion engine to decide whether to generate a glass "
              "line for this leaf.")
 
+    needs_hardware = fields.Boolean(
+        default=True,
+        help="A panel of this type is expected to have hardware. A window "
+             "with such a panel and no hardware on it gets a Checks warning "
+             "naming the panel.")
+
     _sql_constraints = [
         ('code_uniq', 'unique(code)', 'Leaf Type code must be unique.'),
     ]
+
+    @api.model
+    def _seed_needs_hardware(self):
+        """Switch the flag off for Fixed and Mesh, once.
+
+        A Boolean has no empty state to test (see _seed_required_flags on
+        the profile positions), so this marks itself done with a
+        parameter: re-asserting it every upgrade would silently undo a
+        deliberate change on the Panel Types screen.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(NEEDS_HARDWARE_PARAM):
+            return 0
+        types = self.with_context(active_test=False).search(
+            [('code', 'in', NO_HARDWARE_CODES)])
+        types.write({'needs_hardware': False})
+        param.set_param(NEEDS_HARDWARE_PARAM, '1')
+        return len(types)

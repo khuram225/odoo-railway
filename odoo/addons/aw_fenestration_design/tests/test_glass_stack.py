@@ -8,6 +8,8 @@ from odoo.tests import TransactionCase, tagged
 
 SQFT_PER_SQM = 10.7639104
 MM_PER_FOOT = 304.8
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 
 
 @tagged('post_install', '-at_install')
@@ -17,16 +19,12 @@ class TestGlassStack(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         env = cls.env
-        family = env['aw.window.family'].search([]).filtered(
-            lambda f: f.series_ids.filtered('active').filtered(
-                lambda s: s.leaf_type_ids))[:1]
+        family, series = seeded_family_series(env)
         if not family:
             raise unittest.SkipTest("No glazing family with a profile system")
-        series = family.series_ids.filtered('active').filtered(
-            lambda s: s.leaf_type_ids)[0]
         cls.Type = env['aw.glass.type']
         cls.Type._seed_glass_types()
-        cls.Type._seed_glass_options()
+        env['aw.glass.option']._seed_glass_options()
         cls.Type._seed_glass_sheet()
         cls.vendor = env['res.partner'].create({'name': 'Glass vendor (test)'})
         cls.clear = cls.Type.search([('name', '=', 'Clear')])
@@ -50,6 +48,11 @@ class TestGlassStack(TransactionCase):
             'rows': [{'height_mm': 1800.0,
                       'leaves': [dict(leaf), dict(leaf)]}]})
         cls.leaves = cls.design.row_ids.leaf_ids.sorted('panel_no')
+        # The first save SUGGESTS glass for large panels (8 mm here). A panel
+        # the user has not chosen follows the suggestion, not the window, so
+        # give the tests panels that follow the window's stack.
+        cls.leaves.write({'glass_part_ids': [(5, 0, 0)],
+                          'glass_suggested': False, 'glass_chosen': False})
         cls.Part = env['aw.glass.part']
 
     # -- helpers ------------------------------------------------------------
@@ -291,3 +294,90 @@ class TestGlassStack(TransactionCase):
         part.write({'thickness_mm': 6.0, 'rate_manual': True, 'manual_rate': 70.0})
         self.assertTrue(part.rate_manual)
         self.assertEqual(part.manual_rate, 70.0)
+
+    # -- glass size ----------------------------------------------------------------
+    RULES = ('glass_fixed_w', 'glass_fixed_h', 'glass_sash_w', 'glass_sash_h',
+             'mesh_w', 'mesh_h')
+
+    def test_a_spec_with_empty_glass_rules_uses_the_window_types(self):
+        spec = self.design.template_id
+        spec.write({f: False for f in self.RULES})
+        self.design.write({'width_mm': 2400.0, 'height_mm': 1800.0})
+        self._set_header([self._sheet(6), self._gap(), self._sheet(6)])
+        lines = self._lines()
+        sheets = lines.filtered(lambda l: l.glass_part_kind == 'sheet')
+        self.assertTrue(sheets)
+        for line in sheets:
+            self.assertGreater(line.glass_w, 0.0)
+            self.assertGreater(line.glass_h, 0.0)
+            self.assertAlmostEqual(
+                line.line_cost, 100.0 * line.area_sqm * SQFT_PER_SQM, 2)
+            self.assertIn('System', line.calc_source or '')
+        self.assertFalse(self.design.check_line_ids.filtered(
+            lambda c: 'glass size is 0' in c.message))
+
+    def test_a_spec_that_has_its_own_rules_keeps_them(self):
+        spec = self.design.template_id
+        spec.write({'glass_fixed_w': 'PW - 100', 'glass_fixed_h': 'PH - 100',
+                    'glass_sash_w': 'PW - 100', 'glass_sash_h': 'PH - 100'})
+        self._set_header([self._sheet(6)])
+        sheet = self._lines().filtered(
+            lambda l: l.glass_part_kind == 'sheet')[:1]
+        self.assertIn('Spec', sheet.calc_source or '')
+        self.assertIn('100', sheet.calc_rule or '')
+
+    def test_glass_of_size_zero_is_a_warning_naming_the_panel(self):
+        spec = self.design.template_id
+        system = spec.window_type_id
+        spec.write({f: False for f in self.RULES})
+        system.write({f: False for f in self.RULES})
+        self._set_header([self._sheet(6)])
+        self.design._explode()
+        warnings = self.design.check_line_ids.filtered(
+            lambda c: 'glass size is 0' in c.message)
+        self.assertTrue(warnings)
+        self.assertIn('Panel 1', warnings[0].message)
+
+    def test_a_typed_glass_rate_is_an_info_note_not_a_stand_in_warning(self):
+        self._set_header([self._sheet(6, rate_manual=True, manual_rate=55.0)])
+        self.design._explode()
+        checks = self.design.check_line_ids
+        self.assertTrue(checks.filtered(
+            lambda c: c.level == 'info' and 'manual rate' in c.message))
+        self.assertFalse(checks.filtered(
+            lambda c: c.level == 'warning' and 'stand-in' in c.message))
+
+
+@tagged('post_install', '-at_install')
+class TestGlassThresholds(TransactionCase):
+    """The suggestion limits fall back to the defaults when unset or empty."""
+
+    def _thresholds(self):
+        return self.env['aw.design']._glass_thresholds()
+
+    def test_unset_and_empty_use_the_defaults(self):
+        param = self.env['ir.config_parameter'].sudo()
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.search([('key', '=', key)]).unlink()
+        self.assertEqual(self._thresholds(), (4.5, 7.0))
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.set_param(key, '0.0')
+        self.assertEqual(self._thresholds(), (4.5, 7.0))
+
+    def test_a_typed_limit_is_used(self):
+        param = self.env['ir.config_parameter'].sudo()
+        param.set_param('aw_fenestration.glass_threshold_1_m2', '3.0')
+        param.set_param('aw_fenestration.glass_threshold_2_m2', '6.5')
+        self.assertEqual(self._thresholds(), (3.0, 6.5))
+
+    def test_a_small_panel_is_not_suggested_anything_by_default(self):
+        param = self.env['ir.config_parameter'].sudo()
+        for key in ('aw_fenestration.glass_threshold_1_m2',
+                    'aw_fenestration.glass_threshold_2_m2'):
+            param.search([('key', '=', key)]).unlink()
+        design = self.env['aw.design'].new({})
+        leaf = self.env['aw.design.leaf'].new({'width_mm': 1200.0})
+        leaf.row_id = self.env['aw.design.row'].new({'height_mm': 1800.0})
+        self.assertEqual(design._suggested_glass_for(leaf), '')

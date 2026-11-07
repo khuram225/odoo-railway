@@ -89,6 +89,8 @@ class ProductAttributeValue(models.Model):
 
     aw_name_ids = fields.One2many(
         'aw.finish.name', 'finish_id', string='Names')
+    aw_names_text = fields.Char(
+        string='All names', compute='_compute_aw_names_text')
     aw_customer_name = fields.Char(
         string='Customer name',
         help="Optional. What quotes and shop drawings call this finish; "
@@ -98,6 +100,12 @@ class ProductAttributeValue(models.Model):
         help="Set on a finish made from a vendor's own column header "
              "(WOOD). Applying that vendor's list may add the finish to a "
              "profile that does not carry it yet.")
+
+    @api.depends('name', 'aw_name_ids.name')
+    def _compute_aw_names_text(self):
+        for value in self:
+            value.aw_names_text = (
+                value.aw_label() if value.aw_name_ids else value.name)
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -190,6 +198,16 @@ class ProductAttributeValue(models.Model):
         a failure is logged and the next upgrade tries again."""
         param = self.env['ir.config_parameter'].sudo()
         if param.get_param(MIGRATED_PARAM):
+            return False
+        # On a fresh install this data function runs before the Finish
+        # attribute exists (chawla_attributes_data.xml loads later). There is
+        # nothing to migrate yet, which is not a failure: say so at INFO, leave
+        # the parameter unset, and the next upgrade does the work.
+        if not self.env.ref('aw_fenestration_core.aw_attribute_finish',
+                            raise_if_not_found=False):
+            _logger.info("aw_fenestration_core: finish names: the Finish "
+                         "attribute is not loaded yet; left for the next "
+                         "upgrade")
             return False
         try:
             with self.env.cr.savepoint():

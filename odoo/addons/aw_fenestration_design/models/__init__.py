@@ -14,6 +14,9 @@ from . import design_position_wizard
 from . import design_preset_wizard
 from . import family
 from . import glass_part
+from . import design_hardware
+from . import chatter_log
+from . import mesh_cloth
 from . import glass_default_stack
 from . import glass_suggestion
 from . import override
@@ -23,6 +26,7 @@ from . import snapshot
 from . import elevation_schedule
 from . import costing
 from . import cut_list
+from . import vendor_bar_length
 from . import cut_plan
 from . import position_product
 from . import sale_order

@@ -61,7 +61,7 @@
                                    t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onHeaderChange('location', ev.target.value)"/>
                         </div>
-                        <div>
+                        <div t-if="showIn">
                             <label class="form-label small text-muted mb-0">
                                 Width (in)
                             </label>
@@ -75,7 +75,7 @@
                                       onCommit="(text) => this.commitSizeBox('width_mm', 'in', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div>
+                        <div t-if="showMm">
                             <label class="form-label small text-muted mb-0">
                                 Width (mm)
                             </label>
@@ -88,7 +88,7 @@
                                       onCommit="(text) => this.commitSizeBox('width_mm', 'mm', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div>
+                        <div t-if="showIn">
                             <label class="form-label small text-muted mb-0">
                                 Height (in)
                             </label>
@@ -102,7 +102,7 @@
                                       onCommit="(text) => this.commitSizeBox('height_mm', 'in', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div>
+                        <div t-if="showMm">
                             <label class="form-label small text-muted mb-0">
                                 Height (mm)
                             </label>
@@ -213,8 +213,9 @@
                                     title="Copy this window to a new quote line">
                                 Duplicate
                             </button>
-                            <button class="btn btn-sm btn-secondary" t-on-click="openForm">
-                                Form
+                            <button class="btn btn-sm btn-secondary" t-on-click="openHistory"
+                                    title="Open the history page: the window's facts, its price summary and its chatter">
+                                History
                             </button>
                             <button t-if="state.data.header.sale_order_id"
                                     class="btn btn-sm btn-secondary" t-on-click="openQuotation"
@@ -815,6 +816,21 @@
                         </ul>
 
                         <div t-if="activeRightTab === 'panel'"
+                             class="d-flex align-items-center gap-2 px-3 pt-2 flex-shrink-0">
+                            <span class="small text-muted">Units</span>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-secondary"
+                                        t-att-class="{ active: state.unitMode === 'in' }"
+                                        t-on-click="() => this.setUnitMode('in')">In</button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                        t-att-class="{ active: state.unitMode === 'mm' }"
+                                        t-on-click="() => this.setUnitMode('mm')">mm</button>
+                                <button type="button" class="btn btn-outline-secondary"
+                                        t-att-class="{ active: state.unitMode === 'both' }"
+                                        t-on-click="() => this.setUnitMode('both')">Both</button>
+                            </div>
+                        </div>
+                        <div t-if="activeRightTab === 'panel'"
                              class="d-flex gap-1 px-3 pt-2 flex-shrink-0">
                             <button class="btn btn-sm btn-link p-0 small"
                                     t-on-click="expandAllRight">Expand all</button>
@@ -878,21 +894,31 @@
 
                             <t t-else="">
                                 <div class="row g-2 mb-3">
-                                    <div class="col-6">
-                                        <label class="form-label small text-muted mb-0">
-                                            Width (<t t-esc="uomLabel"/>)
-                                        </label>
+                                    <div t-if="showIn" class="col">
+                                        <label class="form-label small text-muted mb-0">Width (in)</label>
                                         <SizeBox class="'form-control form-control-sm'"
-                                                 value="selectedPanelWidthText"
-                                                 onCommit="(text) => this.setPanelWidth(text)"/>
+                                                 value="panelWidthBox('in')"
+                                                 onCommit="(text) => this.setPanelWidth(text, 'in')"/>
                                     </div>
-                                    <div class="col-6">
-                                        <label class="form-label small text-muted mb-0">
-                                            Height (<t t-esc="uomLabel"/>)
-                                        </label>
+                                    <div t-if="showMm" class="col">
+                                        <label class="form-label small text-muted mb-0">Width (mm)</label>
                                         <SizeBox class="'form-control form-control-sm'"
-                                                 value="selectedPanelHeightText"
-                                                 onCommit="(text) => this.setPanelHeight(text)"/>
+                                                 inputmode="'decimal'"
+                                                 value="panelWidthBox('mm')"
+                                                 onCommit="(text) => this.setPanelWidth(text, 'mm')"/>
+                                    </div>
+                                    <div t-if="showIn" class="col">
+                                        <label class="form-label small text-muted mb-0">Height (in)</label>
+                                        <SizeBox class="'form-control form-control-sm'"
+                                                 value="panelHeightBox('in')"
+                                                 onCommit="(text) => this.setPanelHeight(text, 'in')"/>
+                                    </div>
+                                    <div t-if="showMm" class="col">
+                                        <label class="form-label small text-muted mb-0">Height (mm)</label>
+                                        <SizeBox class="'form-control form-control-sm'"
+                                                 inputmode="'decimal'"
+                                                 value="panelHeightBox('mm')"
+                                                 onCommit="(text) => this.setPanelHeight(text, 'mm')"/>
                                     </div>
                                 </div>
 
@@ -1041,12 +1067,21 @@
                                         </t>
                                     </div>
 
-                                    <!-- Only a glazed panel has glass to
+                                    </t>
+
+                                    <!-- Glass is a section of its own, like
+                                         Mesh and Hardware: it used to sit
+                                         INSIDE Infill, so collapsing Infill hid
+                                         it and its heading was easy to miss.
+                                         Only a glazed panel has glass to
                                          override, so this disappears for a
                                          louvre, fan, AC cutout or solid panel. -->
                                     <t t-if="selectedPanelUsesGlass">
-                                        <div class="small text-muted mb-1">
-                                            Glass
+                                        <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                             data-aw-target="glass"
+                                             t-on-click="() => this.toggleSection('glass')">
+                                            <i t-att-class="sectionIcon('glass')"/>
+                                            <span>Glass</span>
                                             <span t-if="selectedPanel.glass_suggested"
                                                   class="badge text-bg-info ms-1"
                                                   title="Suggested from the panel size or the window's location. Change it to replace it.">
@@ -1054,6 +1089,10 @@
                                             </span>
                                             <span t-if="panelFollowsWindow"
                                                   class="badge text-bg-light ms-1">follows the window</span>
+                                        </div>
+                                        <t t-if="!isCollapsed('glass')">
+                                        <div t-if="selectedPanelGlassSize" class="small text-muted mb-1">
+                                            Glass size: <t t-esc="selectedPanelGlassSize"/>
                                         </div>
                                         <t t-if="panelFollowsWindow">
                                             <div class="small mb-1" t-esc="stackSummary(headerStack) || 'No glass'"/>
@@ -1077,10 +1116,91 @@
                                                 </button>
                                             </div>
                                         </t>
+                                        </t>
                                     </t>
 
+                                    <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                         data-aw-target="hardware"
+                                         t-on-click="() => this.toggleSection('hardware')">
+                                        <i t-att-class="sectionIcon('hardware')"/>
+                                        <span>Hardware</span>
+                                        <span t-if="panelHardware.length" class="badge text-bg-light border ms-1">
+                                            <t t-esc="panelHardware.length"/>
+                                        </span>
+                                    </div>
+                                    <t t-if="!isCollapsed('hardware')">
+                                        <div t-if="panelFollowsSpecHardware" class="small text-muted mb-1">
+                                            Follows the spec's hardware. Adding a row here makes
+                                            this panel use its own instead.
+                                        </div>
+                                        <div t-foreach="panelHardware" t-as="hw" t-key="hw_index"
+                                             class="border rounded p-1 mb-1 small">
+                                            <div class="d-flex gap-1 align-items-center">
+                                                <Many2One relation="'product.product'"
+                                                          string="'Hardware'"
+                                                          placeholder="'Product...'"
+                                                          cssClass="'flex-grow-1'"
+                                                          value="hardwareValue(hw)"
+                                                          domain="() => this.hardwareDomain()"
+                                                          context="hardwareContext"
+                                                          canOpen="false"
+                                                          update="(pair) => this.setHardwareProductPair(hw_index, pair)"/>
+                                                <button type="button" class="btn btn-sm btn-link text-danger p-0"
+                                                        title="Remove this row"
+                                                        t-on-click="() => this.removeHardware(hw_index)">
+                                                    <i class="fa fa-trash"/>
+                                                </button>
+                                            </div>
+                                            <div class="d-flex gap-1 align-items-center mt-1 flex-wrap">
+                                                <span class="text-muted">Qty</span>
+                                                <input type="number" min="0" step="1"
+                                                       class="form-control form-control-sm" style="width: 4.5rem;"
+                                                       t-att-value="hw.qty"
+                                                       t-on-change="(ev) => this.setHardwareQty(hw_index, ev.target.value)"/>
+                                                <span class="text-muted">Rate</span>
+                                                <input type="number" min="0" step="any"
+                                                       class="form-control form-control-sm" style="width: 6rem;"
+                                                       t-att-value="hardwareRateUsed(hw)"
+                                                       t-on-change="(ev) => this.setHardwareRate(hw_index, ev.target.value)"/>
+                                                <span t-if="hw.rate_manual" class="badge text-bg-warning">manual</span>
+                                                <button t-if="hw.rate_manual" type="button" class="btn btn-sm btn-link p-0"
+                                                        t-on-click="() => this.resetHardwareRate(hw_index)">Reset</button>
+                                                <span class="ms-auto text-muted" t-if="hw.product_id">
+                                                    cost <t t-esc="formatMoney(hardwareCost(hw))"/>
+                                                </span>
+                                            </div>
+                                            <div t-if="hw.rate_manual" class="text-muted">
+                                                Product cost <t t-esc="formatMoney(hardwareListRate(hw))"/>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-wrap gap-1 mb-1">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                    t-on-click="addHardware">+ Hardware</button>
+                                            <button t-if="panelFollowsSpecHardware" type="button"
+                                                    class="btn btn-sm btn-outline-secondary"
+                                                    title="Copy what the spec gives this panel, to edit"
+                                                    t-on-click="addSpecHardware">Add the spec's set</button>
+                                            <button t-else="" type="button" class="btn btn-sm btn-outline-secondary"
+                                                    t-on-click="followSpecHardware">Follow the spec</button>
+                                            <button t-if="panelHardware.length" type="button"
+                                                    class="btn btn-sm btn-outline-secondary"
+                                                    t-on-click="copyHardwareToOthers">Copy to other panels</button>
+                                        </div>
+                                        <div t-if="otherHardwarePanels.length" class="d-flex gap-1 align-items-center mb-1">
+                                            <span class="text-muted small">Copy from panel</span>
+                                            <select class="form-select form-select-sm" style="width: 5rem;"
+                                                    t-on-change="(ev) => this.copyHardwareFromPanel(ev)">
+                                                <option value="">...</option>
+                                                <option t-foreach="otherHardwarePanels" t-as="op" t-key="op.no"
+                                                        t-att-value="op.no" t-esc="op.no"/>
+                                            </select>
+                                        </div>
+                                        <div t-if="panelHardware.length" class="small text-end mb-2">
+                                            Hardware cost <strong><t t-esc="formatMoney(panelHardwareCost)"/></strong>
+                                        </div>
                                     </t>
                                     <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
+                                         data-aw-target="mesh"
                                          t-on-click="() => this.toggleSection('mesh')">
                                         <i t-att-class="sectionIcon('mesh')"/>
                                         <span>Mesh</span>
@@ -1133,6 +1253,24 @@
                                         </div>
                                     </t>
 
+                                    <div t-if="selectedMeshType" class="border rounded p-1 mb-2 small">
+                                        <div class="text-muted">
+                                            Cloth: <t t-esc="selectedMeshType.cloth_name or 'no cloth product'"/>
+                                        </div>
+                                        <div class="d-flex gap-1 align-items-center mt-1 flex-wrap">
+                                            <span class="text-muted">List rate</span>
+                                            <strong><t t-esc="costText(meshClothListRate)"/></strong>
+                                            <span class="text-muted">per sqft; rate used</span>
+                                            <input type="number" min="0" step="any"
+                                                   class="form-control form-control-sm" style="width: 6rem;"
+                                                   t-att-value="meshClothRateUsed"
+                                                   t-on-change="(ev) => this.setMeshRate(ev.target.value)"/>
+                                            <span t-if="selectedPanel.mesh_rate_manual" class="badge text-bg-warning">manual</span>
+                                            <button t-if="selectedPanel.mesh_rate_manual" type="button"
+                                                    class="btn btn-sm btn-link p-0"
+                                                    t-on-click="resetMeshRate">Reset</button>
+                                        </div>
+                                    </div>
                                     </t>
                                     <div class="small text-muted mb-1 d-flex align-items-center gap-1 o_aw_cfg_sec"
                                          t-on-click="() => this.toggleSection('grid')">
@@ -1216,8 +1354,8 @@
                                     The layout has unsaved changes; editing a piece saves it first.
                                 </div>
                                 <div t-if="!scopedPieces.length" class="small text-muted">
-                                    No cut lines here. Generate the cut list from the form,
-                                    or press Recompute.
+                                    No cut lines here. Press Recompute to generate the
+                                    cut list.
                                 </div>
                                 <div class="o_aw_tree">
                                 <t t-foreach="pieceTree" t-as="pscope" t-key="pscope.key">
@@ -1226,9 +1364,9 @@
                                         <span class="o_aw_tree_chev"><i t-att-class="sectionIcon(pieceScopeKey(pscope))"/></span>
                                         <span class="o_aw_tree_title"><t t-esc="pscope.title"/></span>
                                         <button class="btn btn-sm btn-link p-0 o_aw_tree_link small"
-                                                title="Show this in the Profiles tab"
+                                                title="Show this in the Parts tab"
                                                 t-on-click.stop="() => this.showInProfiles(pscope.key, null)">
-                                            Profiles <i class="fa fa-arrow-right"/>
+                                            Parts <i class="fa fa-arrow-right"/>
                                         </button>
                                         <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="pscope.count"/></span>
                                     </div>
@@ -1239,22 +1377,33 @@
                                                 <span class="o_aw_tree_chev"><i t-att-class="sectionIcon(piecePartKey(pscope, ppart))"/></span>
                                                 <span class="o_aw_tree_title"><t t-esc="ppart.title"/></span>
                                                 <button class="btn btn-sm btn-link p-0 o_aw_tree_link small"
-                                                        title="Show this in the Profiles tab"
+                                                        title="Show this in the Parts tab"
                                                         t-on-click.stop="() => this.showInProfiles(pscope.key, ppart.key)">
-                                                    Profiles <i class="fa fa-arrow-right"/>
+                                                    Parts <i class="fa fa-arrow-right"/>
                                                 </button>
                                                 <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="ppart.pieces.length"/></span>
                                             </div>
                                             <div t-if="!isCollapsed(piecePartKey(pscope, ppart))" class="o_aw_tree_rows">
                                                 <div t-foreach="ppart.pieces" t-as="piece" t-key="piece.id"
-                                                     class="o_aw_tree_row o_aw_piece">
+                                                     class="o_aw_tree_row o_aw_piece"
+                                                     t-att-data-aw-target="'piece:' + piece.piece_key">
                                                     <span class="fw-bold text-truncate" t-att-title="piece.label">
                                                         <t t-esc="piece.short_label or piece.label"/>
                                                     </span>
+                                                    <t t-if="piece.editable">
+                                                        <span class="text-muted">&#183;</span>
+                                                        <button t-if="piece.profile_tmpl_id" type="button"
+                                                                class="btn btn-link btn-sm p-0 text-truncate"
+                                                                title="Open this profile"
+                                                                t-on-click="() => this.openProfile(piece)">
+                                                            <t t-esc="profileText(piece)"/>
+                                                        </button>
+                                                        <span t-else="" class="small text-muted">no profile</span>
+                                                    </t>
                                                     <span t-if="piece.is_manual" class="badge text-bg-warning">Manual</span>
                                                     <span t-if="piece.is_orphan" class="badge text-bg-danger">Orphan</span>
                                                     <t t-if="!piece.editable">
-                                                        <span class="ms-auto small text-muted"><t t-esc="piece.size_text"/></span>
+                                                        <span class="ms-auto small text-muted"><t t-esc="pieceSizeText(piece)"/></span>
                                                     </t>
                                                     <t t-elif="piece.cut_on_site">
                                                         <span class="ms-auto small text-muted">Cut on site</span>
@@ -1262,15 +1411,18 @@
                                                     <t t-else="">
                                                         <SizeBox class="'form-control o_aw_touch_input ms-auto'"
                                                            style="'max-width: 9rem;'"
-                                                           value="pieceText(piece.length_mm)"
+                                                           value="pieceBoxValue(piece.length_mm)"
                                                            onInput="(text) => this.onPieceInput(piece, text)"
                                                            onCommit="(text) => this.commitPiece(piece, text)"/>
+                                                        <span t-if="state.unitMode === 'mm'" class="small text-muted">mm</span>
                                                     </t>
                                                     <div class="o_aw_tree_rule">
                                                         <t t-esc="piece.qty"/> pc<t t-if="piece.cut_angle"> · <t t-esc="piece.cut_angle"/>° ends</t>
                                                         <t t-if="piece.editable and !piece.cut_on_site">
-                                                            · was <t t-esc="pieceText(piece.computed_length_mm)"/>
-                                                            · <span t-att-data-aw-piece-mm="piece.id" t-esc="pieceMmText(piece.length_mm)"/> mm
+                                                            · was <t t-esc="pieceWasText(piece.computed_length_mm)"/>
+                                                            <t t-if="state.unitMode === 'both'">
+                                                                · <span t-att-data-aw-piece-mm="piece.id" t-esc="pieceMmText(piece.length_mm)"/> mm
+                                                            </t>
                                                         </t>
                                                     </div>
                                                 </div>
@@ -1440,6 +1592,53 @@
                                 </t>
                             </div>
 
+                            <!-- Price build-up: every step from the BOM to the
+                                 price. The same rows the price is
+                                 calculated from. -->
+                            <div t-if="pricingBuildUp.length" class="mt-3">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">Price build-up</div>
+                                <table class="table table-sm small mb-1">
+                                    <tr t-foreach="pricingBuildUp" t-as="bu" t-key="bu.key"
+                                        t-att-class="buildUpClass(bu)">
+                                        <td><t t-esc="bu.label"/></td>
+                                        <td class="text-end text-nowrap text-muted">
+                                            <t t-esc="bu.detail"/>
+                                            <t t-if="bu.detail and buildUpRate(bu)"> &#183; </t>
+                                            <t t-esc="buildUpRate(bu)"/>
+                                        </td>
+                                        <td class="text-end text-nowrap"><t t-esc="costText(bu.amount)"/></td>
+                                    </tr>
+                                </table>
+                                <div class="small text-muted">
+                                    Margin <strong><t t-esc="costText(pricing.margin_pct)"/>%</strong>,
+                                    minimum <t t-esc="costText(pricing.min_margin_pct)"/>%
+                                </div>
+                            </div>
+                            <!-- Hardware: each line and its cost, by panel. -->
+                            <div t-if="pricingHardware.length" class="mt-3">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">Hardware</div>
+                                <table class="table table-sm small mb-1">
+                                    <tr t-foreach="pricingHardware" t-as="hl" t-key="hl.id">
+                                        <td><span t-if="hl.panel_no" class="text-muted">P<t t-esc="hl.panel_no"/> </span><t t-esc="hl.product or hl.label"/></td>
+                                        <td class="text-end text-nowrap">&#215;<t t-esc="hl.qty"/></td>
+                                        <td class="text-end text-nowrap"><t t-esc="costText(hl.line_cost)"/></td>
+                                    </tr>
+                                    <tr class="border-top">
+                                        <td colspan="2"><strong>Hardware</strong></td>
+                                        <td class="text-end"><strong><t t-esc="costText(pricingHardwareTotal)"/></strong></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <!-- Mesh cloth: area in sqft x the rate. -->
+                            <div t-if="pricingMesh.length" class="mt-3">
+                                <div class="o_aw_cfg_cat small text-muted text-uppercase fw-bold mb-1">Mesh cloth</div>
+                                <table class="table table-sm small mb-1">
+                                    <tr t-foreach="pricingMesh" t-as="ml" t-key="ml.id">
+                                        <td><span t-if="ml.panel_no" class="text-muted">P<t t-esc="ml.panel_no"/> </span><t t-esc="ml.product or ml.label"/></td>
+                                        <td class="text-end text-nowrap"><t t-esc="meshQtyText(ml)"/></td>
+                                    </tr>
+                                </table>
+                            </div>
                             <!-- Cost breakdown: every line the cost is
                                  built from. Replaces the BOM tab and the
                                  form's Bill of Materials. Read only. -->
@@ -1469,6 +1668,9 @@
                                                     <div t-if="grp.kind === 'profile'" class="text-muted">
                                                         <t t-esc="costLengthText(bl.length_mm)"/>
                                                     </div>
+                                                    <div t-if="grp.kind === 'mesh' and bl.area_sqft" class="text-muted">
+                                                        <t t-esc="meshQtyText(bl)"/>
+                                                    </div>
                                                 </td>
                                                 <td class="text-end text-nowrap small">
                                                     <t t-esc="costText(bl.line_cost)"/>
@@ -1497,12 +1699,28 @@
                             </div>
                             <t t-else="">
                                 <div t-foreach="checkErrors" t-as="chk" t-key="chk_index"
-                                     class="small text-danger mb-1">
+                                     class="small text-danger mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
                                     <i class="fa fa-times-circle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
                                 </div>
                                 <div t-foreach="checkWarnings" t-as="chk" t-key="chk_index"
-                                     class="small text-warning mb-1">
+                                     class="small text-warning mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
                                     <i class="fa fa-exclamation-triangle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
+                                </div>
+                                <div t-foreach="checkInfos" t-as="chk" t-key="chk_index"
+                                     class="small text-muted mb-1 o_aw_check"
+                                     t-att-class="{ o_aw_check_link: checkHasTarget(chk) }"
+                                     t-att-title="checkHasTarget(chk) ? 'Show where' : ''"
+                                     t-on-click="() => this.goToCheck(chk)">
+                                    <i class="fa fa-info-circle me-1"/><t t-esc="chk.message"/>
+                                    <i t-if="checkHasTarget(chk)" class="fa fa-arrow-right ms-1"/>
                                 </div>
                             </t>
                         </div>
@@ -1682,9 +1900,10 @@
                                  t-on-click="() => this.toggleSection('prof:hardware')">
                                 <span class="o_aw_tree_chev"><i t-att-class="sectionIcon('prof:hardware')"/></span>
                                 <span class="o_aw_tree_title">Hardware</span>
-                                <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="specHardware.length"/></span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="partsHardwareCount"/></span>
                             </div>
                             <t t-if="!isCollapsed('prof:hardware')">
+                                <div class="o_aw_tree_part px-2" data-aw-parts="series-set">Series set</div>
                                 <div t-if="!specHardware.length" class="o_aw_tree_row small text-muted">
                                     No Hardware Set, so there is no hardware to show.
                                 </div>
@@ -1716,17 +1935,68 @@
                                         </div>
                                     </div>
                                 </div>
+                                <div class="o_aw_tree_part px-2" data-aw-parts="on-panels">On panels</div>
+                                <div t-if="!panelHardwareRows.length" class="o_aw_tree_row small text-muted">
+                                    No hardware yet. Select a panel and use + Hardware in the Panel tab.
+                                </div>
+                                <div t-else="" class="o_aw_tree_rows">
+                                    <div t-foreach="panelHardwareRows" t-as="ph" t-key="ph.key"
+                                         class="o_aw_tree_row" style="cursor: pointer;"
+                                         title="Select this panel and open its Hardware section"
+                                         t-on-click="() => this.goToPanelHardware(ph.no)">
+                                        <span class="fw-bold">Panel <t t-esc="ph.no"/></span>
+                                        <span class="small text-truncate" t-esc="ph.name"/>
+                                        <span class="ms-auto text-nowrap small">
+                                            &#215;<t t-esc="ph.qty"/>
+                                            &#183; <t t-esc="costText(ph.rate)"/>
+                                            <span t-if="ph.manual" class="badge text-bg-warning">manual</span>
+                                            &#183; <strong><t t-esc="costText(ph.cost)"/></strong>
+                                        </span>
+                                    </div>
+                                </div>
                             </t>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label small text-muted mb-0">
-                                    Window glass (new panels start from this)
-                                </label>
-                                <t t-set="stackScope" t-value="'header'"/>
-                                <t t-set="stackItems" t-value="headerStack"/>
-                                <t t-call="aw_fenestration_design.GlassStack"/>
+                            <!-- Glass, in the same scope-band style as the
+                                 Outer frame: the window's default (new
+                                 panels start from it), and each panel's own. -->
+                            <div class="o_aw_tree_scope"
+                                 t-on-click="() => this.toggleSection('prof:glass')">
+                                <span class="o_aw_tree_chev"><i t-att-class="sectionIcon('prof:glass')"/></span>
+                                <span class="o_aw_tree_title">Glass (window default)</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="headerStack.length"/></span>
                             </div>
+                            <t t-if="!isCollapsed('prof:glass')">
+                                <div class="small text-muted px-2 mb-1">New panels start from this.</div>
+                                <div class="px-2 mb-2">
+                                    <t t-set="stackScope" t-value="'header'"/>
+                                    <t t-set="stackItems" t-value="headerStack"/>
+                                    <t t-call="aw_fenestration_design.GlassStack"/>
+                                </div>
+                            </t>
+
+                            <div class="o_aw_tree_scope"
+                                 t-on-click="() => this.toggleSection('prof:panelglass')">
+                                <span class="o_aw_tree_chev"><i t-att-class="sectionIcon('prof:panelglass')"/></span>
+                                <span class="o_aw_tree_title">Glass on panels</span>
+                                <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="panelGlassRows.length"/></span>
+                            </div>
+                            <t t-if="!isCollapsed('prof:panelglass')">
+                                <div t-if="!panelGlassRows.length" class="o_aw_tree_row small text-muted">
+                                    No panel takes glass.
+                                </div>
+                                <div t-else="" class="o_aw_tree_rows">
+                                    <div t-foreach="panelGlassRows" t-as="pg" t-key="pg.no"
+                                         class="o_aw_tree_row" style="cursor: pointer;"
+                                         title="Select this panel and open its Glass section"
+                                         t-on-click="() => this.goToPanelGlass(pg.no)">
+                                        <span class="fw-bold">Panel <t t-esc="pg.no"/></span>
+                                        <span class="small text-truncate" t-esc="pg.summary"/>
+                                        <span t-if="pg.follows" class="badge text-bg-light ms-auto">follows the window</span>
+                                        <span t-else="" class="badge text-bg-info ms-auto">own</span>
+                                    </div>
+                                </div>
+                            </t>
 
                             <!-- Saving copies the section and the hardware
                                  set with the changes applied. The originals

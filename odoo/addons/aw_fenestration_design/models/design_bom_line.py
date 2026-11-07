@@ -120,6 +120,14 @@ class AwDesignBomLine(models.Model):
     glass_gas = fields.Char()
     glass_extra_id = fields.Many2one('aw.glass.extra', ondelete='restrict')
     glass_manual_rate = fields.Float(digits='Product Price')
+    manual_rate = fields.Float(
+        digits='Product Price',
+        help="The rate typed for this line (hardware today), used when "
+             "Manual rate is set.")
+    rate_is_standin = fields.Boolean(
+        string='Stand-in rate',
+        help="Priced from ANOTHER vendor's rate because the order's vendor "
+             "has none.")
     rate_is_manual = fields.Boolean(
         string='Manual rate',
         help="The rate used was typed for this panel, not the list rate.")
@@ -282,6 +290,16 @@ class AwDesignBomLine(models.Model):
                 return True
             vals = dict(vals, is_manual=True)
         return super().write(vals)
+
+    area_sqft = fields.Float(
+        compute='_compute_area_sqft', digits=(16, 4),
+        help="The same area in ft2: the quantity the mesh cloth is bought "
+             "and costed by.")
+
+    @api.depends('area_sqm')
+    def _compute_area_sqft(self):
+        for line in self:
+            line.area_sqft = (line.area_sqm or 0.0) * 10.7639104167
 
     @api.depends('glass_w', 'glass_h', 'qty')
     def _compute_area_sqm(self):

@@ -16,6 +16,7 @@ import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
 import { SizeBox } from "./size_box";
+import { Many2One } from "@web/views/fields/many2one/many2one";
 
 const MM_PER_IN = 25.4;
 const MM_PER_SOOT = MM_PER_IN / 8; // 1 soot = 1/8 in
@@ -210,6 +211,8 @@ const PANE_MAX_FRACTION = 0.45;
 const PANE_DEFAULTS = { left: 220, right: 260 };
 const STORE_PANE = "aw_cfg_pane_";
 const STORE_COLLAPSED = "aw_cfg_collapsed";
+const STORE_UNIT_MODE = "aw_cfg_unit_mode";
+const UNIT_MODES = ["in", "mm", "both"];
 const STORE_RIGHT_TAB = "aw_cfg_right_tab";
 
 /**
@@ -219,7 +222,7 @@ const STORE_RIGHT_TAB = "aw_cfg_right_tab";
  * one column meant none of them had room. They are tabs now, and only
  * the panel's own sub-sections still collapse.
  */
-const RIGHT_SECTIONS = ["panel", "infill", "mesh", "grid"];
+const RIGHT_SECTIONS = ["panel", "infill", "mesh", "glass", "hardware", "grid"];
 
 /** Right-hand tabs, in the order they appear. */
 /**
@@ -241,9 +244,24 @@ const PART_ORDER = [
 const COLLAPSED_BY_DEFAULT = ["pcs:", "pc:", "prof:", "profp:"];
 
 const RIGHT_TABS = ["panel", "spec", "pricing", "checks"];
+
+/**
+ * Every amount, rate, total, area in sqft and quantity the Pricing tab and
+ * the cost breakdown show: exactly two decimals and thousands separators.
+ * Display only -- the stored values keep full precision. Lengths are not
+ * numbers like these and keep the inch format (formatInches).
+ */
+function formatDecimal2(value) {
+    return (Number(value) || 0).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+}
+// The tab KEY stays "spec" (Checks links, the saved tab and the code use it);
+// only the label the user reads changed.
 const RIGHT_TAB_LABELS = {
     panel: "Panel",
-    spec: "Profiles",
+    spec: "Parts",
     pricing: "Pricing",
     checks: "Checks",
 };
@@ -269,6 +287,23 @@ function savePaneWidth(side, value) {
         window.localStorage.setItem(STORE_PANE + side, String(value));
     } catch {
         // Nothing to do: the width simply resets next time.
+    }
+}
+
+function loadUnitMode() {
+    try {
+        const mode = window.localStorage.getItem(STORE_UNIT_MODE);
+        return UNIT_MODES.includes(mode) ? mode : "both";
+    } catch {
+        return "both";
+    }
+}
+
+function saveUnitMode(mode) {
+    try {
+        window.localStorage.setItem(STORE_UNIT_MODE, mode);
+    } catch {
+        // Nothing to do: the choice simply resets next time.
     }
 }
 
@@ -307,7 +342,7 @@ function saveRightTab(key) {
 
 export class DesignConfigurator extends Component {
     static template = "aw_fenestration_design.DesignConfigurator";
-    static components = { SizeBox };
+    static components = { SizeBox, Many2One };
     static props = { ...standardActionServiceProps };
 
     setup() {
@@ -341,6 +376,7 @@ export class DesignConfigurator extends Component {
             paneLeft: loadPaneWidth("left", 220),
             paneRight: loadPaneWidth("right", 260),
             collapsed: loadCollapsed(),
+            unitMode: loadUnitMode(),
             rightTab: loadRightTab(),
             // The name being typed for "Save as new spec". Not in
             // localStorage: it belongs to one unfinished action, not to
@@ -470,10 +506,56 @@ export class DesignConfigurator extends Component {
         });
     }
 
+    // -- unit switch (Panel tab) -------------------------------------------
+    // In / mm / Both for the size boxes, piece lengths and glass size.
+    // Display only: everything is stored in mm whichever is chosen.
+    get showIn() {
+        return this.state.unitMode !== "mm";
+    }
+
+    get showMm() {
+        return this.state.unitMode !== "in";
+    }
+
+    setUnitMode(mode) {
+        if (UNIT_MODES.includes(mode)) {
+            this.state.unitMode = mode;
+            saveUnitMode(mode);
+        }
+    }
+
+    /** What a typed box means, by the box's own unit rather than the mode. */
+    parseKind(text, kind) {
+        const str = String(text || "").trim();
+        if (!str) {
+            return 0;
+        }
+        return (kind === "mm" ? parseFloat(str) : parseInches(str)) || 0;
+    }
+
+    /** A read-only length in the chosen unit(s): "72 in", "1829 mm" or both. */
+    modeLengthText(mm) {
+        const metric = `${String(Math.round((mm || 0) * 100) / 100)} mm`;
+        const inches = `${formatInches(mm || 0, "fraction")} in`;
+        return { in: inches, mm: metric, both: `${inches} \u00b7 ${metric}` }[
+            this.state.unitMode] || inches;
+    }
+
+    /** Two read-only lengths: "72 x 70 1/2 in", "1829 x 1791 mm" or both. */
+    modeLengthPair(first, second) {
+        const trim = (v) => String(Math.round((v || 0) * 100) / 100);
+        const inches = `${formatInches(first || 0, "fraction")} \u00d7 ${
+            formatInches(second || 0, "fraction")} in`;
+        const metric = `${trim(first)} \u00d7 ${trim(second)} mm`;
+        return { in: inches, mm: metric, both: `${inches} \u00b7 ${metric}` }[
+            this.state.unitMode] || inches;
+    }
+
     // -- unit rendering ----------------------------------------------------
     // Mirrors aw.design._format_length server-side. The unit is a global
-    // setting, shown as a read-only label -- there is deliberately no
-    // per-screen toggle.
+    // setting for the canvas and the dimension lines. The Panel tab's
+    // In / mm / Both switch (above) is separate and only changes what the
+    // size boxes, piece lengths and glass size show.
     get uom() {
         // The retired "ftin" setting reads as inches.
         return this.state.data?.length_uom === "mm" ? "mm" : "in";
@@ -783,6 +865,48 @@ export class DesignConfigurator extends Component {
         return this.state.data?.orphan_count || 0;
     }
 
+    /** What a piece's length box shows, in the box's unit. */
+    pieceBoxValue(mm) {
+        return this.state.unitMode === "mm"
+            ? this.pieceMmText(mm) : this.pieceText(mm);
+    }
+
+    /** "was ..." in the unit(s) the box is not already telling. */
+    pieceWasText(mm) {
+        return this.state.unitMode === "mm"
+            ? `${this.pieceMmText(mm)} mm` : this.pieceText(mm);
+    }
+
+    /** A piece with a size of its own (the mesh cloth), in the chosen unit. */
+    pieceSizeText(piece) {
+        return piece.size_w_mm || piece.size_h_mm
+            ? this.modeLengthPair(piece.size_w_mm, piece.size_h_mm)
+            : piece.size_text;
+    }
+
+    /** "HD-14 Frame": the profile's code and name, as one label. */
+    profileText(piece) {
+        const code = piece.profile_code || "";
+        const name = piece.profile_name || "";
+        if (code && name && !name.startsWith(code)) {
+            return `${code} ${name}`;
+        }
+        return name || code;
+    }
+
+    openProfile(piece) {
+        if (!piece.profile_tmpl_id) {
+            return;
+        }
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "product.template",
+            res_id: piece.profile_tmpl_id,
+            view_mode: "form",
+            views: [[false, "form"]],
+        });
+    }
+
     /** Soot style, like every length the workshop reads. */
     pieceText(mm) {
         return mm ? formatInches(mm, "soot") : "0";
@@ -807,7 +931,7 @@ export class DesignConfigurator extends Component {
 
     /** The mm figure follows the box as it is typed. */
     onPieceInput(piece, text) {
-        const mm = parseInches(text);
+        const mm = this.parseKind(text, this.state.unitMode === "mm" ? "mm" : "in");
         const target = document.querySelector(
             `[data-aw-piece-mm="${piece.id}"]`);
         if (target && Number.isFinite(mm)) {
@@ -817,7 +941,7 @@ export class DesignConfigurator extends Component {
 
     /** A length typed in a Pieces box, committed on blur or Enter. */
     async commitPiece(piece, text) {
-        const mm = parseInches(text);
+        const mm = this.parseKind(text, this.state.unitMode === "mm" ? "mm" : "in");
         if (!Number.isFinite(mm) || mm < 0) {
             this.notification.add(
                 "That length cannot be read. Use inches (46-2, 46 1/4, 46.25) or mm (1170mm).",
@@ -878,8 +1002,7 @@ export class DesignConfigurator extends Component {
     formatMoney(value) {
         const pricing = this.pricing;
         const symbol = pricing ? pricing.currency : "";
-        const rounded = Math.round((value || 0) * 100) / 100;
-        return `${symbol} ${rounded.toLocaleString()}`;
+        return `${symbol} ${formatDecimal2(value)}`;
     }
 
     // -- glazing family ----------------------------------------------
@@ -1611,6 +1734,7 @@ export class DesignConfigurator extends Component {
         // The catalogue comes back too, so the library's mesh and infill
         // sections stay in step with whatever the new Series allows.
         for (const key of ["mesh_types", "infill_types", "glass_catalog",
+                           "hardware_products",
                            "grid_patterns", "families", "spec_options",
                            "spec_parts"]) {
             if (context[key]) {
@@ -1991,6 +2115,294 @@ export class DesignConfigurator extends Component {
             leaf.glass_chosen = false;
             this.state.dirty = true;
         }
+    }
+
+    // -- hardware (Panel tab) ----------------------------------------------
+    // A panel's own rows replace the spec's per-panel hardware lines for it;
+    // with none it follows the spec. The quantity is a plain number and the
+    // rate used defaults to the product's cost.
+    get hardwareProducts() {
+        return this.state.data?.hardware_products || [];
+    }
+
+    get panelHardware() {
+        return this.selectedPanel?.hardware || [];
+    }
+
+    get panelFollowsSpecHardware() {
+        return !this.panelHardware.length;
+    }
+
+    hardwareListRate(row) {
+        const product = this.hardwareProducts.find((p) => p.id === row.product_id);
+        return product ? product.cost : row.list_rate || 0;
+    }
+
+    hardwareRateUsed(row) {
+        return row.rate_manual ? row.manual_rate : this.hardwareListRate(row);
+    }
+
+    hardwareCost(row) {
+        return (row.qty || 0) * this.hardwareRateUsed(row);
+    }
+
+    get panelHardwareCost() {
+        return this.panelHardware.reduce(
+            (sum, row) => sum + this.hardwareCost(row), 0);
+    }
+
+    /** Every panel, with its number as the drawing shows it. */
+    get hardwarePanels() {
+        return (this.scene?.leaves || []).map((entry) => ({
+            no: entry.panelNo,
+            leaf: this.leafAt(entry.path),
+        })).filter((p) => p.leaf);
+    }
+
+    // -- Parts tab: glass and hardware ON PANELS ---------------------------
+    /** One row per panel that takes glass: a short summary of its stack and
+     * whether it follows the window. */
+    get panelGlassRows() {
+        return this.hardwarePanels.filter(({ leaf }) => {
+            const type = (this.state.data.leaf_types || []).find(
+                (lt) => lt.id === leaf.leaf_type_id);
+            return leaf.leaf_type_code !== "MESH"
+                && leaf.infill_uses_glass !== false
+                && !(type && type.code === "MESH");
+        }).map(({ no, leaf }) => {
+            const own = (leaf.glass_parts || []).length > 0;
+            return {
+                no,
+                follows: !own,
+                summary: this.stackSummary(own ? leaf.glass_parts : this.headerStack)
+                    || _t("No glass"),
+            };
+        });
+    }
+
+    /** One row per hardware row on a panel: panel, product, qty, rate, cost. */
+    get panelHardwareRows() {
+        const rows = [];
+        for (const { no, leaf } of this.hardwarePanels) {
+            (leaf.hardware || []).forEach((row, index) => {
+                rows.push({
+                    key: `${no}:${index}`,
+                    no,
+                    name: row.name || _t("(no product)"),
+                    qty: row.qty,
+                    rate: this.hardwareRateUsed(row),
+                    manual: !!row.rate_manual,
+                    cost: this.hardwareCost(row),
+                });
+            });
+        }
+        return rows;
+    }
+
+    /** The Hardware badge: the series set plus every row on a panel. */
+    get partsHardwareCount() {
+        return this.specHardware.length + this.panelHardwareRows.length;
+    }
+
+    /** A row click: select the panel and open its Glass section. */
+    goToPanelGlass(no) {
+        this.goToCheck({ target_kind: "glass", panel_no: no });
+    }
+
+    /** A row click: select the panel and open its Hardware section. */
+    goToPanelHardware(no) {
+        this.goToCheck({ target_kind: "hardware", panel_no: no });
+    }
+
+    get otherHardwarePanels() {
+        return this.hardwarePanels.filter((p) => p.leaf !== this.selectedPanel);
+    }
+
+    cloneHardware(rows) {
+        return (rows || []).map((row) => ({ ...row, id: undefined }));
+    }
+
+    addHardware() {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        leaf.hardware = [...(leaf.hardware || []), {
+            product_id: false, name: "", qty: 1, rate_manual: false,
+            manual_rate: 0, list_rate: 0,
+        }];
+        this.state.dirty = true;
+    }
+
+    setHardwareProduct(index, value) {
+        const row = this.panelHardware[index];
+        if (!row) {
+            return;
+        }
+        const id = parseInt(value, 10) || false;
+        const product = this.hardwareProducts.find((p) => p.id === id);
+        row.product_id = id;
+        row.name = product ? product.name : "";
+        row.list_rate = product ? product.cost : 0;
+        this.state.dirty = true;
+    }
+
+    setHardwareQty(index, value) {
+        const row = this.panelHardware[index];
+        if (row) {
+            row.qty = parseFloat(value) || 0;
+            this.state.dirty = true;
+        }
+    }
+
+    /** Typing a rate is a manual rate for this panel; Reset undoes it. */
+    setHardwareRate(index, value) {
+        const row = this.panelHardware[index];
+        if (row) {
+            row.rate_manual = true;
+            row.manual_rate = parseFloat(value) || 0;
+            this.state.dirty = true;
+        }
+    }
+
+    resetHardwareRate(index) {
+        const row = this.panelHardware[index];
+        if (row) {
+            row.rate_manual = false;
+            row.manual_rate = 0;
+            this.state.dirty = true;
+        }
+    }
+
+    removeHardware(index) {
+        const leaf = this.selectedPanel;
+        if (leaf && leaf.hardware) {
+            leaf.hardware = leaf.hardware.filter((_row, i) => i !== index);
+            this.state.dirty = true;
+        }
+    }
+
+    followSpecHardware() {
+        const leaf = this.selectedPanel;
+        if (leaf) {
+            leaf.hardware = [];
+            this.state.dirty = true;
+        }
+    }
+
+    /** The spec's hardware for this panel, quantities as calculated. */
+    async addSpecHardware() {
+        const leaf = this.selectedPanel;
+        const entry = this.selectedSceneLeaf;
+        if (!leaf || !entry) {
+            return;
+        }
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const rows = await this.orm.call(
+            "aw.design", "hardware_from_spec", [[this.designId], entry.panelNo]);
+        if (!rows.length) {
+            this.notification.add(
+                _t("The spec gives this panel no hardware."), { type: "info" });
+            return;
+        }
+        leaf.hardware = [...(leaf.hardware || []), ...this.cloneHardware(rows)];
+        this.state.dirty = true;
+    }
+
+    // The picker is Odoo's own many2one: type to search, "Create" makes a
+    // product from the name, "Create and edit..." opens the product form.
+    // Both start in Fenestration / Hardware as Goods that cannot be sold.
+    // The search is over the category (children included), so a product
+    // made in Inventory in it appears here.
+    get hardwareCategoryId() {
+        return this.state.data?.hardware_category_id || false;
+    }
+
+    hardwareDomain() {
+        return [["categ_id", "child_of", this.hardwareCategoryId]];
+    }
+
+    get hardwareContext() {
+        return {
+            default_categ_id: this.hardwareCategoryId,
+            default_type: "consu",
+            default_sale_ok: false,
+            default_purchase_ok: true,
+        };
+    }
+
+    hardwareValue(row) {
+        return row.product_id
+            ? { id: row.product_id, display_name: row.name } : false;
+    }
+
+    /** What the many2one hands back: a pair, a typed name to create, or nothing. */
+    async setHardwareProductPair(index, pair) {
+        const row = this.panelHardware[index];
+        if (!row) {
+            return;
+        }
+        if (!pair) {
+            this.setHardwareProduct(index, "");
+            return;
+        }
+        let product;
+        if (pair.id) {
+            const [read] = await this.orm.read(
+                "product.product", [pair.id], ["display_name", "standard_price"]);
+            product = {
+                id: pair.id, name: read.display_name, cost: read.standard_price,
+            };
+        } else {
+            // "Create": a name makes a product, once (an existing one of
+            // that name in the category is reused).
+            product = await this.orm.call(
+                "aw.design", "create_hardware_product",
+                [[this.designId], pair.display_name]);
+        }
+        if (!product) {
+            return;
+        }
+        if (!this.hardwareProducts.some((p) => p.id === product.id)) {
+            this.state.data.hardware_products = [...this.hardwareProducts, product];
+        }
+        this.setHardwareProduct(index, String(product.id));
+    }
+
+    copyHardwareFromPanel(ev) {
+        const value = ev.target.value;
+        ev.target.value = "";
+        const leaf = this.selectedPanel;
+        const source = this.hardwarePanels.find((p) => String(p.no) === String(value));
+        if (!leaf || !source || source.leaf === leaf) {
+            return;
+        }
+        leaf.hardware = this.cloneHardware(source.leaf.hardware);
+        this.state.dirty = true;
+    }
+
+    /** Copy this panel's hardware to the other panels whose type needs it. */
+    copyHardwareToOthers() {
+        const leaf = this.selectedPanel;
+        if (!leaf) {
+            return;
+        }
+        let copied = 0;
+        for (const { leaf: other } of this.otherHardwarePanels) {
+            const type = (this.state.data.leaf_types || []).find(
+                (lt) => lt.id === other.leaf_type_id);
+            if (type && type.needs_hardware === false) {
+                continue;
+            }
+            other.hardware = this.cloneHardware(leaf.hardware);
+            copied += 1;
+        }
+        this.state.dirty = true;
+        this.notification.add(
+            _t("Hardware copied to %(count)s other panel(s).", { count: copied }),
+            { type: "success" });
     }
 
     glassPanels() {
@@ -4513,7 +4925,7 @@ export class DesignConfigurator extends Component {
         return true;
     }
 
-    setPanelWidth(text) {
+    setPanelWidth(text, kind) {
         const path = this.state.selected;
         if (!this.selectedPanel || !path || !path.length) {
             return;
@@ -4521,11 +4933,12 @@ export class DesignConfigurator extends Component {
         const rows = this.rowsAt(path.slice(0, -1));
         const [ri, li] = path[path.length - 1];
         this.resizeWithin(
-            rows[ri].leaves, li, this.parseLength(text), "width_mm",
-            _t("panel"));
+            rows[ri].leaves, li,
+            kind ? this.parseKind(text, kind) : this.parseLength(text),
+            "width_mm", _t("panel"));
     }
 
-    setPanelHeight(text) {
+    setPanelHeight(text, kind) {
         const path = this.state.selected;
         if (!this.selectedPanel || !path || !path.length) {
             return;
@@ -4533,22 +4946,43 @@ export class DesignConfigurator extends Component {
         const rows = this.rowsAt(path.slice(0, -1));
         const ri = path[path.length - 1][0];
         this.resizeWithin(
-            rows, ri, this.parseLength(text), "height_mm", _t("row"));
+            rows, ri,
+            kind ? this.parseKind(text, kind) : this.parseLength(text),
+            "height_mm", _t("row"));
     }
 
-    get selectedPanelWidthText() {
+    /** The selected panel's width as a box shows it, in one unit. */
+    panelWidthBox(kind) {
         const leaf = this.selectedPanel;
-        return leaf ? this.formatLength(leaf.width_mm || 0, false, "soot") : "";
+        return leaf ? this.boxText(leaf.width_mm || 0, kind) : "";
     }
 
-    get selectedPanelHeightText() {
+    panelHeightBox(kind) {
         const path = this.state.selected;
         if (!this.selectedPanel || !path || !path.length) {
             return "";
         }
         const rows = this.rowsAt(path.slice(0, -1));
         const row = rows[path[path.length - 1][0]];
-        return row ? this.formatLength(row.height_mm || 0, false, "soot") : "";
+        return row ? this.boxText(row.height_mm || 0, kind) : "";
+    }
+
+    boxText(mm, kind) {
+        if (kind === "mm") {
+            return mm ? String(Math.round(mm * 100) / 100) : "0";
+        }
+        return formatInches(mm, "soot");
+    }
+
+    /** The glass of the selected panel, W x H, in the chosen unit(s). */
+    get selectedPanelGlassSize() {
+        const number = this.piecesPanelNo;
+        if (!number) {
+            return "";
+        }
+        const line = (this.state.data?.bom?.glass || []).find(
+            (l) => l.panel_no === number && l.glass_w > 0 && l.glass_h > 0);
+        return line ? this.modeLengthPair(line.glass_w, line.glass_h) : "";
     }
 
     // -- attachments (spec 5.1-5.4) ----------------------------------------
@@ -4673,6 +5107,48 @@ export class DesignConfigurator extends Component {
         return false;
     }
 
+    // -- mesh cloth rate (Mesh section) -----------------------------------
+    // The cloth is costed per ft2 from the cloth product's cost; a rate
+    // typed here is for this panel only, flagged manual, and Reset returns
+    // the product's cost.
+    get meshClothListRate() {
+        return this.selectedMeshType?.cloth_cost || 0;
+    }
+
+    get meshClothRateUsed() {
+        const leaf = this.selectedPanel;
+        return leaf?.mesh_rate_manual ? leaf.mesh_manual_rate : this.meshClothListRate;
+    }
+
+    setMeshRate(value) {
+        const leaf = this.selectedPanel;
+        if (leaf) {
+            leaf.mesh_rate_manual = true;
+            leaf.mesh_manual_rate = parseFloat(value) || 0;
+            this.state.dirty = true;
+        }
+    }
+
+    resetMeshRate() {
+        const leaf = this.selectedPanel;
+        if (leaf) {
+            leaf.mesh_rate_manual = false;
+            leaf.mesh_manual_rate = 0;
+            this.state.dirty = true;
+        }
+    }
+
+    /** "19.65 sqft x 40 = 786.15", for the Pricing tab and cost breakdown. */
+    meshQtyText(line) {
+        return `${formatDecimal2(line.area_sqft)} sqft \u00d7 ${this.costText(
+            line.unit_cost)} = ${this.costText(line.line_cost)}`;
+    }
+
+    /** Only the sized cloth lines; a mesh type's own parts have no area. */
+    get pricingMesh() {
+        return (this.bom.mesh || []).filter((l) => l.area_sqft);
+    }
+
     applyMesh(meshId) {
         if (!this.requireSelectedPanel(_t("mesh"))) {
             return;
@@ -4686,6 +5162,11 @@ export class DesignConfigurator extends Component {
                 _t("%s fits opening sashes only.", mesh.name),
                 { type: "warning" });
             return;
+        }
+        if (leaf.mesh_type_id !== (clearing ? false : meshId)) {
+            // A rate typed for one cloth is not the next one's.
+            leaf.mesh_rate_manual = false;
+            leaf.mesh_manual_rate = 0;
         }
         leaf.mesh_type_id = clearing ? false : meshId;
         leaf.mesh_type_code = clearing ? "" : mesh?.code || "";
@@ -5044,6 +5525,130 @@ export class DesignConfigurator extends Component {
         return this.checks.filter((c) => c.level === "warning");
     }
 
+    get checkInfos() {
+        return this.checks.filter((c) => c.level === "info");
+    }
+
+    // -- Checks as links ----------------------------------------------------
+    // A check carries where it leads: a panel NUMBER and a stable key (the
+    // piece key), or a record. Nothing here holds the id of a row that a
+    // Recompute or a save replaces, so a link still works after either.
+    checkHasTarget(chk) {
+        return !!chk.target_kind;
+    }
+
+    /** The element a check points at, as the data-aw-target the markup carries. */
+    checkTargetName(chk) {
+        switch (chk.target_kind) {
+            case "glass":
+                return "glass";
+            case "hardware":
+                return "hardware";
+            case "mesh":
+                return "mesh";
+            case "piece":
+                return `piece:${chk.target_key}`;
+            default:
+                return "";
+        }
+    }
+
+    selectPanelByNumber(panelNo) {
+        if (!panelNo) {
+            // 0 is the frame and the dividers.
+            this.state.selected = null;
+            this.state.multiSel = [];
+            return true;
+        }
+        const entry = (this.scene?.leaves || []).find((e) => e.panelNo === panelNo);
+        if (!entry) {
+            return false;
+        }
+        this.selectLeaf(entry.path);
+        return true;
+    }
+
+    /** Open the groups a piece sits under, so its row exists to scroll to. */
+    revealPiece(chk) {
+        const piece = (this.state.data?.pieces || []).find(
+            (p) => p.piece_key === chk.target_key && p.panel_no === chk.panel_no);
+        if (!piece) {
+            return;
+        }
+        const next = {
+            ...this.state.collapsed,
+            [`pcs:${piece.scope_key}`]: false,
+            [`pc:${piece.scope_key}:${piece.part_key}`]: false,
+        };
+        this.state.collapsed = next;
+        saveCollapsed(next);
+    }
+
+    flash(name) {
+        setTimeout(() => {
+            const el = name
+                ? document.querySelector(`[data-aw-target="${name}"]`) : null;
+            if (!el) {
+                return;
+            }
+            el.scrollIntoView({ block: "center" });
+            el.classList.add("o_aw_flash");
+            setTimeout(() => el.classList.remove("o_aw_flash"), 2000);
+        }, 80);
+    }
+
+    /** A click on a Checks row: select the panel, open the tab, show the row. */
+    goToCheck(chk) {
+        const kind = chk.target_kind;
+        if (!kind) {
+            return;
+        }
+        if (kind === "record") {
+            this.openCheckRecord(chk);
+            return;
+        }
+        if (!this.selectPanelByNumber(chk.panel_no)) {
+            this.notification.add(
+                _t("Panel %(no)s is not in the drawing any more.", { no: chk.panel_no }),
+                { type: "warning" });
+            return;
+        }
+        this.setRightTab("panel");
+        const next = { ...this.state.collapsed, panel: false };
+        if (kind === "hardware") {
+            next.hardware = false;
+        }
+        if (kind === "mesh") {
+            next.mesh = false;
+        }
+        if (kind === "glass") {
+            next.glass = false;
+        }
+        this.state.collapsed = next;
+        saveCollapsed(next);
+        if (kind === "piece") {
+            this.revealPiece(chk);
+        }
+        this.flash(this.checkTargetName(chk));
+    }
+
+    /**
+     * A product, a profile or a spec line opens in a dialog so the
+     * configurator keeps its unsaved state. The dialog's Expand button
+     * opens the full page.
+     */
+    openCheckRecord(chk) {
+        if (!chk.target_model || !chk.target_res_id) {
+            return;
+        }
+        this.dialog.add(FormViewDialog, {
+            resModel: chk.target_model,
+            resId: chk.target_res_id,
+            title: chk.message,
+            canExpand: true,
+        });
+    }
+
     /** BOM sections in a fixed reading order, empty ones dropped. */
     get bomGroups() {
         const titles = {
@@ -5226,15 +5831,50 @@ export class DesignConfigurator extends Component {
     }
 
     /** Soot style, like every length the workshop reads. */
+    /** The Pricing tab's price build-up: the server's own rows. */
+    get pricingBuildUp() {
+        return this.pricing?.build_up || [];
+    }
+
+    /** "8.00%" for a percentage row, "450.00 per m²" for a rate row. */
+    buildUpRate(row) {
+        if (row.percent !== null && row.percent !== undefined) {
+            return `${Number(row.percent).toFixed(2)}%`;
+        }
+        if (row.rate) {
+            return `${this.costText(row.rate)} ${row.unit}`;
+        }
+        return "";
+    }
+
+    buildUpClass(row) {
+        return {
+            subtotal: "fw-bold border-top",
+            total: "fw-bold border-top",
+            override: "fw-bold",
+            add: "text-muted",
+        }[row.kind] || "";
+    }
+
+    get pricingHardware() {
+        return this.bom.hardware || [];
+    }
+
+    get pricingHardwareTotal() {
+        return this.pricingHardware.reduce((s, l) => s + (l.line_cost || 0), 0);
+    }
+
     costLengthText(mm) {
         return mm ? formatInches(mm, "soot") : "0";
     }
 
+    /** An amount, a rate or a total: two decimals and thousands separators. */
     costText(value) {
-        return (Number(value) || 0).toFixed(2);
+        return formatDecimal2(value);
     }
 
-    openForm() {
+    /** The design's History page (its form): facts, price summary, chatter. */
+    openHistory() {
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "aw.design",

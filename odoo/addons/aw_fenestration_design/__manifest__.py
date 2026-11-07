@@ -55,6 +55,7 @@ row/leaf grid shape:
         'views/design_position_wizard_views.xml',
         'views/design_preset_wizard_views.xml',
         'views/sale_order_views.xml',
+        'views/vendor_bar_length_views.xml',
         'views/cut_plan_views.xml',
         'views/cut_label_wizard_views.xml',
         'views/res_config_settings_views.xml',

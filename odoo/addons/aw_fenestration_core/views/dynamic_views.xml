@@ -13,11 +13,12 @@
                 <field name="has_hinge_side" widget="boolean_toggle"/>
                 <field name="has_slide_dir" widget="boolean_toggle"/>
                 <field name="is_glazed" widget="boolean_toggle"/>
+                <field name="needs_hardware" widget="boolean_toggle"/>
             </list>
         </field>
     </record>
     <record id="action_aw_leaf_type" model="ir.actions.act_window">
-        <field name="name">Leaf Types</field>
+        <field name="name">Panel Types</field>
         <field name="res_model">aw.leaf.type</field>
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
@@ -66,7 +67,7 @@
             <list editable="bottom">
                 <field name="sequence" widget="handle"/>
                 <field name="name"/>
-                <field name="code"/>
+                <field name="code" optional="hide"/>
                 <field name="part_group"/>
                 <field name="scope"/>
                 <field name="is_required"/>
@@ -75,7 +76,7 @@
                 <!-- Only meaningful for Edge = All four, but shown always:
                      hiding it per row would leave no hint that the second
                      formula exists at all. -->
-                <field name="default_length_h"/>
+                <field name="default_length_h" optional="hide"/>
                 <field name="default_angle"/>
                 <field name="default_qty"/>
             </list>

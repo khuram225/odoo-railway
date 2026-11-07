@@ -19,6 +19,8 @@ scripts/check_configurator_header.py catches the same class statically
 and runs in the pre-commit hook; this runs where there is a database.
 Run with:  odoo -u aw_fenestration_design --test-enable --stop-after-init
 """
+from odoo.addons.aw_fenestration_design.tests.common import (
+    seeded_family_series)
 from odoo.tests import TransactionCase, tagged
 
 
@@ -28,25 +30,23 @@ class TestConfiguratorRoundTrip(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.series = cls.env['aw.window.series'].search([], limit=1)
-        if not cls.series:
-            cls.series = cls.env['aw.window.series'].create({
-                'name': 'Round Trip Series',
-            })
+        cls.series = seeded_family_series(cls.env)[1]
         cls.design = cls.env['aw.design'].create({
             'name': 'RT1',
             'window_series_id': cls.series.id,
             'width_mm': 2438.4,
             'height_mm': 1524.0,
         })
+        # a save fills a blank spec (by design); start from the resolved one
+        cls.design._resolve_spec()
 
     def _header_snapshot(self):
         """Every field a save is allowed to write, read off the record."""
         design = self.design
         return {
-            name: (design[name].id
-                   if design._fields[name].type == 'many2one'
-                   else design[name])
+            name: ((design[name].id
+                    if design._fields[name].type == 'many2one'
+                    else design[name]) or False)
             for name in design.CONFIGURATOR_HEADER_FIELDS
         }
 

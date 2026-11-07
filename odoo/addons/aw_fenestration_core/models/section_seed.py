@@ -31,7 +31,7 @@ import logging
 
 from odoo import api, models
 
-from .thickness import choose_thickness
+from .thickness import choose_thickness, default_thickness
 
 _logger = logging.getLogger(__name__)
 
@@ -131,6 +131,24 @@ class AwProfileSection(models.Model):
             preferred.name if preferred else '', sorted(by_name))
         return (by_name.get(chosen, preferred),
                 '%s %s' % (template.name, problem) if problem else '')
+
+    @api.model
+    def _default_thickness_for(self, template, preferred, used=()):
+        """The thickness for a component ADDED to a window (or a profile
+        changed on one): never empty while the profile offers any, so the
+        row exists with chips like the others. `used` are thickness values
+        the window's other lines carry. See thickness.default_thickness."""
+        attribute = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness',
+            raise_if_not_found=False)
+        if not (template and attribute):
+            return preferred
+        by_name = {value.name: value for value in self.env[
+            'aw.profile.section.line']._template_values(template, attribute)}
+        chosen = default_thickness(
+            sorted(by_name), [v.name for v in used],
+            preferred.name if preferred else '')
+        return by_name.get(chosen, self.env['product.attribute.value'])
 
     @api.model
     def _fix_dg_openable_thickness(self):

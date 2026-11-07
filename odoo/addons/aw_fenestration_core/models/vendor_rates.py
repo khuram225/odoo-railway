@@ -16,7 +16,9 @@ from odoo.exceptions import UserError, ValidationError
 from .finish_names import norm_name
 from .glass_paste import (
     norm_type, parse_glass_paste_report, parse_thickness)
-from .rate_paste import normalise_code, normalise_text, parse_paste
+from odoo.tools.misc import format_date
+from .rate_paste import (
+    normalise_code, normalise_text, parse_paste, validate_paste)
 
 _logger = logging.getLogger(__name__)
 
@@ -457,8 +459,9 @@ class AwVendorThicknessAlias(models.Model):
 
 
 class AwVendorAlias(models.Model):
-    """A vendor's code (and thickness) mapped to one of our profiles,
-    saved the first time somebody picks the product for an unmatched row."""
+    """A vendor's code (and thickness) mapped to one of our profiles, saved
+    when a Rates manager ticks "Remember this code" in the Match to product
+    dialog; it is never saved on its own."""
     _name = 'aw.vendor.alias'
     _description = 'Vendor Profile Alias'
 
@@ -499,6 +502,14 @@ class AwVendorRateList(models.Model):
     state = fields.Selection([
         ('draft', 'Draft'), ('applied', 'Applied'),
     ], default='draft', required=True, tracking=True)
+    # The guided screen's steps. Review and Confirm come with the next
+    # releases; today a draft goes Choose -> Data in, and an applied list is
+    # at Confirm.
+    date_warning = fields.Char(compute='_compute_date_warning')
+    step = fields.Selection([
+        ('choose', '1. Choose'), ('data', '2. Data in'),
+        ('review', '3. Review'), ('confirm', '4. Confirm'),
+    ], default='choose', required=True, copy=False)
     line_ids = fields.One2many(
         'aw.vendor.rate.list.line', 'list_id', string='Lines')
     paste_text = fields.Text(
@@ -669,7 +680,30 @@ class AwVendorRateList(models.Model):
         if self.kind == 'glass':
             return self._parse_glass_paste()
         layout = self._require_layout()
-        rows = parse_paste(self.paste_text, layout._kinds())
+        columns = [{
+            'kind': c.kind, 'header': c.header or '',
+            'finish': c.finish_id.name or '',
+        } for c in layout.column_ids.sorted('sequence')]
+        others = [{
+            'vendor': other.vendor_id.display_name,
+            'width': len(other.column_ids),
+        } for other in self.env['aw.vendor.layout'].search(
+            [('vendor_id', '!=', self.vendor_id.id)])]
+        result = validate_paste(self.paste_text, columns, others)
+        if result['errors']:
+            shown = result['errors'][:5]
+            more = len(result['errors']) - len(shown)
+            raise UserError(_(
+                "Nothing was imported from this paste. Vendor: %(vendor)s. "
+                "Layout: %(layout)s, %(count)s columns (%(columns)s). Your "
+                "text is still in the box.\n%(problems)s%(more)s",
+                vendor=self.vendor_id.display_name,
+                layout=layout.display_name, count=len(columns),
+                columns=', '.join(c['header'] or c['finish'] or c['kind']
+                                  for c in columns),
+                problems='\n'.join(e['message'] for e in shown),
+                more=_("\nand %s more.", more) if more else ''))
+        rows = result['rows']
         if not rows:
             columns = layout.column_ids.sorted('sequence')
             described = ', '.join(
@@ -697,8 +731,30 @@ class AwVendorRateList(models.Model):
             **{'rate_%s' % (i + 1): (rate or 0.0)
                for i, rate in enumerate(row['rates'][:count])})
             for index, row in enumerate(rows)])
+        summary = result['summary']
+        self._keep_original(self.paste_text)
+        if summary['no_price_cells']:
+            # An empty price is never written as 0: the line carries no
+            # price for that finish and Apply skips it.
+            self.message_post(body=_(
+                "Pasted %(rows)s row(s). %(cells)s price cell(s) are empty "
+                "(no price): they are kept empty and are not written.",
+                rows=summary['rows'], cells=summary['no_price_cells']))
         self.paste_text = False
         return True
+
+    def _keep_original(self, text, name=None):
+        """The pasted text stays attached to the list, so what was imported
+        can always be looked at again."""
+        self.ensure_one()
+        if not (text or '').strip():
+            return False
+        return self.env['ir.attachment'].create({
+            'name': name or 'pasted-%s.txt' % fields.Datetime.now().strftime(
+                '%Y-%m-%d-%H%M%S'),
+            'res_model': self._name, 'res_id': self.id,
+            'raw': text.encode('utf-8'), 'mimetype': 'text/plain',
+        })
 
     def _parse_glass_paste(self):
         """Glass type, thickness, price per sqft: one line per type and
@@ -717,6 +773,7 @@ class AwVendorRateList(models.Model):
             'list_id': self.id, 'sequence': start + 10 * index,
             'code': row['type'], 'thickness_text': row['thickness'],
             'rate_1': row['price']} for index, row in enumerate(rows)])
+        self._keep_original(self.paste_text)
         self.paste_text = False
         if skipped:
             # A line with a number that is not type + thickness + price is
@@ -878,11 +935,90 @@ class AwVendorRateList(models.Model):
             'result': False, 'detail': False, 'cells_applied': 0,
             'cells_skipped': 0, 'cells_failed': 0, 'cells_conflict': 0})
         self.state = 'draft'
+        self.step = 'data'
         self._follow_variant_costs(affected)
         self.message_post(body=_(
-            "Set to draft: %s rate(s) removed; the lines are kept.",
+            "Undone: %s rate(s) removed; the rows are kept.",
             deleted))
         return True
+
+    # ------------------------------------------------------------ guided steps
+    def _newest_rate_date(self):
+        """The start date of the newest rate in force for this vendor and
+        kind (not counting rates this very list wrote), or nothing."""
+        self.ensure_one()
+        today = fields.Date.context_today(self)
+        domain = [('vendor_id', '=', self.vendor_id.id),
+                  ('date_from', '<=', today)]
+        if self._origin.id:
+            domain.append(('rate_list_id', '!=', self._origin.id))
+        latest = self.env[self._rate_model()].with_context(
+            active_test=False).search(domain, order='date_from desc', limit=1)
+        return latest.date_from
+
+    @api.depends('vendor_id', 'kind', 'date', 'state')
+    def _compute_date_warning(self):
+        """A warning, never a stop. A vendor-wide rule was too strict: a
+        list dated before the vendor's newest rates can still be right (it
+        touches other profiles, or it is an old list being re-applied). The
+        stop is per ROW, at Review: a row whose key already has a newer
+        rate in force."""
+        for rec in self:
+            newest = (rec._newest_rate_date()
+                      if rec.vendor_id and rec.state == 'draft' else False)
+            if not newest:
+                rec.date_warning = False
+                continue
+            text = _("Newest rate in force for this vendor: %s.",
+                     format_date(rec.env, newest, date_format='d MMM yyyy'))
+            if rec.date and rec.date < newest:
+                text += ' ' + _(
+                    "Your date is earlier, so any row whose product and "
+                    "thickness already have a newer rate will be stopped "
+                    "at Review.")
+            rec.date_warning = text
+
+    def action_next_step(self):
+        """Choose -> Data in, once vendor, kind and date are settled."""
+        self.ensure_one()
+        if self.state != 'draft':
+            raise UserError(_("This list is already applied."))
+        if not self.vendor_id:
+            raise UserError(_("Choose the vendor first."))
+        if not self.date:
+            raise UserError(_(
+                "Choose the date these rates start on. It has no default, "
+                "so that a list is never dated by accident."))
+        if self.kind == 'profile' and not self.layout_id:
+            raise UserError(_(
+                "%s has no rate sheet layout yet, so its columns cannot be "
+                "read. Describe them under Vendor Layouts first.",
+                self.vendor_id.display_name))
+        self.step = 'data'
+        return True
+
+    def action_back_to_choose(self):
+        self.ensure_one()
+        if self.state == 'draft':
+            self.step = 'choose'
+        return True
+
+    @api.model
+    def _migrate_steps(self):
+        """Lists from before the steps: an applied one is at Confirm, a
+        draft that has rows is at Data in. Once."""
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param('aw_fenestration.rate_list_steps_migrated'):
+            return 0
+        done = 0
+        for rate_list in self.with_context(active_test=False).search([]):
+            step = ('confirm' if rate_list.state == 'applied'
+                    else 'data' if rate_list.line_ids else 'choose')
+            if rate_list.step != step:
+                rate_list.step = step
+                done += 1
+        param.set_param('aw_fenestration.rate_list_steps_migrated', '1')
+        return done
 
     def action_apply(self):
         """Write the rates. Unmatched rows are never applied."""
@@ -891,6 +1027,21 @@ class AwVendorRateList(models.Model):
             raise UserError(_("This list is already applied."))
         self._apply()
         return True
+
+    def _unchanged(self, Rate, key, price):
+        """True when the rate in force for this key on the list's date is
+        already this price and started EARLIER: writing it again would only
+        add a new version with the same number. `key` is the apply key,
+        whose last term is the list's date."""
+        base = [term for term in key if term[0] != 'date_from']
+        current = Rate.with_context(active_test=False).search(
+            base + [('date_from', '<', self.date),
+                    ('rate_list_id', '!=', self.id)],
+            order='date_from desc, id desc', limit=1)
+        same_day = Rate.with_context(active_test=False).search_count(
+            base + [('date_from', '=', self.date)])
+        return bool(current) and not same_day \
+            and abs(current.price - price) < 0.005
 
     def _apply(self):
         """The work of Apply, repeatable: a rate is looked up by profile,
@@ -984,6 +1135,9 @@ class AwVendorRateList(models.Model):
                     ('finish_id', '=', column.finish_id.id),
                     ('vendor_id', '=', self.vendor_id.id),
                     ('date_from', '=', self.date)]
+                if self.env.context.get('aw_skip_unchanged') \
+                        and self._unchanged(Rate, key, price):
+                    continue
                 existing = Rate.search(key, limit=1)
                 values = {
                     'price': price, 'vendor_series': line.series,
@@ -1086,6 +1240,12 @@ class AwVendorRateList(models.Model):
                    ('thickness_mm', '=', thickness),
                    ('vendor_id', '=', self.vendor_id.id),
                    ('date_from', '=', self.date)]
+            if self.env.context.get('aw_skip_unchanged') \
+                    and self._unchanged(Rate, key, line.rate_1):
+                line.write({'result': _("Unchanged"), 'cells_applied': 0,
+                            'cells_skipped': 0, 'cells_failed': 0,
+                            'cells_conflict': 0, 'detail': False})
+                continue
             values = {'price': line.rate_1, 'source_note': self.name,
                       'rate_list_id': self.id}
             existing = Rate.search(key, limit=1)
@@ -1408,10 +1568,9 @@ class AwVendorRateListLine(models.Model):
         if manual and not self.env.context.get('aw_no_alias'):
             vals = dict(vals, match_source='manual')
         result = super().write(vals)
-        if manual and vals.get('product_tmpl_id') \
-                and not self.env.context.get('aw_no_alias'):
-            for line in self:
-                line._save_alias()
+        # No alias is made here any more: a picked product is remembered only
+        # through the Match to product dialog (rate_match.py), where it is
+        # unticked by default, Rates manager only, and logged.
         if ('code' in vals or 'thickness_text' in vals) and not manual \
                 and not self.env.context.get('aw_auto_match'):
             self._auto_match()
@@ -1421,21 +1580,3 @@ class AwVendorRateListLine(models.Model):
                      or any(k.startswith('rate_') for k in vals)):
             self._refresh_need()
         return result
-
-    def _save_alias(self):
-        """The product was picked by hand: remember it, once."""
-        self.ensure_one()
-        Alias = self.env['aw.vendor.alias']
-        key = [('vendor_id', '=', self.vendor_id.id),
-               ('code_norm', '=', self.code_norm),
-               ('thickness_text', '=', self.thickness_norm or False)]
-        found = Alias.search(key, limit=1)
-        values = {'product_tmpl_id': self.product_tmpl_id.id}
-        if found:
-            found.write(values)
-        else:
-            Alias.create(dict(
-                values, vendor_id=self.vendor_id.id,
-                code_norm=self.code_norm,
-                thickness_text=self.thickness_norm or False))
-        self.with_context(aw_auto_match=True)._auto_match()

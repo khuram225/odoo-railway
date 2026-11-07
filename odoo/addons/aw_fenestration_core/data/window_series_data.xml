@@ -28,6 +28,9 @@
              already point at the surviving records when it looks them
              up. -->
         <function model="aw.profile.position" name="_seed_palay_bead_positions"/>
+        <!-- Once: the three unused "Palay Bead" positions the seed above
+             used to make after the catalog had renamed the real ones. -->
+        <function model="aw.profile.position" name="_retire_palay_bead_duplicates"/>
         <function model="aw.profile.position" name="_seed_bom_defaults"/>
         <function model="aw.profile.position" name="_seed_required_flags"/>
         <function model="aw.profile.position" name="_seed_part_groups"/>
@@ -49,6 +52,8 @@
         <function model="aw.window.template" name="_rename_seeded_spec"/>
         <function model="aw.hardware.set.line" name="_seed_qty_formulas"/>
         <function model="aw.price.structure" name="_seed_default_structure"/>
+        <function model="aw.price.structure" name="_add_missing_lines"/>
+        <function model="aw.vendor.rate.list" name="_migrate_steps"/>
         <function model="aw.profile.rate" name="_backfill_date_to"/>
         <function model="aw.profile.rate" name="_backfill_rate_list_ids"/>
         <!-- One time: Chawla into CHAWLA ALUMINIUM. After the backfills, so
@@ -68,6 +73,8 @@
         <function model="aw.profile.position" name="_seed_catalog"/>
         <function model="res.config.settings" name="_migrate_length_uom"/>
         <function model="aw.window.template" name="_sync_all_catalog_lines"/>
+        <!-- Fixed and Mesh panels need no hardware; once, then editable. -->
+        <function model="aw.leaf.type" name="_seed_needs_hardware"/>
         <!-- The old flat glass (11 specs, 11 products), once and last, in
              SQL: verified first, never fails the upgrade. -->
         <function model="aw.glass.type" name="_retire_flat_glass"/>

@@ -11,6 +11,8 @@ const STUBS = `
 const Component = class {};
 const useState = (o) => o;
 const SizeBox = class {};
+const Many2One = class {};
+const FormViewDialog = class {};
 const useRef = () => ({ el: null });
 const onWillStart = () => {};
 const onMounted = () => {};
@@ -1341,6 +1343,311 @@ console.log("\n  the Frame label is the SHORT name:");
     c.state.data.system_short = "";
     ok(c.systemLabel === "Double Glaze - Openable",
        "no short form falls back to the full name rather than going blank");
+}
+
+{
+    // The Panel tab's unit switch: display only, mm stays the stored value.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "FIXED"), panel(600, "FIXED"),
+    ] }], 1200, 1500);
+    c.notification = { add: () => {} };
+    c.selectLeaf([[0, 0]]);
+    c.setUnitMode("mm");
+    ok(c.state.unitMode === "mm" && !c.showIn && c.showMm, "mm shows only the mm boxes");
+    c.setUnitMode("in");
+    ok(c.showIn && !c.showMm, "in shows only the inch boxes");
+    c.setUnitMode("both");
+    ok(c.showIn && c.showMm, "both shows both");
+    c.setUnitMode("feet");
+    ok(c.state.unitMode === "both", "an unknown mode is ignored");
+    ok(c.panelWidthBox("mm") === "600", "the mm box shows the stored 600");
+    c.setPanelWidth("700", "mm");
+    near(c.state.data.rows[0].leaves[0].width_mm, 700, "typing mm stores exactly that");
+    c.setPanelWidth("24", "in");
+    near(c.state.data.rows[0].leaves[0].width_mm, 24 * 25.4, "typing inches stores mm");
+    const both = c.modeLengthPair(1829, 1791);
+    ok(both.includes(" mm") && both.includes(" in"), "both shows inches and mm");
+    c.setUnitMode("mm");
+    ok(c.modeLengthPair(1829, 1791) === "1829 \u00d7 1791 mm", "mm only reads in mm");
+    ok(c.profileText({ profile_code: "HD-14", profile_name: "Frame" }) === "HD-14 Frame",
+       "a piece reads as code and name");
+    ok(c.profileText({ profile_code: "HD-14", profile_name: "HD-14 Frame" }) === "HD-14 Frame",
+       "a name that already starts with the code is not doubled");
+}
+
+{
+    // Hardware per panel: own rows, the rate used, copying.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"), panel(600, "CASEMENT"),
+    ] }], 1200, 1500);
+    c.notification = { add: () => {} };
+    c.state.data.hardware_products = [{ id: 7, name: "Roller", cost: 50 }];
+    c.selectLeaf([[0, 0]]);
+    ok(c.panelFollowsSpecHardware, "a panel with no rows follows the spec");
+    c.addHardware();
+    ok(!c.panelFollowsSpecHardware && c.panelHardware.length === 1,
+       "adding a row makes the panel use its own");
+    c.setHardwareProduct(0, "7");
+    c.setHardwareQty(0, "3");
+    const row = c.panelHardware[0];
+    ok(row.product_id === 7 && row.name === "Roller", "the product is picked by id");
+    ok(c.hardwareRateUsed(row) === 50, "the rate used defaults to the product cost");
+    near(c.hardwareCost(row), 150, "cost is qty x rate");
+    c.setHardwareRate(0, "70");
+    ok(row.rate_manual && c.hardwareRateUsed(row) === 70, "a typed rate is manual");
+    near(c.panelHardwareCost, 210, "the panel total follows the typed rate");
+    c.resetHardwareRate(0);
+    ok(!row.rate_manual && c.hardwareRateUsed(row) === 50, "Reset returns the product cost");
+    c.copyHardwareToOthers();
+    const other = c.state.data.rows[0].leaves[1];
+    ok((other.hardware || []).length === 1 && other.hardware[0] !== row
+       && other.hardware[0].qty === 3, "copied to the other panel as its own row");
+    other.hardware[0].qty = 9;
+    ok(row.qty === 3, "the copy is independent of the original");
+    c.followSpecHardware();
+    ok(c.panelFollowsSpecHardware, "Follow the spec clears the panel's rows");
+    c.selectLeaf([[0, 1]]);
+    c.copyHardwareFromPanel({ target: { value: "1" } });
+    ok(c.panelHardware.length === 0, "copying from a panel with none leaves none");
+}
+
+{
+    // Checks as links: a click selects the panel, opens the tab, opens the
+    // section; a record opens in a dialog.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"), panel(600, "CASEMENT"),
+    ] }], 1200, 1500);
+    c.notification = { add: () => {} };
+    c.state.collapsed = { hardware: true };
+    c.state.rightTab = "checks";
+    c.goToCheck({ target_kind: "hardware", panel_no: 2 });
+    ok(JSON.stringify(c.state.selected) === JSON.stringify([[0, 1]]),
+       "a hardware check selects panel 2");
+    ok(c.state.rightTab === "panel", "and opens the Panel tab");
+    ok(c.state.collapsed.hardware === false, "and opens the Hardware section");
+    ok(c.checkTargetName({ target_kind: "hardware" }) === "hardware"
+       && c.checkTargetName({ target_kind: "glass" }) === "glass",
+       "the row to flash is named by the check");
+    ok(c.checkTargetName({ target_kind: "piece", target_key: "5|1|1|1" })
+       === "piece:5|1|1|1", "a piece is found by its stable key");
+    c.goToCheck({ target_kind: "panel", panel_no: 0 });
+    ok(c.state.selected === null, "panel 0 is the frame: nothing selected");
+    let warned = 0;
+    c.notification = { add: () => { warned += 1; } };
+    c.goToCheck({ target_kind: "glass", panel_no: 9 });
+    ok(warned === 1, "a panel that is gone says so rather than doing nothing");
+    let opened = null;
+    c.dialog = { add: (component, props) => { opened = props; } };
+    c.goToCheck({ target_kind: "record", target_model: "product.product",
+                  target_res_id: 42, message: "Roller has no cost price" });
+    ok(opened && opened.resModel === "product.product" && opened.resId === 42
+       && opened.canExpand === true, "a record opens in a dialog with Expand");
+    ok(c.checkHasTarget({ target_kind: "panel" }) && !c.checkHasTarget({ target_kind: "" }),
+       "only a check with a target is a link");
+}
+
+{
+    // Mesh cloth: the rate used, a typed rate, Reset, the quantity text.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"),
+    ] }], 600, 1500);
+    c.notification = { add: () => {} };
+    c.state.data.mesh_types = [{
+        id: 9, name: "Zig-zag mesh", mechanism: "zigzag", cloth_cost: 40,
+        cloth_name: "Mesh cloth - Zig-zag",
+    }];
+    c.selectLeaf([[0, 0]]);
+    const leaf = c.state.data.rows[0].leaves[0];
+    leaf.mesh_type_id = 9;
+    ok(c.meshClothListRate === 40 && c.meshClothRateUsed === 40,
+       "the cloth rate used defaults to the product cost");
+    c.setMeshRate("50");
+    ok(leaf.mesh_rate_manual && c.meshClothRateUsed === 50, "a typed cloth rate is manual");
+    c.resetMeshRate();
+    ok(!leaf.mesh_rate_manual && c.meshClothRateUsed === 40, "Reset returns the product cost");
+    ok(c.meshQtyText({ area_sqft: 19.654, unit_cost: 40, line_cost: 786.16 })
+       === "19.65 sqft \u00d7 40.00 = 786.16", "the quantity reads in sqft with the unit");
+    c.setMeshRate("50");
+    c.applyMesh(9);                 // takes the mesh off again
+    ok(!leaf.mesh_rate_manual, "a rate typed for one cloth is not the next one's");
+}
+
+{
+    // Money and quantities: two decimals, thousands separators; lengths keep inches.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "FIXED"),
+    ] }], 600, 1500);
+    ok(c.costText(1234.5) === "1,234.50", "an amount shows two decimals and a separator");
+    ok(c.costText(0) === "0.00" && c.costText(undefined) === "0.00", "zero and nothing show 0.00");
+    ok(c.costText(1234567.891) === "1,234,567.89", "millions are grouped");
+    ok(c.costText(-5) === "-5.00", "a negative amount keeps its sign");
+    ok(c.costText(786.155) === "786.16" || c.costText(786.155) === "786.15",
+       "rounded to two decimals only for display");
+    c.state.data.pricing = { currency: "Rs." };
+    ok(c.formatMoney(151218.5125) === "Rs. 151,218.51", "formatMoney: symbol, grouping, 2 decimals");
+    ok(c.formatMoney(40) === "Rs. 40.00", "a whole amount still shows .00");
+    ok(c.meshQtyText({ area_sqft: 19.654, unit_cost: 1200, line_cost: 23584.8 })
+       === "19.65 sqft \u00d7 1,200.00 = 23,584.80", "sqft and the amounts use the same rule");
+    ok(c.rightTabs.find((t) => t.key === "spec").label === "Parts", "the spec tab reads Parts");
+}
+
+{
+    // Price build-up: the rows come from the server; the client only formats them.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "FIXED"),
+    ] }], 600, 1500);
+    c.state.data.pricing = { currency: "Rs.", margin_pct: 20, min_margin_pct: 15,
+        build_up: [{ key: "profiles", label: "Profiles", amount: 100, kind: "base" }] };
+    ok(c.pricingBuildUp.length === 1, "the Pricing tab reads the server's rows");
+    ok(c.buildUpRate({ percent: 8, unit: "%" }) === "8.00%", "a percentage row shows 8.00%");
+    ok(c.buildUpRate({ percent: 0, unit: "%" }) === "0.00%", "a 0% row still shows 0.00%");
+    ok(c.buildUpRate({ percent: null, rate: 450, unit: "per m\u00b2" }).endsWith("per m\u00b2"),
+       "a rate row shows its unit");
+    ok(c.buildUpRate({ percent: null, rate: 0, unit: "" }) === "", "a plain row shows no rate");
+    ok(c.buildUpClass({ kind: "total" }).includes("fw-bold"), "the price row is bold");
+}
+
+{
+    // The Glass section collapses by its heading, remembers it, and is a
+    // section of its own beside Mesh and Hardware (not inside Infill).
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"),
+    ] }], 600, 1500);
+    const store = {};
+    const saved = globalThis.window.localStorage;
+    globalThis.window.localStorage = {
+        setItem: (k, v) => { store[k] = v; },
+        getItem: (k) => (k in store ? store[k] : null),
+    };
+    c.state.collapsed = {};
+    ok(!c.isCollapsed("glass"), "Glass starts open");
+    c.toggleSection("glass");
+    ok(c.isCollapsed("glass") && c.sectionIcon("glass") === "fa fa-chevron-right",
+       "clicking the heading closes it and turns the arrow");
+    ok(JSON.parse(store.aw_cfg_collapsed).glass === true, "and the state is kept");
+    c.toggleSection("glass");
+    ok(!c.isCollapsed("glass") && c.sectionIcon("glass") === "fa fa-chevron-down",
+       "clicking again opens it");
+    ok(JSON.parse(store.aw_cfg_collapsed).glass === false, "open is kept too");
+    c.toggleSection("glass");
+    c.toggleSection("infill");
+    ok(c.isCollapsed("glass"), "closing Infill does not touch Glass");
+    c.toggleSection("infill");
+    c.state.collapsed = { glass: true };
+    c.selectLeaf([[0, 0]]);
+    c.goToCheck({ target_kind: "glass", panel_no: 1 });
+    ok(c.state.collapsed.glass === false, "a Checks link to glass opens the section");
+    c.toggleSection("glass");
+    c.setAllCollapsed(["panel", "infill", "mesh", "glass", "hardware", "grid"], false);
+    ok(["panel", "infill", "mesh", "glass", "hardware", "grid"].every((k) => !c.isCollapsed(k)),
+       "Expand all opens Glass too");
+    globalThis.window.localStorage = saved;
+
+    // the markup: the heading's handler, and not nested inside Infill's content
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    const head = xml.indexOf("toggleSection('glass')");
+    const infill = xml.indexOf("<t t-if=\"!isCollapsed('infill')\">");
+    ok(head > 0 && infill > 0 && head > infill, "the Glass heading is bound to toggleSection('glass')");
+    let depth = 0;
+    for (const m of xml.slice(infill, head).matchAll(/<t(?=[\s>])[^>]*?(\/?)>|<\/t>/g)) {
+        if (m[0] === "</t>") {
+            depth -= 1;
+        } else if (m[1] !== "/") {
+            depth += 1;
+        }
+    }
+    ok(depth === 1, "and the heading sits outside Infill's content, inside only its own glazed-panel test (depth " + depth + ")");
+    ok(xml.includes("isCollapsed('glass')"), "the stack hides when the section is closed");
+    ok(xml.includes("toggleSection('grid')") && xml.includes("toggleSection('hardware')")
+       && xml.includes("toggleSection('mesh')"),
+       "Mesh, Hardware and the Georgian bars have their arrows too");
+}
+
+{
+    // The Form is the History page: its button, its method, and no text that
+    // sends the user to "the form".
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    ok(/t-on-click="openHistory"[^>]*>\s*History\s*</.test(xml), "the top-bar button reads History");
+    ok(!/t-on-click="openForm"/.test(xml), "and nothing calls openForm any more");
+    ok(typeof DesignConfigurator.prototype.openHistory === "function"
+       && typeof DesignConfigurator.prototype.openForm === "undefined", "openHistory replaced openForm");
+    ok(!/from the form/i.test(xml), "no text says to generate the cut list from the form");
+}
+
+{
+    // Parts tab: glass (window default), glass on panels, hardware on panels.
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [
+        panel(600, "CASEMENT"), panel(600, "FIXED"), panel(600, "CASEMENT"),
+    ] }], 1800, 1500);
+    c.notification = { add: () => {} };
+    c.state.data.hardware_products = [{ id: 7, name: "Roller", cost: 50 }];
+    c.state.data.header.glass_stack = [
+        { kind: "sheet", label: "6 mm Clear" }, { kind: "gap", label: "12 mm gap" },
+        { kind: "sheet", label: "6 mm Clear" }];
+    const leaves = c.state.data.rows[0].leaves;
+    leaves[2].glass_parts = [{ kind: "sheet", label: "8 mm Ford Blue" }];
+    leaves[0].hardware = [
+        { product_id: 7, name: "Roller", qty: 2, rate_manual: false, manual_rate: 0, list_rate: 50 },
+        { product_id: 7, name: "Roller", qty: 1, rate_manual: true, manual_rate: 70, list_rate: 50 }];
+
+    // the window default is a collapsed section like Outer frame
+    c.state.collapsed = {};
+    ok(c.isCollapsed("prof:glass"), "Glass (window default) starts collapsed");
+    const store = {};
+    const saved = globalThis.window.localStorage;
+    globalThis.window.localStorage = {
+        setItem: (k, v) => { store[k] = v; }, getItem: (k) => (k in store ? store[k] : null) };
+    c.toggleSection("prof:glass");
+    ok(!c.isCollapsed("prof:glass") && JSON.parse(store.aw_cfg_collapsed)["prof:glass"] === false,
+       "its heading opens it and the state is kept");
+    globalThis.window.localStorage = saved;
+    ok(c.headerStack.length === 3, "the badge is the number of layers");
+
+    // glass on panels: one row per panel that takes glass
+    const rows = c.panelGlassRows;
+    ok(rows.map((r) => r.no).join() === "1,2,3", "a row per panel");
+    ok(rows[0].follows && rows[0].summary === "6 mm Clear + 12 mm gap + 6 mm Clear",
+       "a panel that follows shows the window's stack");
+    ok(!rows[2].follows && rows[2].summary === "8 mm Ford Blue", "a panel with its own shows its own");
+
+    // hardware on panels: one row per hardware row, and the badge is the total
+    const hw = c.panelHardwareRows;
+    ok(hw.length === 2 && hw[0].no === 1 && hw[0].name === "Roller", "a row per hardware row, with its panel");
+    ok(hw[0].rate === 50 && hw[0].cost === 100 && !hw[0].manual, "list rate and cost");
+    ok(hw[1].rate === 70 && hw[1].cost === 70 && hw[1].manual, "a typed rate is shown as manual");
+    c.state.data.spec_parts = { hardware: [{ line_id: 1 }, { line_id: 2 }, { line_id: 3 }] };
+    ok(c.partsHardwareCount === 5, "the badge is the series set plus the panel rows");
+
+    // a click selects the panel and opens its section
+    c.state.collapsed = {};
+    c.state.rightTab = "spec";
+    c.goToPanelGlass(3);
+    ok(JSON.stringify(c.state.selected) === JSON.stringify([[0, 2]]) && c.state.rightTab === "panel"
+       && c.state.collapsed.glass === false, "a glass row selects the panel and opens Glass");
+    c.state.rightTab = "spec";
+    c.goToPanelHardware(1);
+    ok(JSON.stringify(c.state.selected) === JSON.stringify([[0, 0]]) && c.state.rightTab === "panel"
+       && c.state.collapsed.hardware === false, "a hardware row selects the panel and opens Hardware");
+    // Checks links still go the same way
+    c.goToCheck({ target_kind: "hardware", panel_no: 3 });
+    ok(JSON.stringify(c.state.selected) === JSON.stringify([[0, 2]]), "Checks links keep working");
+
+    // the markup
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    ok(xml.includes("Glass (window default)") && !xml.includes("Window glass (new panels start from this)"),
+       "the window glass section is renamed");
+    ok(xml.includes("toggleSection('prof:glass')") && xml.includes("toggleSection('prof:panelglass')"),
+       "both glass sections have an arrow");
+    ok(xml.includes('data-aw-parts="series-set"') && xml.includes('data-aw-parts="on-panels"'),
+       "Hardware has Series set and On panels");
+    ok(xml.includes("No hardware yet. Select a panel and use + Hardware in the Panel tab."),
+       "the empty text says what to do");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

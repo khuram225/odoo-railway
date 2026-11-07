@@ -37,6 +37,7 @@
                             <field name="name"/>
                             <field name="code"/>
                             <field name="mechanism"/>
+                            <field name="cloth_product_id"/>
                             <field name="pull"
                                    invisible="mechanism in ('fixed', 'hinged')"/>
                         </group>

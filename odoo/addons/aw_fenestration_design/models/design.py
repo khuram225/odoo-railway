@@ -278,7 +278,13 @@ class AwDesign(models.Model):
         # spec, and an unused one is a row for the form to grey out, not
         # a part of the window. This is the filter the configurator's
         # Profiles tab reads through as well.
-        return self.template_id.profile_line_ids.filtered('is_used')
+        # A Custom window has no spec at all (template_id is empty by design);
+        # so does a design on a series nobody has made a spec for yet. Both
+        # have no spec lines, not an error: the checks say a window with no
+        # profile lines has none.
+        if not self.template_id:
+            return self.env['aw.profile.section.line']
+        return self.template_id._live_profile_lines()
 
     def _spec_hardware_lines(self):
         """This window's hardware lines: the spec's own."""
@@ -663,6 +669,8 @@ class AwDesign(models.Model):
         return res
 
     def action_open_design(self):
+        """The design's History page (its form): facts, price summary and
+        chatter. Windows are worked on in the configurator."""
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
@@ -761,6 +769,8 @@ class AwDesign(models.Model):
                 'mesh_type_code': leaf.mesh_type_id.code or '',
                 'mesh_hinge_side': leaf.mesh_hinge_side or '',
                 'mesh_cassette_side': leaf.mesh_cassette_side or '',
+                'mesh_rate_manual': leaf.mesh_rate_manual,
+                'mesh_manual_rate': leaf.mesh_manual_rate,
                 'infill_type_id': leaf.infill_type_id.id,
                 'infill_kind': leaf.infill_type_id.kind or 'glass',
                 'infill_uses_glass': (
@@ -773,6 +783,10 @@ class AwDesign(models.Model):
                         'sequence')]),
                 'glass_suggested': leaf.glass_suggested,
                 'glass_chosen': leaf.glass_chosen,
+                # The panel's OWN hardware; empty means it follows the
+                # spec's per-panel lines.
+                'hardware': [h._as_dict() for h in leaf.hardware_ids.sorted(
+                    'sequence')],
                 'grid_pattern_id': leaf.grid_pattern_id.id,
                 'grid_rows': leaf.grid_rows or 0,
                 'grid_cols': leaf.grid_cols or 0,
@@ -800,6 +814,7 @@ class AwDesign(models.Model):
                 'name': lt.display_name,
                 'has_hinge_side': lt.has_hinge_side,
                 'has_slide_dir': lt.has_slide_dir,
+                'needs_hardware': lt.needs_hardware,
             } for lt in series.leaf_type_ids],
             'presets': [self._preset_payload(p) for p in presets],
             'families': self._families_payload(presets),
@@ -1016,6 +1031,22 @@ class AwDesign(models.Model):
                   or '')
         return ' / '.join(f for f in (width, height) if f)
 
+    def _used_profile_thicknesses(self):
+        """Thickness values the window's profile lines use, most common
+        first: the spec's own lines and the profiles changed or added."""
+        self.ensure_one()
+        counts = {}
+        values = (self._spec_profile_lines().mapped('thickness_id')
+                  | self.override_ids.filtered(
+                      lambda o: o.kind == 'profile').mapped('thickness_id'))
+        for line in self._spec_profile_lines():
+            if line.thickness_id:
+                counts[line.thickness_id] = counts.get(line.thickness_id, 0) + 1
+        for change in self.override_ids.filtered(
+                lambda o: o.kind == 'profile' and o.thickness_id):
+            counts[change.thickness_id] = counts.get(change.thickness_id, 0) + 1
+        return sorted(values, key=lambda v: -counts.get(v, 0))
+
     def set_override(self, values):
         """Record (or update) one change for this window.
 
@@ -1064,15 +1095,17 @@ class AwDesign(models.Model):
             # spec's own line for this position uses.
             spec_line = self._spec_profile_lines().filtered(
                 lambda l, p=position: l.position_id == p)[:1]
-            thickness, problem = self.env['aw.profile.section']._seed_thickness_for(
-                template, spec_line.thickness_id)
             if values.get('thickness_id'):
                 thickness = self.env['product.attribute.value'].browse(
                     int(values['thickness_id']))
-            elif problem:
-                raise UserError(_(
-                    "%(problem)s. Pick the thickness on the Changes tab "
-                    "of the design form.", problem=problem))
+            else:
+                # Never empty and never an error: the position's own
+                # thickness if the profile has it, else what the window's
+                # other lines use, else the lowest offered. The row then
+                # shows its chips and the user changes it there.
+                thickness = self.env['aw.profile.section']._default_thickness_for(
+                    template, spec_line.thickness_id,
+                    self._used_profile_thicknesses())
             payload = {
                 'design_id': self.id,
                 'kind': 'profile',
@@ -1262,6 +1295,9 @@ class AwDesign(models.Model):
                 'family_name': m.family_id.name or '',
                 'family_sequence': (
                     m.family_id.sequence if m.family_id else 999),
+                'cloth_product_id': m.cloth_product_id.id or False,
+                'cloth_name': m.cloth_product_id.display_name or '',
+                'cloth_cost': m.cloth_product_id.standard_price or 0.0,
             } for m in available['mesh']],
             'infill_types': [{
                 'id': i.id, 'name': i.display_name, 'code': i.code or '',
@@ -1272,6 +1308,10 @@ class AwDesign(models.Model):
                     i.family_id.sequence if i.family_id else 999),
             } for i in available['infill']],
             'glass_catalog': self._glass_catalog(),
+            'hardware_products': self.env['aw.design.hardware']
+            ._product_catalogue(),
+            'hardware_category_id': self.env['aw.design.hardware']
+            ._hardware_category().id,
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
                 'kind': g.kind,
@@ -1390,8 +1430,12 @@ class AwDesign(models.Model):
                 # So the configurator can refuse an over-long piece the
                 # moment a size is typed, rather than only after a save
                 # that runs the explosion.
-                'max_piece_mm': self._max_piece_mm(),
-                'max_piece_label': self._format_length(self._max_piece_mm()),
+                'max_piece_mm': self._max_piece_mm(
+                    self.sale_order_id.aw_profile_vendor_id,
+                    any_profile=True),
+                'max_piece_label': self._format_length(self._max_piece_mm(
+                    self.sale_order_id.aw_profile_vendor_id,
+                    any_profile=True)),
             },
             'family_options': [
                 {'id': family.id, 'name': family.display_name,
@@ -1445,6 +1489,7 @@ class AwDesign(models.Model):
                 'name': lt.display_name,
                 'has_hinge_side': lt.has_hinge_side,
                 'has_slide_dir': lt.has_slide_dir,
+                'needs_hardware': lt.needs_hardware,
             } for lt in leaf_types],
             'presets': [self._preset_payload(p) for p in presets],
             'families': self._families_payload(presets),
@@ -1565,6 +1610,7 @@ class AwDesign(models.Model):
                 'glass_w': line.glass_w or 0.0,
                 'glass_h': line.glass_h or 0.0,
                 'area_sqm': line.area_sqm or 0.0,
+                'area_sqft': line.area_sqft or 0.0,
                 'is_changed': line.is_changed,
                 'change_note': line.change_note or '',
                 'group': line.group_label or '',
@@ -1579,8 +1625,18 @@ class AwDesign(models.Model):
             'pieces': [{
                 'id': line.id,
                 'panel_no': line.panel_no or 0,
+                'piece_key': line.piece_key or '',
                 'label': line.label or '',
                 **self._piece_part(line),
+                # The profile the piece is cut from, for the row's own
+                # "HD-14 Frame" link. Empty for a line with no product.
+                'profile_tmpl_id': line.product_id.product_tmpl_id.id or 0,
+                'profile_code': (line.product_id.default_code
+                                 or line.product_id.product_tmpl_id.default_code
+                                 or ''),
+                'profile_name': line.product_id.product_tmpl_id.name or '',
+                'size_w_mm': (line.glass_w or 0.0) if line.kind == 'mesh' else 0.0,
+                'size_h_mm': (line.glass_h or 0.0) if line.kind == 'mesh' else 0.0,
                 'group': line.group_label or '',
                 'qty': line.qty or 0,
                 'cut_angle': line.cut_angle or '',
@@ -1604,6 +1660,11 @@ class AwDesign(models.Model):
             'checks': [{
                 'level': c.level,
                 'message': c.message,
+                'target_kind': c.target_kind or '',
+                'panel_no': c.panel_no or 0,
+                'target_key': c.target_key or '',
+                'target_model': c.target_model or '',
+                'target_res_id': c.target_res_id or 0,
             } for c in self.check_line_ids],
         }
 
@@ -1654,6 +1715,10 @@ class AwDesign(models.Model):
                     'mesh_hinge_side': leaf.get('mesh_hinge_side') or False,
                     'mesh_cassette_side': (
                         leaf.get('mesh_cassette_side') or False),
+                    'mesh_rate_manual': bool(leaf.get('mesh_rate_manual')),
+                    'mesh_manual_rate': (
+                        float(leaf.get('mesh_manual_rate') or 0.0)
+                        if leaf.get('mesh_rate_manual') else 0.0),
                     'infill_type_id': leaf.get('infill_type_id') or False,
                     'glass_part_ids': self.env['aw.glass.part']
                     ._commands_from(leaf.get('glass_parts') or []),
@@ -1661,6 +1726,8 @@ class AwDesign(models.Model):
                         leaf.get('glass_suggested')
                         and leaf.get('glass_parts')),
                     'glass_chosen': bool(leaf.get('glass_chosen')),
+                    'hardware_ids': self.env['aw.design.hardware']
+                    ._commands_from(leaf.get('hardware') or []),
                     'grid_pattern_id': leaf.get('grid_pattern_id') or False,
                     'grid_rows': leaf.get('grid_rows') or 0,
                     'grid_cols': leaf.get('grid_cols') or 0,
@@ -1672,6 +1739,36 @@ class AwDesign(models.Model):
                     self._create_rows(
                         leaf_payload['rows'], parent_leaf=leaf,
                         depth=depth + 1)
+
+    def create_hardware_product(self, name):
+        """Quick create for the hardware picker: a name makes a product in
+        Fenestration / Hardware with no price."""
+        return self.env['aw.design.hardware']._create_product(name)
+
+    def hardware_from_spec(self, panel_no):
+        """The hardware the spec gives one panel, as rows a panel can own,
+        with the quantities as calculated. Read off the generated BOM, which
+        is exactly what the spec produced for that panel, so it is only
+        offered for a panel that follows the spec."""
+        self.ensure_one()
+        leaf = self._all_panels().filtered(
+            lambda l: l.panel_no == panel_no)[:1]
+        if not leaf:
+            return []
+        if leaf.hardware_ids:
+            raise UserError(_(
+                "Panel %s has its own hardware. Follow the spec first, then "
+                "add the spec's set.", panel_no))
+        units = max(1, self.qty or 1)
+        return [{
+            'product_id': line.product_id.id,
+            'name': line.product_id.display_name or '',
+            'qty': (line.qty or 0) / units,
+            'rate_manual': False, 'manual_rate': 0.0,
+            'list_rate': line.product_id.standard_price or 0.0,
+        } for line in self.bom_line_ids.filtered(
+            lambda l: l.kind == 'hardware' and l.panel_no == panel_no
+            and l.product_id)]
 
     def save_layout(self, payload):
         """Replace the whole row/leaf grid and the header in ONE call, so
@@ -1686,6 +1783,9 @@ class AwDesign(models.Model):
         filtered; this is not a security boundary, only a business rule.
         """
         self.ensure_one()
+        # What the glass and hardware looked like before this save, so the
+        # chatter can say what the save changed (see chatter_log.py).
+        before = self._stack_snapshot()
         incoming = payload.get('header') or {}
         header = {
             key: value for key, value in incoming.items()
@@ -1728,6 +1828,7 @@ class AwDesign(models.Model):
         # After the panels are numbered and sized, before the explosion
         # prices them: a suggested glass is part of the BOM.
         self._suggest_glass()
+        self._log_stack_changes(before)
         # Validated here, once, over the finished tree -- NOT by a
         # constraint on the leaf. A container leaf is created before its
         # sub-rows exist (they need its id), so at create time it looks

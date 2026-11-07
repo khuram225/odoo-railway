@@ -162,42 +162,53 @@ class AwDesign(models.Model):
         return keys
 
     def _missing_rate_info(self):
-        """([text], {bom line ids}): the profiles the costing vendor has
-        no rate for, one text per profile and thickness, naming the
-        vendor whose rate stands in, or saying the price is incomplete.
-        The same lookup the costing does, so this cannot disagree with
-        the number."""
+        """([text], {bom line ids}): see _missing_rate_entries."""
+        self.ensure_one()
+        entries = self._missing_rate_entries()
+        return ([e[0] for e in entries],
+                set().union(*[e[2] for e in entries]) if entries else set())
+
+    def _missing_rate_entries(self):
+        """[(text, profile template, {bom line ids})]: the profiles the
+        costing vendor has no rate for, one entry per profile and
+        thickness, naming the vendor whose rate stands in, or saying the
+        price is incomplete. The same lookup the costing does, so this
+        cannot disagree with the number. The template is where a Checks
+        row leads."""
         self.ensure_one()
         on_date = self._costing_date()
         vendor = self._costing_vendor()
         fallback = self._fallback_vendor()
-        texts, line_ids, seen = [], set(), set()
+        entries, by_key = [], {}
         for line, template, thickness, finish in self._profile_rate_keys():
             rate, _level, used_fallback = self._rate_with_fallback(
                 template, thickness, finish, on_date)
             if rate and not used_fallback:
                 continue
-            line_ids.add(line.id)
             key = (template.id, thickness.id if thickness else 0)
-            if key in seen:
+            if key in by_key:
+                by_key[key].add(line.id)
                 continue
-            seen.add(key)
+            line_ids = {line.id}
+            by_key[key] = line_ids
             label = ' '.join(filter(None, [
                 template.default_code or template.name,
                 thickness.name if thickness else '']))
             if rate:
-                texts.append(_(
+                entries.append((_(
                     "%(profile)s: no %(vendor)s rate, %(standin)s rate used",
                     profile=label, vendor=vendor.display_name or _('profile'),
-                    standin=fallback.display_name))
+                    standin=fallback.display_name),
+                    template, line_ids))
             else:
-                texts.append(_(
+                entries.append((_(
                     "%(profile)s: no %(vendor)s rate%(also)s, price "
                     "incomplete",
                     profile=label, vendor=vendor.display_name or _('profile'),
                     also=(_(" and no %s rate", fallback.display_name)
-                          if fallback else '')))
-        return texts, line_ids
+                          if fallback else '')),
+                    template, line_ids))
+        return entries
 
     def _profile_cost_by_vendor(self):
         """This window's profile cost at each vendor's rates in force,
@@ -240,6 +251,44 @@ class AwDesign(models.Model):
                 'is_order_vendor': vendor == order_vendor,
             })
         return sorted(out, key=lambda v: (not v['is_order_vendor'], v['name']))
+
+    def _glass_extra_problems(self):
+        """A gap whose spacer, or whose gas (other than Air), has no rate in
+        Glass Extras is costed at nothing, silently, by design: a missing
+        price there is expected until the supplier gives one. This names
+        each such panel and item so it can be seen. WARNING only: it
+        changes no price. The link goes to the panel's glass; Checks links
+        cannot open an action, so the text says where to add the rate.
+        """
+        self.ensure_one()
+        Extra = self.env['aw.glass.extra']
+        on_date = self._costing_date()
+        vendor = self._glass_vendor()
+        problems, seen = [], set()
+        for line in self.bom_line_ids.filtered(
+                lambda l: l.kind == 'glass' and l.glass_part_kind == 'gap'):
+            panel = line.panel_no or 0
+            spacer = (line.glass_spacer or '').strip()
+            gas = (line.glass_gas or '').strip()
+            key = ('spacer', panel, spacer.lower())
+            if spacer and key not in seen and not Extra._rate_for(
+                    'spacer', spacer, on_date, vendor):
+                seen.add(key)
+                problems.append(('warning', _(
+                    "Panel %(panel)s: the gap's spacer '%(spacer)s' has no "
+                    "rate, so the spacer is not in the price. Add it under "
+                    "Rates, Glass Extras.", panel=panel, spacer=spacer),
+                    self._target('glass', panel)))
+            key = ('gas', panel, gas.lower())
+            if gas and gas.lower() != 'air' and key not in seen \
+                    and not Extra._rate_for('gas', gas, on_date, vendor):
+                seen.add(key)
+                problems.append(('warning', _(
+                    "Panel %(panel)s: the gap's gas '%(gas)s' has no rate, so "
+                    "the gas is not in the price. Add it under Rates, Glass "
+                    "Extras.", panel=panel, gas=gas),
+                    self._target('glass', panel)))
+        return problems
 
     def _cost_glass_line(self, line, on_date):
         """(rate used, rate date, note) for one row of a panel's glass
@@ -355,6 +404,7 @@ class AwDesign(models.Model):
                         * rate.price * (line.qty or 0))
                     # A fallback is a rate for something else: never silent.
                     if used_fallback:
+                        line.rate_is_standin = True
                         note = _(
                             "No %(vendor)s rate for %(variant)s: %(standin)s "
                             "rate used.",
@@ -387,11 +437,54 @@ class AwDesign(models.Model):
                 unit_cost, rate_date, note = self._cost_glass_line(
                     line, on_date)
 
+            elif line.kind == 'mesh' and (line.glass_w or line.glass_h):
+                # The SIZED cloth line (a mesh type's own lines, such as
+                # the old generic "Mesh cloth" part, have no size and are
+                # costed as parts below). Cloth: ft2 x the cloth product's cost per ft2, unless
+                # a rate was typed for this panel. The piece count stays 1;
+                # the quantity the cloth is bought by is its area. Roll
+                # waste is NOT in this rate.
+                listed = line.product_id.standard_price or 0.0
+                name = line.product_id.display_name or line.label or _('mesh cloth')
+                area_sqft = (line.area_sqm or 0.0) * SQFT_PER_SQM
+                line.rate_list = listed
+                if line.rate_is_manual:
+                    unit_cost = line.manual_rate
+                    note = _(
+                        "%(name)s: manual rate %(used)g per sqft (product "
+                        "cost %(listed)g)",
+                        name=name, used=unit_cost, listed=listed)
+                else:
+                    unit_cost = listed
+                    if not unit_cost:
+                        note = _("%s has no cost per sqft", name)
+                line.line_cost = unit_cost * area_sqft
+
+            elif line.kind == 'hardware':
+                # The product's cost unless a rate was typed for this
+                # panel; the list rate is kept either way so the Cost
+                # breakdown can show both.
+                listed = line.product_id.standard_price or 0.0
+                name = line.product_id.display_name or _('hardware')
+                line.rate_list = listed
+                if line.rate_is_manual:
+                    unit_cost = line.manual_rate
+                    note = _(
+                        "%(name)s: manual rate %(used)g (product cost "
+                        "%(listed)g)",
+                        name=name, used=unit_cost, listed=listed)
+                else:
+                    unit_cost = listed
+                    if not unit_cost:
+                        note = _("%s has no cost price", name)
+                line.line_cost = unit_cost * (line.qty or 0)
+
             else:
                 unit_cost = line.product_id.standard_price or 0.0
                 line.line_cost = unit_cost * (line.qty or 0)
                 if not unit_cost:
-                    note = _("Product has no cost price")
+                    note = _("%s has no cost price",
+                             line.product_id.display_name or _('Product'))
 
             line.unit_cost = unit_cost
             line.rate_date = rate_date
@@ -402,54 +495,139 @@ class AwDesign(models.Model):
                  'area_sqm', 'area_sqft', 'manual_rate', 'qty')
     def _compute_pricing(self):
         for design in self:
-            values = design.price_structure_id._values()
-            profiles = glass = other = 0.0
-            uncosted = 0
-            for line in design.bom_line_ids:
-                # Only a line that carries NO cost is uncosted. A note on a
-                # line that was costed anyway (a fallback rate, the cost
-                # field standing in) is information, not a gap.
-                if line.cost_note and not line.line_cost:
-                    uncosted += 1
-                if line.kind == 'profile':
-                    profiles += line.line_cost
-                elif line.kind == 'glass':
-                    glass += line.line_cost
-                else:
-                    other += line.line_cost
-
-            # Everything below is for the WHOLE position, not one
-            # window. The BOM lines already carry the design's qty (the
-            # explosion multiplies by it), so area and the manual rate
-            # have to be multiplied to match -- otherwise a qty of 4
-            # would cost four windows and price one.
-            units = max(1, design.qty or 1)
-            total_sqm = (design.area_sqm or 0.0) * units
-            total_sqft = (design.area_sqft or 0.0) * units
-
-            material = (
-                profiles * (1 + values['profile_wastage'] / 100.0)
-                + glass * (1 + values['glass_wastage'] / 100.0)
-                + other)
-            labour = (values['fabrication_labour']
-                      + values['install_labour']) * total_sqm
-            cost = material + labour
-            basic = cost * (1 + values['profit'] / 100.0)
-
-            # manual_rate is per sqft and has always overridden the
-            # calculated price; it overrides the cascade's result, not
-            # the cost the margin is measured against.
-            price = (design.manual_rate * total_sqft
-                     if design.manual_rate else basic)
-
-            design.cost_total = cost
-            design.basic_value = basic
-            design.price_total = price
+            build = design._price_build_up()
+            design.cost_total = build['cost']
+            design.basic_value = build['basic']
+            design.price_total = build['price']
             design.price_per_sqft = (
-                price / total_sqft if total_sqft else 0.0)
+                build['price'] / build['total_sqft']
+                if build['total_sqft'] else 0.0)
             design.margin_pct = (
-                (price - cost) / price * 100.0 if price else 0.0)
-            design.uncosted_line_count = uncosted
+                (build['price'] - build['cost']) / build['price'] * 100.0
+                if build['price'] else 0.0)
+            design.uncosted_line_count = build['uncosted']
+
+    def _price_build_up(self):
+        """The whole price of this position, line by line.
+
+        THE one place the arithmetic lives: the stored cost and price
+        (`_compute_pricing`) and the Pricing tab's "Price build-up" both
+        read it, so what is shown cannot drift from what is charged.
+
+        In order: each kind of material, its wastage where it has one
+        (profile, glass, mesh CLOTH; hardware, infill and grid have none),
+        then fabrication and installation labour per m2 of the window,
+        which is COST; profit is a markup on cost; a manual rate per sqft
+        replaces the calculated price.
+
+        Everything is for the WHOLE position, not one window. The BOM lines
+        already carry the design's qty (the explosion multiplies by it), so
+        area and the manual rate are multiplied to match -- otherwise a qty
+        of 4 would cost four windows and price one.
+        """
+        self.ensure_one()
+        values = self.price_structure_id._values()
+        profiles = glass = cloth = parts = hardware = infill_grid = 0.0
+        feet = glass_sqft = cloth_sqft = 0.0
+        uncosted = 0
+        for line in self.bom_line_ids:
+            # Only a line that carries NO cost is uncosted. A note on a
+            # line that was costed anyway (a fallback rate, the cost field
+            # standing in) is information, not a gap.
+            if line.cost_note and not line.line_cost:
+                uncosted += 1
+            if line.kind == 'profile':
+                profiles += line.line_cost
+                feet += (line.length_mm or 0.0) * (line.qty or 0) / 304.8
+            elif line.kind == 'glass':
+                glass += line.line_cost
+                if line.glass_part_kind in ('sheet', 'protector'):
+                    glass_sqft += (line.area_sqm or 0.0) * SQFT_PER_SQM
+            elif line.kind == 'mesh':
+                if line.glass_w or line.glass_h:
+                    cloth += line.line_cost         # the sized cloth
+                    cloth_sqft += line.area_sqft or 0.0
+                else:
+                    parts += line.line_cost         # a mesh type's own part
+            elif line.kind == 'hardware':
+                hardware += line.line_cost
+            else:
+                infill_grid += line.line_cost
+
+        units = max(1, self.qty or 1)
+        total_sqm = (self.area_sqm or 0.0) * units
+        total_sqft = (self.area_sqft or 0.0) * units
+
+        rows = []
+
+        def add(key, label, amount, kind, percent=None, rate=None,
+                unit='', detail=''):
+            rows.append({
+                'key': key, 'label': label, 'amount': amount, 'kind': kind,
+                'percent': percent, 'rate': rate, 'unit': unit,
+                'detail': detail})
+
+        def wastage(key, label, base, kind):
+            percent = values[kind]
+            add(key, label, base * percent / 100.0, 'add',
+                percent=percent, unit='%')
+            return base * percent / 100.0
+
+        add('profiles', _('Profiles'), profiles, 'base',
+            detail='%.2f ft' % feet if feet else '')
+        material = profiles + wastage(
+            'profile_wastage', _('Profile wastage'), profiles,
+            'profile_wastage')
+        add('glass', _('Glass'), glass, 'base',
+            detail='%.2f sqft' % glass_sqft if glass_sqft else '')
+        material += glass + wastage(
+            'glass_wastage', _('Glass wastage'), glass, 'glass_wastage')
+        add('mesh_cloth', _('Mesh cloth'), cloth, 'base',
+            detail='%.2f sqft' % cloth_sqft if cloth_sqft else '')
+        material += cloth + wastage(
+            'mesh_wastage', _('Mesh wastage'), cloth, 'mesh_wastage')
+        add('hardware', _('Hardware'), hardware, 'base')
+        material += hardware
+        if parts:
+            add('mesh_parts', _('Mesh parts'), parts, 'base')
+            material += parts
+        add('infill_grid', _('Infill and grid'), infill_grid, 'base')
+        material += infill_grid
+
+        fabrication = values['fabrication_labour'] * total_sqm
+        installation = values['install_labour'] * total_sqm
+        area_detail = '%.2f m\u00b2' % total_sqm
+        add('fabrication_labour', _('Fabrication labour'), fabrication,
+            'labour', rate=values['fabrication_labour'], unit=_('per m\u00b2'),
+            detail=area_detail)
+        add('install_labour', _('Installation labour'), installation,
+            'labour', rate=values['install_labour'], unit=_('per m\u00b2'),
+            detail=area_detail)
+
+        cost = material + fabrication + installation
+        add('cost', _('Cost'), cost, 'subtotal')
+        basic = cost * (1 + values['profit'] / 100.0)
+        add('profit', _('Profit'), basic - cost, 'add',
+            percent=values['profit'], unit='%')
+        add('calculated_price', _('Calculated price'), basic, 'subtotal')
+
+        # manual_rate is per sqft and has always overridden the calculated
+        # price; it overrides the cascade's result, not the cost the
+        # margin is measured against.
+        if self.manual_rate:
+            price = self.manual_rate * total_sqft
+            add('manual_override', _('Manual rate'), price, 'override',
+                rate=self.manual_rate, unit=_('per sqft'),
+                detail='%.2f sqft' % total_sqft)
+        else:
+            price = basic
+        add('price', _('Price'), price, 'total')
+
+        return {
+            'rows': rows, 'cost': cost, 'basic': basic, 'price': price,
+            'total_sqft': total_sqft, 'total_sqm': total_sqm,
+            'uncosted': uncosted,
+        }
 
     # ------------------------------------------------------------------
     # margin floor
@@ -534,7 +712,9 @@ class AwDesign(models.Model):
                 'wastage': {
                     'profile': values['profile_wastage'],
                     'glass': values['glass_wastage'],
+                    'mesh': values['mesh_wastage'],
                 },
+                'build_up': self._price_build_up()['rows'],
             },
         }
 

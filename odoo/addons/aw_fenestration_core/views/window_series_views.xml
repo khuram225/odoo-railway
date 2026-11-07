@@ -162,7 +162,7 @@
     </record>
 
     <record id="action_aw_window_series" model="ir.actions.act_window">
-        <field name="name">Types</field>
+        <field name="name">Window Types</field>
         <field name="res_model">aw.window.series</field>
         <field name="view_mode">kanban,list,form</field>
         <field name="search_view_id" ref="view_aw_window_series_search"/>
