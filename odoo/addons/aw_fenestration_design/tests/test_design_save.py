@@ -221,3 +221,20 @@ class TestDesignSave(TransactionCase):
         self.assertFalse(
             set(before) & set(self.design.check_line_ids.ids),
             "Old check rows survived a re-save.")
+
+
+@tagged('post_install', '-at_install')
+class TestDesignWithoutSpec(TransactionCase):
+    """A Custom window has no specification, and neither does a design on a
+    series that has none. Opening and saving it must not crash."""
+
+    def test_a_design_with_no_spec_opens_and_has_no_spec_lines(self):
+        series = self.env['aw.window.series'].search([], limit=1)
+        design = self.env['aw.design'].create({
+            'name': 'NOSPEC', 'window_series_id': series.id,
+            'spec_custom': True, 'width_mm': 1200.0, 'height_mm': 1200.0})
+        self.assertFalse(design.template_id)
+        self.assertFalse(design._spec_profile_lines())
+        self.assertFalse(design._spec_hardware_lines())
+        data = design.get_configurator_data()
+        self.assertTrue(data['header'])
