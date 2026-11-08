@@ -293,6 +293,25 @@ def main():
     if result['chosen_key'] is not None or result['oversize']:
         fail('empty group', 'expected nothing chosen and nothing oversize')
 
+    # ---- pieces go into offcuts first -----------------------------------
+    stock_pieces = [{'length': 1000.0, 'angle': '90'}, {'length': 600.0, 'angle': '90'},
+              {'length': 500.0, 'angle': '90'}, {'length': 5000.0, 'angle': '90'}]
+    bars, rest = cut.pack_into_stock(
+        stock_pieces, [('a', 1700.0), ('b', 700.0)], kerf=5.0, start_trim=0.0)
+    placed = sorted(c['length'] for bar in bars for c in bar['cuts'])
+    if placed != [500.0, 600.0, 1000.0] or [p['length'] for p in rest] != [5000.0]:
+        fail('pack into stock', 'placed %s rest %s' % (placed, rest))
+    for bar in bars:
+        used = sum(cut.piece_demand_mm(c['length'], 5.0, '90') for c in bar['cuts'])
+        if used > bar['stock_mm'] + 1e-9 or bar['remainder'] < -1e-9:
+            fail('pack into stock', 'an offcut was overfilled: %s' % bar)
+    bars, rest = cut.pack_into_stock(
+        [{'length': 690.0, 'angle': '90'}], [('b', 700.0)], 5.0, start_trim=20.0)
+    if bars or len(rest) != 1:
+        fail('pack into stock', 'the squaring of the end was ignored')
+    if cut.pack_into_stock([], [('a', 900.0)]) != ([], []):
+        fail('pack into stock', 'nothing to pack is not an empty result')
+
     if problems:
         print('Cutting plan problems:')
         for problem in problems:

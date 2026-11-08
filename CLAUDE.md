@@ -505,6 +505,21 @@ says "locked: the change is not in these bars". Who and when: `bought_by`,
 only and the wizard checks the group again, and the quote's chatter gets who,
 when, why and who had bought it. The bars already bought are not undone.
 
+**Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of
+the SAME quote left on their bars: a returnable remainder (above the offcut
+minimum setting). `aw.cut.plan._stock_for(product)` offers it; a Draft batch's
+leftovers are not stock, and an offcut already taken by another active batch is
+reserved (cancelling frees it). `cut_algorithm.pack_into_stock` puts pieces into those
+offcuts first (best fit, longest first, only the end squaring `start_trim` taken off
+again), then the unchanged optimiser buys bars for the rest. An offcut used becomes a
+bar of the new batch with `from_bar_id` ("From stock" column), is not counted as
+bought and survives choosing another option. **Re-plan from stock** is the old
+Regenerate. A batch cannot be marked bought unless it was planned from stock
+(`stock_planned`), or a manager ticked **Plan without stock** and gave a reason; a
+Final batch whose offcuts another active batch uses cannot be reopened. The
+optimiser is not asked to share pieces between offcuts and new bars optimally: the
+pre-pack is greedy.
+
 ## Process
 
 Merging to main deploys and upgrades aw_fenestration_core and

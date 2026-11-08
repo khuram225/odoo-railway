@@ -534,6 +534,36 @@ def _summarise(result, pieces, offcut_min, rate_per_ft):
     return result
 
 
+def pack_into_stock(pieces, stock_bars, kerf=5.0, start_trim=0.0):
+    """Put pieces into offcuts that already exist, before any bar is bought.
+
+    `stock_bars` is [(id, length_mm)]: what an earlier batch left on a bar
+    (its remainder, already net of that bar's trim and margin). Only the
+    squaring of the used end is taken off again (`start_trim`). Best fit,
+    longest piece first: each piece goes to the offcut it leaves least over.
+    Returns (bars, rest): the offcuts that took pieces, as bar dicts like the
+    solver's ({'stock_mm', 'cuts', 'remainder', 'from_id'}), and the pieces
+    that fit none, which still need new bars.
+    """
+    bars = [{'from_id': stock_id, 'stock_mm': float(length), 'cuts': [],
+             'remainder': max(0.0, float(length) - float(start_trim))}
+            for stock_id, length in stock_bars]
+    rest = []
+    for piece in sorted(
+            pieces, key=lambda p: -piece_demand_mm(
+                p['length'], kerf, p.get('angle') or '45')):
+        need = piece_demand_mm(piece['length'], kerf,
+                               piece.get('angle') or '45')
+        fits = [bar for bar in bars if need <= bar['remainder'] + 1e-9]
+        if not fits:
+            rest.append(piece)
+            continue
+        best = min(fits, key=lambda bar: bar['remainder'])
+        best['cuts'].append(piece)
+        best['remainder'] -= need
+    return [bar for bar in bars if bar['cuts']], rest
+
+
 def evaluate(pieces, stock_mm_list, kerf=5.0, offcut_min=400.0,
              rate_per_ft=0.0, start_trim=0.0, safety_margin=0.0,
              time_budget=None):
