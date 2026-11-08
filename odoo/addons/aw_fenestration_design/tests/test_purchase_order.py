@@ -17,7 +17,9 @@ class TestBatchPurchaseOrder(TransactionCase):
         cls.order = env['sale.order'].create({
             'partner_id': env['res.partner'].create(
                 {'name': 'PO customer'}).id,
-            'aw_default_series_id': series.id})
+            'aw_default_series_id': series.id,
+            'aw_profile_vendor_id': env['res.partner'].create(
+                {'name': 'PO profile vendor'}).id})
         leaf = {'width_mm': 1200.0, 'leaf_type_id': series.leaf_type_ids[0].id}
         windows = env['aw.design']
         for location in ('Hall', 'Kitchen'):
