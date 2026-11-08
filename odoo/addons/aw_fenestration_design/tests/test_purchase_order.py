@@ -190,3 +190,111 @@ class TestBatchPurchaseOrder(TransactionCase):
             view_type='form')['arch']
         self.assertIn('action_create_purchase_order', manager)
         self.assertNotIn('action_create_purchase_order', seller)
+
+
+@tagged('post_install', '-at_install')
+class TestPurchaseLineEntry(TransactionCase):
+    """A profile line typed by hand."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        category = env.ref('aw_fenestration_core.product_category_profiles')
+        cls.template = env['product.template'].search(
+            [('categ_id', 'child_of', category.id)], limit=1)
+        cls.vendor = env['res.partner'].create({'name': 'Entry vendor'})
+        cls.product = cls.template.sudo()._create_first_product_variant()
+        cls.thickness = cls.finish = env['product.attribute.value']
+        for value in cls.product.product_template_variant_value_ids:
+            if value.attribute_id.name == 'Thickness':
+                cls.thickness = value.product_attribute_value_id
+            elif value.attribute_id.name == 'Finish':
+                cls.finish = value.product_attribute_value_id
+        cls.rate = env['aw.profile.rate'].create({
+            'product_tmpl_id': cls.template.id,
+            'thickness_id': cls.thickness.id, 'finish_id': cls.finish.id,
+            'vendor_id': cls.vendor.id, 'price': 4.0,
+            'date_from': '2000-01-01'})
+        cls.plain = env['product.product'].create({
+            'name': 'Plain test part', 'type': 'consu'})
+
+    def _order(self):
+        return self.env['purchase.order'].create({
+            'partner_id': self.vendor.id})
+
+    def _line(self, order, product=None, **extra):
+        return self.env['purchase.order.line'].create(dict({
+            'order_id': order.id, 'product_id': (product or self.product).id,
+            'product_qty': 1.0}, **extra))
+
+    def test_a_profile_opens_the_one_variant_picker_not_the_grid(self):
+        answer = self.template.get_single_product_variant()
+        self.assertTrue(answer.get('product_id'))
+        self.assertEqual(
+            self.env['product.product'].browse(answer['product_id']).product_tmpl_id,
+            self.template)
+
+    def test_another_product_is_left_as_it_was(self):
+        answer = self.plain.product_tmpl_id.get_single_product_variant()
+        self.assertEqual(answer.get('product_id'), self.plain.id)
+
+    def test_a_single_active_length_is_filled_in(self):
+        Length = self.env['aw.vendor.bar.length']
+        Length.create({'vendor_id': self.vendor.id,
+                       'product_tmpl_id': self.template.id, 'length_ft': 16})
+        line = self.env['purchase.order.line'].new({
+            'order_id': self._order().id, 'product_id': self.product.id})
+        line._onchange_aw_profile_length()
+        self.assertEqual(line.aw_bar_length_ft, 16.0)
+        Length.create({'vendor_id': self.vendor.id,
+                       'product_tmpl_id': self.template.id, 'length_ft': 18})
+        again = self.env['purchase.order.line'].new({
+            'order_id': self._order().id, 'product_id': self.product.id})
+        again._onchange_aw_profile_length()
+        self.assertFalse(again.aw_bar_length_ft)
+
+    def test_a_profile_line_without_bars_says_so(self):
+        line = self._line(self._order())
+        self.assertEqual(line.aw_price_note, 'Enter bars and bar length')
+        line.write({'aw_bar_length_ft': 16.0})
+        self.assertEqual(line.aw_price_note, 'Enter bars and bar length')
+        line.write({'aw_bar_count': 3})
+        self.assertNotEqual(line.aw_price_note, 'Enter bars and bar length')
+        other = self._line(self._order(), product=self.plain)
+        self.assertFalse(other.aw_price_note)
+
+    def test_bars_and_length_on_an_unpriced_line_take_the_vendor_rate(self):
+        line = self._line(self._order(), price_unit=0.0)
+        line.write({'price_unit': 0.0, 'technical_price_unit': 0.0})
+        line.write({'aw_bar_length_ft': 16.0, 'aw_bar_count': 5})
+        self.assertEqual(line.price_unit, 4.0)
+        self.assertEqual(line.product_uom_id, self.env.ref('uom.product_uom_foot'))
+        self.assertAlmostEqual(line.product_qty, 80.0)
+        self.assertFalse(line.aw_price_note)
+        line.aw_bar_count = 6
+        self.assertEqual(line.price_unit, 4.0)
+        self.assertAlmostEqual(line.product_qty, 96.0)
+
+    def test_a_price_that_is_there_is_kept_and_follows_the_unit(self):
+        line = self._line(self._order(), price_unit=3.048)   # per metre
+        line.write({'price_unit': 3.048, 'technical_price_unit': 3.048})
+        uom = line.product_uom_id
+        line.write({'aw_bar_length_ft': 16.0, 'aw_bar_count': 2})
+        foot = self.env.ref('uom.product_uom_foot')
+        self.assertAlmostEqual(
+            line.price_unit, uom._compute_price(3.048, foot), places=4)
+
+    def test_the_grid_cannot_change_a_bars_line(self):
+        import json
+        order = self._order()
+        line = self._line(order, aw_bar_length_ft=16.0, aw_bar_count=2)
+        change = {'changes': [{
+            'qty': 99.0,
+            'ptav_ids': line.product_template_attribute_value_ids.ids}],
+            'product_template_id': self.template.id}
+        with self.assertRaises(UserError):
+            order._aw_refuse_grid_on_bars_lines(change)
+        # an unchanged cell is never sent, so nothing to refuse
+        order._aw_refuse_grid_on_bars_lines(
+            {'changes': [], 'product_template_id': self.template.id})
