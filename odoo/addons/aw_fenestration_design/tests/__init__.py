@@ -32,3 +32,4 @@ from . import test_gap_rate_warning
 from . import test_make_copies
 from . import test_cut_batches
 from . import test_rates_data_in
+from . import test_batch_final

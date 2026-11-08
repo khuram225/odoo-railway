@@ -61,9 +61,13 @@ class AwCutPlan(models.Model):
     date = fields.Datetime(default=fields.Datetime.now, readonly=True)
     state = fields.Selection([
         ('draft', 'Draft'),
-        ('confirmed', 'Confirmed'),
+        ('confirmed', 'Final'),
         ('cancel', 'Cancelled'),
     ], default='draft', required=True)
+    # Final = the bars were bought for this batch (a button for now; with
+    # purchasing it will follow the PO). A Final batch is locked.
+    bought_on = fields.Datetime(readonly=True, copy=False)
+    bought_by = fields.Many2one('res.users', readonly=True, copy=False)
     # A batch is a cutting plan: the windows ticked when it was made. A
     # window is in ONE active (not cancelled) batch only, and moves only
     # while the batch is Draft.
@@ -168,6 +172,41 @@ class AwCutPlan(models.Model):
                     "it is Draft).",
                     windows=', '.join(shared.mapped('display_name')),
                     batch=', '.join(clash.mapped('name'))))
+
+    def _ensure_draft(self):
+        for plan in self:
+            if plan.state != 'draft':
+                raise UserError(_(
+                    "%(batch)s is %(state)s: the bars are bought, so it "
+                    "cannot change.", batch=plan.name,
+                    state=dict(self._fields['state'].selection)[
+                        plan.state].lower()))
+
+    def action_mark_bought(self):
+        """The bars of this batch were bought: it becomes Final and is
+        locked. Only an up-to-date batch where every piece is on a bar and
+        every profile was planned can be bought, so what was bought is what
+        the shop cuts."""
+        self.ensure_one()
+        self._ensure_draft()
+        if not self.group_ids:
+            raise UserError(_("Nothing is planned in this batch yet."))
+        if not self.is_current:
+            raise UserError(_(
+                "This batch is out of date. Regenerate it before marking "
+                "the bars bought."))
+        if self.oversize_note or self.blocked_note:
+            raise UserError(_(
+                "Some pieces are not on a bar, or a profile was not "
+                "planned (see the notes on the batch). Fix that first."))
+        self.write({'state': 'confirmed',
+                    'bought_on': fields.Datetime.now(),
+                    'bought_by': self.env.user.id})
+        self.sale_order_id.message_post(body=_(
+            "%(who)s marked the bars bought for %(batch)s: %(bars)s bars, "
+            "%(feet).0f ft.", who=self.env.user.name, batch=self.name,
+            bars=self.bar_count, feet=self.feet_bought))
+        return True
 
     def action_cancel_batch(self):
         for plan in self:
@@ -340,6 +379,7 @@ class AwCutPlan(models.Model):
     # generation
     # ------------------------------------------------------------------
     def action_generate(self):
+        self._ensure_draft()
         for plan in self:
             plan._generate()
         return True
@@ -965,6 +1005,7 @@ class AwCutPlanGroup(models.Model):
         })
 
     def action_clear_override(self):
+        self.plan_id._ensure_draft()
         for group in self:
             group.override_key = ''
             result, settings = group._solve_option(group.chosen_key)
@@ -1019,6 +1060,7 @@ class AwCutPlanScenario(models.Model):
     def action_use(self):
         """Estimator override: use this option instead."""
         self.ensure_one()
+        self.group_id.plan_id._ensure_draft()
         if not self.feasible:
             raise UserError(_(
                 "That option cannot hold every piece in this profile, so "

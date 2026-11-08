@@ -8,7 +8,12 @@
             <form>
                 <header>
                     <button name="action_generate" type="object"
-                            string="Regenerate" class="btn-primary"/>
+                            string="Regenerate" class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_mark_bought" type="object"
+                            string="Mark bars bought"
+                            invisible="state != 'draft'"
+                            confirm="Mark the bars bought? The batch is then locked."/>
                     <button name="action_print_cutting_sheet" type="object"
                             string="Cutting Sheet"/>
                     <button name="action_print_labels" type="object"
@@ -24,9 +29,20 @@
                 </header>
                 <sheet>
                     <div class="alert alert-warning" role="status"
-                         invisible="is_current">
+                         invisible="is_current or state != 'draft'">
                         A window changed after this plan was made.
                         <strong>Out of date — regenerate.</strong>
+                    </div>
+                    <div class="alert alert-warning" role="status"
+                         invisible="is_current or state != 'confirmed'">
+                        A window changed after the bars were bought. This
+                        batch is locked: the change is not in these bars.
+                    </div>
+                    <div class="alert alert-success" role="status"
+                         invisible="state != 'confirmed'">
+                        Bars bought <field name="bought_on" readonly="1"/>
+                        by <field name="bought_by" readonly="1"/>.
+                        This batch is locked.
                     </div>
                     <div class="oe_title">
                         <h1><field name="name" readonly="1"/></h1>

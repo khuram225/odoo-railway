@@ -491,6 +491,15 @@ window keeps the fingerprint it had). `_backfill_batches` ran once at the upgrad
 each plan from before gave itself the quote's windows and a number. A window's shop
 drawing reads the batch it is in (`_sheet_plan`).
 
+**Mark bars bought (Brief Q3).** A Draft batch becomes **Final** (state value
+`confirmed`) with **Mark bars bought**; with purchasing it will follow the PO. Only an
+up-to-date batch with something planned, every piece on a bar and no profile left
+out (`oversize_note`, `blocked_note`) can be bought. Final is locked:
+`_ensure_draft()` refuses Regenerate, choosing or clearing an option, moving a
+window and cancelling. A window that changes afterwards leaves the batch Final and
+says "locked: the change is not in these bars". Who and when: `bought_by`,
+`bought_on`, and a note on the quote.
+
 ## Process
 
 Merging to main deploys and upgrades aw_fenestration_core and
