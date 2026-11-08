@@ -20,6 +20,10 @@
                             string="Labels (A4)"/>
                     <button name="action_print_thermal_labels" type="object"
                             string="Labels (50x30)"/>
+                    <button name="action_reopen_batch" type="object"
+                            string="Reopen batch"
+                            invisible="state != 'confirmed'"
+                            groups="aw_fenestration_core.group_fenestration_manager"/>
                     <button name="action_cancel_batch" type="object"
                             string="Cancel batch"
                             invisible="state != 'draft'"
