@@ -208,6 +208,27 @@ class AwCutPlan(models.Model):
             bars=self.bar_count, feet=self.feet_bought))
         return True
 
+    def action_reopen_batch(self):
+        """Ask why, then (aw.cut.reopen.wizard) turn a Final batch back to
+        Draft. Fenestration managers only, checked again by the wizard."""
+        self.ensure_one()
+        if not self.env.user.has_group(
+                'aw_fenestration_core.group_fenestration_manager'):
+            raise UserError(_("Only a Fenestration manager can reopen a batch."))
+        if self.state != 'confirmed':
+            raise UserError(_("Only a Final batch can be reopened."))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Reopen batch"),
+            'res_model': 'aw.cut.reopen.wizard',
+            'view_mode': 'form',
+            'views': [(self.env.ref(
+                'aw_fenestration_design.view_aw_cut_reopen_wizard_form'
+            ).id, 'form')],
+            'target': 'new',
+            'context': {'default_plan_id': self.id},
+        }
+
     def action_cancel_batch(self):
         for plan in self:
             if plan.state != 'draft':

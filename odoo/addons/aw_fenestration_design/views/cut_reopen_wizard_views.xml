@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Opened from aw.cut.plan.action_reopen_batch, which builds the action
+         in Python and points at this view with env.ref(): a runtime lookup,
+         so no load-order constraint. -->
+    <record id="view_aw_cut_reopen_wizard_form" model="ir.ui.view">
+        <field name="name">aw.cut.reopen.wizard.form</field>
+        <field name="model">aw.cut.reopen.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reopen batch">
+                <group>
+                    <field name="plan_id" readonly="1"/>
+                    <field name="reason"
+                           placeholder="Why is this batch reopened?"/>
+                </group>
+                <div class="text-muted">
+                    The batch goes back to Draft and can be regenerated or
+                    changed again. The bars already bought are not undone:
+                    check the purchase before you buy again.
+                </div>
+                <footer>
+                    <button name="action_reopen" type="object"
+                            string="Reopen" class="btn-primary"
+                            data-hotkey="q"/>
+                    <button string="Cancel" class="btn-secondary"
+                            special="cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

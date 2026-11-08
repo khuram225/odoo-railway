@@ -500,6 +500,11 @@ window and cancelling. A window that changes afterwards leaves the batch Final a
 says "locked: the change is not in these bars". Who and when: `bought_by`,
 `bought_on`, and a note on the quote.
 
+**Reopen batch.** A Fenestration manager can turn a Final batch back to Draft
+(`aw.cut.reopen.wizard`): a reason is required, the button is shown to managers
+only and the wizard checks the group again, and the quote's chatter gets who,
+when, why and who had bought it. The bars already bought are not undone.
+
 ## Process
 
 Merging to main deploys and upgrades aw_fenestration_core and

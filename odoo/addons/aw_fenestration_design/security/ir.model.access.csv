@@ -13,6 +13,7 @@ access_aw_layout_preset_manager,aw.layout.preset.manager,model_aw_layout_preset,
 access_aw_layout_family_user,aw.layout.family.user,model_aw_layout_family,base.group_user,1,0,0,0
 access_aw_layout_family_manager,aw.layout.family.manager,model_aw_layout_family,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_design_copies_wizard_sales,aw.design.copies.wizard.sales,model_aw_design_copies_wizard,group_fenestration_sales,1,1,1,1
+access_aw_cut_reopen_wizard_manager,aw.cut.reopen.wizard.manager,model_aw_cut_reopen_wizard,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_cut_batch_wizard_sales,aw.cut.batch.wizard.sales,model_aw_cut_batch_wizard,group_fenestration_sales,1,1,1,1
 access_aw_cut_batch_wizard_line_sales,aw.cut.batch.wizard.line.sales,model_aw_cut_batch_wizard_line,group_fenestration_sales,1,1,1,1
 access_aw_design_preset_wizard_sales,aw.design.preset.wizard.sales,model_aw_design_preset_wizard,group_fenestration_sales,1,1,1,1
