@@ -13,38 +13,8 @@ user types the number of bars. Until bars and length are both set the line
 says so. Setting them puts the line in ft and, when it has no price, takes
 the vendor's rate per ft.
 """
-import json
-
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError, ValidationError
-
-
-class PurchaseOrder(models.Model):
-    _inherit = 'purchase.order'
-
-    @api.onchange('grid')
-    def _apply_grid(self):
-        """The variant grid sets a quantity directly. On a bars line that
-        would break bars x length (and reset its unit), so it is refused."""
-        if self.grid and self.grid_update:
-            self._aw_refuse_grid_on_bars_lines(json.loads(self.grid))
-        return super()._apply_grid()
-
-    def _aw_refuse_grid_on_bars_lines(self, grid):
-        template = self.env['product.template'].browse(
-            grid.get('product_template_id'))
-        bars = self.order_line.filtered(
-            lambda l: l.product_id.product_tmpl_id == template
-            and l.aw_bar_count)
-        for cell in grid.get('changes', []):
-            wanted = set(cell.get('ptav_ids', []))
-            for line in bars:
-                if set(line.product_template_attribute_value_ids.ids) \
-                        == wanted:
-                    raise UserError(_(
-                        "%(product)s is bought in bars. Change Bars and Bar "
-                        "length on the line, not its quantity in the grid.",
-                        product=line.product_id.display_name))
+from odoo.exceptions import ValidationError
 
 
 class PurchaseOrderLine(models.Model):
@@ -53,6 +23,8 @@ class PurchaseOrderLine(models.Model):
     aw_bar_length_ft = fields.Float(string='Bar length (ft)', copy=False)
     aw_bar_count = fields.Integer(string='Bars', copy=False)
     aw_is_bars = fields.Boolean(compute='_compute_aw_bars')
+    aw_is_profile = fields.Boolean(
+        related='product_id.product_tmpl_id.aw_is_profile')
     aw_price_note = fields.Char(string='Price note', compute='_compute_aw_bars')
 
     @api.depends('aw_bar_count', 'aw_bar_length_ft', 'price_unit', 'product_id')
@@ -78,23 +50,24 @@ class PurchaseOrderLine(models.Model):
             foot.sudo().active = True
         return foot
 
+    @api.model
+    def _aw_rate_for(self, template, thickness, finish, vendor, on_date):
+        """The vendor's profile rate per ft on a date, or 0."""
+        if not (template and vendor):
+            return 0.0
+        rate = self.env['aw.profile.rate']._rate_for(
+            template, thickness, finish, on_date, vendor)
+        return rate.price if rate else 0.0
+
     def _aw_vendor_rate(self):
         """The vendor's profile rate per ft on the order date, or 0."""
         self.ensure_one()
-        product, vendor = self.product_id, self.order_id.partner_id
-        if not (product and vendor):
-            return 0.0
-        thickness = finish = self.env['product.attribute.value']
-        for value in product.product_template_variant_value_ids:
-            attribute = value.attribute_id.name
-            if attribute == 'Thickness':
-                thickness = value.product_attribute_value_id
-            elif attribute == 'Finish':
-                finish = value.product_attribute_value_id
+        product = self.product_id
+        thickness, finish = self.order_id._aw_variant_values(product)
         on_date = (self.order_id.date_order or fields.Datetime.now()).date()
-        rate = self.env['aw.profile.rate']._rate_for(
-            product.product_tmpl_id, thickness, finish, on_date, vendor)
-        return rate.price if rate else 0.0
+        return self._aw_rate_for(
+            product.product_tmpl_id, thickness, finish,
+            self.order_id.partner_id, on_date)
 
     def _aw_bar_values(self, count, length, price=None):
         """What a line holds once it is bars x length: the quantity, the unit

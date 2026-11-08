@@ -16,8 +16,16 @@
                 <attribute name="column_invisible">0</attribute>
                 <attribute name="string">Variant</attribute>
             </xpath>
+            <!-- Beside 'Add a product': the bars grid for a profile. -->
+            <xpath expr="//field[@name='order_line']/list/control/button[@name='action_add_from_catalog']"
+                   position="after">
+                <button name="action_add_profile_bars" string="Add profile (bars grid)"
+                        type="object" class="px-4 btn-link"
+                        context="{'order_id': parent.id}"/>
+            </xpath>
             <xpath expr="//field[@name='order_line']/list/field[@name='product_qty']"
                    position="before">
+                <field name="aw_is_profile" column_invisible="1"/>
                 <field name="aw_bar_count" optional="show"/>
                 <field name="aw_bar_length_ft" optional="show"/>
             </xpath>

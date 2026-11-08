@@ -2,6 +2,8 @@
 """P2: the purchase order made from a Draft batch."""
 from odoo.addons.aw_fenestration_design.tests.common import (
     seeded_family_series)
+import unittest
+
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
@@ -285,16 +287,155 @@ class TestPurchaseLineEntry(TransactionCase):
         self.assertAlmostEqual(
             line.price_unit, uom._compute_price(3.048, foot), places=4)
 
-    def test_the_grid_cannot_change_a_bars_line(self):
-        import json
+
+@tagged('post_install', '-at_install')
+class TestBarsGrid(TransactionCase):
+    """The bars grid: thickness x finish x length on one profile."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        category = env.ref('aw_fenestration_core.product_category_profiles')
+        thickness_attr = env.ref('aw_fenestration_core.aw_attribute_thickness')
+        finish_attr = env.ref('aw_fenestration_core.aw_attribute_finish')
+        cls.template = env['product.template']
+        for template in env['product.template'].search(
+                [('categ_id', 'child_of', category.id)]):
+            lines = template.attribute_line_ids
+            if len(lines.filtered(
+                    lambda l: l.attribute_id == finish_attr).value_ids) >= 2 \
+                    and lines.filtered(
+                        lambda l: l.attribute_id == thickness_attr).value_ids:
+                cls.template = template
+                break
+        if not cls.template:
+            raise unittest.SkipTest("No profile with two finishes here")
+        lines = cls.template.attribute_line_ids
+        cls.thickness = lines.filtered(
+            lambda l: l.attribute_id == thickness_attr).value_ids[0]
+        cls.f1, cls.f2 = lines.filtered(
+            lambda l: l.attribute_id == finish_attr).value_ids[:2]
+        cls.vendor = env['res.partner'].create({'name': 'Grid vendor'})
+        cls.lengths = {}
+        for ft in (14.0, 16.0, 18.0):
+            cls.lengths[ft] = env['aw.vendor.bar.length'].create({
+                'vendor_id': cls.vendor.id,
+                'product_tmpl_id': cls.template.id, 'length_ft': ft})
+        # a rate for the first finish only: the second shows "no price"
+        env['aw.profile.rate'].create({
+            'product_tmpl_id': cls.template.id,
+            'thickness_id': cls.thickness.id, 'finish_id': cls.f1.id,
+            'vendor_id': cls.vendor.id, 'price': 2.5,
+            'date_from': '2000-01-01'})
+
+    def _order(self):
+        return self.env['purchase.order'].create({
+            'partner_id': self.vendor.id})
+
+    def _cell(self, finish, length, bars):
+        return {'thickness_id': self.thickness.id, 'finish_id': finish.id,
+                'length_ft': length, 'bars': bars}
+
+    def _apply(self, order, *cells):
+        order.aw_bars_grid_apply(self.template.id, list(cells))
+
+    def test_two_finishes_three_lengths_make_the_right_lines(self):
         order = self._order()
-        line = self._line(order, aw_bar_length_ft=16.0, aw_bar_count=2)
-        change = {'changes': [{
-            'qty': 99.0,
-            'ptav_ids': line.product_template_attribute_value_ids.ids}],
-            'product_template_id': self.template.id}
+        self._apply(
+            order, self._cell(self.f1, 14.0, 2), self._cell(self.f1, 16.0, 1),
+            self._cell(self.f1, 18.0, 0), self._cell(self.f2, 18.0, 3),
+            self._cell(self.f2, 14.0, 0), self._cell(self.f2, 16.0, 0))
+        lines = order.order_line
+        self.assertEqual(len(lines), 3)
+        foot = self.env.ref('uom.product_uom_foot')
+        by = {(l.aw_bar_length_ft, l.aw_bar_count): l for l in lines}
+        self.assertEqual(set(by), {(14.0, 2), (16.0, 1), (18.0, 3)})
+        for line in lines:
+            self.assertEqual(line.product_uom_id, foot)
+            self.assertAlmostEqual(
+                line.product_qty, line.aw_bar_count * line.aw_bar_length_ft)
+        self.assertEqual(by[(14.0, 2)].price_unit, 2.5)
+        self.assertEqual(by[(16.0, 1)].price_unit, 2.5)
+        self.assertEqual(by[(18.0, 3)].price_unit, 0.0)
+        self.assertEqual(by[(18.0, 3)].aw_price_note, 'No price')
+        self.assertEqual(
+            by[(14.0, 2)].product_id,
+            self.env['aw.profile.section.line']._variant_for(
+                self.template, self.thickness, self.f1))
+
+    def test_data_lists_finishes_rates_lengths_and_the_bars_already_there(self):
+        order = self._order()
+        self._apply(order, self._cell(self.f1, 16.0, 4))
+        data = order.aw_bars_grid_data(self.template.id)
+        self.assertEqual(data['lengths'], [14.0, 16.0, 18.0])
+        self.assertTrue(data['editable'])
+        self.assertEqual(
+            data['rates']['%s|%s' % (self.thickness.id, self.f1.id)], 2.5)
+        self.assertFalse(
+            data['rates']['%s|%s' % (self.thickness.id, self.f2.id)])
+        self.assertEqual(
+            data['cells']['%s|%s|16' % (self.thickness.id, self.f1.id)], 4)
+        self.assertIn(self.f2.id, [f['id'] for f in data['finishes']])
+
+    def test_applying_again_updates_and_never_duplicates(self):
+        order = self._order()
+        self._apply(order, self._cell(self.f1, 16.0, 4))
+        line = order.order_line
+        self._apply(order, self._cell(self.f1, 16.0, 7))
+        self.assertEqual(order.order_line, line)
+        self.assertEqual(line.aw_bar_count, 7)
+        self.assertAlmostEqual(line.product_qty, 7 * 16.0)
+        self.assertEqual(line.price_unit, 2.5)
+
+    def test_zero_removes_the_line(self):
+        order = self._order()
+        self._apply(order, self._cell(self.f1, 16.0, 4),
+                    self._cell(self.f1, 14.0, 2))
+        self._apply(order, self._cell(self.f1, 16.0, 0))
+        self.assertEqual(order.order_line.aw_bar_length_ft, 14.0)
+
+    def test_a_length_switched_off_is_not_offered_or_accepted(self):
+        self.lengths[18.0].active = False
+        order = self._order()
+        self.assertEqual(
+            order.aw_bars_grid_data(self.template.id)['lengths'], [14.0, 16.0])
         with self.assertRaises(UserError):
-            order._aw_refuse_grid_on_bars_lines(change)
-        # an unchanged cell is never sent, so nothing to refuse
-        order._aw_refuse_grid_on_bars_lines(
-            {'changes': [], 'product_template_id': self.template.id})
+            self._apply(order, self._cell(self.f1, 18.0, 2))
+        self.assertFalse(order.order_line)
+
+    def test_a_confirmed_order_refuses(self):
+        order = self._order()
+        self._apply(order, self._cell(self.f1, 16.0, 4))
+        order.write({'state': 'purchase'})
+        self.assertFalse(
+            order.aw_bars_grid_data(self.template.id)['editable'])
+        with self.assertRaises(UserError):
+            self._apply(order, self._cell(self.f1, 16.0, 9))
+        with self.assertRaises(UserError):
+            self._apply(order, self._cell(self.f1, 16.0, 0))
+        self.assertEqual(order.order_line.aw_bar_count, 4)
+
+    def test_bars_are_whole_numbers(self):
+        order = self._order()
+        with self.assertRaises(UserError):
+            self._apply(order, self._cell(self.f1, 16.0, 1.5))
+        with self.assertRaises(UserError):
+            self._apply(order, self._cell(self.f1, 16.0, -1))
+
+    def test_only_profiles_can_be_picked(self):
+        order = self._order()
+        other = self.env['product.product'].create(
+            {'name': 'Not a profile', 'type': 'consu'}).product_tmpl_id
+        with self.assertRaises(UserError):
+            order.aw_bars_grid_data(other.id)
+        names = [p['id'] for p in order.aw_bars_grid_profiles('')]
+        self.assertIn(self.template.id, names)
+        self.assertNotIn(other.id, names)
+
+    def test_the_button_opens_the_dialog(self):
+        order = self._order()
+        action = self.env['purchase.order.line'].with_context(
+            order_id=order.id).action_add_profile_bars()
+        self.assertEqual(action['params']['order_id'], order.id)
+        self.assertEqual(action['tag'], 'aw_po_bars_grid')

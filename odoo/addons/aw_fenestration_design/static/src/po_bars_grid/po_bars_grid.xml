@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="aw_fenestration_design.BarsGridDialog">
+        <Dialog size="'xl'" title="'Add profile (bars grid)'">
+            <div t-if="state.loading" class="p-4 text-muted">Loading...</div>
+            <t t-elif="!state.data">
+                <div class="mb-2">
+                    <input type="text" class="form-control" placeholder="Search a profile"
+                           t-att-value="state.query" t-on-input="onQuery"/>
+                </div>
+                <div class="list-group">
+                    <button t-foreach="state.profiles" t-as="profile" t-key="profile.id"
+                            type="button" class="list-group-item list-group-item-action"
+                            t-on-click="() => this.pick(profile.id)">
+                        <t t-esc="profile.name"/>
+                    </button>
+                </div>
+                <div t-if="state.error" class="alert alert-danger mt-2" t-esc="state.error"/>
+            </t>
+            <t t-else="">
+                <div class="d-flex align-items-center mb-2">
+                    <strong class="me-2" t-esc="state.data.template.name"/>
+                    <span class="text-muted" t-esc="state.data.vendor"/>
+                    <button t-if="!props.templateId" type="button" class="btn btn-link ms-auto"
+                            t-on-click="back">Another profile</button>
+                </div>
+                <div class="alert alert-warning" t-if="!state.data.editable">
+                    This order is confirmed. The bars cannot be changed here.
+                </div>
+                <div class="mb-3">
+                    <button t-foreach="state.data.thicknesses" t-as="thickness" t-key="thickness.id"
+                            type="button"
+                            t-attf-class="btn me-1 {{ thickness.id === state.thicknessId ? 'btn-primary' : 'btn-outline-secondary' }}"
+                            t-on-click="() => this.selectThickness(thickness.id)">
+                        <t t-esc="thickness.name"/>
+                        <span t-if="thicknessBadge(thickness.id)"
+                              class="badge text-bg-light ms-1"
+                              t-esc="thicknessBadge(thickness.id)"/>
+                    </button>
+                </div>
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr>
+                            <th>Finish</th>
+                            <th t-foreach="state.data.lengths" t-as="ln" t-key="ln"
+                                class="text-end"><t t-esc="ln"/> ft</th>
+                            <th class="text-end">Bars</th>
+                            <th class="text-end">Feet</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="state.data.finishes" t-as="finish" t-key="finish.id">
+                            <td>
+                                <t t-esc="finish.name"/>
+                                <span t-if="!hasRate(finish.id)" class="badge text-bg-danger ms-1">no price</span>
+                            </td>
+                            <td t-foreach="state.data.lengths" t-as="ln" t-key="ln" class="text-end">
+                                <input type="number" min="0" step="1"
+                                       class="form-control form-control-sm text-end"
+                                       style="width: 5rem; margin-left: auto;"
+                                       t-att-value="cellValue(finish.id, ln)"
+                                       t-att-disabled="!state.data.editable"
+                                       t-on-change="(ev) => this.setCell(finish.id, ln, ev)"/>
+                            </td>
+                            <td class="text-end" t-esc="rowBars(finish.id)"/>
+                            <td class="text-end" t-esc="feet(rowFeet(finish.id))"/>
+                            <td class="text-end">
+                                <t t-if="hasRate(finish.id)" t-esc="money(rowAmount(finish.id))"/>
+                                <span t-else="" class="text-muted">-</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="fw-bold">
+                            <td t-att-colspan="state.data.lengths.length + 1">Total, all thicknesses</td>
+                            <td class="text-end" t-esc="totalBars"/>
+                            <td class="text-end" t-esc="feet(totalFeet)"/>
+                            <td class="text-end" t-esc="money(totalAmount)"/>
+                        </tr>
+                    </tfoot>
+                </table>
+                <div t-if="state.error" class="alert alert-danger" t-esc="state.error"/>
+            </t>
+            <t t-set-slot="footer">
+                <button t-if="state.data" type="button" class="btn btn-primary"
+                        t-att-disabled="state.saving || !state.data.editable"
+                        t-on-click="confirm">Confirm</button>
+                <button type="button" class="btn btn-secondary" t-on-click="props.close">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>

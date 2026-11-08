@@ -549,9 +549,24 @@ from the vendor's bar lengths only when it has exactly one active length for tha
 profile (`_lengths_for`, no global fallback); until bars AND length are set the line
 says "Enter bars and bar length" (`aw_price_note`). Setting them puts the line in ft
 (an existing price is carried to the new unit) and, with no price, takes the vendor's
-rate per ft. The grid is refused for a bars line (`_aw_refuse_grid_on_bars_lines`):
-it writes the quantity directly and resets the unit. An unchanged grid cell is never
-sent by the client, so Confirm with unchanged numbers changes nothing.
+rate per ft. Odoo's variant grid is not used for profiles at all
+any more: the **bars grid** replaces it (below). (It wrote the quantity directly
+and reset the unit, which is why #106 refused it on a bars line.)
+
+**The bars grid (`models/po_bars_grid.py`, `static/src/po_bars_grid/`).** "Add profile
+(bars grid)" sits beside "Add a product" in the RFQ's line list (a `<control>` button
+runs on the LINE model with `order_id` in its context, as core's catalog button
+does) and the pencil on a profile line opens the same dialog (the matrix field's
+`onEditConfiguration` is patched). It is a client component over two server methods
+on `purchase.order`, no model of its own: `aw_bars_grid_data(template_id)` (the
+template's thicknesses and finishes, the ACTIVE lengths from
+`aw.cut.plan._settings(vendor, strict=True, template=)` -- profile rows, then vendor
+rows, then global --, the vendor's dated rate per ft per thickness+finish, and the bars
+already on the order) and `aw_bars_grid_apply(template_id, cells)`, which takes EVERY
+cell. A cell above 0 is one line per variant and length (the variant by
+`aw.profile.section.line._variant_for`, the price the vendor's rate, pinned); a line
+that exists is updated, never duplicated; a cell at 0 removes its line. Draft or sent
+orders only. A finish with no rate shows "no price" and stays editable.
 
 ## Process
 
