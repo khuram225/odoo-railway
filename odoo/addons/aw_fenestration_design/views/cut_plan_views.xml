@@ -11,6 +11,13 @@
                             string="Re-plan from stock" class="btn-primary"
                             invisible="state != 'draft'"
                             title="Plans again, using the offcuts earlier Final batches left before buying a bar."/>
+                    <button name="action_create_purchase_order" type="object"
+                            string="Create purchase order"
+                            invisible="state != 'draft' or purchase_order_id"
+                            groups="aw_fenestration_core.group_fenestration_manager"/>
+                    <button name="action_open_purchase_order" type="object"
+                            string="Purchase order"
+                            invisible="not purchase_order_id"/>
                     <button name="action_mark_bought" type="object"
                             string="Mark bars bought"
                             invisible="state != 'draft'"
@@ -88,6 +95,11 @@
                             <field name="feet_used"/>
                             <field name="yield_pct"/>
                             <field name="cost_total" widget="monetary"/>
+                            <field name="purchase_order_id" invisible="1"/>
+                            <field name="po_total" widget="monetary"
+                                   invisible="not purchase_order_id"/>
+                            <field name="po_vs_quote" widget="monetary"
+                                   invisible="not purchase_order_id"/>
                             <!-- Side by side on purpose: the gap between
                                  what the price assumed and what the plan
                                  actually wastes is the number worth

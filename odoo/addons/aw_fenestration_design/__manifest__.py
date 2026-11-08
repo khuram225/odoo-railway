@@ -33,7 +33,7 @@ row/leaf grid shape:
     'author': 'Khurram',
     'website': 'https://mycrewvault.com',
     'license': 'LGPL-3',
-    'depends': ['aw_fenestration_core', 'sale'],
+    'depends': ['aw_fenestration_core', 'sale', 'purchase'],
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
@@ -60,6 +60,7 @@ row/leaf grid shape:
         'views/sale_order_views.xml',
         'views/vendor_bar_length_views.xml',
         'views/cut_plan_views.xml',
+        'views/purchase_order_views.xml',
         'views/cut_label_wizard_views.xml',
         'views/res_config_settings_views.xml',
         'views/glass_part_views.xml',
