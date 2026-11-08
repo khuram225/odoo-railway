@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- A bars line's description is built from its bars and length. Lines
+         from before that, and any edited since, get the right text. Idempotent:
+         it writes only where the text differs. -->
+    <function model="purchase.order.line" name="_aw_refresh_bars_names"/>
+
+</odoo>

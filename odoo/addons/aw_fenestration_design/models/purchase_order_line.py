@@ -27,14 +27,14 @@ class PurchaseOrderLine(models.Model):
         related='product_id.product_tmpl_id.aw_is_profile')
     aw_price_note = fields.Char(string='Price note', compute='_compute_aw_bars')
 
-    @api.depends('aw_bar_count', 'aw_bar_length_ft', 'price_unit', 'product_id')
+    @api.depends('aw_bar_count', 'aw_bar_length_ft', 'price_unit',
+                 'product_id', 'order_id.partner_id', 'order_id.date_order')
     def _compute_aw_bars(self):
         for line in self:
             line.aw_is_bars = bool(
                 line.aw_bar_count and line.aw_bar_length_ft)
             if line.aw_is_bars:
-                line.aw_price_note = _("No price") if not line.price_unit \
-                    else False
+                line.aw_price_note = line._aw_price_note()
             elif line.product_id.product_tmpl_id.aw_is_profile:
                 line.aw_price_note = _("Enter bars and bar length")
             else:
@@ -69,6 +69,54 @@ class PurchaseOrderLine(models.Model):
             product.product_tmpl_id, thickness, finish,
             self.order_id.partner_id, on_date)
 
+    def _aw_price_note(self):
+        """'No price', or 'list R - +x.x%' when the price is not the list."""
+        self.ensure_one()
+        if not self.price_unit:
+            return _("No price")
+        rate = self._aw_vendor_rate()
+        if rate and abs(self.price_unit - rate) > 0.005:
+            return _("list %(rate).2f - %(pct)+.1f%%", rate=rate, pct=(
+                self.price_unit - rate) / rate * 100.0)
+        return False
+
+    @api.model
+    def _aw_bars_text(self, count, length):
+        return _("%(bars)d bars x %(ft)g ft = %(total)g ft", bars=count,
+                 ft=length, total=self._aw_bar_qty(count, length))
+
+    def _aw_line_text(self):
+        """The line's description: the profile code, its finish and thickness,
+        and a line 'N bars x L ft = F ft'. Built from the numbers, so it is
+        never older than they are."""
+        self.ensure_one()
+        product = self.product_id
+        thickness, finish = self.order_id._aw_variant_values(product)
+        parts = [self.order_id._aw_finish_label(finish, self.order_id.partner_id)
+                 if finish else '', thickness.name or '']
+        head = product.product_tmpl_id.name
+        detail = ', '.join(p for p in parts if p)
+        if detail:
+            head = "%s (%s)" % (head, detail)
+        return "%s\n%s" % (head, self._aw_bars_text(
+            self.aw_bar_count, self.aw_bar_length_ft))
+
+    def _aw_sync_name(self):
+        for line in self.filtered(lambda l: l.aw_bar_count
+                                  and l.aw_bar_length_ft and l.product_id):
+            text = line._aw_line_text()
+            if line.name != text:
+                super(PurchaseOrderLine, line).write({'name': text})
+
+    @api.model
+    def _aw_refresh_bars_names(self):
+        """Upgrade step: lines made before the text was built from the
+        numbers (and the ones edited since) get the right text. Idempotent."""
+        lines = self.search([('aw_bar_count', '>', 0),
+                             ('aw_bar_length_ft', '>', 0)])
+        lines._aw_sync_name()
+        return len(lines)
+
     def _aw_bar_values(self, count, length, price=None):
         """What a line holds once it is bars x length: the quantity, the unit
         in ft, and the price. An existing price is carried over to the new
@@ -94,6 +142,7 @@ class PurchaseOrderLine(models.Model):
                 for name, value in line._aw_bar_values(
                         line.aw_bar_count, line.aw_bar_length_ft).items():
                     line[name] = value
+                line.name = line._aw_line_text()
 
     @api.onchange('product_id')
     def _onchange_aw_profile_length(self):
@@ -138,9 +187,16 @@ class PurchaseOrderLine(models.Model):
             extra.pop('product_qty')
             if extra:
                 line.write(extra)
+        lines._aw_sync_name()
         return lines
 
     def write(self, vals):
+        result = self._aw_write(vals)
+        if {'aw_bar_count', 'aw_bar_length_ft', 'product_id'} & set(vals):
+            self._aw_sync_name()
+        return result
+
+    def _aw_write(self, vals):
         if 'aw_bar_count' in vals or 'aw_bar_length_ft' in vals:
             for line in self:
                 one = dict(vals)
@@ -154,7 +210,7 @@ class PurchaseOrderLine(models.Model):
                     one['product_qty'] = extra['product_qty']
                 super(PurchaseOrderLine, line).write(one)
             return True
-        return super().write(vals)
+        return super(PurchaseOrderLine, self).write(vals)
 
     def _compute_price_unit_and_date_planned_and_name(self):
         """A bars line keeps the price it was made with."""

@@ -74,13 +74,45 @@ class PurchaseOrder(models.Model):
         return sorted(self.env['aw.cut.plan']._settings(
             self.partner_id, strict=True, template=template)['stock_ft'])
 
+    def _aw_finish_label(self, finish, vendor):
+        """The finish as THIS vendor names it (their names only, joined by
+        ' / '); the finish's own name when the vendor has none."""
+        names = finish.aw_name_ids.filtered(
+            lambda n: n.vendor_id == vendor).sorted('sequence')
+        return ' / '.join(names.mapped('name')) or finish.name
+
+    def _aw_sort_bar_lines(self):
+        """Bars lines in the order profile, finish, thickness, length, within
+        the places the order already gives them."""
+        self.ensure_one()
+        from odoo.addons.aw_fenestration_core.models.thickness import (
+            thickness_mm)
+        lines = self.order_line.filtered(lambda l: l.aw_bar_count)
+
+        def key(line):
+            thickness, finish = self._aw_variant_values(line.product_id)
+            mm = thickness_mm(thickness.name)
+            return (line.product_id.product_tmpl_id.name or '',
+                    self._aw_finish_label(finish, self.partner_id),
+                    mm is None, mm or 0.0, line.aw_bar_length_ft, line.id)
+        ordered = lines.sorted(key)
+        start = min(lines.mapped('sequence') or [10])
+        for position, line in enumerate(ordered):
+            if line.sequence != start + position:
+                line.sequence = start + position
+
     def _aw_variant_values(self, product):
+        """(thickness, finish) of a variant. Reads the whole combination:
+        product_template_variant_value_ids has a domain that leaves out an
+        attribute line with a single value, which is most profiles' thickness."""
+        thickness_attr = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness')
+        finish_attr = self.env.ref('aw_fenestration_core.aw_attribute_finish')
         thickness = finish = self.env['product.attribute.value']
-        for value in product.product_template_variant_value_ids:
-            name = value.attribute_id.name
-            if name == 'Thickness':
+        for value in product.product_template_attribute_value_ids:
+            if value.attribute_id == thickness_attr:
                 thickness = value.product_attribute_value_id
-            elif name == 'Finish':
+            elif value.attribute_id == finish_attr:
                 finish = value.product_attribute_value_id
         return thickness, finish
 
@@ -116,7 +148,8 @@ class PurchaseOrder(models.Model):
             'editable': self.state in EDITABLE,
             'lengths': lengths,
             'thicknesses': [{'id': v.id, 'name': v.name} for v in thicknesses],
-            'finishes': [{'id': v.id, 'name': v.aw_label(self.partner_id)}
+            'finishes': [{'id': v.id,
+                          'name': self._aw_finish_label(v, self.partner_id)}
                          for v in finishes],
             'cells': cells,
             'rates': rates,
@@ -189,4 +222,5 @@ class PurchaseOrder(models.Model):
                 'date_planned': fields.Datetime.now(),
             })
         to_remove.unlink()
+        self._aw_sort_bar_lines()
         return True

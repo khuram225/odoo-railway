@@ -2,13 +2,21 @@ import { onMounted } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
 import { Chatter } from "@mail/chatter/web_portal/chatter";
+import { user } from "@web/core/user";
 
 const CLASS = "o-aw-chatter-collapsed";
 const KEY = "aw_web_chatter_collapsed";
 
+// One key per user: two people sharing a browser each keep their own state.
+function userKey() {
+    return `${KEY}_${user.userId}`;
+}
+
 function stored() {
     try {
-        return browser.localStorage.getItem(KEY) === "1";
+        const own = browser.localStorage.getItem(userKey());
+        // before the key carried the user, one value served the browser
+        return (own === null ? browser.localStorage.getItem(KEY) : own) === "1";
     } catch {
         return false; // private window, blocked storage...
     }
@@ -33,7 +41,7 @@ patch(Chatter.prototype, {
         const collapsed = !document.body.classList.contains(CLASS);
         document.body.classList.toggle(CLASS, collapsed);
         try {
-            browser.localStorage.setItem(KEY, collapsed ? "1" : "0");
+            browser.localStorage.setItem(userKey(), collapsed ? "1" : "0");
         } catch {
             // The toggle still works for this page.
         }

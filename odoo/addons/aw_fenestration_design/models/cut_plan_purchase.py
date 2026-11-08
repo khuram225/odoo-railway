@@ -109,6 +109,7 @@ class AwCutPlan(models.Model):
                 'origin': "%s / %s" % (self.sale_order_id.name, self.name),
                 'order_line': commands,
             })
+        order._aw_sort_bar_lines()
         self.write({'purchase_order_id': order.id})
         note = _("%(who)s made purchase order %(po)s for %(batch)s.",
                  who=self.env.user.name, po=order.name, batch=self.name)

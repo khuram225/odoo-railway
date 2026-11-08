@@ -162,10 +162,17 @@ export class BarsGridDialog extends Component {
         return total;
     }
     money(value) {
-        return `${this.state.data.currency} ${value.toFixed(2)}`;
+        return `${this.state.data.currency} ${this.grouped(value)}`;
     }
     feet(value) {
-        return value.toFixed(1);
+        return this.grouped(value);
+    }
+    /** Two decimals and thousands separators. */
+    grouped(value) {
+        return value.toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        });
     }
 
     // -- confirm -----------------------------------------------------------
