@@ -18,7 +18,7 @@ from odoo import _, api, fields, models
 class AwProfileLpp(models.Model):
     _name = 'aw.profile.lpp'
     _description = 'Last Purchase Price of a Profile'
-    _order = 'date desc, po_line_id desc, id desc'
+    _order = 'date desc, id desc'
 
     vendor_id = fields.Many2one(
         'res.partner', string='Vendor', required=True, index=True,
@@ -49,12 +49,19 @@ class AwProfileLpp(models.Model):
         """The latest LPP for a vendor, profile, thickness and finish."""
         if not (vendor and template):
             return self.browse()
-        return self.sudo().search([
+        rows = self.sudo().search([
             ('vendor_id', '=', vendor.id),
             ('product_tmpl_id', '=', template.id),
             ('thickness_id', '=', thickness.id or False),
             ('finish_id', '=', finish.id or False),
-        ], limit=1)
+        ])
+        return rows._latest_first()[:1]
+
+    def _latest_first(self):
+        """Latest date first, then the highest line id. Sorted here: a
+        Many2one in `_order` sorts by the comodel's own order, not its id."""
+        return self.sorted(
+            key=lambda r: (r.date, r.po_line_id.id, r.id), reverse=True)
 
     # -- who changed what, on the vendor's chatter -------------------------
     def _log_removed(self, why):
@@ -66,7 +73,7 @@ class AwProfileLpp(models.Model):
                        when=fields.Datetime.now(), what="; ".join(
                            "%s %.2f/ft (%s)" % (
                                r.product_tmpl_id.name, r.price_ft,
-                               r.order_id.name or '') for r in rows)),
+                               r.sudo().order_id.name or '') for r in rows)),
                 author_id=self.env.user.partner_id.id,
                 subtype_xmlid='mail.mt_note')
 

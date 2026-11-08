@@ -20,7 +20,7 @@ class ProductTemplate(models.Model):
                   for c in data['cells']}
         seen, rows = set(), []
         for row in self.env['aw.profile.lpp'].sudo().search(
-                [('product_tmpl_id', '=', self.id)]):
+                [('product_tmpl_id', '=', self.id)])._latest_first():
             key = (row.thickness_id.id, row.finish_id.id, row.vendor_id.id)
             if key in seen:
                 continue

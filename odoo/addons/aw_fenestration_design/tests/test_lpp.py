@@ -183,6 +183,7 @@ class TestLastPurchasePrice(TransactionCase):
         self.assertEqual(line.price_unit, 2.5)
         self.assertFalse(line.aw_price_note)
         self._confirm(self._order(f1_price=2.9))
+        line.invalidate_recordset(['aw_price_note'])
         self.assertIn('last 2.90', line.aw_price_note)
 
     # -- the dialog at confirm ---------------------------------------------
