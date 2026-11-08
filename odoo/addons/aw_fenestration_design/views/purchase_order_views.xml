@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Bar length and number of bars on a purchase order line. The
+         quantity stays in ft; it is read-only while bars are set. -->
+    <record id="view_purchase_order_form_aw_bars" model="ir.ui.view">
+        <field name="name">purchase.order.form.aw.bars</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='order_line']/list/field[@name='product_qty']"
+                   position="before">
+                <field name="aw_bar_count" optional="show"/>
+                <field name="aw_bar_length_ft" optional="show"/>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list/field[@name='product_qty']"
+                   position="attributes">
+                <attribute name="readonly">is_downpayment or aw_bar_count</attribute>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list/field[@name='price_unit']"
+                   position="after">
+                <field name="aw_price_note" readonly="1" optional="show"
+                       decoration-danger="aw_price_note"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

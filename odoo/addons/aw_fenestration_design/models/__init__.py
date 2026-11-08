@@ -31,6 +31,8 @@ from . import costing
 from . import cut_list
 from . import vendor_bar_length
 from . import cut_plan
+from . import cut_plan_purchase
+from . import purchase_order_line
 from . import position_product
 from . import sale_order
 from . import res_config_settings

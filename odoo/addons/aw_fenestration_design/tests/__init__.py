@@ -35,3 +35,4 @@ from . import test_rates_data_in
 from . import test_batch_final
 from . import test_batch_reopen
 from . import test_batch_stock
+from . import test_purchase_order

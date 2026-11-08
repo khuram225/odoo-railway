@@ -520,6 +520,24 @@ Final batch whose offcuts another active batch uses cannot be reopened. The
 optimiser is not asked to share pieces between offcuts and new bars optimally: the
 pre-pack is greedy.
 
+**Purchase order from a batch (Brief P2).** `purchase` is a dependency of the
+design module. A `purchase.order.line` gets `aw_bar_length_ft` and `aw_bar_count`;
+with both set `product_qty` is bars x length, in **ft** (the profile products are
+stocked in metres, so the line converts to metres on receipt; `uom.product_uom_foot`
+ships switched off and is switched on when the first order is made). A constraint
+refuses a quantity that is not bars x length, and the view makes it read-only.
+**`price_unit` is pinned** by overriding `_compute_price_unit_and_date_planned_and_name`
+to skip a bars line: core re-prices a line from the vendor price list or the cost
+whenever the quantity changes. **Create purchase order** (Fenestration managers, a
+current Draft batch) makes ONE draft order for the batch's profile vendor, a line per
+profile variant and bar length, priced from the vendor's profile rate in force
+(`group.rate_per_ft` when it has a `rate_date`). A profile with no rate from that
+vendor is still on the order at 0, marked "No price" (`aw_price_note`). Bars taken
+from stock are not bought. The order is made with `sudo()` (the user stays the
+creator). `aw.cut.plan.purchase_order_id` links it; the batch shows the order total
+and its difference from the quote's cost. A cancelled order may be replaced; the
+order does not follow a re-plan, so cancel and make it again.
+
 ## Process
 
 Merging to main deploys and upgrades aw_fenestration_core and
