@@ -27,7 +27,10 @@ class AwCutReopenWizard(models.TransientModel):
         bought = _("bought %(when)s by %(who)s") % {
             'when': plan.bought_on or '', 'who': plan.bought_by.name or ''}
         plan.write({'state': 'draft', 'bought_on': False, 'bought_by': False})
-        plan.sale_order_id.message_post(body=_(
+        # sudo: a Fenestration manager need not be allowed to write on the
+        # quote itself; the note is still authored by them.
+        plan.sale_order_id.sudo().message_post(
+            author_id=self.env.user.partner_id.id, body=_(
             "%(who)s reopened %(batch)s on %(date)s (it was %(bought)s). "
             "Reason: %(reason)s",
             who=self.env.user.name, batch=plan.name,
