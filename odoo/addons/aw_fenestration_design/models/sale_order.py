@@ -182,42 +182,56 @@ class SaleOrder(models.Model):
     aw_cut_plan_ids = fields.One2many(
         'aw.cut.plan', 'sale_order_id', string='Cutting Plans')
 
-    def action_cutting_plan(self):
-        """Open this quote's cutting plan, building one if needed.
-
-        Blocked while any position has an error, which is the point:
-        the commonest error is a piece longer than the longest stock
-        bar, and nesting around it would produce a plan that cannot be
-        cut.
-        """
+    def _batch_free_designs(self):
+        """The windows that are in no active (not cancelled) batch."""
         self.ensure_one()
-        designs = self.aw_design_ids
-        if not designs:
-            raise UserError(_("This quote has no fenestration windows."))
-        blocking = designs.filtered(lambda d: d.check_error_count)
-        if blocking:
-            raise UserError(_(
-                "Fix these windows before planning the cuts:\n%s",
-                '\n'.join('- %s' % design.display_name
-                          for design in blocking)))
+        taken = self.aw_cut_plan_ids.filtered(
+            lambda p: p.state != 'cancel').design_ids
+        return self.aw_design_ids - taken
 
-        plan = self.aw_cut_plan_ids[:1]
-        if not plan:
-            plan = self.env['aw.cut.plan'].create(
-                {'sale_order_id': self.id})
-        # Solve ONLY when there is nothing to show. A stale plan opens
-        # with its "out of date" banner and waits for Regenerate --
-        # opening a quote should never block on an optimiser, and the
-        # estimator may want to read the old plan before replacing it.
-        if not plan.group_ids:
-            plan._generate()
+    def action_cutting_plan(self):
+        """The quote's cutting batches. With none yet, straight to making
+        the first one. Opening a quote never runs the optimiser: a batch is
+        solved when it is made, and a stale one waits for Regenerate."""
+        self.ensure_one()
+        if not self.aw_design_ids:
+            raise UserError(_("This quote has no fenestration windows."))
+        if not self.aw_cut_plan_ids:
+            return self.action_new_batch()
         return {
             'type': 'ir.actions.act_window',
-            'name': _("Cutting Plan"),
+            'name': _("Cutting batches"),
             'res_model': 'aw.cut.plan',
-            'res_id': plan.id,
+            'view_mode': 'list,form',
+            'views': [[False, 'list'], [False, 'form']],
+            'domain': [('sale_order_id', '=', self.id)],
+        }
+
+    def action_new_batch(self):
+        """Tick the windows for a new cutting batch."""
+        self.ensure_one()
+        free = self._batch_free_designs()
+        if not self.aw_design_ids:
+            raise UserError(_("This quote has no fenestration windows."))
+        if not free:
+            raise UserError(_(
+                "Every window is already in a batch. Take one out of a "
+                "Draft batch, or cancel that batch, to make a new one."))
+        wizard = self.env['aw.cut.batch.wizard'].create({
+            'order_id': self.id,
+            'line_ids': [(0, 0, {'design_id': design.id})
+                         for design in free.sorted('id')],
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("New batch"),
+            'res_model': 'aw.cut.batch.wizard',
+            'res_id': wizard.id,
             'view_mode': 'form',
-            'views': [[False, 'form']],
+            'views': [(self.env.ref(
+                'aw_fenestration_design.view_aw_cut_batch_wizard_form'
+            ).id, 'form')],
+            'target': 'new',
         }
 
     def _create_fenestration_position(self, series, name=None,

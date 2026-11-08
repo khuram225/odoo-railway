@@ -285,13 +285,14 @@ class AwDesign(models.Model):
         return sorted(rows, key=lambda r: r['panel_no'])
 
     def _sheet_plan(self):
-        """The order's latest cutting plan, if it has one."""
+        """The cutting batch this window is in, if it is in one."""
         self.ensure_one()
         if not self.sale_order_id:
             return self.env['aw.cut.plan']
-        # _order is create_date desc, so the first is the latest.
-        return self.env['aw.cut.plan'].search(
-            [('sale_order_id', '=', self.sale_order_id.id)], limit=1)
+        return self.env['aw.cut.plan'].search([
+            ('sale_order_id', '=', self.sale_order_id.id),
+            ('design_ids', 'in', self.id), ('state', '!=', 'cancel')],
+            limit=1)
 
     def _sheet_bar_cut(self):
         """({bom line id: 'bar 3/13 cut 2'}, note).

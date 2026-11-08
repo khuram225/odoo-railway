@@ -17,7 +17,7 @@ import time
 from urllib.parse import urlencode
 
 from odoo import _, api, fields, models
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 from .cut_algorithm import (
     MM_PER_FOOT, evaluate, scenario_by_key, solve,
@@ -62,7 +62,16 @@ class AwCutPlan(models.Model):
     state = fields.Selection([
         ('draft', 'Draft'),
         ('confirmed', 'Confirmed'),
+        ('cancel', 'Cancelled'),
     ], default='draft', required=True)
+    # A batch is a cutting plan: the windows ticked when it was made. A
+    # window is in ONE active (not cancelled) batch only, and moves only
+    # while the batch is Draft.
+    batch_no = fields.Integer(readonly=True, copy=False)
+    design_ids = fields.Many2many(
+        'aw.design', 'aw_cut_plan_design_rel', 'plan_id', 'design_id',
+        string='Windows')
+    window_count = fields.Integer(compute='_compute_window_count')
 
     # The settings AS USED, not as they are now. A kerf changed next
     # month must not silently restate what the shop was told to cut.
@@ -111,8 +120,108 @@ class AwCutPlan(models.Model):
 
     def _compute_name(self):
         for plan in self:
-            plan.name = _("Cutting Plan — %s") % (
-                plan.sale_order_id.name or '')
+            plan.name = _("Batch %(no)s — %(order)s",
+                          no=plan.batch_no or 1,
+                          order=plan.sale_order_id.name or '')
+
+    @api.depends('design_ids')
+    def _compute_window_count(self):
+        for plan in self:
+            plan.window_count = len(plan.design_ids)
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        for vals in vals_list:
+            if not vals.get('batch_no') and vals.get('sale_order_id'):
+                last = self.with_context(active_test=False).search(
+                    [('sale_order_id', '=', vals['sale_order_id'])],
+                    order='batch_no desc', limit=1)
+                vals['batch_no'] = (last.batch_no or 0) + 1
+        return super().create(vals_list)
+
+    def write(self, vals):
+        if 'design_ids' in vals and not self.env.context.get(
+                'aw_batch_backfill'):
+            locked = self.filtered(lambda p: p.state != 'draft')
+            if locked:
+                raise UserError(_(
+                    "Windows can only move while the batch is Draft."))
+        return super().write(vals)
+
+    @api.constrains('design_ids', 'state')
+    def _check_windows(self):
+        for plan in self.filtered(lambda p: p.state != 'cancel'):
+            foreign = plan.design_ids.filtered(
+                lambda d: d.sale_order_id != plan.sale_order_id)
+            if foreign:
+                raise ValidationError(_(
+                    "%s is not a window of this quote.",
+                    ', '.join(foreign.mapped('display_name'))))
+            clash = self.search([
+                ('id', '!=', plan.id), ('state', '!=', 'cancel'),
+                ('design_ids', 'in', plan.design_ids.ids)])
+            if clash:
+                shared = clash.mapped('design_ids') & plan.design_ids
+                raise ValidationError(_(
+                    "%(windows)s already in %(batch)s. A window is in one "
+                    "batch only; take it out of that batch first (while "
+                    "it is Draft).",
+                    windows=', '.join(shared.mapped('display_name')),
+                    batch=', '.join(clash.mapped('name'))))
+
+    def action_cancel_batch(self):
+        for plan in self:
+            if plan.state != 'draft':
+                raise UserError(_("Only a Draft batch can be cancelled."))
+            plan.state = 'cancel'
+            plan.sale_order_id.message_post(body=_(
+                "%(who)s cancelled %(batch)s; its %(count)s window(s) are "
+                "free for another batch.", who=self.env.user.name,
+                batch=plan.name, count=len(plan.design_ids)))
+        return True
+
+    def action_open(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': self.name,
+            'res_model': 'aw.cut.plan',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [[False, 'form']],
+        }
+
+    @api.model
+    def _backfill_batches(self):
+        """Once: every plan made before batches existed gets the windows of
+        its quote (that is what it was planned from), and a batch number in
+        the order the plans were made. Never run again: a batch emptied by
+        hand must stay empty."""
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param('aw_fenestration.batches_backfilled'):
+            return 0
+        plans = self.with_context(active_test=False).search(
+            [], order='sale_order_id, id')
+        counter, done = {}, 0
+        for plan in plans:
+            order = plan.sale_order_id
+            counter[order.id] = counter.get(order.id, 0) + 1
+            values = {}
+            if not plan.batch_no:
+                values['batch_no'] = counter[order.id]
+            if not plan.design_ids and plan.state != 'cancel':
+                taken = self.search([
+                    ('sale_order_id', '=', order.id),
+                    ('state', '!=', 'cancel'), ('id', '!=', plan.id)
+                ]).design_ids
+                values['design_ids'] = [
+                    (6, 0, (order.aw_design_ids - taken).ids)]
+            if values:
+                plan.with_context(aw_batch_backfill=True).write(values)
+                done += 1
+        param.set_param('aw_fenestration.batches_backfilled', '1')
+        return done
+
 
     @api.depends('group_ids.bar_count', 'group_ids.feet_bought',
                  'group_ids.feet_used', 'group_ids.cost')
@@ -130,7 +239,8 @@ class AwCutPlan(models.Model):
             # the same base the Price Structure's percentage assumes.
             plan.measured_wastage_pct = (
                 (bought - used) / used * 100.0) if used else 0.0
-            structure = plan.sale_order_id.aw_design_ids[:1].price_structure_id
+            structure = (plan.design_ids
+                         or plan.sale_order_id.aw_design_ids)[:1].price_structure_id
             plan.assumed_wastage_pct = structure._values()['profile_wastage']
 
     @api.depends('bom_fingerprint', 'sale_order_id')
@@ -185,13 +295,13 @@ class AwCutPlan(models.Model):
     # what the plan was built from
     # ------------------------------------------------------------------
     def _profile_lines(self):
-        """Every profile BOM line on this quote's positions.
+        """Every profile BOM line of the windows in THIS batch.
 
         Quantities already include each design's qty -- the explosion
         multiplies by it -- so this must NOT multiply again.
         """
         self.ensure_one()
-        designs = self.sale_order_id.aw_design_ids
+        designs = self.design_ids
         # A piece cut on site has no length and no place on a bar.
         return designs.mapped('bom_line_ids').filtered(
             lambda line: line.kind == 'profile' and not line.cut_on_site)
@@ -219,6 +329,10 @@ class AwCutPlan(models.Model):
                 by_profile[str(template.id)] = lengths
         if by_profile:
             payload['by_profile'] = by_profile
+        # A partial batch goes stale when its windows change. A batch that
+        # holds every window keeps the fingerprint it had before batches.
+        if self.design_ids != self.sale_order_id.aw_design_ids:
+            payload['windows'] = sorted(self.design_ids.ids)
         blob = json.dumps(payload, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
