@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The profile matrix, laid out. Every number comes from
+         purchase.order.aw_print_data(); nothing is worked out here. -->
+    <template id="po_bars_print">
+        <t t-set="data" t-value="o.aw_print_data()"/>
+        <t t-set="show" t-value="o.aw_show_prices"/>
+        <t t-if="data['rows']">
+            <table class="table table-sm o_aw_matrix">
+                <thead style="display: table-row-group">
+                    <tr>
+                        <th class="text-start">Profile</th>
+                        <th class="text-start">Finish</th>
+                        <th class="text-start">Thickness</th>
+                        <th t-foreach="data['lengths']" t-as="ln" class="text-end">
+                            <t t-out="'%g' % ln"/> ft
+                        </th>
+                        <th class="text-end">Bars</th>
+                        <th class="text-end">Feet</th>
+                        <th t-if="show" class="text-end">Rate</th>
+                        <th t-if="show" class="text-end">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr t-foreach="data['rows']" t-as="row">
+                        <td class="text-start fw-bold"><t t-out="row['code']"/></td>
+                        <td class="text-start"><t t-out="row['finish']"/></td>
+                        <td class="text-start"><t t-out="row['thickness']"/></td>
+                        <td t-foreach="data['lengths']" t-as="ln" class="text-end">
+                            <t t-out="row['cells'].get(ln) or ''"/>
+                        </td>
+                        <td class="text-end"><t t-out="row['bars']"/></td>
+                        <td class="text-end"><t t-out="'{:,.2f}'.format(row['feet'])"/></td>
+                        <td t-if="show" class="text-end"><t t-out="'{:,.2f}'.format(row['rate'])"/></td>
+                        <td t-if="show" class="text-end">
+                            <span t-out="row['amount']" t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="row">
+                <div class="col-7">
+                    <table class="table table-sm o_aw_summary_profile">
+                        <thead style="display: table-row-group">
+                            <tr>
+                                <th class="text-start">By profile</th>
+                                <th class="text-end">Bars</th>
+                                <th class="text-end">Feet</th>
+                                <th t-if="show" class="text-end">Amount</th>
+                                <th class="text-end">Share</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="data['profiles']" t-as="item">
+                                <td class="text-start"><t t-out="item['code']"/></td>
+                                <td class="text-end"><t t-out="item['bars']"/></td>
+                                <td class="text-end"><t t-out="'{:,.2f}'.format(item['feet'])"/></td>
+                                <td t-if="show" class="text-end">
+                                    <span t-out="item['amount']" t-options="{'widget': 'monetary', 'display_currency': o.currency_id}"/>
+                                </td>
+                                <td class="text-end"><t t-out="'{:.1f}'.format(item['share'])"/> %</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-5">
+                    <table class="table table-sm o_aw_summary_length">
+                        <thead style="display: table-row-group">
+                            <tr>
+                                <th class="text-start">By length</th>
+                                <th class="text-end">Bars</th>
+                                <th class="text-end">Feet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="data['by_length']" t-as="item">
+                                <td class="text-start"><t t-out="'%g' % item['length']"/> ft</td>
+                                <td class="text-end"><t t-out="item['bars']"/></td>
+                                <td class="text-end"><t t-out="'{:,.2f}'.format(item['feet'])"/></td>
+                            </tr>
+                            <tr class="fw-bold">
+                                <td class="text-start">Total</td>
+                                <td class="text-end"><t t-out="data['bars']"/></td>
+                                <td class="text-end"><t t-out="'{:,.2f}'.format(data['feet'])"/></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- Source and terms beside the header facts of both documents. -->
+    <template id="po_header_extra">
+        <div t-if="o.origin" class="col-3 bm-2" id="aw_source">
+            <strong>Source:</strong>
+            <p t-field="o.origin" class="m-0"/>
+        </div>
+        <div t-if="o.payment_term_id" class="col-3 bm-2" id="aw_terms">
+            <strong>Terms:</strong>
+            <p t-field="o.payment_term_id" class="m-0"/>
+        </div>
+    </template>
+
+    <!-- Purchase order -->
+    <template id="report_purchaseorder_document_aw"
+              inherit_id="purchase.report_purchaseorder_document">
+        <xpath expr="//div[@id='informations']" position="inside">
+            <t t-call="aw_fenestration_design.po_header_extra"/>
+        </xpath>
+        <xpath expr="//t[@t-call='product_matrix.matrix']" position="after">
+            <t t-call="aw_fenestration_design.po_bars_print"/>
+        </xpath>
+        <!-- the standard table keeps every line that is not a bars line -->
+        <xpath expr="//t[@t-set='filtered_lines']" position="attributes">
+            <attribute name="t-value">o._aw_print_other_lines()</attribute>
+        </xpath>
+        <xpath expr="//table[hasclass('o_main_table')]" position="attributes">
+            <attribute name="t-if">o._aw_print_other_lines()</attribute>
+        </xpath>
+        <!-- no prices on a request for quotation -->
+        <xpath expr="//th[@name='th_price_unit']" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_discount']" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_taxes']" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//th[@name='th_subtotal']" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//td[span[contains(@t-field, 'price_unit')]]" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//td[span/span[contains(@t-field, 'line.discount')]]" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//td[span[contains(@t-out, 'tax_label')]]" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//td[span[contains(@t-field, 'price_subtotal')]]" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//tr[hasclass('is-subtotal')]" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+        <xpath expr="//div[@id='total']" position="attributes">
+            <attribute name="t-if">o.aw_show_prices</attribute>
+        </xpath>
+    </template>
+
+    <!-- Request for quotation -->
+    <template id="report_purchasequotation_document_aw"
+              inherit_id="purchase.report_purchasequotation_document">
+        <xpath expr="//div[@id='informations']" position="inside">
+            <t t-call="aw_fenestration_design.po_header_extra"/>
+        </xpath>
+        <xpath expr="//t[@t-call='product_matrix.matrix']" position="after">
+            <t t-call="aw_fenestration_design.po_bars_print"/>
+        </xpath>
+        <xpath expr="//div[hasclass('page')]/table" position="attributes">
+            <attribute name="t-if">o._aw_print_other_lines()</attribute>
+        </xpath>
+        <xpath expr="//div[hasclass('page')]/table//t[@t-foreach]" position="attributes">
+            <attribute name="t-foreach">o._aw_print_other_lines()</attribute>
+        </xpath>
+    </template>
+
+</odoo>

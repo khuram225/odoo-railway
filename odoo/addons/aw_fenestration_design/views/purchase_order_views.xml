@@ -19,6 +19,9 @@
                    position="attributes">
                 <attribute name="invisible">not id or forecasted_issue or not is_storable or aw_is_profile</attribute>
             </xpath>
+            <field name="partner_ref" position="after">
+                <field name="aw_show_prices"/>
+            </field>
             <!-- Beside 'Add a product': the bars grid for a profile. -->
             <xpath expr="//field[@name='order_line']/list/control/button[@name='action_add_from_catalog']"
                    position="after">

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Orders confirmed before the Show prices tick existed keep printing
+         their prices. One-shot (a parameter), so it never undoes a tick. -->
+    <function model="purchase.order" name="_aw_backfill_show_prices"/>
+
+</odoo>
