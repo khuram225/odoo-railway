@@ -33,7 +33,8 @@ row/leaf grid shape:
     'author': 'Khurram',
     'website': 'https://mycrewvault.com',
     'license': 'LGPL-3',
-    'depends': ['aw_fenestration_core', 'sale', 'purchase'],
+    'depends': ['aw_fenestration_core', 'sale', 'purchase',
+                'purchase_product_matrix'],
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',

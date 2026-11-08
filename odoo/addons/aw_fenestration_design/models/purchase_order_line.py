@@ -6,9 +6,45 @@ in ft, and is bars x length. The price is pinned: the standard price rule
 re-prices a line whenever its quantity changes, and a price taken from the
 vendor's profile rate on the day the order was made must not move because
 somebody changed the number of bars.
+
+A profile line typed by hand: the user picks the profile, the bar length is
+filled in when the vendor sells that profile in exactly one length, and the
+user types the number of bars. Until bars and length are both set the line
+says so. Setting them puts the line in ft and, when it has no price, takes
+the vendor's rate per ft.
 """
+import json
+
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
+
+
+class PurchaseOrder(models.Model):
+    _inherit = 'purchase.order'
+
+    @api.onchange('grid')
+    def _apply_grid(self):
+        """The variant grid sets a quantity directly. On a bars line that
+        would break bars x length (and reset its unit), so it is refused."""
+        if self.grid and self.grid_update:
+            self._aw_refuse_grid_on_bars_lines(json.loads(self.grid))
+        return super()._apply_grid()
+
+    def _aw_refuse_grid_on_bars_lines(self, grid):
+        template = self.env['product.template'].browse(
+            grid.get('product_template_id'))
+        bars = self.order_line.filtered(
+            lambda l: l.product_id.product_tmpl_id == template
+            and l.aw_bar_count)
+        for cell in grid.get('changes', []):
+            wanted = set(cell.get('ptav_ids', []))
+            for line in bars:
+                if set(line.product_template_attribute_value_ids.ids) \
+                        == wanted:
+                    raise UserError(_(
+                        "%(product)s is bought in bars. Change Bars and Bar "
+                        "length on the line, not its quantity in the grid.",
+                        product=line.product_id.display_name))
 
 
 class PurchaseOrderLine(models.Model):
@@ -19,37 +55,95 @@ class PurchaseOrderLine(models.Model):
     aw_is_bars = fields.Boolean(compute='_compute_aw_bars')
     aw_price_note = fields.Char(string='Price note', compute='_compute_aw_bars')
 
-    @api.depends('aw_bar_count', 'aw_bar_length_ft', 'price_unit')
+    @api.depends('aw_bar_count', 'aw_bar_length_ft', 'price_unit', 'product_id')
     def _compute_aw_bars(self):
         for line in self:
             line.aw_is_bars = bool(
                 line.aw_bar_count and line.aw_bar_length_ft)
-            line.aw_price_note = _("No price") if (
-                line.aw_is_bars and not line.price_unit) else False
+            if line.aw_is_bars:
+                line.aw_price_note = _("No price") if not line.price_unit \
+                    else False
+            elif line.product_id.product_tmpl_id.aw_is_profile:
+                line.aw_price_note = _("Enter bars and bar length")
+            else:
+                line.aw_price_note = False
 
     @api.model
     def _aw_bar_qty(self, count, length):
         return float(count or 0) * float(length or 0.0)
 
+    def _aw_foot(self):
+        foot = self.env.ref('uom.product_uom_foot')
+        if not foot.active:
+            foot.sudo().active = True
+        return foot
+
+    def _aw_vendor_rate(self):
+        """The vendor's profile rate per ft on the order date, or 0."""
+        self.ensure_one()
+        product, vendor = self.product_id, self.order_id.partner_id
+        if not (product and vendor):
+            return 0.0
+        thickness = finish = self.env['product.attribute.value']
+        for value in product.product_template_variant_value_ids:
+            attribute = value.attribute_id.name
+            if attribute == 'Thickness':
+                thickness = value.product_attribute_value_id
+            elif attribute == 'Finish':
+                finish = value.product_attribute_value_id
+        on_date = (self.order_id.date_order or fields.Datetime.now()).date()
+        rate = self.env['aw.profile.rate']._rate_for(
+            product.product_tmpl_id, thickness, finish, on_date, vendor)
+        return rate.price if rate else 0.0
+
+    def _aw_bar_values(self, count, length, price=None):
+        """What a line holds once it is bars x length: the quantity, the unit
+        in ft, and the price. An existing price is carried over to the new
+        unit; a line with no price takes the vendor's rate per ft."""
+        self.ensure_one()
+        foot = self._aw_foot()
+        values = {'product_qty': self._aw_bar_qty(count, length)}
+        price = self.price_unit if price is None else price
+        if self.product_uom_id and self.product_uom_id != foot and price:
+            price = self.product_uom_id._compute_price(price, foot)
+        if self.product_uom_id != foot:
+            values['product_uom_id'] = foot.id
+        if not price:
+            price = self._aw_vendor_rate()
+        if price != self.price_unit:
+            values.update(price_unit=price, technical_price_unit=price)
+        return values
+
     @api.onchange('aw_bar_count', 'aw_bar_length_ft')
     def _onchange_aw_bars(self):
         for line in self:
             if line.aw_bar_count and line.aw_bar_length_ft:
-                line.product_qty = line._aw_bar_qty(
-                    line.aw_bar_count, line.aw_bar_length_ft)
+                for name, value in line._aw_bar_values(
+                        line.aw_bar_count, line.aw_bar_length_ft).items():
+                    line[name] = value
+
+    @api.onchange('product_id')
+    def _onchange_aw_profile_length(self):
+        """A profile the vendor sells in one length needs no length typed."""
+        for line in self:
+            template = line.product_id.product_tmpl_id
+            if not template.aw_is_profile or line.aw_bar_length_ft:
+                continue
+            lengths = self.env['aw.vendor.bar.length']._lengths_for(
+                line.order_id.partner_id, template=template)
+            if len(lengths) == 1:
+                line.aw_bar_length_ft = lengths[0]
 
     @api.constrains('aw_bar_count', 'aw_bar_length_ft', 'product_qty')
     def _check_aw_bars(self):
         for line in self:
-            if not (line.aw_bar_count or line.aw_bar_length_ft):
-                continue
-            if line.aw_bar_count < 1 or line.aw_bar_length_ft <= 0:
+            if line.aw_bar_count < 0 or line.aw_bar_length_ft < 0:
                 raise ValidationError(_(
-                    "A bars line needs both a bar length and a number of "
-                    "bars."))
+                    "Bars and bar length cannot be negative."))
+            if not (line.aw_bar_count and line.aw_bar_length_ft):
+                continue
             want = line._aw_bar_qty(line.aw_bar_count, line.aw_bar_length_ft)
-            if line.product_uom_id == self.env.ref(
-                    'uom.product_uom_foot') \
+            if line.product_uom_id == self.env.ref('uom.product_uom_foot') \
                     and abs(line.product_qty - want) > 1e-6:
                 raise ValidationError(_(
                     "%(product)s: %(bars)s bars of %(ft)g ft is %(want)g ft, "
@@ -63,7 +157,15 @@ class PurchaseOrderLine(models.Model):
             if vals.get('aw_bar_count') and vals.get('aw_bar_length_ft'):
                 vals['product_qty'] = self._aw_bar_qty(
                     vals['aw_bar_count'], vals['aw_bar_length_ft'])
-        return super().create(vals_list)
+        lines = super().create(vals_list)
+        # a line typed by hand arrives in the product's unit, maybe unpriced
+        for line in lines.filtered('aw_is_bars'):
+            extra = line._aw_bar_values(
+                line.aw_bar_count, line.aw_bar_length_ft)
+            extra.pop('product_qty')
+            if extra:
+                line.write(extra)
+        return lines
 
     def write(self, vals):
         if 'aw_bar_count' in vals or 'aw_bar_length_ft' in vals:
@@ -72,7 +174,11 @@ class PurchaseOrderLine(models.Model):
                 count = one.get('aw_bar_count', line.aw_bar_count)
                 length = one.get('aw_bar_length_ft', line.aw_bar_length_ft)
                 if count and length:
-                    one['product_qty'] = self._aw_bar_qty(count, length)
+                    extra = line._aw_bar_values(
+                        count, length, price=one.get('price_unit'))
+                    for key, value in extra.items():
+                        one.setdefault(key, value)
+                    one['product_qty'] = extra['product_qty']
                 super(PurchaseOrderLine, line).write(one)
             return True
         return super().write(vals)

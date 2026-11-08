@@ -7,7 +7,15 @@
         <field name="name">purchase.order.form.aw.bars</field>
         <field name="model">purchase.order</field>
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="priority">99</field>
         <field name="arch" type="xml">
+            <!-- The variant column the grid module hides: a profile line
+                 is one variant, picked here. -->
+            <xpath expr="//field[@name='order_line']/list/field[@name='product_id']"
+                   position="attributes">
+                <attribute name="column_invisible">0</attribute>
+                <attribute name="string">Variant</attribute>
+            </xpath>
             <xpath expr="//field[@name='order_line']/list/field[@name='product_qty']"
                    position="before">
                 <field name="aw_bar_count" optional="show"/>

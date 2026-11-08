@@ -538,6 +538,21 @@ creator). `aw.cut.plan.purchase_order_id` links it; the batch shows the order to
 and its difference from the quote's cost. A cancelled order may be replaced; the
 order does not follow a re-plan, so cancel and make it again.
 
+**Typing a profile line by hand.** `purchase_product_matrix` opens its variant
+grid whenever `get_single_product_variant()` answers nothing, which is every
+template with dynamic attributes (`product_add_mode` is a SALE setting and is not
+read in purchase; all 694 profiles, 674 with no variant yet). A profile now answers
+with its first variant, making the default one (`sudo`) if there is none, so the
+line gets a product and no grid; the **Variant** column the grid module hides is
+shown again to pick another existing one. A new profile line takes its bar length
+from the vendor's bar lengths only when it has exactly one active length for that
+profile (`_lengths_for`, no global fallback); until bars AND length are set the line
+says "Enter bars and bar length" (`aw_price_note`). Setting them puts the line in ft
+(an existing price is carried to the new unit) and, with no price, takes the vendor's
+rate per ft. The grid is refused for a bars line (`_aw_refuse_grid_on_bars_lines`):
+it writes the quantity directly and resets the unit. An unchanged grid cell is never
+sent by the client, so Confirm with unchanged numbers changes nothing.
+
 ## Process
 
 Merging to main deploys and upgrades aw_fenestration_core and
