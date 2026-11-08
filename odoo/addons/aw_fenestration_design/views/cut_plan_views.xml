@@ -8,8 +8,9 @@
             <form>
                 <header>
                     <button name="action_generate" type="object"
-                            string="Regenerate" class="btn-primary"
-                            invisible="state != 'draft'"/>
+                            string="Re-plan from stock" class="btn-primary"
+                            invisible="state != 'draft'"
+                            title="Plans again, using the offcuts earlier Final batches left before buying a bar."/>
                     <button name="action_mark_bought" type="object"
                             string="Mark bars bought"
                             invisible="state != 'draft'"
@@ -56,6 +57,15 @@
                                readonly="state != 'draft'"
                                options="{'no_create': True}"
                                domain="[('sale_order_id', '=', sale_order_id)]"/>
+                        <field name="stock_bars_used" readonly="1"/>
+                        <field name="plan_without_stock"
+                               readonly="state != 'draft'"
+                               groups="aw_fenestration_core.group_fenestration_manager"/>
+                        <field name="no_stock_reason"
+                               invisible="not plan_without_stock"
+                               readonly="state != 'draft'"
+                               placeholder="Why is this batch planned without the stock left by earlier batches?"
+                               groups="aw_fenestration_core.group_fenestration_manager"/>
                     </group>
                     <group>
                         <group string="Built with">
@@ -161,7 +171,9 @@
                                     </page>
                                     <page string="Bars" name="bars">
                                         <field name="bar_ids" readonly="1">
-                                            <list>
+                                            <list decoration-info="from_bar_id">
+                                                <field name="from_bar_id" column_invisible="1"/>
+                                                <field name="source_label" string="From stock"/>
                                                 <field name="sequence"/>
                                                 <field name="stock_label" string="Stock"/>
                                                 <field name="remainder_label" string="Remainder"/>

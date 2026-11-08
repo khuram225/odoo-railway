@@ -21,6 +21,7 @@ class AwCutReopenWizard(models.TransientModel):
         plan = self.plan_id
         if plan.state != 'confirmed':
             raise UserError(_("Only a Final batch can be reopened."))
+        plan._ensure_nothing_uses_my_offcuts()
         reason = (self.reason or '').strip()
         if not reason:
             raise UserError(_("Say why the batch is reopened."))

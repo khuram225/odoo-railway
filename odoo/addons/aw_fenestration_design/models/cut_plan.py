@@ -20,7 +20,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
 from .cut_algorithm import (
-    MM_PER_FOOT, evaluate, scenario_by_key, solve,
+    MM_PER_FOOT, evaluate, pack_into_stock, scenario_by_key, solve,
 )
 
 PARAM_STOCK = 'aw_fenestration.stock_lengths_ft'
@@ -68,6 +68,14 @@ class AwCutPlan(models.Model):
     # purchasing it will follow the PO). A Final batch is locked.
     bought_on = fields.Datetime(readonly=True, copy=False)
     bought_by = fields.Many2one('res.users', readonly=True, copy=False)
+    # Stock = what earlier Final batches of the quote left on their bars (an
+    # offcut above the minimum setting). Planning uses it before it buys a
+    # bar. A Final batch must have been planned from stock, unless a manager
+    # ticks Plan without stock and says why.
+    plan_without_stock = fields.Boolean(copy=False)
+    no_stock_reason = fields.Text(copy=False)
+    stock_planned = fields.Boolean(readonly=True, copy=False)
+    stock_bars_used = fields.Integer(compute='_compute_stock_bars_used')
     # A batch is a cutting plan: the windows ticked when it was made. A
     # window is in ONE active (not cancelled) batch only, and moves only
     # while the batch is Draft.
@@ -128,6 +136,31 @@ class AwCutPlan(models.Model):
                           no=plan.batch_no or 1,
                           order=plan.sale_order_id.name or '')
 
+    def _compute_stock_bars_used(self):
+        for plan in self:
+            plan.stock_bars_used = len(
+                plan.group_ids.bar_ids.filtered('from_bar_id'))
+
+    def _stock_for(self, product):
+        """The offcuts of earlier Final batches of this quote that this
+        batch may use for `product`: returnable (above the minimum), and not
+        already taken by another active batch (a Draft one has reserved it)."""
+        self.ensure_one()
+        Bar = self.env['aw.cut.plan.bar']
+        if self.plan_without_stock:
+            return Bar
+        others = self.search([
+            ('sale_order_id', '=', self.sale_order_id.id),
+            ('id', '!=', self.id), ('state', '=', 'confirmed')])
+        bars = others.group_ids.filtered(
+            lambda g: g.product_id == product).bar_ids.filtered(
+            lambda b: b.is_returnable and b.remainder_mm > 0)
+        taken = Bar.search([
+            ('from_bar_id', 'in', bars.ids),
+            ('group_id.plan_id', '!=', self.id),
+            ('group_id.plan_id.state', '!=', 'cancel')]).from_bar_id
+        return (bars - taken).sorted('id')
+
     @api.depends('design_ids')
     def _compute_window_count(self):
         for plan in self:
@@ -144,6 +177,11 @@ class AwCutPlan(models.Model):
         return super().create(vals_list)
 
     def write(self, vals):
+        if (vals.get('plan_without_stock') or vals.get('no_stock_reason')) \
+                and not self.env.user.has_group(
+                    'aw_fenestration_core.group_fenestration_manager'):
+            raise UserError(_(
+                "Only a Fenestration manager can plan without stock."))
         if 'design_ids' in vals and not self.env.context.get(
                 'aw_batch_backfill'):
             locked = self.filtered(lambda p: p.state != 'draft')
@@ -199,6 +237,15 @@ class AwCutPlan(models.Model):
             raise UserError(_(
                 "Some pieces are not on a bar, or a profile was not "
                 "planned (see the notes on the batch). Fix that first."))
+        if self.plan_without_stock:
+            if not (self.no_stock_reason or '').strip():
+                raise UserError(_(
+                    "This batch is planned without stock: say why before "
+                    "marking the bars bought."))
+        elif not self.stock_planned:
+            raise UserError(_(
+                "Re-plan this batch from stock before marking the bars "
+                "bought."))
         self.write({'state': 'confirmed',
                     'bought_on': fields.Datetime.now(),
                     'bought_by': self.env.user.id})
@@ -207,6 +254,19 @@ class AwCutPlan(models.Model):
             "%(feet).0f ft.", who=self.env.user.name, batch=self.name,
             bars=self.bar_count, feet=self.feet_bought))
         return True
+
+    def _ensure_nothing_uses_my_offcuts(self):
+        """A batch whose offcuts another active batch is cutting from cannot
+        be reopened: its bars would change under that batch."""
+        self.ensure_one()
+        users = self.env['aw.cut.plan.bar'].search([
+            ('from_bar_id', 'in', self.group_ids.bar_ids.ids),
+            ('group_id.plan_id.state', '!=', 'cancel')]).group_id.plan_id
+        if users:
+            raise UserError(_(
+                "%(users)s cuts from the offcuts of this batch. Cancel or "
+                "reopen that batch first.",
+                users=', '.join(users.mapped('name'))))
 
     def action_reopen_batch(self):
         """Ask why, then (aw.cut.reopen.wizard) turn a Final batch back to
@@ -217,6 +277,7 @@ class AwCutPlan(models.Model):
             raise UserError(_("Only a Fenestration manager can reopen a batch."))
         if self.state != 'confirmed':
             raise UserError(_("Only a Final batch can be reopened."))
+        self._ensure_nothing_uses_my_offcuts()
         return {
             'type': 'ir.actions.act_window',
             'name': _("Reopen batch"),
@@ -458,8 +519,14 @@ class AwCutPlan(models.Model):
                 continue
             stock_mm = [ft * MM_PER_FOOT for ft in group_settings['stock_ft']]
             rate, rate_date = self._rate_for_product(product)
+            stock = self._stock_for(product)
             fingerprint = self._group_fingerprint(
-                entry['pieces'], group_settings, rate)
+                entry['pieces'], group_settings, rate,
+                stock=[(bar.id, round(bar.remainder_mm, 2)) for bar in stock])
+            stock_bars, to_buy = pack_into_stock(
+                entry['pieces'],
+                [(bar.id, bar.remainder_mm) for bar in stock],
+                kerf=settings['kerf'], start_trim=settings['start_trim'])
 
             # Nothing about this profile moved, so re-solving it would
             # spend the budget to arrive back where it already is.
@@ -474,12 +541,17 @@ class AwCutPlan(models.Model):
                 all_proven = all_proven and previous.proven_optimal
                 continue
 
-            result = evaluate(
-                entry['pieces'], stock_mm, kerf=settings['kerf'],
-                offcut_min=settings['offcut_min'], rate_per_ft=rate,
-                start_trim=settings['start_trim'],
-                safety_margin=settings['safety_margin'],
-                time_budget=settings['budget'])
+            if to_buy:
+                result = evaluate(
+                    to_buy, stock_mm, kerf=settings['kerf'],
+                    offcut_min=settings['offcut_min'], rate_per_ft=rate,
+                    start_trim=settings['start_trim'],
+                    safety_margin=settings['safety_margin'],
+                    time_budget=settings['budget'])
+            else:          # every piece found an offcut: nothing to buy
+                result = {'scenarios': [], 'oversize': [],
+                          'chosen_key': None, 'method': 'stock',
+                          'proven_optimal': True, 'gap_feet': 0.0}
 
             if previous:
                 previous.unlink()
@@ -502,6 +574,7 @@ class AwCutPlan(models.Model):
 
             group._store_scenarios(result)
             group._apply_choice(result, settings['offcut_min'])
+            group._add_stock_bars(stock_bars, settings['offcut_min'])
 
             for piece in result['oversize']:
                 oversize_notes.append(_(
@@ -550,12 +623,13 @@ class AwCutPlan(models.Model):
             'optimality': optimality,
             'optimality_note': optimality_note,
             'bom_fingerprint': self._live_fingerprint(),
+            'stock_planned': not self.plan_without_stock,
             'oversize_note': '\n'.join(oversize_notes),
             'blocked_note': '\n'.join(blocked),
         })
 
     @api.model
-    def _group_fingerprint(self, pieces, settings, rate):
+    def _group_fingerprint(self, pieces, settings, rate, stock=None):
         """What would change this group's answer, and nothing else.
 
         Lengths and angles because they are the problem; the saw and bar
@@ -573,6 +647,8 @@ class AwCutPlan(models.Model):
                          settings['safety_margin']],
             'rate': round(rate, 6),
         }
+        if stock:                      # the offcuts on offer change the answer
+            payload['stock'] = sorted(stock)
         blob = json.dumps(payload, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
@@ -888,10 +964,16 @@ class AwCutPlanGroup(models.Model):
         """This group's pieces, exactly as the plan builds them."""
         self.ensure_one()
         pieces = []
+        # Pieces already on an offcut from stock are not solved again.
+        on_stock = {}
+        for cut in self.bar_ids.filtered('from_bar_id').cut_ids:
+            key = cut.bom_line_id.id
+            on_stock[key] = on_stock.get(key, 0) + 1
         for line in self.plan_id._profile_lines():
             if line.product_id != self.product_id:
                 continue
-            for index in range(max(1, line.qty or 1)):
+            skip = on_stock.get(line.id, 0)
+            for index in range(skip, max(1, line.qty or 1)):
                 pieces.append({
                     'length': round(line.length_mm or 0.0, 2),
                     'label': line.label or '',
@@ -988,11 +1070,13 @@ class AwCutPlanGroup(models.Model):
     def _apply_scenario(self, scenario, offcut_min):
         """Write the bars and totals for one solved option."""
         self.ensure_one()
-        self.bar_ids.unlink()
+        # Bars bought are replaced; offcuts taken from stock stay.
+        self.bar_ids.filtered(lambda b: not b.from_bar_id).unlink()
+        stock_cuts = len(self.bar_ids.cut_ids)
         if not scenario:
-            self.write({'piece_count': 0, 'bar_count': 0, 'bars_summary': '',
-                        'feet_bought': 0, 'feet_used': 0, 'yield_pct': 0,
-                        'cost': 0})
+            self.write({'piece_count': stock_cuts, 'bar_count': 0,
+                        'bars_summary': '', 'feet_bought': 0, 'feet_used': 0,
+                        'yield_pct': 0, 'cost': 0})
             return
         for index, bar in enumerate(scenario['bars']):
             record = self.env['aw.cut.plan.bar'].create({
@@ -1016,7 +1100,8 @@ class AwCutPlanGroup(models.Model):
                     'cut_angle': piece.get('angle') or '',
                 })
         self.write({
-            'piece_count': sum(len(bar['cuts']) for bar in scenario['bars']),
+            'piece_count': stock_cuts + sum(
+                len(bar['cuts']) for bar in scenario['bars']),
             'bar_count': scenario['bar_count'],
             'bars_summary': self._summarise_bars(scenario['bars_by_length']),
             'feet_bought': scenario['feet_bought'],
@@ -1024,6 +1109,36 @@ class AwCutPlanGroup(models.Model):
             'yield_pct': scenario['yield_pct'],
             'cost': scenario['cost'],
         })
+
+    def _add_stock_bars(self, stock_bars, offcut_min):
+        """Record the offcuts from earlier batches that took pieces: a bar
+        per offcut, pointing at the bar it came from, not counted as bought."""
+        self.ensure_one()
+        added = 0
+        for bar in stock_bars:
+            record = self.env['aw.cut.plan.bar'].create({
+                'group_id': self.id,
+                'sequence': 5,
+                'from_bar_id': bar['from_id'],
+                'stock_mm': bar['stock_mm'],
+                'remainder_mm': bar['remainder'],
+                'is_returnable': bar['remainder'] >= offcut_min,
+            })
+            for position, piece in enumerate(
+                    sorted(bar['cuts'], key=lambda c: -c['length'])):
+                self.env['aw.cut.plan.cut'].create({
+                    'bar_id': record.id,
+                    'sequence': (position + 1) * 10,
+                    'bom_line_id': piece.get('bom_line_id') or False,
+                    'label': piece.get('label') or '',
+                    'piece_ref': piece.get('ref') or '',
+                    'length_mm': piece['length'],
+                    'cut_angle': piece.get('angle') or '',
+                })
+                added += 1
+        if added:
+            self.piece_count = (self.piece_count or 0) + added
+        return added
 
     def action_clear_override(self):
         self.plan_id._ensure_draft()
@@ -1139,6 +1254,20 @@ class AwCutPlanBar(models.Model):
         string='Return to stock',
         help="The remainder is at least the minimum reusable offcut.")
     cut_ids = fields.One2many('aw.cut.plan.cut', 'bar_id', string='Cuts')
+    # An offcut an earlier batch left, used by this one instead of a new bar.
+    from_bar_id = fields.Many2one(
+        'aw.cut.plan.bar', string='Offcut of', ondelete='set null',
+        index=True)
+    source_label = fields.Char(compute='_compute_source_label')
+
+    def _compute_source_label(self):
+        for bar in self:
+            source = bar.from_bar_id
+            bar.source_label = _(
+                "%(batch)s, bar %(no)s (%(mm)s mm left)",
+                batch=source.group_id.plan_id.name,
+                no=source.sequence // 10 or 1,
+                mm=round(source.remainder_mm)) if source else ''
 
     @api.depends('stock_mm', 'remainder_mm')
     def _compute_labels(self):
