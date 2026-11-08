@@ -75,12 +75,17 @@ class PurchaseOrder(models.Model):
             self.partner_id, strict=True, template=template)['stock_ft'])
 
     def _aw_variant_values(self, product):
+        """(thickness, finish) of a variant. Reads the whole combination:
+        product_template_variant_value_ids has a domain that leaves out an
+        attribute line with a single value, which is most profiles' thickness."""
+        thickness_attr = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness')
+        finish_attr = self.env.ref('aw_fenestration_core.aw_attribute_finish')
         thickness = finish = self.env['product.attribute.value']
-        for value in product.product_template_variant_value_ids:
-            name = value.attribute_id.name
-            if name == 'Thickness':
+        for value in product.product_template_attribute_value_ids:
+            if value.attribute_id == thickness_attr:
                 thickness = value.product_attribute_value_id
-            elif name == 'Finish':
+            elif value.attribute_id == finish_attr:
                 finish = value.product_attribute_value_id
         return thickness, finish
 
