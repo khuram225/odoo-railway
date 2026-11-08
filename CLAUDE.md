@@ -543,8 +543,8 @@ grid whenever `get_single_product_variant()` answers nothing, which is every
 template with dynamic attributes (`product_add_mode` is a SALE setting and is not
 read in purchase; all 694 profiles, 674 with no variant yet). A profile now answers
 with its first variant, making the default one (`sudo`) if there is none, so the
-line gets a product and no grid; the **Variant** column the grid module hides is
-shown again to pick another existing one. A new profile line takes its bar length
+line gets a product and no grid (the Variant column stays hidden; another
+finish or thickness is the bars grid's job). A new profile line takes its bar length
 from the vendor's bar lengths only when it has exactly one active length for that
 profile (`_lengths_for`, no global fallback); until bars AND length are set the line
 says "Enter bars and bar length" (`aw_price_note`). Setting them puts the line in ft
@@ -567,6 +567,22 @@ cell. A cell above 0 is one line per variant and length (the variant by
 `aw.profile.section.line._variant_for`, the price the vendor's rate, pinned); a line
 that exists is updated, never duplicated; a cell at 0 removes its line. Draft or sent
 orders only. A finish with no rate shows "no price" and stays editable.
+
+**A bars line's text is built, never typed.** `name` for a line with bars and a
+length is `CODE (finish, thickness)` and, under it, `N bars x L ft = F ft`,
+rebuilt by `_aw_sync_name()` on create and whenever bars, length or product change
+(`#106` built it once at creation, so a length edited afterwards left "28 x 14 ft
+bars" on an 18 ft line). `_aw_refresh_bars_names()` runs from
+`data/po_names_data.xml` on every upgrade and repairs older lines; it writes only
+where the text differs. The finish is shown as the ORDER VENDOR's own names
+(`_aw_finish_label`), in the grid too. The price note reads "No price" or, when the
+price is not the vendor's list rate, "list R - +x.x%". Bars lines are put in order
+(code, finish, thickness, length) by `_aw_sort_bar_lines()`; the stock-forecast
+icon is hidden for a profile line. NOTE: `product.product.product_template_variant_value_ids`
+has a domain that LEAVES OUT an attribute line with a single value, which is most
+profiles' thickness: read `product_template_attribute_value_ids` for a variant's
+thickness and finish (`_aw_variant_values`). (`_rate_for_product` in `cut_plan.py` still
+reads the narrower field.)
 
 ## Process
 

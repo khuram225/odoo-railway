@@ -29,6 +29,12 @@
         flex-grow: 0 !important;
     }
 
+    // The form's sheet is capped at 1400px; with the chatter reduced to a
+    // strip it takes the width the chatter gave up.
+    .o_form_sheet_bg {
+        max-width: none !important;
+    }
+
     .o-mail-Chatter-top,
     .o-mail-Chatter-content {
         display: none !important;

@@ -9,12 +9,15 @@
         <field name="inherit_id" ref="purchase.purchase_order_form"/>
         <field name="priority">99</field>
         <field name="arch" type="xml">
-            <!-- The variant column the grid module hides: a profile line
-                 is one variant, picked here. -->
-            <xpath expr="//field[@name='order_line']/list/field[@name='product_id']"
+            <!-- The stock forecast icon means nothing for a bar of a
+                 profile. -->
+            <xpath expr="//field[@name='order_line']/list/button[@name='action_product_forecast_report'][1]"
                    position="attributes">
-                <attribute name="column_invisible">0</attribute>
-                <attribute name="string">Variant</attribute>
+                <attribute name="invisible">not id or not forecasted_issue or not is_storable or aw_is_profile</attribute>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/list/button[@name='action_product_forecast_report'][2]"
+                   position="attributes">
+                <attribute name="invisible">not id or forecasted_issue or not is_storable or aw_is_profile</attribute>
             </xpath>
             <!-- Beside 'Add a product': the bars grid for a profile. -->
             <xpath expr="//field[@name='order_line']/list/control/button[@name='action_add_from_catalog']"

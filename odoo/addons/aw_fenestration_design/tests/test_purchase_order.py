@@ -439,3 +439,65 @@ class TestBarsGrid(TransactionCase):
             order_id=order.id).action_add_profile_bars()
         self.assertEqual(action['params']['order_id'], order.id)
         self.assertEqual(action['tag'], 'aw_po_bars_grid')
+
+    # -- the line tidy -----------------------------------------------------
+    def test_the_bars_text_follows_the_numbers(self):
+        order = self._order()
+        self._apply(order, self._cell(self.f1, 16.0, 4))
+        line = order.order_line
+        self.assertIn('4 bars x 16 ft = 64 ft', line.name)
+        self.assertTrue(line.name.startswith(self.template.name))
+        line.aw_bar_length_ft = 18.0
+        self.assertIn('4 bars x 18 ft = 72 ft', line.name)
+        self.assertNotIn('16 ft', line.name)
+        self.assertAlmostEqual(line.product_qty, 72.0)
+        line.aw_bar_count = 5
+        self.assertIn('5 bars x 18 ft = 90 ft', line.name)
+
+    def test_an_old_line_with_stale_text_is_fixed(self):
+        order = self._order()
+        self._apply(order, self._cell(self.f1, 18.0, 28))
+        line = order.order_line
+        line.name = 'RE-10: 28 x 14 ft bars'
+        self.assertIn('14 ft', line.name)
+        self.env['purchase.order.line']._aw_refresh_bars_names()
+        self.assertIn('28 bars x 18 ft = 504 ft', line.name)
+        self.assertNotIn('14 ft', line.name)
+
+    def test_the_price_note_says_when_the_price_is_not_the_list(self):
+        order = self._order()
+        self._apply(order, self._cell(self.f1, 16.0, 4))
+        line = order.order_line
+        self.assertFalse(line.aw_price_note)
+        line.price_unit = 2.75
+        self.assertEqual(line.aw_price_note, 'list 2.50 - +10.0%')
+        line.price_unit = 2.25
+        self.assertEqual(line.aw_price_note, 'list 2.50 - -10.0%')
+        line.price_unit = 2.5
+        self.assertFalse(line.aw_price_note)
+
+    def test_lines_are_ordered_by_finish_thickness_and_length(self):
+        order = self._order()
+        self._apply(
+            order, self._cell(self.f2, 14.0, 1), self._cell(self.f1, 18.0, 1),
+            self._cell(self.f2, 16.0, 1), self._cell(self.f1, 14.0, 1))
+
+        def label(line):
+            finish = order._aw_variant_values(line.product_id)[1]
+            return (order._aw_finish_label(finish, order.partner_id),
+                    line.aw_bar_length_ft)
+        shown = [label(l) for l in order.order_line.sorted('sequence')]
+        self.assertEqual(shown, sorted(shown))
+        self.assertEqual(len(set(order.order_line.mapped('sequence'))), 4)
+
+    def test_the_grid_shows_only_the_vendors_own_finish_names(self):
+        order = self._order()
+        self.f1._aw_add_name('VENDORDULL', self.vendor)
+        other = self.env['res.partner'].create({'name': 'Another vendor'})
+        self.f1._aw_add_name('OTHERSHINE', other)
+        names = {f['id']: f['name'] for f in
+                 order.aw_bars_grid_data(self.template.id)['finishes']}
+        self.assertEqual(names[self.f1.id], 'VENDORDULL')
+        self.assertNotIn('OTHERSHINE', names[self.f1.id])
+        self.assertEqual(names[self.f2.id], order._aw_finish_label(
+            self.f2, self.vendor))
