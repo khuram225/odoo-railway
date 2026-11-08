@@ -36,3 +36,5 @@ from . import test_batch_final
 from . import test_batch_reopen
 from . import test_batch_stock
 from . import test_purchase_order
+
+from . import test_po_print

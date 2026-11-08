@@ -35,6 +35,7 @@ from . import cut_plan_purchase
 from . import purchase_order_line
 from . import product_profile_picker
 from . import po_bars_grid
+from . import po_print
 from . import position_product
 from . import sale_order
 from . import res_config_settings

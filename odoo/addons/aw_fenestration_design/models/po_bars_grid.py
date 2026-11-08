@@ -81,21 +81,23 @@ class PurchaseOrder(models.Model):
             lambda n: n.vendor_id == vendor).sorted('sequence')
         return ' / '.join(names.mapped('name')) or finish.name
 
+    def _aw_bar_line_key(self, line):
+        """Profile, finish, thickness, length: how bars lines are ordered on
+        the screen and on paper."""
+        from odoo.addons.aw_fenestration_core.models.thickness import (
+            thickness_mm)
+        thickness, finish = self._aw_variant_values(line.product_id)
+        mm = thickness_mm(thickness.name)
+        return (line.product_id.product_tmpl_id.name or '',
+                self._aw_finish_label(finish, self.partner_id),
+                mm is None, mm or 0.0, line.aw_bar_length_ft, line.id)
+
     def _aw_sort_bar_lines(self):
         """Bars lines in the order profile, finish, thickness, length, within
         the places the order already gives them."""
         self.ensure_one()
-        from odoo.addons.aw_fenestration_core.models.thickness import (
-            thickness_mm)
         lines = self.order_line.filtered(lambda l: l.aw_bar_count)
-
-        def key(line):
-            thickness, finish = self._aw_variant_values(line.product_id)
-            mm = thickness_mm(thickness.name)
-            return (line.product_id.product_tmpl_id.name or '',
-                    self._aw_finish_label(finish, self.partner_id),
-                    mm is None, mm or 0.0, line.aw_bar_length_ft, line.id)
-        ordered = lines.sorted(key)
+        ordered = lines.sorted(self._aw_bar_line_key)
         start = min(lines.mapped('sequence') or [10])
         for position, line in enumerate(ordered):
             if line.sequence != start + position:

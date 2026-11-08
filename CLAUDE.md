@@ -505,6 +505,21 @@ says "locked: the change is not in these bars". Who and when: `bought_by`,
 only and the wizard checks the group again, and the quote's chatter gets who,
 when, why and who had bought it. The bars already bought are not undone.
 
+**The RFQ / purchase order printout (`report/report_purchase_order.xml`,
+`models/po_print.py`).** Both standard documents (`purchase.report_purchaseorder_document`
+and `report_purchasequotation_document`) are inherited, with every xpath anchor
+verified on the composed arch from production (which already carries
+`purchase_product_matrix` and `purchase_stock`; both are dependencies, so CI composes the
+same thing and a missing anchor fails the install). `purchase.order.aw_print_data()`
+works out every number (a matrix of profile, finish and thickness by the bar lengths
+USED, a summary by profile and by length, the order's own totals) and the template only
+lays it out, so a printed amount is a line's `price_subtotal`. Lines that are not bars
+lines stay in the standard table (`_aw_print_other_lines()`); with no bars lines the
+printout is the standard one. **Show prices** (`aw_show_prices`, stored, computed from the
+state and editable) is on for a purchase order and off for an RFQ and removes every
+price, rate, amount and the totals block; `_aw_backfill_show_prices()` switches it on once
+for orders confirmed before it existed.
+
 **Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of
 the SAME quote left on their bars: a returnable remainder (above the offcut
 minimum setting). `aw.cut.plan._stock_for(product)` offers it; a Draft batch's
