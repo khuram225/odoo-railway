@@ -53,3 +53,6 @@ access_aw_design_hardware_user,aw.design.hardware.user,model_aw_design_hardware,
 access_aw_design_hardware_sales,aw.design.hardware.sales,model_aw_design_hardware,group_fenestration_sales,1,1,1,1
 access_aw_vendor_bar_length_user,aw.vendor.bar.length.user,model_aw_vendor_bar_length,base.group_user,1,0,0,0
 access_aw_vendor_bar_length_manager,aw.vendor.bar.length.manager,model_aw_vendor_bar_length,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_profile_lpp_user,aw.profile.lpp.user,model_aw_profile_lpp,base.group_user,1,0,0,0
+access_aw_profile_lpp_manager,aw.profile.lpp.manager,model_aw_profile_lpp,aw_fenestration_core.group_rates_manager,1,0,0,1
+access_aw_po_confirm_wizard,aw.po.confirm.wizard,model_aw_po_confirm_wizard,purchase.group_purchase_user,1,1,1,1

@@ -85,7 +85,13 @@ class AwCutPlan(models.Model):
         now = fields.Datetime.now()
         commands, no_price = [], []
         for product, length, bars, rate, rate_date in wanted:
-            price = rate if rate_date else 0.0
+            thickness, finish = self.env['purchase.order']\
+                ._aw_variant_values(product)
+            price = self.env['purchase.order.line']._aw_start_price(
+                product.product_tmpl_id, thickness, finish, vendor,
+                now.date(), company.currency_id)[0]
+            if not price:
+                price = rate if rate_date else 0.0
             if not price:
                 no_price.append(product.display_name)
             commands.append((0, 0, {

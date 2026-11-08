@@ -132,6 +132,9 @@ export class BarsGridDialog extends Component {
     rowAmount(finishId) {
         return this.rowFeet(finishId) * this.rate(this.state.thicknessId, finishId);
     }
+    isLastPaid(finishId) {
+        return this.state.data.sources[`${this.state.thicknessId}|${finishId}`] === "lpp";
+    }
     hasRate(finishId) {
         return this.rate(this.state.thicknessId, finishId) > 0;
     }
