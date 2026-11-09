@@ -39,6 +39,7 @@ from . import po_print
 from . import profile_lpp
 from . import po_receipt
 from . import po_receive_wizard
+from . import profile_purchase_method
 from . import partner_lpp
 from . import po_confirm
 from . import product_rates_lpp

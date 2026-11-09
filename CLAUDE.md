@@ -576,6 +576,14 @@ users who are not buyers or managers. Tables added: `aw_po_receipt`, `aw_po_rece
 and the transient `aw_po_receive_wizard`, `aw_po_receive_line`; one column,
 `purchase_order_line.aw_added_at_receipt`. `aluminum_inventory` is now a dependency.
 
+**Vendor bills follow what was received.** A profile's control policy (`purchase_method`) is
+"On received quantities" (Odoo 19 defaults a goods product to it; `profile_purchase_method.py`
+sets it on a profile created without one and, once, on the profiles that had been put on
+"ordered"; parameter `aw_fenestration.profile_purchase_method_set`). A bill takes
+`qty_received - qty_invoiced` per line, so a partial delivery is billed for the feet that came,
+and a line "added at receipt" (ordered quantity = the bars that arrived) is billed in full while
+an ordered line with nothing received bills 0.
+
 **Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of
 the SAME quote left on their bars: a returnable remainder (above the offcut
 minimum setting). `aw.cut.plan._stock_for(product)` offers it; a Draft batch's
