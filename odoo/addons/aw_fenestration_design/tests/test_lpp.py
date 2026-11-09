@@ -281,3 +281,30 @@ class TestLastPurchasePrice(TransactionCase):
             row.with_user(self.buyer).action_delete_selected()
         row.with_user(self.manager).action_delete_selected()
         self.assertFalse(row.exists())
+
+    def test_the_product_page_lists_both_finishes_and_leaves_suppliers(self):
+        order = self._order(cells=[
+            self._cell(self.f1, 14.0, 2), self._cell(self.f2, 14.0, 1)])
+        for line in order.order_line:
+            line.price_unit = 3.0
+        self._confirm(order)
+        rows = self.template.aw_lpp_ids
+        self.assertEqual(set(rows.finish_id), {self.f1, self.f2})
+        # Odoo itself adds the vendor to the product on confirm; writing the
+        # last prices must add nothing to that list.
+        Supplierinfo = self.env['product.supplierinfo']
+        before = Supplierinfo.search_count([])
+        rows.unlink()
+        order._aw_record_lpp()
+        self.assertEqual(len(self.template.aw_lpp_ids), 2)
+        self.assertEqual(Supplierinfo.search_count([]), before)
+
+    def test_the_purchase_tab_carries_the_list(self):
+        from lxml import etree
+        admin = self.env.ref('base.user_admin')
+        view = self.env['product.template'].with_user(admin).get_view(
+            view_type='form')
+        arch = etree.fromstring(view['arch'])
+        found = arch.xpath(
+            "//page[@name='purchase']//field[@name='aw_lpp_ids']")
+        self.assertEqual(len(found), 1)
