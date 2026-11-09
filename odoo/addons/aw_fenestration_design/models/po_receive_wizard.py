@@ -34,7 +34,7 @@ class AwPoReceiveWizard(models.TransientModel):
     all_zero = fields.Boolean(compute='_compute_flags')
     confirm_large = fields.Boolean(string='I checked the large rows')
 
-    @api.depends()
+    @api.depends_context('uid')
     def _compute_hide_prices(self):
         hide = bool(self.env['ir.config_parameter'].sudo().get_param(
             HIDE_PRICES))

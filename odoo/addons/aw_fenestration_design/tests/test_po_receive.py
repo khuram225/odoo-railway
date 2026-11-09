@@ -2,7 +2,7 @@
 """Receiving bars: lots per variant and length, one receipt per delivery."""
 import unittest
 
-from odoo.exceptions import UserError
+from odoo.exceptions import RedirectWarning, UserError
 from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.aw_fenestration_design.models.po_receipt import length_mm
@@ -225,3 +225,57 @@ class TestReceiveBars(TransactionCase):
         self.env['ir.config_parameter'].sudo().set_param(
             'aw_fenestration.receive_hide_prices', '')
         self.assertFalse(shown.with_user(counter).hide_prices)
+
+    # -- vendor bills follow what was received -------------------------------
+    def _bill_quantities(self, order):
+        """What the bill takes, per line: Odoo's own line values (needs no
+        chart of accounts), and the real bill when this database can make
+        one."""
+        wanted = {}
+        for line in order.order_line:
+            if line.qty_to_invoice:
+                values = line._prepare_account_move_line()
+                wanted[line] = values['quantity']
+        return wanted
+
+    def test_the_control_policy_of_a_profile_is_receive(self):
+        self.assertEqual(self.template.purchase_method, 'receive')
+        new = self.env['product.template'].create({
+            'name': 'Bills test profile', 'type': 'consu',
+            'categ_id': self.template.categ_id.id})
+        self.assertEqual(new.purchase_method, 'receive')
+        stale = self.env['product.template'].create({
+            'name': 'Bills stale profile', 'type': 'consu',
+            'categ_id': self.template.categ_id.id,
+            'purchase_method': 'purchase'})
+        self.assertEqual(stale.purchase_method, 'purchase')   # asked for
+        self.env['ir.config_parameter'].sudo().set_param(
+            'aw_fenestration.profile_purchase_method_set', '')
+        self.env['product.template']._aw_set_profile_receive()
+        self.assertEqual(stale.purchase_method, 'receive')
+        stale.purchase_method = 'purchase'
+        self.env['product.template']._aw_set_profile_receive()
+        self.assertEqual(stale.purchase_method, 'purchase')   # once only
+
+    def test_the_bill_takes_the_received_quantity(self):
+        order = self._order([(14.0, 10), (18.0, 4)])
+        self.assertEqual(self._bill_quantities(order), {})   # nothing yet
+        order._aw_receive_bars([self._row(14.0, 6)])          # 84 ft
+        quantities = self._bill_quantities(order)
+        self.assertEqual(sorted(quantities.values()), [84.0])
+        line = list(quantities)[0]
+        self.assertEqual(line.qty_received, 84.0)
+        try:
+            order.action_create_invoice()
+        except (UserError, RedirectWarning):
+            return          # this database has no accounts to bill into
+        bill = order.invoice_ids
+        self.assertEqual(sum(bill.invoice_line_ids.mapped('quantity')), 84.0)
+
+    def test_bars_that_were_not_ordered_are_billed_and_the_rest_is_not(self):
+        order = self._order([(14.0, 10)])
+        order._aw_receive_bars([self._row(16.0, 2)])          # 32 ft
+        quantities = self._bill_quantities(order)
+        self.assertEqual(
+            {l.aw_added_at_receipt: q for l, q in quantities.items()},
+            {True: 32.0})

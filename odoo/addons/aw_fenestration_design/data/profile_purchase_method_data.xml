@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Once: profiles still billed on ordered quantities are billed on
+         received quantities. Guarded by a parameter, so it runs only once. -->
+    <function model="product.template" name="_aw_set_profile_receive"/>
+
+</odoo>
