@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Once: profiles are tracked by lot, if nothing of them is in stock or
+         on an open move. Guarded by a parameter; tried again at the next
+         upgrade when it had to wait. -->
+    <function model="product.template" name="_aw_switch_profiles_to_lot"/>
+
+</odoo>
