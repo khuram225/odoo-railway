@@ -534,7 +534,7 @@ price, else the list rate (`_aw_start_price`), and the price note names the othe
 ("list 2.50 - +8.0% | last 2.70 (date, PO) - -3.0%"). Confirming with a bars line more
 than 15% from the list rate opens `aw.po.confirm.wizard` ("Confirm anyway", logged on
 the order); it only asks for a single order and never when `aw_confirm_anyway` is in the
-context. The Rates tab (core) shows the LPP under the list cell: the design module adds
+context. The LPP is also a list (Vendor Rates > Last Prices, grouped by profile, searchable by profile, thickness and finish; columns profile (bold), thickness, finish as the VENDOR names it, price per ft, vs list today %, bar length, date, PO; `finish_label`, `list_rate` and `vs_list_pct` are computed, never stored, since they depend on today's date) and the vendor form's **Last prices** button (`aw_lpp_count`, `action_open_lpp`; a non-stored count on res.partner). The list is read only; the extension view for the Rates manager group switches Delete on. The Rates tab (core) shows the LPP under the list cell: the design module adds
 `lpp` to `_aw_rates_table_data()` and patches the widget (`static/src/rates_lpp`).
 
 **Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of

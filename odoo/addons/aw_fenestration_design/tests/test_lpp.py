@@ -184,7 +184,8 @@ class TestLastPurchasePrice(TransactionCase):
         self.assertFalse(line.aw_price_note)
         self._confirm(self._order(f1_price=2.9))
         line.invalidate_recordset(['aw_price_note'])
-        self.assertIn('last 2.90', line.aw_price_note)
+        self.assertIn('last paid 2.90', line.aw_price_note)
+        self.assertIn(self.thickness.name, line.aw_price_note)
 
     # -- the dialog at confirm ---------------------------------------------
     def test_a_price_far_from_the_list_asks_before_confirming(self):
@@ -215,3 +216,37 @@ class TestLastPurchasePrice(TransactionCase):
         self.assertAlmostEqual(mine[0]['pct'], 10.0)
         self.assertTrue(mine[0]['po'])
         self.assertTrue(mine[0]['date'])
+
+    # -- the list, the vendor button and the note ---------------------------
+    def test_the_list_row_shows_the_variant_and_the_difference(self):
+        self.env['aw.finish.name'].create({
+            'finish_id': self.f1.id, 'vendor_id': self.vendor.id,
+            'name': 'VND FINISH'})
+        self._confirm(self._order(f1_price=2.75))
+        row = self._lpp()
+        self.assertEqual(row.finish_label, 'VND FINISH')
+        self.assertAlmostEqual(row.list_rate, 2.5)
+        self.assertAlmostEqual(row.vs_list_pct, 10.0)
+
+    def test_the_vendor_button_counts_and_opens_its_prices(self):
+        self.assertEqual(self.vendor.aw_lpp_count, 0)
+        self._confirm(self._order())
+        self.vendor.invalidate_recordset(['aw_lpp_count'])
+        self.assertEqual(self.vendor.aw_lpp_count, 1)
+        action = self.vendor.action_open_lpp()
+        rows = self.env['aw.profile.lpp'].search(action['domain'])
+        self.assertEqual(rows, self._lpp())
+
+    def test_the_price_note_names_finish_thickness_and_date(self):
+        self._confirm(self._order(f1_price=2.9))
+        order = self.env['purchase.order'].create({
+            'partner_id': self.vendor.id})
+        order.aw_bars_grid_apply(self.template.id, [
+            self._cell(self.f1, 16.0, 3)])
+        line = order.order_line
+        line.price_unit = 2.5
+        line.invalidate_recordset(['aw_price_note'])
+        note = line.aw_price_note
+        self.assertIn('last paid 2.90 (', note)
+        self.assertIn(self.thickness.name, note)
+        self.assertIn(' on ', note)

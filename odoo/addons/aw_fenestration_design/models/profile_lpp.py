@@ -44,6 +44,33 @@ class AwProfileLpp(models.Model):
         'purchase.order', string='Purchase order', index=True,
         related='po_line_id.order_id', store=True)
 
+    # shown in the list, never stored: both depend on today's date and on the
+    # vendor's own finish names
+    finish_label = fields.Char(
+        string='Finish', compute='_compute_variant_view')
+    list_rate = fields.Monetary(
+        string='List today', compute='_compute_variant_view',
+        currency_field='currency_id')
+    vs_list_pct = fields.Float(
+        string='vs list today %', compute='_compute_variant_view',
+        digits=(16, 1))
+
+    @api.depends('vendor_id', 'product_tmpl_id', 'thickness_id',
+                 'finish_id', 'price_ft')
+    def _compute_variant_view(self):
+        today = fields.Date.context_today(self)
+        orders = self.env['purchase.order']
+        for row in self:
+            row.finish_label = orders._aw_finish_label(
+                row.finish_id, row.vendor_id) if row.finish_id else ''
+            rate = self.env['aw.profile.rate'].sudo()._rate_for(
+                row.product_tmpl_id, row.thickness_id, row.finish_id, today,
+                row.vendor_id)
+            row.list_rate = rate.price if rate else 0.0
+            row.vs_list_pct = (
+                (row.price_ft - row.list_rate) / row.list_rate * 100.0
+                if row.list_rate else 0.0)
+
     @api.model
     def _last(self, vendor, template, thickness, finish):
         """The latest LPP for a vendor, profile, thickness and finish."""

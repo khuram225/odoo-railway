@@ -14,6 +14,7 @@ says so. Setting them puts the line in ft and, when it has no price, takes
 the vendor's rate per ft.
 """
 from odoo import _, api, fields, models
+from odoo.tools import format_date
 from odoo.exceptions import ValidationError
 
 
@@ -107,7 +108,10 @@ class PurchaseOrderLine(models.Model):
                        or fields.Datetime.now()).date()
             price = lpp.currency_id._convert(
                 price, currency, self.env.company, on_date, round=False)
-        return price, lpp.date, lpp.order_id.name or ''
+        variant = ', '.join(p for p in (
+            self.order_id._aw_finish_label(finish, self.order_id.partner_id)
+            if finish else '', thickness.name or '') if p)
+        return price, lpp.date, lpp.order_id.name or '', variant
 
     def _aw_vendor_rate(self):
         """The vendor's profile rate per ft on the order date, or 0."""
@@ -132,8 +136,11 @@ class PurchaseOrderLine(models.Model):
         last = self._aw_last_price()
         if last and abs(self.price_unit - last[0]) > 0.005:
             notes.append(_(
-                "last %(price).2f (%(date)s, %(order)s) - %(pct)+.1f%%",
-                price=last[0], date=last[1], order=last[2], pct=(
+                "last paid %(price).2f (%(variant)s) on %(date)s, %(order)s"
+                " - %(pct)+.1f%%",
+                price=last[0], variant=last[3],
+                date=format_date(self.env, last[1], date_format='d MMM'),
+                order=last[2], pct=(
                     self.price_unit - last[0]) / last[0] * 100.0))
         return ' | '.join(notes) or False
 
