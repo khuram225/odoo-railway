@@ -328,3 +328,19 @@ class TestLastPurchasePrice(TransactionCase):
         found = arch.xpath(
             "//page[@name='purchase']//field[@name='aw_lpp_ids']")
         self.assertEqual(len(found), 1)
+
+    # -- the one-time backfill ----------------------------------------------
+    def test_the_backfill_writes_rows_for_an_older_order_once(self):
+        param = self.env['ir.config_parameter'].sudo()
+        order = self._confirm(self._order())
+        stamp = order.date_approve
+        self._lpp(order).unlink()
+        param.set_param('aw_fenestration.lpp_backfilled', '')
+        self.env['purchase.order']._aw_backfill_lpp()
+        rows = self._lpp(order)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows.date, stamp.date())
+        # run again: nothing is written back over a deliberate delete
+        rows.unlink()
+        self.env['purchase.order']._aw_backfill_lpp()
+        self.assertFalse(self._lpp(order))

@@ -537,6 +537,13 @@ the order); it only asks for a single order and never when `aw_confirm_anyway` i
 context. The LPP is also a list (Vendor Rates > Last Prices, grouped by profile, searchable by profile, thickness and finish; columns profile (bold), thickness, finish as the VENDOR names it, price per ft, vs list today %, bar length, date, PO; `finish_label`, `list_rate` and `vs_list_pct` are computed, never stored, since they depend on today's date) and the vendor form's **Last prices** button (`aw_lpp_count`, `action_open_lpp`; a non-stored count on res.partner). The list is read only and ONE view for everyone: the standard Delete is off and a Delete button carrying `groups` is shown to Rates managers only (a second, group-restricted primary list was tried: the default view is chosen by priority, not by group, so everyone got it). The product page's Purchase tab lists the product's rows (`aw_lpp_ids`, a read-only One2many with no column; the same list view; embedded lists cannot be grouped, so it is sorted by vendor); nothing is written to `product.supplierinfo`. The Rates tab (core) shows the LPP under the list cell: the design module adds
 `lpp` to `_aw_rates_table_data()` and patches the widget (`static/src/rates_lpp`).
 
+**Clean-up of the vendor rows Odoo made on profiles** is `scripts/profile_supplierinfo.py`,
+run by hand through `odoo shell` and never as a deploy step: `list` (read only), `note`
+(writes the rows on each vendor's chatter) and `delete` (refuses unless every row is in
+a saved note and untouched; needs `AW_CONFIRM=yes`). The LPP rows for orders confirmed
+before the table existed were written once by `_aw_backfill_lpp()` (parameter
+`aw_fenestration.lpp_backfilled`, so a deleted row never comes back).
+
 **Profiles are not in Odoo's vendor list.** `button_confirm()` makes Odoo add the
 vendor to the product's `seller_ids` (`_add_supplier_to_product`): for a profile that row
 had no variant, one price, and was never updated, so `po_confirm.py` takes away the rows
