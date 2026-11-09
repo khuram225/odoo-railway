@@ -56,3 +56,9 @@ access_aw_vendor_bar_length_manager,aw.vendor.bar.length.manager,model_aw_vendor
 access_aw_profile_lpp_user,aw.profile.lpp.user,model_aw_profile_lpp,base.group_user,1,0,0,0
 access_aw_profile_lpp_manager,aw.profile.lpp.manager,model_aw_profile_lpp,aw_fenestration_core.group_rates_manager,1,0,0,1
 access_aw_po_confirm_wizard,aw.po.confirm.wizard,model_aw_po_confirm_wizard,purchase.group_purchase_user,1,1,1,1
+access_aw_po_receipt_user,aw.po.receipt.user,model_aw_po_receipt,base.group_user,1,0,0,0
+access_aw_po_receipt_purchasing,aw.po.receipt.purchasing,model_aw_po_receipt,aw_fenestration_design.group_fenestration_purchasing,1,1,1,1
+access_aw_po_receipt_line_user,aw.po.receipt.line.user,model_aw_po_receipt_line,base.group_user,1,0,0,0
+access_aw_po_receipt_line_purchasing,aw.po.receipt.line.purchasing,model_aw_po_receipt_line,aw_fenestration_design.group_fenestration_purchasing,1,1,1,1
+access_aw_po_receive_wizard,aw.po.receive.wizard,model_aw_po_receive_wizard,aw_fenestration_design.group_fenestration_purchasing,1,1,1,1
+access_aw_po_receive_line,aw.po.receive.line,model_aw_po_receive_line,aw_fenestration_design.group_fenestration_purchasing,1,1,1,1

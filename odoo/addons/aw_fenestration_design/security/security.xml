@@ -21,8 +21,19 @@
              genuine core Odoo practice, not something to second-guess:
              purchase/security/purchase_security.xml does the identical
              thing to base.group_user. -->
+        <!-- Counts and receives bars. Receiving needs stock and purchase
+             rights, so the group brings both. The Manager includes it. -->
+        <record id="group_fenestration_purchasing" model="res.groups">
+            <field name="name">Fenestration / Purchasing</field>
+            <field name="privilege_id" ref="aw_fenestration_core.fenestration_privilege"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user')),
+                                             (4, ref('purchase.group_purchase_user')),
+                                             (4, ref('stock.group_stock_user'))]"/>
+        </record>
+
         <record id="aw_fenestration_core.group_fenestration_manager" model="res.groups">
-            <field name="implied_ids" eval="[(4, ref('group_fenestration_sales'))]"/>
+            <field name="implied_ids" eval="[(4, ref('group_fenestration_sales')),
+                                             (4, ref('group_fenestration_purchasing'))]"/>
         </record>
     </data>
 </odoo>
