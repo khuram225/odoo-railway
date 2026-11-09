@@ -224,6 +224,7 @@ class TestReceiveBars(TransactionCase):
         self.assertTrue(shown.with_user(counter).hide_prices)
         self.env['ir.config_parameter'].sudo().set_param(
             'aw_fenestration.receive_hide_prices', '')
+        shown.invalidate_recordset(['hide_prices'])    # the setting is not a dependency
         self.assertFalse(shown.with_user(counter).hide_prices)
 
     # -- vendor bills follow what was received -------------------------------
