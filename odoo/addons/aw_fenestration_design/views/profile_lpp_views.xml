@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Read only for everyone: a Rates manager gets Delete from the
-         primary view below (an inherited view cannot carry groups on the
-         record), and the access rules refuse anyone else. -->
+    <!-- One list for everyone, read only. The standard Delete is off; a
+         Rates manager is shown the Delete button below (groups on the
+         button, which Odoo applies when it builds the view), and the access
+         rules refuse anyone else. A second, group-restricted list view was
+         tried and did not work: the default view is picked by priority,
+         not by group. -->
     <record id="view_aw_profile_lpp_list" model="ir.ui.view">
         <field name="name">aw.profile.lpp.list</field>
         <field name="model">aw.profile.lpp</field>
@@ -11,6 +14,12 @@
             <list create="0" edit="0" delete="0" import="0"
                   default_order="vendor_id, date desc, id desc"
                   decoration-danger="vs_list_pct &gt; 15 or vs_list_pct &lt; -15">
+                <header>
+                    <button name="action_delete_selected" type="object"
+                            string="Delete"
+                            confirm="Delete the selected last prices?"
+                            groups="aw_fenestration_core.group_rates_manager"/>
+                </header>
                 <field name="product_tmpl_id" class="fw-bold"/>
                 <field name="thickness_id"/>
                 <field name="finish_label"/>
@@ -23,20 +32,6 @@
                 <field name="list_rate"/>
                 <field name="currency_id" column_invisible="1"/>
             </list>
-        </field>
-    </record>
-
-    <record id="view_aw_profile_lpp_list_manager" model="ir.ui.view">
-        <field name="name">aw.profile.lpp.list.manager</field>
-        <field name="model">aw.profile.lpp</field>
-        <field name="inherit_id" ref="view_aw_profile_lpp_list"/>
-        <field name="mode">primary</field>
-        <field name="priority">1</field>
-        <field name="group_ids" eval="[(4, ref('aw_fenestration_core.group_rates_manager'))]"/>
-        <field name="arch" type="xml">
-            <xpath expr="//list" position="attributes">
-                <attribute name="delete">1</attribute>
-            </xpath>
         </field>
     </record>
 
