@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Opened from purchase.order.button_confirm, which builds the action
+         in Python: no load-order constraint. -->
+    <record id="view_aw_po_confirm_wizard_form" model="ir.ui.view">
+        <field name="name">aw.po.confirm.wizard.form</field>
+        <field name="model">aw.po.confirm.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Prices far from the list">
+                <div class="alert alert-warning" role="status">
+                    These lines are more than 15% from the vendor's list rate.
+                </div>
+                <field name="order_id" invisible="1"/>
+                <field name="summary"/>
+                <footer>
+                    <button name="action_confirm" type="object"
+                            string="Confirm anyway" class="btn-primary"
+                            data-hotkey="q"/>
+                    <button string="Cancel" class="btn-secondary"
+                            special="cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

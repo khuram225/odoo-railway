@@ -520,6 +520,23 @@ state and editable) is on for a purchase order and off for an RFQ and removes ev
 price, rate, amount and the totals block; `_aw_backfill_show_prices()` switches it on once
 for orders confirmed before it existed.
 
+**Last purchase price (`aw.profile.lpp`, `models/profile_lpp.py`).** What a vendor
+was actually paid per ft: one row per bars line of a confirmed order with a price above
+0 (vendor, profile, thickness, finish, bar length, price per ft BEFORE tax and freight
+with the discount taken off, converted to the company currency at the order date, the
+confirmation date, the line). Written from `button_approve()` (the one place both the
+one-step and the two-step confirm end in), idempotent per line. "Last" = latest date,
+then highest line id (`_last()`); history is kept. It is NOT a rate-list row and never
+enters the rate chain. A cancelled order deletes its rows (logged on the vendor's
+chatter); a Rates manager may delete one (logged); nobody else can write or delete.
+A new bars line (the grid, Create purchase order, a typed line) STARTS at the last paid
+price, else the list rate (`_aw_start_price`), and the price note names the other one
+("list 2.50 - +8.0% | last 2.70 (date, PO) - -3.0%"). Confirming with a bars line more
+than 15% from the list rate opens `aw.po.confirm.wizard` ("Confirm anyway", logged on
+the order); it only asks for a single order and never when `aw_confirm_anyway` is in the
+context. The Rates tab (core) shows the LPP under the list cell: the design module adds
+`lpp` to `_aw_rates_table_data()` and patches the widget (`static/src/rates_lpp`).
+
 **Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of
 the SAME quote left on their bars: a returnable remainder (above the offcut
 minimum setting). `aw.cut.plan._stock_for(product)` offers it; a Draft batch's

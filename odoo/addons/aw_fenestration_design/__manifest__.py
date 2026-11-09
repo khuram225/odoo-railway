@@ -62,6 +62,7 @@ row/leaf grid shape:
         'views/vendor_bar_length_views.xml',
         'views/cut_plan_views.xml',
         'views/purchase_order_views.xml',
+        'views/po_confirm_wizard_views.xml',
         'data/po_names_data.xml',
         'data/po_print_data.xml',
         'views/cut_label_wizard_views.xml',

@@ -55,6 +55,7 @@
                             <td>
                                 <t t-esc="finish.name"/>
                                 <span t-if="!hasRate(finish.id)" class="badge text-bg-danger ms-1">no price</span>
+                                <span t-elif="isLastPaid(finish.id)" class="badge text-bg-info ms-1">last paid</span>
                             </td>
                             <td t-foreach="state.data.lengths" t-as="ln" t-key="ln" class="text-end">
                                 <input type="number" min="0" step="1"

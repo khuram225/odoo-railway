@@ -131,12 +131,14 @@ class PurchaseOrder(models.Model):
         lengths = self._aw_grid_lengths(template)
         Line = self.env['purchase.order.line']
         on_date = (self.date_order or fields.Datetime.now()).date()
-        rates = {}
+        rates, sources = {}, {}
         for thickness in thicknesses:
             for finish in finishes:
-                price = Line._aw_rate_for(
-                    template, thickness, finish, self.partner_id, on_date)
+                price, source = Line._aw_start_price(
+                    template, thickness, finish, self.partner_id, on_date,
+                    self.currency_id)
                 rates["%s|%s" % (thickness.id, finish.id)] = price or False
+                sources["%s|%s" % (thickness.id, finish.id)] = source
         cells = {}
         for line in self.order_line.filtered(
                 lambda l: l.product_id.product_tmpl_id == template
@@ -155,6 +157,7 @@ class PurchaseOrder(models.Model):
                          for v in finishes],
             'cells': cells,
             'rates': rates,
+            'sources': sources,
             'currency': self.currency_id.symbol or '',
         }
 
@@ -212,8 +215,9 @@ class PurchaseOrder(models.Model):
                     "%(product)s cannot be made in %(thickness)s / "
                     "%(finish)s.", product=template.display_name,
                     thickness=thickness.name, finish=finish.name))
-            price = Line._aw_rate_for(
-                template, thickness, finish, self.partner_id, on_date) or 0.0
+            price = Line._aw_start_price(
+                template, thickness, finish, self.partner_id, on_date,
+                self.currency_id)[0] or 0.0
             Line.create({
                 'order_id': self.id, 'product_id': product.id,
                 'name': _("%(product)s: %(bars)s x %(ft)g ft bars",

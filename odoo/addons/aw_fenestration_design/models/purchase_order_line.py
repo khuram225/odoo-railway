@@ -59,6 +59,56 @@ class PurchaseOrderLine(models.Model):
             template, thickness, finish, on_date, vendor)
         return rate.price if rate else 0.0
 
+    @api.model
+    def _aw_start_price(self, template, thickness, finish, vendor, on_date,
+                        currency=None):
+        """(price per ft in the order's currency, 'lpp' | 'list' | None): a
+        new line starts at the vendor's last purchase price when there is
+        one, else at the list rate."""
+        lpp = self.env['aw.profile.lpp']._last(
+            vendor, template, thickness, finish)
+        if lpp:
+            price = lpp.price_ft
+            if currency and currency != lpp.currency_id:
+                price = lpp.currency_id._convert(
+                    price, currency, self.env.company, on_date, round=False)
+            return price, 'lpp'
+        price = self._aw_rate_for(template, thickness, finish, vendor, on_date)
+        return price, ('list' if price else None)
+
+    def _aw_start_price_for_line(self):
+        self.ensure_one()
+        product = self.product_id
+        thickness, finish = self.order_id._aw_variant_values(product)
+        on_date = (self.order_id.date_order or fields.Datetime.now()).date()
+        return self._aw_start_price(
+            product.product_tmpl_id, thickness, finish,
+            self.order_id.partner_id, on_date, self.order_id.currency_id)
+
+    def _aw_last_price(self):
+        """(price per ft in the order's currency, date, PO number) of the
+        vendor's last purchase price for this line's variant, or None."""
+        self.ensure_one()
+        product = self.product_id
+        if not product:
+            return None
+        thickness, finish = self.order_id._aw_variant_values(product)
+        lpp = self.env['aw.profile.lpp']._last(
+            self.order_id.partner_id, product.product_tmpl_id, thickness,
+            finish)
+        # a line on the very order that made the row is not "last" news
+        lpp = lpp.filtered(lambda r: r.po_line_id != self)
+        if not lpp:
+            return None
+        price = lpp.price_ft
+        currency = self.order_id.currency_id
+        if currency and currency != lpp.currency_id:
+            on_date = (self.order_id.date_order
+                       or fields.Datetime.now()).date()
+            price = lpp.currency_id._convert(
+                price, currency, self.env.company, on_date, round=False)
+        return price, lpp.date, lpp.order_id.name or ''
+
     def _aw_vendor_rate(self):
         """The vendor's profile rate per ft on the order date, or 0."""
         self.ensure_one()
@@ -74,11 +124,18 @@ class PurchaseOrderLine(models.Model):
         self.ensure_one()
         if not self.price_unit:
             return _("No price")
+        notes = []
         rate = self._aw_vendor_rate()
         if rate and abs(self.price_unit - rate) > 0.005:
-            return _("list %(rate).2f - %(pct)+.1f%%", rate=rate, pct=(
-                self.price_unit - rate) / rate * 100.0)
-        return False
+            notes.append(_("list %(rate).2f - %(pct)+.1f%%", rate=rate, pct=(
+                self.price_unit - rate) / rate * 100.0))
+        last = self._aw_last_price()
+        if last and abs(self.price_unit - last[0]) > 0.005:
+            notes.append(_(
+                "last %(price).2f (%(date)s, %(order)s) - %(pct)+.1f%%",
+                price=last[0], date=last[1], order=last[2], pct=(
+                    self.price_unit - last[0]) / last[0] * 100.0))
+        return ' | '.join(notes) or False
 
     @api.model
     def _aw_bars_text(self, count, length):
@@ -130,7 +187,7 @@ class PurchaseOrderLine(models.Model):
         if self.product_uom_id != foot:
             values['product_uom_id'] = foot.id
         if not price:
-            price = self._aw_vendor_rate()
+            price = self._aw_start_price_for_line()[0]
         if price != self.price_unit:
             values.update(price_unit=price, technical_price_unit=price)
         return values
