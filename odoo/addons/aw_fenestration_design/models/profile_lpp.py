@@ -104,6 +104,12 @@ class AwProfileLpp(models.Model):
                 author_id=self.env.user.partner_id.id,
                 subtype_xmlid='mail.mt_note')
 
+    def action_delete_selected(self):
+        """The list's Delete button (Rates managers); the access rules
+        decide, the button is only shown to them."""
+        self.unlink()
+        return True
+
     def unlink(self):
         if not self.env.context.get('aw_lpp_logged'):
             self._log_removed(_("deleted"))

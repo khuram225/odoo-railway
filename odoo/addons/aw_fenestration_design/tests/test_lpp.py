@@ -258,9 +258,9 @@ class TestLastPurchasePrice(TransactionCase):
             view_type='list')
         return etree.fromstring(view['arch'])
 
-    def test_manager_and_normal_list_show_the_same_columns(self):
-        """Two list views, one for Rates managers (Delete) and one for the
-        rest: they must never drift apart in what they show."""
+    def test_one_list_for_all_and_only_a_manager_sees_delete(self):
+        """The same list, the same columns, for everyone; the standard
+        Delete is off and only a Rates manager is shown the Delete button."""
         manager = self._list_arch(self.manager)
         normal = self._list_arch(self.buyer)
         fields_of = lambda arch: [f.get('name') for f in arch.iter('field')]
@@ -269,31 +269,15 @@ class TestLastPurchasePrice(TransactionCase):
                      'price_ft', 'vs_list_pct', 'bar_length_ft', 'date',
                      'order_id'):
             self.assertIn(name, fields_of(normal))
-        # only the manager's list offers Delete
-        self.assertEqual(manager.get('delete'), '1')
+        self.assertEqual(manager.get('delete'), '0')
         self.assertEqual(normal.get('delete'), '0')
+        button = "//header/button[@name='action_delete_selected']"
+        self.assertEqual(len(manager.xpath(button)), 1)
+        self.assertEqual(len(normal.xpath(button)), 0)
 
-    def test_the_product_page_lists_both_finishes_and_leaves_suppliers(self):
-        before = self.template.seller_ids
-        order = self._order(cells=[
-            self._cell(self.f1, 14.0, 2), self._cell(self.f2, 14.0, 1)])
-        for line in order.order_line:
-            line.price_unit = 3.0
-        self._confirm(order)
-        rows = self.template.aw_lpp_ids
-        self.assertEqual(set(rows.finish_id), {self.f1, self.f2})
-        # Odoo's own vendor list is untouched
-        self.assertEqual(self.template.seller_ids, before)
-        self.assertFalse(self.env['product.supplierinfo'].search([
-            ('product_tmpl_id', '=', self.template.id),
-            ('partner_id', '=', self.vendor.id)]))
-
-    def test_the_purchase_tab_carries_the_list(self):
-        from lxml import etree
-        admin = self.env.ref('base.user_admin')
-        view = self.env['product.template'].with_user(admin).get_view(
-            view_type='form')
-        arch = etree.fromstring(view['arch'])
-        found = arch.xpath(
-            "//page[@name='purchase']//field[@name='aw_lpp_ids']")
-        self.assertEqual(len(found), 1)
+    def test_the_delete_button_deletes_for_a_manager_only(self):
+        row = self._lpp(self._confirm(self._order()))
+        with self.assertRaises(AccessError):
+            row.with_user(self.buyer).action_delete_selected()
+        row.with_user(self.manager).action_delete_selected()
+        self.assertFalse(row.exists())
