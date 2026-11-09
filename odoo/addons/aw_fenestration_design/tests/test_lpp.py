@@ -281,3 +281,23 @@ class TestLastPurchasePrice(TransactionCase):
             row.with_user(self.buyer).action_delete_selected()
         row.with_user(self.manager).action_delete_selected()
         self.assertFalse(row.exists())
+
+    # -- Odoo's vendor list is left alone for profiles ---------------------
+    def test_confirming_a_profile_order_adds_no_vendor_row(self):
+        Supplierinfo = self.env['product.supplierinfo']
+        before = Supplierinfo.search_count([])
+        self._confirm(self._order())
+        self.assertEqual(Supplierinfo.search_count([]), before)
+        self.assertFalse(self.template.seller_ids)
+
+    def test_confirming_another_product_still_adds_its_vendor_row(self):
+        plain = self.env['product.product'].create({
+            'name': 'LPP plain part', 'type': 'consu'})
+        order = self.env['purchase.order'].create({
+            'partner_id': self.vendor.id,
+            'order_line': [(0, 0, {
+                'product_id': plain.id, 'product_qty': 2.0,
+                'price_unit': 5.0})]})
+        order.button_confirm()
+        self.assertEqual(plain.product_tmpl_id.seller_ids.partner_id,
+                         self.vendor)

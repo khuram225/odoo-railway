@@ -277,10 +277,22 @@ class PurchaseOrderLine(models.Model):
         return super(PurchaseOrderLine, self).write(vals)
 
     def _compute_price_unit_and_date_planned_and_name(self):
-        """A bars line keeps the price it was made with."""
+        """A bars line keeps the price it was made with. A profile line with
+        no bars yet starts EMPTY: Odoo would start it at the variant's cost,
+        which is a stale copy of a list rate, and a price that is already
+        there is kept when the bars are entered, so it would win over the
+        last purchase price. The price is filled in (last paid, else the
+        list rate) when bars and length are set."""
         bars = self.filtered('aw_is_bars')
-        return super(PurchaseOrderLine, self - bars)\
+        rest = self - bars
+        result = super(PurchaseOrderLine, rest)\
             ._compute_price_unit_and_date_planned_and_name()
+        for line in rest.filtered('aw_is_profile'):
+            # only a price Odoo itself set (a typed one differs from it)
+            if line.price_unit and line.technical_price_unit == line.price_unit:
+                line.price_unit = 0.0
+                line.technical_price_unit = 0.0
+        return result
 
     @api.depends('product_id', 'product_id.uom_id', 'product_id.uom_ids',
                  'product_id.seller_ids', 'product_id.seller_ids.product_uom_id',
