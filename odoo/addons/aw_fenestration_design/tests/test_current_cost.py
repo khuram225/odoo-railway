@@ -2,6 +2,7 @@
 """Current cost of a profile variant: the newer of list and LPP."""
 import unittest
 from datetime import timedelta
+from unittest.mock import patch
 
 from odoo import fields
 from odoo.tests import TransactionCase, tagged
@@ -79,12 +80,20 @@ class TestCurrentCost(TransactionCase):
         self.assertEqual(self._cost()['kind'], 'lpp')
 
     def test_a_last_price_older_than_the_maximum_age_is_ignored(self):
-        self.env['ir.config_parameter'].sudo().set_param(
-            'aw_fenestration.lpp_max_age_days', '30')
         self._lpp(812.0, 60)
-        result = self._cost()
-        self.assertEqual(result['kind'], 'list')
+        with patch.object(self.registry['product.product'],
+                          '_aw_lpp_max_age_days', lambda self: 30):
+            result = self._cost()
+        self.assertEqual(result['kind'], 'list', result['text'])
         self.assertIn('ignored', result['text'])
+
+    def test_the_maximum_age_is_a_setting_with_a_default_of_180_days(self):
+        product = self.env['product.product']
+        param = self.env['ir.config_parameter'].sudo()
+        param.set_param('aw_fenestration.lpp_max_age_days', '')
+        self.assertEqual(product._aw_lpp_max_age_days(), 180)
+        param.set_param('aw_fenestration.lpp_max_age_days', '30')
+        self.assertEqual(product._aw_lpp_max_age_days(), 30)
 
     def test_only_a_last_price_is_the_cost(self):
         self._lpp(900.0, 5, finish=self.f2)         # no list rate for f2
