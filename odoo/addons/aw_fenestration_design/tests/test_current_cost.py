@@ -46,6 +46,7 @@ class TestCurrentCost(TransactionCase):
             cls.template, cls.thickness, cls.f1)
         cls.v2 = env['aw.profile.section.line']._variant_for(
             cls.template, cls.thickness, cls.f2)
+        env.flush_all()
 
     def _lpp(self, price, days_ago, finish=None):
         return self.env['aw.profile.lpp'].create({
@@ -79,8 +80,9 @@ class TestCurrentCost(TransactionCase):
         self._lpp(812.0, 100)
         self.assertEqual(self._cost()['kind'], 'lpp')
 
-    def test_a_last_price_older_than_the_maximum_age_is_ignored(self):
+    def test_the_age_limit_ignores_an_old_last_price(self):
         self._lpp(812.0, 60)
+        self.assertEqual(self._cost()['kind'], 'lpp')     # within 180 days
         with patch.object(self.registry['product.product'],
                           '_aw_lpp_max_age_days', lambda self: 30):
             result = self._cost()
