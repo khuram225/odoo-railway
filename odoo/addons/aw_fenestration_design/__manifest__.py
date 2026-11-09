@@ -34,7 +34,7 @@ row/leaf grid shape:
     'website': 'https://mycrewvault.com',
     'license': 'LGPL-3',
     'depends': ['aw_fenestration_core', 'sale', 'purchase', 'purchase_stock',
-                'purchase_product_matrix'],
+                'purchase_product_matrix', 'aluminum_inventory'],
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
@@ -64,6 +64,7 @@ row/leaf grid shape:
         'views/purchase_order_views.xml',
         'views/po_confirm_wizard_views.xml',
         'views/profile_lpp_views.xml',
+        'views/po_receive_views.xml',
         'data/po_names_data.xml',
         'data/lpp_backfill_data.xml',
         'data/po_print_data.xml',

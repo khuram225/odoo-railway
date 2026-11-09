@@ -24,18 +24,27 @@ class PurchaseOrderLine(models.Model):
     aw_bar_length_ft = fields.Float(string='Bar length (ft)', copy=False)
     aw_bar_count = fields.Integer(string='Bars', copy=False)
     aw_is_bars = fields.Boolean(compute='_compute_aw_bars')
+    aw_added_at_receipt = fields.Boolean(
+        string='Added at receipt', copy=False, readonly=True,
+        help="The vendor sent a length that was not ordered, or more of it: "
+             "the line was added when the bars were received.")
     aw_is_profile = fields.Boolean(
         related='product_id.product_tmpl_id.aw_is_profile')
     aw_price_note = fields.Char(string='Price note', compute='_compute_aw_bars')
 
     @api.depends('aw_bar_count', 'aw_bar_length_ft', 'price_unit',
-                 'product_id', 'order_id.partner_id', 'order_id.date_order')
+                 'product_id', 'order_id.partner_id', 'order_id.date_order',
+                 'aw_added_at_receipt')
     def _compute_aw_bars(self):
         for line in self:
             line.aw_is_bars = bool(
                 line.aw_bar_count and line.aw_bar_length_ft)
             if line.aw_is_bars:
-                line.aw_price_note = line._aw_price_note()
+                note = line._aw_price_note()
+                if line.aw_added_at_receipt:
+                    note = ' | '.join(filter(None, (
+                        _("Added at receipt"), note)))
+                line.aw_price_note = note
             elif line.product_id.product_tmpl_id.aw_is_profile:
                 line.aw_price_note = _("Enter bars and bar length")
             else:

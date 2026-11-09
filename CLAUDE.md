@@ -553,6 +553,29 @@ the variant's cost (a stale copy of a list rate), and a price that is there is k
 the bars are entered, so the compute override sets such a line to EMPTY and the price
 (last paid, else the list rate) is filled in when bars and length are set.
 
+**Receiving bars (`models/po_receipt.py`, `po_receive_wizard.py`).** *Receive bars* on a
+confirmed order (group **Fenestration / Purchasing**, which implies Purchase / User and
+Inventory / User; the Manager includes it) opens a list: for every ordered variant a ready
+row for every ACTIVE length (profile, vendor, global) with bars at 0, a subtotal row (ordered,
+received and arriving ft, "8 ft short" / "complete" / "12 ft over"), and *Add a variant* for
+one that is not on the order. Only numbers are typed; a row above 100 bars needs the tick;
+all-zero cannot be validated; *counted by* and the date are recorded. `_aw_receive_bars()`
+makes ONE stock lot per row (`length_mm` = ft x 304.8 rounded to a whole mm, source
+purchased, name `PO-receipt-Nft`), puts bars x length in ft on the move of an ordered line
+of that variant and length, and bars beyond its open demand (another length, or more) on a
+NEW line flagged `aw_added_at_receipt`, priced like the variant's line on the same order (else
+last paid, else list). It validates the order's open receipt with the rest in a backorder, so
+a partial delivery leaves the order open and the next delivery is a new receipt, and takes the
+feet the added lines received off the open demand of the variant's ordered lines (a mix of
+other lengths against the same feet closes the order). "Ordered" in the note leaves out added
+lines; "received" counts all. The products are NOT lot-tracked yet: the lot sits on the move
+line and the quant, and Odoo's availability ignores it until the tracking switch (next PR:
+tracking = lot on the profile templates, Lots & Serial Numbers in Settings, Create New Lots on
+the Receipts type). Setting `aw_fenestration.receive_hide_prices` hides the price column for
+users who are not buyers or managers. Tables added: `aw_po_receipt`, `aw_po_receipt_line`
+and the transient `aw_po_receive_wizard`, `aw_po_receive_line`; one column,
+`purchase_order_line.aw_added_at_receipt`. `aluminum_inventory` is now a dependency.
+
 **Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of
 the SAME quote left on their bars: a returnable remainder (above the offcut
 minimum setting). `aw.cut.plan._stock_for(product)` offers it; a Draft batch's

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The receive screen: every ordered variant with a ready row for every
+         active length, a subtotal under each variant, and an added row for a
+         variant that is not on the order. -->
+    <record id="view_aw_po_receive_wizard_form" model="ir.ui.view">
+        <field name="name">aw.po.receive.wizard.form</field>
+        <field name="model">aw.po.receive.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Receive bars">
+                <field name="hide_prices" invisible="1"/>
+                <field name="has_large" invisible="1"/>
+                <field name="all_zero" invisible="1"/>
+                <group>
+                    <group>
+                        <field name="order_id"/>
+                        <field name="counted_by_id"/>
+                        <field name="count_date"/>
+                    </group>
+                    <group>
+                        <field name="confirm_large" invisible="not has_large"/>
+                    </group>
+                </group>
+                <field name="line_ids" nolabel="1">
+                    <list editable="bottom" delete="0"
+                          decoration-bf="kind == 'total'"
+                          decoration-info="kind == 'total'"
+                          decoration-warning="kind != 'total' and bars &gt; 100">
+                        <control>
+                            <create string="Add a variant"
+                                    context="{'default_kind': 'added'}"/>
+                        </control>
+                        <field name="kind" column_invisible="1"/>
+                        <field name="sequence" column_invisible="1"/>
+                        <field name="product_id" readonly="kind != 'added'"
+                               options="{'no_create': True}"/>
+                        <field name="bar_length_ft" readonly="kind != 'added'"
+                               invisible="kind == 'total'"/>
+                        <field name="ordered_bars" readonly="1"
+                               invisible="kind == 'total'"/>
+                        <field name="received_bars" readonly="1"
+                               invisible="kind == 'total'"/>
+                        <field name="bars" readonly="kind == 'total'"
+                               invisible="kind == 'total'"/>
+                        <field name="ordered_ft" readonly="1"/>
+                        <field name="received_ft" readonly="1"/>
+                        <field name="arriving_ft"/>
+                        <field name="status"/>
+                        <field name="price_ft" readonly="1"
+                               column_invisible="parent.hide_prices"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_validate" type="object"
+                            string="Validate" class="btn-primary"
+                            invisible="all_zero" data-hotkey="q"/>
+                    <button string="Cancel" class="btn-secondary"
+                            special="cancel" data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- On a confirmed order. Anchor: the form's header, which the
+         purchase order form always has. -->
+    <record id="view_purchase_order_form_aw_receive" model="ir.ui.view">
+        <field name="name">purchase.order.form.aw.receive</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_receive_bars" type="object"
+                        string="Receive bars" class="btn-secondary"
+                        invisible="state != 'purchase'"
+                        groups="aw_fenestration_design.group_fenestration_purchasing"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

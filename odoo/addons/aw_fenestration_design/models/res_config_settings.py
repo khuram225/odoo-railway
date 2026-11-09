@@ -22,6 +22,11 @@ P = 'aw_fenestration.label_'
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
+    aw_receive_hide_prices = fields.Boolean(
+        string='Hide prices on the receive screen',
+        config_parameter='aw_fenestration.receive_hide_prices',
+        help="For people who only count bars: the Receive bars screen shows "
+             "no price. A buyer or a manager still sees them.")
     aw_label_w = fields.Float(
         string='Label Width (mm)', default=70.0,
         config_parameter=P + 'w')
