@@ -593,6 +593,20 @@ Receipts type were already on. Consequence: Odoo's own Validate on a bars receip
 lots; receive bars through *Receive bars*. Tests that make a profile storable by hand set
 `is_storable` only, so they still run untracked unless they ask for `tracking = 'lot'`.
 
+**Current cost of a profile (`models/cost_rule.py`, `current_cost.py`) — DISPLAY ONLY so far.**
+For one vendor + profile + thickness + finish: the newer of the list rate (its effective date) and
+the last purchase price (the PO's confirmation date); the LPP on a tie; an LPP older than the
+maximum age (Settings, `aw_fenestration.lpp_max_age_days`, default 180) or dated after the day
+costed is ignored; an exact LPP beats a list rate found only by fallback (thickness only, or any
+finish), whatever the dates ("list was an estimate"). `decide()` is Odoo-free
+(`scripts/check_cost_rule.py`). The variant shows `aw_current_cost` / `aw_current_cost_source`
+(series' default vendor, non-stored), the Rates tab shows it per cell (`current` in
+`_aw_rates_table_data`), and the product list shows `aw_cost_range` ("from 765 to 884") instead of 0
+for a product with several variants (`standard_price` is per VARIANT; the template shows a cost only
+when it has exactly one). Nothing prices, costs a quote or values stock from it yet; `standard_price`
+and the quote costing still use the list rate. Planned next: a preview of what switching would do to
+draft quotes, a freeze of confirmed orders' cost, then a Price Structure basis (default list only).
+
 **Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of
 the SAME quote left on their bars: a returnable remainder (above the offcut
 minimum setting). `aw.cut.plan._stock_for(product)` offers it; a Draft batch's

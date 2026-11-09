@@ -40,3 +40,4 @@ from . import test_purchase_order
 from . import test_po_print
 from . import test_lpp
 from . import test_po_receive
+from . import test_current_cost

@@ -40,4 +40,24 @@ class ProductTemplate(models.Model):
                 'pct': (row.price_ft - rate) / rate * 100.0 if rate else None,
             })
         data['lpp'] = rows
+        data['current'] = self._aw_rates_current(data['cells'], rows)
         return data
+
+    def _aw_rates_current(self, cells, lpp_rows):
+        """The cost rule for every list cell, with its source."""
+        from .cost_rule import decide
+        today = fields.Date.context_today(self)
+        max_age = self.env['product.product']._aw_lpp_max_age_days()
+        lpp = {(r['t'], r['f'], r['v']): r for r in lpp_rows}
+        out = []
+        for cell in cells:
+            key = (cell['t'], cell['f'], cell['v'])
+            row = lpp.get(key)
+            result = decide(
+                cell['price'], fields.Date.to_date(cell['date']), 'exact',
+                row['price'] if row else 0.0,
+                fields.Date.to_date(row['date']) if row else None,
+                today, max_age)
+            out.append({'t': key[0], 'f': key[1], 'v': key[2],
+                        'cost': result['cost'], 'text': result['text']})
+        return out
