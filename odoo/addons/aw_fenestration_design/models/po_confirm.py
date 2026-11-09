@@ -16,6 +16,23 @@ THRESHOLD_PCT = 15.0
 class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
 
+    def _add_supplier_to_product(self):
+        """Odoo adds the vendor to the product's vendor list when an order is
+        confirmed. For a profile that row is wrong (no variant, one price in a
+        unit nobody quotes in, never updated) and the last purchase price
+        table is the record, so the rows Odoo makes for profiles are taken
+        away again. Every other product keeps Odoo's behaviour."""
+        profiles = self.order_line.product_id.product_tmpl_id.filtered(
+            'aw_is_profile')
+        Supplierinfo = self.env['product.supplierinfo'].sudo()
+        known = set(Supplierinfo.search(
+            [('product_tmpl_id', 'in', profiles.ids)]).ids)
+        result = super()._add_supplier_to_product()
+        Supplierinfo.search([
+            ('product_tmpl_id', 'in', profiles.ids),
+            ('id', 'not in', list(known))]).unlink()
+        return result
+
     def _aw_lines_far_from_list(self):
         """[(line, list rate, % from list)] for the priced bars lines more
         than THRESHOLD_PCT from the vendor's list rate."""

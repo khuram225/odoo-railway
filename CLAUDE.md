@@ -544,6 +544,15 @@ a saved note and untouched; needs `AW_CONFIRM=yes`). The LPP rows for orders con
 before the table existed were written once by `_aw_backfill_lpp()` (parameter
 `aw_fenestration.lpp_backfilled`, so a deleted row never comes back).
 
+**Profiles are not in Odoo's vendor list.** `button_confirm()` makes Odoo add the
+vendor to the product's `seller_ids` (`_add_supplier_to_product`): for a profile that row
+had no variant, one price, and was never updated, so `po_confirm.py` takes away the rows
+Odoo makes for profile products (every other product keeps Odoo's behaviour) and the LPP
+table is the record. With no vendor row, Odoo would start a hand-typed profile line at
+the variant's cost (a stale copy of a list rate), and a price that is there is kept when
+the bars are entered, so the compute override sets such a line to EMPTY and the price
+(last paid, else the list rate) is filled in when bars and length are set.
+
 **Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of
 the SAME quote left on their bars: a returnable remainder (above the offcut
 minimum setting). `aw.cut.plan._stock_for(product)` offers it; a Draft batch's
