@@ -283,7 +283,6 @@ class TestLastPurchasePrice(TransactionCase):
         self.assertFalse(row.exists())
 
     def test_the_product_page_lists_both_finishes_and_leaves_suppliers(self):
-        before = self.template.seller_ids
         order = self._order(cells=[
             self._cell(self.f1, 14.0, 2), self._cell(self.f2, 14.0, 1)])
         for line in order.order_line:
@@ -291,11 +290,14 @@ class TestLastPurchasePrice(TransactionCase):
         self._confirm(order)
         rows = self.template.aw_lpp_ids
         self.assertEqual(set(rows.finish_id), {self.f1, self.f2})
-        # Odoo's own vendor list is untouched
-        self.assertEqual(self.template.seller_ids, before)
-        self.assertFalse(self.env['product.supplierinfo'].search([
-            ('product_tmpl_id', '=', self.template.id),
-            ('partner_id', '=', self.vendor.id)]))
+        # Odoo itself adds the vendor to the product on confirm; writing the
+        # last prices must add nothing to that list.
+        Supplierinfo = self.env['product.supplierinfo']
+        before = Supplierinfo.search_count([])
+        rows.unlink()
+        order._aw_record_lpp()
+        self.assertEqual(len(self.template.aw_lpp_ids), 2)
+        self.assertEqual(Supplierinfo.search_count([]), before)
 
     def test_the_purchase_tab_carries_the_list(self):
         from lxml import etree
