@@ -278,6 +278,18 @@ class TestPurchaseLineEntry(TransactionCase):
         self.assertEqual(line.price_unit, 4.0)
         self.assertAlmostEqual(line.product_qty, 96.0)
 
+    def test_a_profile_line_with_no_bars_starts_empty_then_takes_the_rate(self):
+        self.product.sudo().standard_price = 9.99    # a stale cost
+        line = self._line(self._order())
+        self.assertEqual(line.price_unit, 0.0)
+        line.write({'aw_bar_length_ft': 16.0, 'aw_bar_count': 5})
+        self.assertEqual(line.price_unit, 4.0)         # the list rate
+
+    def test_another_product_still_starts_at_its_cost(self):
+        self.plain.sudo().standard_price = 7.5
+        line = self._line(self._order(), product=self.plain)
+        self.assertEqual(line.price_unit, 7.5)
+
     def test_a_price_that_is_there_is_kept_and_follows_the_unit(self):
         line = self._line(self._order(), price_unit=3.048)   # per metre
         line.write({'price_unit': 3.048, 'technical_price_unit': 3.048})
