@@ -40,6 +40,7 @@ class TestCostFreeze(TransactionCase):
                       'leaves': [dict(leaf), dict(leaf)]}]})
         self._rate(design, 10.0, 30)
         design._explode()
+        design._sync_sale_order_line()
         self.assertTrue(design.cost_total, "the window was not costed")
         return order, design
 
