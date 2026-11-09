@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Once: last purchase prices for orders confirmed before the table
+         existed. Guarded by a parameter, so it never runs twice. -->
+    <function model="purchase.order" name="_aw_backfill_lpp"/>
+
+</odoo>

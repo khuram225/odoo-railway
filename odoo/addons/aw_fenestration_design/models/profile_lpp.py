@@ -12,7 +12,11 @@ side, and the person pricing decides which one a line starts from.
 A cancelled order takes its rows with it, logged on the vendor's chatter, as
 is a row a Rates manager deletes.
 """
+import logging
+
 from odoo import _, api, fields, models
+
+_logger = logging.getLogger(__name__)
 
 
 class AwProfileLpp(models.Model):
@@ -150,6 +154,37 @@ class PurchaseOrder(models.Model):
                     row.write(vals)
                 else:
                     Lpp.create(vals)
+
+    @api.model
+    def _aw_backfill_lpp(self):
+        """Once: last purchase prices for the orders confirmed before the table
+        existed, with their own confirmation dates. Idempotent per line (the
+        writer is), and one-shot by a parameter so that a row a Rates manager
+        deletes later is not written back by the next upgrade. Orders that
+        already have rows (confirmed since) are left alone."""
+        param = self.env['ir.config_parameter'].sudo()
+        key = 'aw_fenestration.lpp_backfilled'
+        if param.get_param(key):
+            return
+        done = self.env['aw.profile.lpp'].sudo().search([]).order_id
+        orders = self.sudo().search([('state', '=', 'purchase')]) - done
+        written = 0
+        for order in orders:
+            before = self.env['aw.profile.lpp'].sudo().search_count(
+                [('order_id', '=', order.id)])
+            order._aw_record_lpp()
+            made = self.env['aw.profile.lpp'].sudo().search_count(
+                [('order_id', '=', order.id)]) - before
+            if made:
+                written += made
+                order.message_post(
+                    body=_("Last purchase prices recorded for this order "
+                           "(%(n)s lines), dated by its confirmation.",
+                           n=made),
+                    subtype_xmlid='mail.mt_note')
+        _logger.info("lpp backfill: %s row(s) for %s order(s)", written,
+                     len(orders))
+        param.set_param(key, '1')
 
     def button_approve(self, force=False):
         result = super().button_approve(force=force)
