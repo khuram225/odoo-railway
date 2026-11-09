@@ -9,6 +9,7 @@
         <field name="model">aw.profile.lpp</field>
         <field name="arch" type="xml">
             <list create="0" edit="0" delete="0" import="0"
+                  default_order="vendor_id, date desc, id desc"
                   decoration-danger="vs_list_pct &gt; 15 or vs_list_pct &lt; -15">
                 <field name="product_tmpl_id" class="fw-bold"/>
                 <field name="thickness_id"/>
@@ -19,7 +20,7 @@
                 <field name="date"/>
                 <field name="order_id"/>
                 <field name="vendor_id" optional="show"/>
-                <field name="list_rate" optional="hide"/>
+                <field name="list_rate"/>
                 <field name="currency_id" column_invisible="1"/>
             </list>
         </field>
@@ -112,6 +113,27 @@
               parent="aw_fenestration_core.menu_aw_vendor_rates"
               action="action_aw_profile_lpp"
               sequence="70"/>
+
+    <!-- The product page, Purchase tab: the same list, read only. The
+         anchor group[@name='purchase'] sits in the Purchase page of
+         product.product_template_form_view (checked on the composed form
+         on production). An embedded list cannot be grouped, so it is
+         sorted by vendor; the Last Prices menu groups. -->
+    <record id="view_product_template_form_aw_lpp" model="ir.ui.view">
+        <field name="name">product.template.form.aw.lpp</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_form_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='purchase']//group[@name='purchase']"
+                   position="before">
+                <group string="Last purchase prices"
+                       invisible="not aw_lpp_ids">
+                    <field name="aw_lpp_ids" nolabel="1" colspan="2" readonly="1"
+                           context="{'list_view_ref': 'aw_fenestration_design.view_aw_profile_lpp_list'}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
 
     <!-- The vendor form: a Last prices button with a count. -->
     <record id="view_partner_form_aw_lpp" model="ir.ui.view">

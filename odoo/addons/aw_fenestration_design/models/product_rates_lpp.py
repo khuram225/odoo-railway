@@ -6,11 +6,17 @@ design module adds a `lpp` list to the payload and the widget shows it under
 the cell it belongs to: price, date, purchase order and the difference "vs
 list today".
 """
-from odoo import models
+from odoo import fields, models
 
 
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
+
+    # The Purchase tab lists these. A One2many has no column of its own, and
+    # nothing is written to product.supplierinfo (Odoo's vendor list).
+    aw_lpp_ids = fields.One2many(
+        'aw.profile.lpp', 'product_tmpl_id', string='Last purchase prices',
+        readonly=True)
 
     def _aw_rates_table_data(self):
         data = super()._aw_rates_table_data()
