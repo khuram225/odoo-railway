@@ -68,6 +68,7 @@ row/leaf grid shape:
         'data/po_names_data.xml',
         'data/lpp_backfill_data.xml',
         'data/profile_purchase_method_data.xml',
+        'data/profile_tracking_data.xml',
         'data/po_print_data.xml',
         'views/cut_label_wizard_views.xml',
         'views/res_config_settings_views.xml',

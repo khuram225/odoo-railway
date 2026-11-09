@@ -584,6 +584,15 @@ sets it on a profile created without one and, once, on the profiles that had bee
 and a line "added at receipt" (ordered quantity = the bars that arrived) is billed in full while
 an ordered line with nothing received bills 0.
 
+**Profiles are tracked by lot** (`profile_tracking.py`). Every delivery of bars is received as
+lots (see Receiving bars), so a storable profile product is tracked "By Lots":
+`_aw_switch_profiles_to_lot()` does it once at the upgrade, REFUSES (logs, and tries again at the
+next upgrade) while any profile has stock or an open move, and a profile created storable and
+without a tracking asked for is born tracked. Lots & Serial Numbers and "Create New Lots" on the
+Receipts type were already on. Consequence: Odoo's own Validate on a bars receipt now asks for
+lots; receive bars through *Receive bars*. Tests that make a profile storable by hand set
+`is_storable` only, so they still run untracked unless they ask for `tracking = 'lot'`.
+
 **Plan from stock (Brief Q4).** "Stock" is, for now, what earlier **Final** batches of
 the SAME quote left on their bars: a returnable remainder (above the offcut
 minimum setting). `aw.cut.plan._stock_for(product)` offers it; a Draft batch's

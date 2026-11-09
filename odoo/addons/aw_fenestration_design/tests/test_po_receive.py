@@ -224,6 +224,7 @@ class TestReceiveBars(TransactionCase):
         self.assertTrue(shown.with_user(counter).hide_prices)
         self.env['ir.config_parameter'].sudo().set_param(
             'aw_fenestration.receive_hide_prices', '')
+        shown.invalidate_recordset(['hide_prices'])    # the setting is not a dependency
         self.assertFalse(shown.with_user(counter).hide_prices)
 
     # -- vendor bills follow what was received -------------------------------
@@ -279,3 +280,59 @@ class TestReceiveBars(TransactionCase):
         self.assertEqual(
             {l.aw_added_at_receipt: q for l, q in quantities.items()},
             {True: 32.0})
+
+    # -- tracked by lot --------------------------------------------------------
+    def _tracked(self):
+        self.template.sudo().tracking = 'lot'
+        self.assertEqual(self.template.tracking, 'lot')
+
+    def test_a_lot_tracked_profile_is_received_with_its_lots_on_the_quants(self):
+        self._tracked()
+        order = self._order([(14.0, 10), (18.0, 4)])
+        receipt = order._aw_receive_bars(
+            [self._row(14.0, 10), self._row(18.0, 4)])
+        self.assertEqual(receipt.picking_id.state, 'done')
+        quants = self.env['stock.quant'].search([
+            ('product_id', '=', self.product.id),
+            ('location_id.usage', '=', 'internal')])
+        self.assertEqual(sorted(quants.mapped('lot_id.length_mm')),
+                         [4267, 5486])
+        self.assertTrue(all(q.lot_id for q in quants))
+
+    def test_a_mixed_delivery_of_a_tracked_profile_still_closes_the_order(self):
+        self._tracked()
+        order = self._order([(16.0, 9)])
+        order._aw_receive_bars([self._row(18.0, 8)])
+        self.assertEqual(order.receipt_status, 'full')
+
+    def test_the_switch_waits_while_a_profile_has_stock(self):
+        param = self.env['ir.config_parameter'].sudo()
+        template = self.template.sudo()
+        template.tracking = 'none'
+        variant = template.product_variant_ids[:1] \
+            or template._create_first_product_variant()
+        stock = self.env['stock.location'].search(
+            [('usage', '=', 'internal')], limit=1)
+        self.env['stock.quant'].sudo()._update_available_quantity(
+            variant, stock, 5.0)
+        param.set_param('aw_fenestration.profile_lot_tracking_set', '')
+        self.env['product.template']._aw_switch_profiles_to_lot()
+        self.assertEqual(template.tracking, 'none')            # waited
+        self.assertFalse(param.get_param(
+            'aw_fenestration.profile_lot_tracking_set'))
+        self.env['stock.quant'].sudo()._update_available_quantity(
+            variant, stock, -5.0)
+        self.env['product.template']._aw_switch_profiles_to_lot()
+        self.assertEqual(template.tracking, 'lot')
+        self.assertTrue(param.get_param(
+            'aw_fenestration.profile_lot_tracking_set'))
+
+    def test_a_new_storable_profile_is_tracked_by_lot(self):
+        new = self.env['product.template'].create({
+            'name': 'Tracking test profile', 'type': 'consu',
+            'is_storable': True, 'categ_id': self.template.categ_id.id})
+        self.assertEqual(new.tracking, 'lot')
+        plain = self.env['product.template'].create({
+            'name': 'Tracking test part', 'type': 'consu',
+            'is_storable': True})
+        self.assertEqual(plain.tracking, 'none')
