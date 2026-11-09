@@ -130,6 +130,36 @@
         </field>
     </record>
 
+    <!-- The variant's current cost, under the figures core shows. -->
+    <record id="view_product_product_form_aw_current_cost" model="ir.ui.view">
+        <field name="name">product.product.form.aw.current.cost</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="aw_fenestration_core.view_product_product_form_fenestration"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='aw_cost_from_rate']" position="after">
+                <field name="aw_current_cost" string="Current cost / ft"/>
+                <field name="aw_current_cost_source" string="Source"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- A product with several variants has no single cost: the list shows
+         the range instead of 0. -->
+    <record id="view_product_template_list_aw_cost_range" model="ir.ui.view">
+        <field name="name">product.template.list.aw.cost.range</field>
+        <field name="model">product.template</field>
+        <field name="inherit_id" ref="product.product_template_tree_view"/>
+        <field name="arch" type="xml">
+            <field name="standard_price" position="attributes">
+                <attribute name="invisible">product_variant_count &gt; 1</attribute>
+            </field>
+            <field name="standard_price" position="after">
+                <field name="aw_cost_range" string="Cost" optional="show"
+                       invisible="product_variant_count &lt;= 1"/>
+            </field>
+        </field>
+    </record>
+
     <!-- The vendor form: a Last prices button with a count. -->
     <record id="view_partner_form_aw_lpp" model="ir.ui.view">
         <field name="name">res.partner.form.aw.lpp</field>

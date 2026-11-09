@@ -41,6 +41,7 @@ from . import po_receipt
 from . import po_receive_wizard
 from . import profile_purchase_method
 from . import profile_tracking
+from . import current_cost
 from . import partner_lpp
 from . import po_confirm
 from . import product_rates_lpp

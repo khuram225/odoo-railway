@@ -22,6 +22,11 @@ P = 'aw_fenestration.label_'
 class ResConfigSettings(models.TransientModel):
     _inherit = 'res.config.settings'
 
+    aw_lpp_max_age_days = fields.Integer(
+        string='Last purchase price: maximum age (days)', default=180,
+        config_parameter='aw_fenestration.lpp_max_age_days',
+        help="The current cost ignores a last purchase price older than "
+             "this.")
     aw_receive_hide_prices = fields.Boolean(
         string='Hide prices on the receive screen',
         config_parameter='aw_fenestration.receive_hide_prices',

@@ -6,6 +6,8 @@
         <xpath expr="//t[@t-if='cell.price !== null']" position="inside">
             <div t-if="cell.lpp" class="small text-info"
                  t-esc="lppText(cell.lpp)"/>
+            <div t-if="cell.cur" class="small fw-bold"
+                 t-esc="curText(cell.cur)"/>
         </xpath>
     </t>
 
