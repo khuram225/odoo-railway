@@ -46,7 +46,11 @@ class TestCurrentCost(TransactionCase):
             cls.template, cls.thickness, cls.f1)
         cls.v2 = env['aw.profile.section.line']._variant_for(
             cls.template, cls.thickness, cls.f2)
+        # the variants were made in this transaction: read their attribute
+        # values from the database, not from the cache they were made in
+        # (the first test of the class saw them empty)
         env.flush_all()
+        env.invalidate_all()
 
     def _lpp(self, price, days_ago, finish=None):
         return self.env['aw.profile.lpp'].create({
