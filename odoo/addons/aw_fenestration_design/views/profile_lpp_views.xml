@@ -2,7 +2,8 @@
 <odoo>
 
     <!-- Read only for everyone: a Rates manager gets Delete from the
-         extension below, and the access rules refuse anyone else. -->
+         primary view below (an inherited view cannot carry groups on the
+         record), and the access rules refuse anyone else. -->
     <record id="view_aw_profile_lpp_list" model="ir.ui.view">
         <field name="name">aw.profile.lpp.list</field>
         <field name="model">aw.profile.lpp</field>
@@ -28,6 +29,8 @@
         <field name="name">aw.profile.lpp.list.manager</field>
         <field name="model">aw.profile.lpp</field>
         <field name="inherit_id" ref="view_aw_profile_lpp_list"/>
+        <field name="mode">primary</field>
+        <field name="priority">1</field>
         <field name="group_ids" eval="[(4, ref('aw_fenestration_core.group_rates_manager'))]"/>
         <field name="arch" type="xml">
             <xpath expr="//list" position="attributes">

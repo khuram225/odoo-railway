@@ -250,3 +250,25 @@ class TestLastPurchasePrice(TransactionCase):
         self.assertIn('last paid 2.90 (', note)
         self.assertIn(self.thickness.name, note)
         self.assertIn(' on ', note)
+
+
+    def _list_arch(self, user):
+        from lxml import etree
+        view = self.env['aw.profile.lpp'].with_user(user).get_view(
+            view_type='list')
+        return etree.fromstring(view['arch'])
+
+    def test_manager_and_normal_list_show_the_same_columns(self):
+        """Two list views, one for Rates managers (Delete) and one for the
+        rest: they must never drift apart in what they show."""
+        manager = self._list_arch(self.manager)
+        normal = self._list_arch(self.buyer)
+        fields_of = lambda arch: [f.get('name') for f in arch.iter('field')]
+        self.assertEqual(fields_of(manager), fields_of(normal))
+        for name in ('product_tmpl_id', 'thickness_id', 'finish_label',
+                     'price_ft', 'vs_list_pct', 'bar_length_ft', 'date',
+                     'order_id'):
+            self.assertIn(name, fields_of(normal))
+        # only the manager's list offers Delete
+        self.assertEqual(manager.get('delete'), '1')
+        self.assertEqual(normal.get('delete'), '0')
