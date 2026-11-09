@@ -178,7 +178,7 @@ export HOME=/var/lib/odoo
 # 2026-11-07). Recovery is to redeploy the last SUCCESS deployment in the
 # Railway dashboard, or to merge a fix. Rehearse a data-changing upgrade on a
 # copy of production BEFORE merging (scripts/rehearse.sh).
-UPGRADE_MODULES=${ODOO_UPGRADE_MODULES-aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle}
+UPGRADE_MODULES=${ODOO_UPGRADE_MODULES-aluminum_inventory,aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle}
 if [ -n "$UPGRADE_MODULES" ]; then
     upgrade_db=${ODOO_DB_NAME:-odoo}
     echo "upgrade: odoo -u $UPGRADE_MODULES -d $upgrade_db --stop-after-init"

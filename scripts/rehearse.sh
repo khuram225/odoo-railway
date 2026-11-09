@@ -36,7 +36,7 @@ DB=rehearsal
 DEFAULT_TABLES="aw_design aw_design_bom_line aw_window_template aw_profile_section_line aw_profile_position aw_profile_rate aw_glass_rate aw_vendor_rate_list aw_vendor_bar_length aw_cut_plan"
 TABLES=${REHEARSE_TABLES:-$DEFAULT_TABLES}
 # What the entrypoint upgrades; keep in step with odoo/entrypoint.sh.
-MODULES=${ODOO_UPGRADE_MODULES:-aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle}
+MODULES=${ODOO_UPGRADE_MODULES:-aluminum_inventory,aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle}
 
 say() { printf '\n== %s\n' "$*"; }
 die() { printf 'REHEARSAL FAILED: %s\n' "$*" >&2; exit 1; }

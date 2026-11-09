@@ -55,7 +55,7 @@ layers of shell quoting is how this sort of code goes wrong quietly.
 
 **Module upgrade on deploy.** `entrypoint.sh` runs, as the `odoo` user and
 before the server starts, `odoo -c /etc/odoo/odoo.conf -d $ODOO_DB_NAME
--u aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle
+-u aluminum_inventory,aw_fenestration_core,aw_fenestration_design,aw_web_chatter_toggle
 --stop-after-init`, then
 logs `upgrade: done; versions: ...` read from `ir_module_module`.
 `ODOO_UPGRADE_MODULES` overrides the list and **set empty skips it**: the
