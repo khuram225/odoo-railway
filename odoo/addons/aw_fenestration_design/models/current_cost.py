@@ -40,6 +40,22 @@ class ProductProduct(models.Model):
         except ValueError:
             return DEFAULT_MAX_AGE_DAYS
 
+    def _aw_cost_key(self):
+        """(thickness, finish) of this variant as rates and last purchase
+        prices are keyed. A profile sold in exactly one thickness, made
+        without a thickness value, has that one."""
+        self.ensure_one()
+        thickness, finish = self._aw_attribute_values()
+        thickness_attr = self.env.ref(
+            'aw_fenestration_core.aw_attribute_thickness',
+            raise_if_not_found=False)
+        if not thickness and thickness_attr:
+            offered = self.env['aw.profile.section.line']._template_values(
+                self.product_tmpl_id, thickness_attr)
+            if len(offered) == 1:
+                thickness = offered
+        return thickness, finish
+
     def _aw_current_cost(self, vendor=None, on_date=None):
         """cost_rule.decide() for this variant, at `vendor` (default: the
         series' default vendor) on `on_date` (default: today)."""
@@ -47,15 +63,7 @@ class ProductProduct(models.Model):
         template = self.product_tmpl_id
         vendor = vendor if vendor is not None else template._aw_default_vendor()
         on_date = on_date or fields.Date.context_today(self)
-        thickness, finish = self._aw_attribute_values()
-        thickness_attr = self.env.ref(
-            'aw_fenestration_core.aw_attribute_thickness',
-            raise_if_not_found=False)
-        if not thickness and thickness_attr:
-            offered = self.env['aw.profile.section.line']._template_values(
-                template, thickness_attr)
-            if len(offered) == 1:
-                thickness = offered
+        thickness, finish = self._aw_cost_key()
         rate, level = self.env['aw.profile.rate']._rate_lookup(
             template, thickness, finish, on_date, vendor)
         lpp = self.env['aw.profile.lpp']._last(

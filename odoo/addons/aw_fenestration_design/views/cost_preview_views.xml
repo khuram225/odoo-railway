@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Opened by aw.cost.preview.wizard.action_open(), which runs the
+         preview first: nothing here is edited. -->
+    <record id="view_aw_cost_preview_wizard_form" model="ir.ui.view">
+        <field name="name">aw.cost.preview.wizard.form</field>
+        <field name="model">aw.cost.preview.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Cost Rule Preview" create="0" edit="0" delete="0">
+                <div class="alert alert-info" role="status">
+                    What the cost rule would do. Every quote still being
+                    quoted is costed again as today (list rate) and with the
+                    rule (the newer of the list rate and the quote vendor's
+                    last purchase price, within the maximum age). Nothing is
+                    changed or saved.
+                </div>
+                <h3><field name="summary"/></h3>
+                <field name="max_age_days" invisible="1"/>
+                <notebook>
+                    <page string="Windows being quoted">
+                        <field name="line_ids" nolabel="1">
+                            <list create="0" delete="0" edit="0"
+                                  decoration-danger="error"
+                                  decoration-warning="difference != 0">
+                                <field name="order_name"/>
+                                <field name="design_id"/>
+                                <field name="saved_cost" optional="hide"/>
+                                <field name="cost_now"/>
+                                <field name="cost_rule"/>
+                                <field name="difference"/>
+                                <field name="difference_pct"/>
+                                <field name="price_now" optional="hide"/>
+                                <field name="price_rule" optional="hide"/>
+                                <field name="changes"/>
+                                <field name="error"/>
+                            </list>
+                        </field>
+                    </page>
+                    <page string="Profile variants: cost field">
+                        <p class="text-muted">
+                            The cost field of a variant is what stock is valued
+                            at. These variants would get a different cost from
+                            the rule; those at 0 come first.
+                        </p>
+                        <field name="variant_ids" nolabel="1">
+                            <list create="0" delete="0" edit="0"
+                                  decoration-danger="zero_cost">
+                                <field name="product_id"/>
+                                <field name="cost_field"/>
+                                <field name="cost_rule"/>
+                                <field name="difference"/>
+                                <field name="source"/>
+                                <field name="zero_cost" optional="hide"/>
+                            </list>
+                        </field>
+                    </page>
+                </notebook>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_cost_preview" model="ir.actions.server">
+        <field name="name">Cost Rule Preview</field>
+        <field name="model_id" ref="model_aw_cost_preview_wizard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open()</field>
+    </record>
+
+    <menuitem id="menu_aw_cost_preview"
+              name="Cost Rule Preview"
+              parent="aw_fenestration_core.menu_aw_vendor_rates"
+              action="action_aw_cost_preview"
+              sequence="80"
+              groups="aw_fenestration_core.group_fenestration_manager"/>
+
+</odoo>

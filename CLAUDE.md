@@ -593,6 +593,16 @@ Receipts type were already on. Consequence: Odoo's own Validate on a bars receip
 lots; receive bars through *Receive bars*. Tests that make a profile storable by hand set
 `is_storable` only, so they still run untracked unless they ask for `tracking = 'lot'`.
 
+**Cost Rule Preview (`models/cost_preview.py`, menu Vendor Rates > Cost Rule Preview, Fenestration
+managers).** Re-costs every quote still being quoted (draft or sent) twice, each in a savepoint that
+is always rolled back: as today (context `aw_cost_basis = 'list'`) and with the rule (`'rule'`, read
+by `_rule_pick` in the profile branch of `_cost_bom_lines`: the quote vendor's own last purchase
+price when the rule gives it, a series-default-vendor stand-in counting as an estimate). It lists per
+window the saved cost, the cost today, the cost with the rule, the difference and the pieces that
+move, and per profile variant the cost field now against the cost the rule gives (what stock is
+valued at; the variants at 0 first). Nothing is written. `_rule_pick` is dormant without the context;
+the Price Structure basis (next) will supply it.
+
 **A confirmed order's cost does not move by itself (`models/cost_freeze.py`).** Costs are
 snapshotted on the BOM lines at the quote's date, but a re-explode (a re-save, Recompute, a changed
 spec) used to look every rate up again, so a list rate dated before the order and entered later, or

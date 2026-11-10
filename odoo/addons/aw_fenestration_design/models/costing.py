@@ -347,6 +347,31 @@ class AwDesign(models.Model):
             note = ''
         return used, rate_date, note
 
+    def _rule_pick(self, line, template, rate, level, used_fallback, on_date):
+        """(unit cost, date, note) when the COST RULE says the last
+        purchase price of the quote's own vendor is the cost of this piece;
+        None when the list rate stands. Only when asked for
+        (context aw_cost_basis = 'rule'): the preview asks, and the basis
+        setting will."""
+        if self.env.context.get('aw_cost_basis') != 'rule':
+            return None
+        from .cost_rule import decide
+        thickness, finish = line.product_id._aw_cost_key()
+        lpp = self.env['aw.profile.lpp']._last(
+            self._costing_vendor(), template, thickness, finish)
+        if not lpp:
+            return None
+        # a rate taken from the series' default vendor, or found only by
+        # fallback, is a stand-in: an exact LPP beats it
+        list_level = 'standin' if used_fallback else (level or '')
+        result = decide(
+            rate.price if rate else 0.0, rate.date_from if rate else None,
+            list_level, lpp.price_ft, lpp.date, on_date,
+            self.env['product.product']._aw_lpp_max_age_days())
+        if result['kind'] != 'lpp':
+            return None
+        return result['cost'], result['date'], result['text']
+
     def _cost_bom_lines(self):
         """Attach cost to every BOM line, after explosion.
 
@@ -396,7 +421,14 @@ class AwDesign(models.Model):
                      else self.finish_id),
                     on_date)
                 variant = line.product_id.display_name or template.display_name
-                if rate:
+                pick = self._rule_pick(
+                    line, template, rate, level, used_fallback, on_date)
+                if pick:
+                    unit_cost, rate_date, note = pick
+                    line.line_cost = (
+                        (line.length_mm or 0.0) / MM_PER_FOOT
+                        * unit_cost * (line.qty or 0))
+                elif rate:
                     unit_cost = rate.price
                     rate_date = rate.date_from
                     line.line_cost = (

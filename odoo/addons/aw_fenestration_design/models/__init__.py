@@ -29,6 +29,7 @@ from . import snapshot
 from . import elevation_schedule
 from . import costing
 from . import cost_freeze
+from . import cost_preview
 from . import cut_list
 from . import vendor_bar_length
 from . import cut_plan
