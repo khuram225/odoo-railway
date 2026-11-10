@@ -42,3 +42,4 @@ from . import test_lpp
 from . import test_po_receive
 from . import test_current_cost
 from . import test_cost_freeze
+from . import test_cost_preview

@@ -129,6 +129,7 @@
                                     <field name="gsm_filter"/>
                                     <field name="material_id" options="{'no_create': True}"/>
                                     <field name="manual_pricelist"/>
+                                    <field name="paper_cost" readonly="1"/>
                                 </list>
                             </field>
                             <separator string="Versions - Bind legs"/>

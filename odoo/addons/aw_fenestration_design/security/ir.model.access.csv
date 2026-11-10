@@ -62,3 +62,6 @@ access_aw_po_receipt_line_user,aw.po.receipt.line.user,model_aw_po_receipt_line,
 access_aw_po_receipt_line_purchasing,aw.po.receipt.line.purchasing,model_aw_po_receipt_line,aw_fenestration_design.group_fenestration_purchasing,1,1,1,1
 access_aw_po_receive_wizard,aw.po.receive.wizard,model_aw_po_receive_wizard,aw_fenestration_design.group_fenestration_purchasing,1,1,1,1
 access_aw_po_receive_line,aw.po.receive.line,model_aw_po_receive_line,aw_fenestration_design.group_fenestration_purchasing,1,1,1,1
+access_aw_cost_preview_wizard,aw.cost.preview.wizard,model_aw_cost_preview_wizard,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_cost_preview_line,aw.cost.preview.line,model_aw_cost_preview_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_cost_preview_variant,aw.cost.preview.variant,model_aw_cost_preview_variant,aw_fenestration_core.group_fenestration_manager,1,1,1,1
