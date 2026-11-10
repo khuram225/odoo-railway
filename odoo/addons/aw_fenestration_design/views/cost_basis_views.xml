@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_aw_price_structure_form_cost_basis" model="ir.ui.view">
+        <field name="name">aw.price.structure.form.cost.basis</field>
+        <field name="model">aw.price.structure</field>
+        <field name="inherit_id" ref="aw_fenestration_core.view_aw_price_structure_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="action_open_cost_preview" type="object"
+                            string="Preview the cost rule"
+                            class="btn-secondary"/>
+                </header>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -34,6 +34,17 @@ class AwPriceStructure(models.Model):
         string='Default', tracking=True,
         help="Used by any design that has not been given one of its own.")
     notes = fields.Text()
+    cost_basis = fields.Selection(
+        [('list', 'List rate only'),
+         ('rule', 'Newer of list rate and last purchase price')],
+        string='Cost basis', default='list', required=True, tracking=True,
+        help="What a profile costs. List rate only: the vendor's list rate "
+             "in force (today's behaviour). Newer of list rate and last "
+             "purchase price: whichever is newer, the last purchase price "
+             "on a tie, ignored when older than the maximum age (Settings). "
+             "Quotes follow their own structure; the cost field of a "
+             "variant (what stock is valued at) follows the default "
+             "structure. Confirmed orders keep the cost they were given.")
     line_ids = fields.One2many(
         'aw.price.structure.line', 'structure_id', string='Components')
 
