@@ -593,6 +593,18 @@ Receipts type were already on. Consequence: Odoo's own Validate on a bars receip
 lots; receive bars through *Receive bars*. Tests that make a profile storable by hand set
 `is_storable` only, so they still run untracked unless they ask for `tracking = 'lot'`.
 
+**A confirmed order's cost does not move by itself (`models/cost_freeze.py`).** Costs are
+snapshotted on the BOM lines at the quote's date, but a re-explode (a re-save, Recompute, a changed
+spec) used to look every rate up again, so a list rate dated before the order and entered later, or
+a changed hardware cost, moved a price the customer already had. Now, for a window on an order in
+state `sale`: `_explode` passes the stored unit costs (`aw_frozen_costs`, keyed by kind and
+product) to `_cost_bom_lines`, which takes them for every piece that still exists (a longer piece is
+the same unit cost over the new length; a typed manual rate is never frozen) and costs only the new
+pieces; when nothing about the window changed (same pieces, area, qty, manual rate, price structure)
+its cost and price are put back exactly; and the price structure's values are no longer a dependency
+of `_compute_pricing` (`cost_freeze.py` re-prices only windows still being quoted when a structure
+line changes). Nothing changes for a draft or sent quote.
+
 **Current cost of a profile (`models/cost_rule.py`, `current_cost.py`) — DISPLAY ONLY so far.**
 For one vendor + profile + thickness + finish: the newer of the list rate (its effective date) and
 the last purchase price (the PO's confirmation date); the LPP on a tie; an LPP older than the

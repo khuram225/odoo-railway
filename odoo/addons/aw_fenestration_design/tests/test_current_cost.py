@@ -46,6 +46,11 @@ class TestCurrentCost(TransactionCase):
             cls.template, cls.thickness, cls.f1)
         cls.v2 = env['aw.profile.section.line']._variant_for(
             cls.template, cls.thickness, cls.f2)
+        # the variants were made in this transaction: read their attribute
+        # values from the database, not from the cache they were made in
+        # (the first test of the class saw them empty)
+        env.flush_all()
+        env.invalidate_all()
 
     def _lpp(self, price, days_ago, finish=None):
         return self.env['aw.profile.lpp'].create({
@@ -58,9 +63,19 @@ class TestCurrentCost(TransactionCase):
     def _cost(self, variant=None):
         return (variant or self.v1)._aw_current_cost(vendor=self.vendor)
 
+    def _why(self):
+        rates = self.env['aw.profile.rate'].search(
+            [('vendor_id', '=', self.vendor.id)])
+        thickness, finish = self.v1._aw_attribute_values()
+        return "rates=%s variant(t,f)=(%s,%s) wanted(t,f)=(%s,%s) today=%s" % (
+            [(r.product_tmpl_id.id, r.thickness_id.id, r.finish_id.id,
+              r.price, str(r.date_from), str(r.date_to)) for r in rates],
+            thickness.id, finish.id, self.thickness.id, self.f1.id,
+            self.today)
+
     def test_a_list_rate_alone_is_the_cost(self):
         result = self._cost()
-        self.assertEqual(result['kind'], 'list')
+        self.assertEqual(result['kind'], 'list', self._why())
         self.assertEqual(result['cost'], 765.0)
         self.assertTrue(result['text'].startswith('list 765 from '))
 
@@ -79,8 +94,9 @@ class TestCurrentCost(TransactionCase):
         self._lpp(812.0, 100)
         self.assertEqual(self._cost()['kind'], 'lpp')
 
-    def test_a_last_price_older_than_the_maximum_age_is_ignored(self):
+    def test_the_age_limit_ignores_an_old_last_price(self):
         self._lpp(812.0, 60)
+        self.assertEqual(self._cost()['kind'], 'lpp')     # within 180 days
         with patch.object(self.registry['product.product'],
                           '_aw_lpp_max_age_days', lambda self: 30):
             result = self._cost()

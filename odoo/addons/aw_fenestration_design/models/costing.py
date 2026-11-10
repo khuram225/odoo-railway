@@ -486,12 +486,18 @@ class AwDesign(models.Model):
                     note = _("%s has no cost price",
                              line.product_id.display_name or _('Product'))
 
+            unit_cost, rate_date, note = self._take_frozen_cost(
+                line, unit_cost, rate_date, note)
             line.unit_cost = unit_cost
             line.rate_date = rate_date
             line.cost_note = note
 
+    # The structure's own values are NOT a dependency: changing a
+    # wastage, labour or profit value re-prices the windows still being
+    # quoted (cost_freeze.py asks for exactly those), never a window on a
+    # confirmed order.
     @api.depends('bom_line_ids.line_cost', 'bom_line_ids.kind',
-                 'bom_line_ids.cost_note', 'price_structure_id.line_ids.value',
+                 'bom_line_ids.cost_note', 'price_structure_id',
                  'area_sqm', 'area_sqft', 'manual_rate', 'qty')
     def _compute_pricing(self):
         for design in self:
