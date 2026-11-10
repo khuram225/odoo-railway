@@ -66,6 +66,7 @@ row/leaf grid shape:
         'views/profile_lpp_views.xml',
         'views/po_receive_views.xml',
         'views/cost_preview_views.xml',
+        'views/cost_basis_views.xml',
         'data/po_names_data.xml',
         'data/lpp_backfill_data.xml',
         'data/profile_purchase_method_data.xml',

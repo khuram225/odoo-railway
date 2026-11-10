@@ -189,6 +189,7 @@ class PurchaseOrder(models.Model):
     def button_approve(self, force=False):
         result = super().button_approve(force=force)
         self._aw_record_lpp()
+        self._aw_refresh_costs()
         return result
 
     def button_cancel(self):
@@ -198,4 +199,5 @@ class PurchaseOrder(models.Model):
         if rows:
             rows._log_removed(_("order cancelled"))
             rows.with_context(aw_lpp_logged=True).unlink()
+            self._aw_refresh_costs()
         return result

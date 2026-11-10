@@ -593,6 +593,19 @@ Receipts type were already on. Consequence: Odoo's own Validate on a bars receip
 lots; receive bars through *Receive bars*. Tests that make a profile storable by hand set
 `is_storable` only, so they still run untracked unless they ask for `tracking = 'lot'`.
 
+**The cost basis (`Price Structure.cost_basis`, `models/cost_basis.py`) — default "List rate only".**
+`rule` = the cost rule (see Current cost). A QUOTE follows its own structure's basis
+(`_rule_pick`, the quote vendor's own last purchase price only; context `aw_cost_basis` overrides, which
+is how the preview compares). The COST FIELD of a profile variant (`standard_price`, what stock is
+valued at, Standard Price / periodic) follows the DEFAULT structure's basis and is written by the cost
+sync (`_aw_sync_cost_from_rate`, overridden here): the "Update costs from rates" button, a profile
+variant made by ANY route (`product.product.create`: the PO picker, receipts, the bars grid, a
+design) and, with the rule on, a confirmed or cancelled purchase order (new last prices). The sync
+never overwrites a cost typed by hand without saying so: a cost that is no rate and no last price of
+the profile and was not written by the sync (`[rates sync]` tag in the `product.value` history) is
+kept and listed (the button's message, the order's chatter). Switching the basis rewrites no cost by
+itself: run the preview, then the button. Confirmed orders keep their stored cost (freeze).
+
 **Cost Rule Preview (`models/cost_preview.py`, menu Vendor Rates > Cost Rule Preview, Fenestration
 managers).** Re-costs every quote still being quoted (draft or sent) twice, each in a savepoint that
 is always rolled back: as today (context `aw_cost_basis = 'list'`) and with the rule (`'rule'`, read

@@ -353,7 +353,9 @@ class AwDesign(models.Model):
         None when the list rate stands. Only when asked for
         (context aw_cost_basis = 'rule'): the preview asks, and the basis
         setting will."""
-        if self.env.context.get('aw_cost_basis') != 'rule':
+        basis = (self.env.context.get('aw_cost_basis')
+                 or self.price_structure_id.cost_basis)
+        if basis != 'rule':
             return None
         from .cost_rule import decide
         thickness, finish = line.product_id._aw_cost_key()
