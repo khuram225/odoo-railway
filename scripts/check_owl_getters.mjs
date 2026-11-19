@@ -247,6 +247,7 @@ for (const target of TARGETS) {
         const instance = Object.create(Cls.prototype);
         instance.state = target.state();
         instance.props = { action: { params: {}, context: {} } };
+        instance.env = { config: { historyBack() {} } };
         instance.canvasRef = { el: null };
         instance.svgRef = { el: null };
         instance.toolbarRef = { el: null };
@@ -363,6 +364,7 @@ for (const target of TARGETS) {
         instance.state = target.state();
         instance.state.selected = [[0, 0]];
         instance.props = { action: { params: {}, context: {} } };
+        instance.env = { config: { historyBack() {} } };
         instance.canvasRef = { el: null };
         instance.svgRef = { el: null };
         instance.toolbarRef = { el: null };

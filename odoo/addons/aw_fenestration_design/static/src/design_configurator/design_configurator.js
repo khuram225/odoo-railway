@@ -231,6 +231,8 @@ const RIGHT_SECTIONS = ["panel", "infill", "mesh", "glass", "hardware", "grid"];
  * aw_fenestration_core's part_structure.py -- the SERVER decides which
  * scope and part a position or piece is in; this only orders them.
  */
+const HISTORY_LIMIT = 100;
+const HISTORY_BURST_MS = 600;
 const SCOPE_ORDER = ["outer", "dividers", "sash", "sliding", "fixed", "mesh", "other"];
 const PART_ORDER = [
     "frame", "bead", "lock", "interlock", "divider",
@@ -364,6 +366,11 @@ export class DesignConfigurator extends Component {
         this.state = useState({
             loading: true,
             dirty: false,
+            // Undo / redo of the layout since the last load or save.
+            canUndo: false,
+            canRedo: false,
+            // The thickness last applied to a Parts-tab group, by group.
+            groupTarget: {},
             data: null,
             selected: null, // path: [[rowIdx, leafIdx], ...]
             // Panels picked with Ctrl/Shift-click, when more than one.
@@ -435,6 +442,8 @@ export class DesignConfigurator extends Component {
             // unsaved changes it never reloads by itself
             this.unsavedCheck = () => this.state.dirty;
             setUnsavedCheck(this.unsavedCheck);
+            this.onKeyDown = (ev) => this.keyDown(ev);
+            window.addEventListener("keydown", this.onKeyDown);
             this.resizeObserver = new ResizeObserver(() => this.measure());
             if (this.canvasRef.el) {
                 this.resizeObserver.observe(this.canvasRef.el);
@@ -447,6 +456,7 @@ export class DesignConfigurator extends Component {
 
         onWillUnmount(() => {
             clearUnsavedCheck(this.unsavedCheck);
+            window.removeEventListener("keydown", this.onKeyDown);
             this.resizeObserver?.disconnect();
             this.endDrag(); // never leave window listeners behind
         });
@@ -477,6 +487,7 @@ export class DesignConfigurator extends Component {
         // boundary drew as a mullion however its panels were hinged.
         // Only fills blanks -- a junction someone chose is left alone.
         this.fillMissingJunctions(this.state.data.rows);
+        this.resetHistory();
         this.surfaceCheckErrors();
     }
 
@@ -1183,7 +1194,7 @@ export class DesignConfigurator extends Component {
         } else {
             rows[entry.ri].leaves[entry.li].divider_product_id = value;
         }
-        this.state.dirty = true;
+        this.touch();
     }
 
     // -- specification (phase 7c) ------------------------------------
@@ -1267,21 +1278,26 @@ export class DesignConfigurator extends Component {
             return !!panels[scope];
         };
         return SCOPE_ORDER.filter(present).map((scope) => {
+            const visible = (r) => this.partRowVisible(r);
             const sectionKeys = new Set([
-                ...rows.filter((r) => r.scope_key === scope).map((r) => r.part_key),
+                ...rows.filter((r) => r.scope_key === scope && visible(r))
+                    .map((r) => r.part_key),
                 ...addable.filter((p) => p.scope_key === scope).map((p) => p.part_key),
             ]);
             const sections = PART_ORDER.filter((key) => sectionKeys.has(key))
                 .map((key) => {
                     const sample = rows.find(
-                        (r) => r.scope_key === scope && r.part_key === key)
+                        (r) => r.scope_key === scope && r.part_key === key
+                            && visible(r))
                         || addable.find(
                             (p) => p.scope_key === scope && p.part_key === key);
                     return {
                         key,
                         label: sample.part_label,
+                        gkey: `${scope}:${key}`,
                         rows: rows.filter(
-                            (r) => r.scope_key === scope && r.part_key === key),
+                            (r) => r.scope_key === scope && r.part_key === key
+                                && visible(r)),
                     };
                 });
             const label = rows.find((r) => r.scope_key === scope)?.scope_label
@@ -1299,6 +1315,86 @@ export class DesignConfigurator extends Component {
                 count: sections.reduce((sum, sec) => sum + sec.rows.length, 0),
             };
         }).filter((scope) => scope.sections.length || scope.cloth.length);
+    }
+
+    /**
+     * A part the window makes no piece of is not listed: a 3-across
+     * window has no horizontal divider, so "Divider - Horizontal" is not
+     * shown. The spec still lists it (that is what the spec says); the
+     * window just has none. Shown anyway: a part changed or added for
+     * this window, one waiting for a thickness, and every part while the
+     * window has not been exploded yet (a 0 x 0 window).
+     */
+    partRowVisible(row) {
+        const parts = this.state.data?.spec_parts || {};
+        if (!parts.has_pieces || row.changed || row.added
+                || row.needs_thickness || (row.pieces || 0) > 0) {
+            return true;
+        }
+        // a divider drawn since the last save is not in the BOM yet
+        if (row.scope === "junction_mullion") {
+            return this.dividersOfKind("v").length > 0;
+        }
+        if (row.scope === "transom") {
+            return this.dividersOfKind("h").length > 0;
+        }
+        return false;
+    }
+
+    dividersOfKind(kind) {
+        return (this.scene?.dividers || []).filter((d) => d.kind === kind);
+    }
+
+    /** Where the dividers of a part are: "after P1, after P2". */
+    partPlaces(row) {
+        const kind = row.scope === "junction_mullion" ? "v"
+            : row.scope === "transom" ? "h" : "";
+        return kind
+            ? this.dividersOfKind(kind).map((d) => d.label).join(", ")
+            : "";
+    }
+
+    // -- thickness per group (Frame, Sash, ...) ------------------------------------------
+    /** The thicknesses the group's profiles are sold in, and where it stands. */
+    groupThickness(group) {
+        const seen = new Map();
+        for (const row of group.rows) {
+            for (const t of row.thickness_options || []) {
+                if (!seen.has(t.id)) {
+                    seen.set(t.id, t);
+                }
+            }
+        }
+        const current = new Set(group.rows.map((r) => r.thickness_id || 0));
+        return {
+            options: [...seen.values()],
+            current: current.size === 1 ? [...current][0] : 0,
+            mixed: current.size > 1,
+        };
+    }
+
+    /** Give every line of the group that thickness; the others are told. */
+    applyGroupThickness(group, thicknessId) {
+        const positions = group.rows
+            .filter((r) => (r.thickness_options || []).some((t) => t.id === thicknessId))
+            .map((r) => r.position_id);
+        this.state.groupTarget[group.gkey] = thicknessId;
+        return this.partCall("apply_thickness_rows", [thicknessId, positions]);
+    }
+
+    /** A line whose profile is not sold in the group's chosen thickness. */
+    rowThicknessWarning(group, row) {
+        const target = this.state.groupTarget[group.gkey];
+        if (!target || row.thickness_id === target
+                || (row.thickness_options || []).some((t) => t.id === target)) {
+            return "";
+        }
+        const wanted = this.allThicknesses.find((t) => t.id === target);
+        return _t("%(profile)s is not sold in %(thickness)s; it stays %(own)s.", {
+            profile: row.code || row.product_name,
+            thickness: wanted ? wanted.name : "",
+            own: row.thickness_name || "",
+        });
     }
 
     /** "P1, P3" for the Mesh line. */
@@ -1444,6 +1540,7 @@ export class DesignConfigurator extends Component {
         }
         this.state.data = await this.orm.call(
             "aw.design", method, [[this.designId], ...args]);
+        this.resetHistory();
         this.surfaceCheckErrors();
     }
 
@@ -1788,7 +1885,7 @@ export class DesignConfigurator extends Component {
         }
         this.state.selected = null;
         this.state.selectedDivider = null;
-        this.state.dirty = true;
+        this.touch();
     }
 
     // -- header ------------------------------------------------------------
@@ -1800,7 +1897,123 @@ export class DesignConfigurator extends Component {
      * makes the button available regardless of event ordering.
      */
     markDirty() {
+        this.touch();
+    }
+
+    // -- undo / redo ----------------------------------------------------------
+    // The layout (header, rows, panels, glass and hardware on panels) is
+    // held here until Save, so a step back is a snapshot of it. What the
+    // Parts tab changes is saved at once on the server and is NOT undone;
+    // it also starts the history afresh.
+    layoutSnapshot() {
+        const data = this.state.data;
+        return data
+            ? JSON.stringify({ header: data.header, rows: data.rows })
+            : null;
+    }
+
+    /** The layout as it now stands is the starting point. */
+    resetHistory() {
+        const snap = this.layoutSnapshot();
+        this.history = { undo: [], redo: [], last: snap, saved: snap, at: 0 };
+        this.state.canUndo = false;
+        this.state.canRedo = false;
+    }
+
+    /** Every edit calls this: the layout is unsaved, and a step is kept. */
+    touch() {
         this.state.dirty = true;
+        const h = this.history;
+        if (!h) {
+            return;
+        }
+        const snap = this.layoutSnapshot();
+        if (snap === null || snap === h.last) {
+            return;
+        }
+        const now = Date.now();
+        // typing is one step: a burst of edits keeps the first "before"
+        if (!h.undo.length || now - h.at > HISTORY_BURST_MS) {
+            h.undo.push(h.last);
+            if (h.undo.length > HISTORY_LIMIT) {
+                h.undo.shift();
+            }
+        }
+        h.last = snap;
+        h.at = now;
+        h.redo = [];
+        this.state.canUndo = true;
+        this.state.canRedo = false;
+    }
+
+    applySnapshot(snap) {
+        const layout = JSON.parse(snap);
+        this.state.data.header = layout.header;
+        this.state.data.rows = layout.rows;
+        this.state.selected = null;
+        this.state.selectedDivider = null;
+        this.state.multiSel = [];
+        this.history.last = snap;
+        this.history.at = 0;
+        // back at the saved layout is "no unsaved changes" again
+        this.state.dirty = snap !== this.history.saved;
+        this.state.canUndo = this.history.undo.length > 0;
+        this.state.canRedo = this.history.redo.length > 0;
+    }
+
+    undo() {
+        const h = this.history;
+        if (!h || !h.undo.length) {
+            return;
+        }
+        h.redo.push(h.last);
+        this.applySnapshot(h.undo.pop());
+    }
+
+    redo() {
+        const h = this.history;
+        if (!h || !h.redo.length) {
+            return;
+        }
+        h.undo.push(h.last);
+        this.applySnapshot(h.redo.pop());
+    }
+
+    /** Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z, except while typing in a field. */
+    keyDown(ev) {
+        if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) {
+            return;
+        }
+        const tag = (ev.target?.tagName || "").toLowerCase();
+        if (["input", "textarea", "select"].includes(tag) || ev.target?.isContentEditable) {
+            return; // the field's own undo
+        }
+        const key = (ev.key || "").toLowerCase();
+        if (key === "z" && !ev.shiftKey) {
+            ev.preventDefault();
+            this.undo();
+        } else if (key === "y" || (key === "z" && ev.shiftKey)) {
+            ev.preventDefault();
+            this.redo();
+        }
+    }
+
+    // -- discard (the X) ----------------------------------------------------------
+    /** Back to the saved window, after asking when there is something to lose. */
+    discard() {
+        if (!this.state.dirty) {
+            // nothing to lose: the X leaves, like a form's
+            this.env.config.historyBack();
+            return;
+        }
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Discard changes?"),
+            body: _t("Your unsaved changes to this window will be lost."),
+            confirmLabel: _t("Discard"),
+            confirm: () => this.load(),
+            cancelLabel: _t("Keep editing"),
+            cancel: () => {},
+        });
     }
 
     /**
@@ -1937,7 +2150,7 @@ export class DesignConfigurator extends Component {
             this.selectedPanel.glass_suggested = false;
             this.selectedPanel.glass_chosen = true;
         }
-        this.state.dirty = true;
+        this.touch();
     }
 
     typeOf(colour, kind) {
@@ -2124,7 +2337,7 @@ export class DesignConfigurator extends Component {
             leaf.glass_parts = [];
             leaf.glass_suggested = false;
             leaf.glass_chosen = false;
-            this.state.dirty = true;
+            this.touch();
         }
     }
 
@@ -2242,7 +2455,7 @@ export class DesignConfigurator extends Component {
             product_id: false, name: "", qty: 1, rate_manual: false,
             manual_rate: 0, list_rate: 0,
         }];
-        this.state.dirty = true;
+        this.touch();
     }
 
     setHardwareProduct(index, value) {
@@ -2255,14 +2468,14 @@ export class DesignConfigurator extends Component {
         row.product_id = id;
         row.name = product ? product.name : "";
         row.list_rate = product ? product.cost : 0;
-        this.state.dirty = true;
+        this.touch();
     }
 
     setHardwareQty(index, value) {
         const row = this.panelHardware[index];
         if (row) {
             row.qty = parseFloat(value) || 0;
-            this.state.dirty = true;
+            this.touch();
         }
     }
 
@@ -2272,7 +2485,7 @@ export class DesignConfigurator extends Component {
         if (row) {
             row.rate_manual = true;
             row.manual_rate = parseFloat(value) || 0;
-            this.state.dirty = true;
+            this.touch();
         }
     }
 
@@ -2281,7 +2494,7 @@ export class DesignConfigurator extends Component {
         if (row) {
             row.rate_manual = false;
             row.manual_rate = 0;
-            this.state.dirty = true;
+            this.touch();
         }
     }
 
@@ -2289,15 +2502,7 @@ export class DesignConfigurator extends Component {
         const leaf = this.selectedPanel;
         if (leaf && leaf.hardware) {
             leaf.hardware = leaf.hardware.filter((_row, i) => i !== index);
-            this.state.dirty = true;
-        }
-    }
-
-    followSpecHardware() {
-        const leaf = this.selectedPanel;
-        if (leaf) {
-            leaf.hardware = [];
-            this.state.dirty = true;
+            this.touch();
         }
     }
 
@@ -2319,7 +2524,7 @@ export class DesignConfigurator extends Component {
             return;
         }
         leaf.hardware = [...(leaf.hardware || []), ...this.cloneHardware(rows)];
-        this.state.dirty = true;
+        this.touch();
     }
 
     // The picker is Odoo's own many2one: type to search, "Create" makes a
@@ -2391,29 +2596,7 @@ export class DesignConfigurator extends Component {
             return;
         }
         leaf.hardware = this.cloneHardware(source.leaf.hardware);
-        this.state.dirty = true;
-    }
-
-    /** Copy this panel's hardware to the other panels whose type needs it. */
-    copyHardwareToOthers() {
-        const leaf = this.selectedPanel;
-        if (!leaf) {
-            return;
-        }
-        let copied = 0;
-        for (const { leaf: other } of this.otherHardwarePanels) {
-            const type = (this.state.data.leaf_types || []).find(
-                (lt) => lt.id === other.leaf_type_id);
-            if (type && type.needs_hardware === false) {
-                continue;
-            }
-            other.hardware = this.cloneHardware(leaf.hardware);
-            copied += 1;
-        }
-        this.state.dirty = true;
-        this.notification.add(
-            _t("Hardware copied to %(count)s other panel(s).", { count: copied }),
-            { type: "success" });
+        this.touch();
     }
 
     glassPanels() {
@@ -2446,7 +2629,7 @@ export class DesignConfigurator extends Component {
             leaf.glass_chosen = true;
             copied += 1;
         }
-        this.state.dirty = true;
+        this.touch();
         return copied;
     }
 
@@ -2538,7 +2721,7 @@ export class DesignConfigurator extends Component {
 
     onHeaderChange(field, value) {
         this.state.data.header[field] = value;
-        this.state.dirty = true;
+        this.touch();
     }
 
     /**
@@ -2612,7 +2795,7 @@ export class DesignConfigurator extends Component {
         } else {
             this.rescaleHeights(value);
         }
-        this.state.dirty = true;
+        this.touch();
     }
 
     /**
@@ -2853,7 +3036,7 @@ export class DesignConfigurator extends Component {
             return;
         }
         panel.has_lock = !this.panelHasLock;
-        this.state.dirty = true;
+        this.touch();
     }
 
     get canSplit() {
@@ -2888,6 +3071,10 @@ export class DesignConfigurator extends Component {
         return (
             this.scene.leaves.find((l) => samePath(l.path, sel)) || null
         );
+    }
+
+    get selectedDividerLabel() {
+        return this.selectedDividerEntry?.label || "Divider";
     }
 
     get selectedDividerEntry() {
@@ -2993,7 +3180,7 @@ export class DesignConfigurator extends Component {
                 { type: "warning" });
             return;
         }
-        this.state.dirty = true;
+        this.touch();
     }
 
     selectDivider(divider, ev) {
@@ -3065,7 +3252,7 @@ export class DesignConfigurator extends Component {
         }
         const rows = this.rowsAt(entry.path);
         rows[entry.ri].leaves[entry.li].junction_after = value;
-        this.state.dirty = true;
+        this.touch();
     }
 
     setLeafType(leafTypeId) {
@@ -3088,7 +3275,7 @@ export class DesignConfigurator extends Component {
             leaf.slide_dir = "";
         }
         this.refreshJunctionsAround(this.state.selected);
-        this.state.dirty = true;
+        this.touch();
     }
 
     /**
@@ -3158,7 +3345,7 @@ export class DesignConfigurator extends Component {
         this.recomputeJunctions(this.state.data.rows);
         // Select the first child, so the toolbar stays on something real.
         this.state.selected = [...this.state.selected, [0, 0]];
-        this.state.dirty = true;
+        this.touch();
     }
 
     /**
@@ -3216,7 +3403,7 @@ export class DesignConfigurator extends Component {
                 this.rescaleWidthsIn(leaf.rows, widths[i]);
             }
         });
-        this.state.dirty = true;
+        this.touch();
     }
 
     /** Give every row in the selected panel's stack the same height. */
@@ -3237,7 +3424,7 @@ export class DesignConfigurator extends Component {
                 }
             }
         });
-        this.state.dirty = true;
+        this.touch();
     }
 
     /**
@@ -3281,7 +3468,7 @@ export class DesignConfigurator extends Component {
 
         this.recomputeJunctions(this.state.data.rows);
         this.state.selected = parentPath.length ? parentPath : null;
-        this.state.dirty = true;
+        this.touch();
     }
 
     /** Keep a preset's explicit junctions, derive the rest. */
@@ -3327,7 +3514,7 @@ export class DesignConfigurator extends Component {
         // Hinge side feeds the junction rule: two sashes hinged away from
         // each other meet, hinged towards each other they need a mullion.
         this.refreshJunctionsAround(this.state.selected);
-        this.state.dirty = true;
+        this.touch();
     }
 
     // -- presets -----------------------------------------------------------
@@ -3509,7 +3696,7 @@ export class DesignConfigurator extends Component {
             });
         });
         this.recomputeJunctions(this.state.data.rows);
-        this.state.dirty = true;
+        this.touch();
     }
 
     // -- grid quick start --------------------------------------------
@@ -3564,7 +3751,7 @@ export class DesignConfigurator extends Component {
         this.state.selected = null;
         this.state.selectedDivider = null;
         this.recomputeJunctions(this.state.data.rows);
-        this.state.dirty = true;
+        this.touch();
     }
 
     // -- frame-level add row / column --------------------------------
@@ -3610,7 +3797,7 @@ export class DesignConfigurator extends Component {
             : [...rows, fresh];
         this.state.selected = null;
         this.recomputeJunctions(this.state.data.rows);
-        this.state.dirty = true;
+        this.touch();
     }
 
     /**
@@ -3678,7 +3865,7 @@ export class DesignConfigurator extends Component {
         this.state.selected = null;
         this.state.selectedDivider = null;
         this.recomputeJunctions(this.state.data.rows);
-        this.state.dirty = true;
+        this.touch();
     }
 
     /**
@@ -3765,7 +3952,7 @@ export class DesignConfigurator extends Component {
         this.applyJunctionDefaults(this.state.data.rows, layout.rows);
         this.state.selected = null;
         this.state.selectedDivider = null;
-        this.state.dirty = true;
+        this.touch();
     }
 
     // -- drawing -----------------------------------------------------------
@@ -3831,6 +4018,7 @@ export class DesignConfigurator extends Component {
                 rowList.reduce((a, r) => a + (r.height_mm || 0), 0) || 1;
             let ry = box.y;
             rowList.forEach((row, ri) => {
+                const firstPanel = panelNo + 1;
                 const rh = ((row.height_mm || 0) / totH) * box.h;
                 const totW =
                     row.leaves.reduce((a, l) => a + (l.width_mm || 0), 0) || 1;
@@ -3882,6 +4070,8 @@ export class DesignConfigurator extends Component {
                         dividers.push({
                             key,
                             kind: "v",
+                            // named by place: the last panel to its left
+                            label: `Divider after P${panelNo}`,
                             path,
                             ri,
                             li,
@@ -3909,6 +4099,10 @@ export class DesignConfigurator extends Component {
                     dividers.push({
                         key,
                         kind: "h",
+                        // below the panel(s) of the row above it
+                        label: panelNo === firstPanel
+                            ? `Divider below P${panelNo}`
+                            : `Divider below P${firstPanel}-P${panelNo}`,
                         path,
                         ri,
                         li: null,
@@ -4873,7 +5067,7 @@ export class DesignConfigurator extends Component {
             rows[drag.ri].height_mm = drag.a + delta;
             rows[drag.ri + 1].height_mm = drag.b - delta;
         }
-        this.state.dirty = true;
+        this.touch();
     }
 
     onPointerUp() {
@@ -4932,7 +5126,7 @@ export class DesignConfigurator extends Component {
         }
         items[index][key] = target;
         items[absorber][key] = absorbed;
-        this.state.dirty = true;
+        this.touch();
         return true;
     }
 
@@ -5136,7 +5330,7 @@ export class DesignConfigurator extends Component {
         if (leaf) {
             leaf.mesh_rate_manual = true;
             leaf.mesh_manual_rate = parseFloat(value) || 0;
-            this.state.dirty = true;
+            this.touch();
         }
     }
 
@@ -5145,7 +5339,7 @@ export class DesignConfigurator extends Component {
         if (leaf) {
             leaf.mesh_rate_manual = false;
             leaf.mesh_manual_rate = 0;
-            this.state.dirty = true;
+            this.touch();
         }
     }
 
@@ -5193,7 +5387,7 @@ export class DesignConfigurator extends Component {
                 ? (["left", "right"].includes(leaf.hinge_side)
                     ? leaf.hinge_side : "left")
                 : "";
-        this.state.dirty = true;
+        this.touch();
     }
 
     /** Whether a screen may go on this panel (opening sashes only for some). */
@@ -5214,7 +5408,7 @@ export class DesignConfigurator extends Component {
             return;
         }
         leaf.mesh_cassette_side = side;
-        this.state.dirty = true;
+        this.touch();
     }
 
     applyInfill(infillId) {
@@ -5232,7 +5426,7 @@ export class DesignConfigurator extends Component {
             leaf.glass_parts = [];
             leaf.glass_suggested = false;
         }
-        this.state.dirty = true;
+        this.touch();
     }
 
     setPanelGrid(value) {
@@ -5249,7 +5443,7 @@ export class DesignConfigurator extends Component {
             leaf.grid_rows = 2;
             leaf.grid_cols = 2;
         }
-        this.state.dirty = true;
+        this.touch();
     }
 
     setPanelGridSize(field, value) {
@@ -5258,7 +5452,7 @@ export class DesignConfigurator extends Component {
             return;
         }
         leaf[field] = Math.max(0, parseInt(value, 10) || 0);
-        this.state.dirty = true;
+        this.touch();
     }
 
     setMeshHinge(side) {
@@ -5267,7 +5461,7 @@ export class DesignConfigurator extends Component {
             return;
         }
         leaf.mesh_hinge_side = side;
-        this.state.dirty = true;
+        this.touch();
     }
 
     onPanelGridChange(ev) {
@@ -5463,7 +5657,7 @@ export class DesignConfigurator extends Component {
         this.state.selected = null;
         this.state.selectedDivider = null;
         this.state.builderOpen = false;
-        this.state.dirty = true;
+        this.touch();
     }
 
     // -- catalog actions ----------------------------------------------------
@@ -5800,6 +5994,7 @@ export class DesignConfigurator extends Component {
         ]);
         this.state.dirty = false;
         this.state.selected = null;
+        this.resetHistory();
         // The save regenerates the checks, so this is the moment a new
         // error can appear. A success toast over an error nobody sees
         // is worse than no toast at all.

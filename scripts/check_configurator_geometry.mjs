@@ -20,7 +20,10 @@ const onWillUnmount = () => {};
 const useService = () => ({});
 const registry = { category: () => ({ add: () => {} }) };
 const standardActionServiceProps = {};
-const _t = (s) => s;
+const _t = (s, o) => (o ? s.replace(/%\\((\\w+)\\)s/g, (_m, k) => o[k]) : s);
+const ConfirmationDialog = class {};
+const setUnsavedCheck = () => {};
+const clearUnsavedCheck = () => {};
 `;
 const dir = mkdtempSync(join(tmpdir(), "nest-"));
 const tmp = join(dir, "cfg.mjs");
@@ -57,6 +60,7 @@ function make(rows, W = 2438.4, H = 3200.4) {
     const c = Object.create(DesignConfigurator.prototype);
     c.state = {
         loading: false, dirty: false, zoom: 1, canvasW: 900, canvasH: 600,
+        canUndo: false, canRedo: false, groupTarget: {},
         libraryOpen: true, selected: null, selectedDivider: null,
         toolbar: { show: false, left: 0, top: 0 },
         data: {
@@ -1398,14 +1402,20 @@ console.log("\n  the Frame label is the SHORT name:");
     near(c.panelHardwareCost, 210, "the panel total follows the typed rate");
     c.resetHardwareRate(0);
     ok(!row.rate_manual && c.hardwareRateUsed(row) === 50, "Reset returns the product cost");
-    c.copyHardwareToOthers();
+    ok(!("copyHardwareToOthers" in c) && !("followSpecHardware" in c),
+       "Copy to other panels and Follow the spec are gone");
+    c.selectLeaf([[0, 1]]);
+    c.copyHardwareFromPanel({ target: { value: "1" } });
     const other = c.state.data.rows[0].leaves[1];
     ok((other.hardware || []).length === 1 && other.hardware[0] !== row
-       && other.hardware[0].qty === 3, "copied to the other panel as its own row");
+       && other.hardware[0].qty === 3, "Copy from panel gives the panel its own row");
     other.hardware[0].qty = 9;
     ok(row.qty === 3, "the copy is independent of the original");
-    c.followSpecHardware();
-    ok(c.panelFollowsSpecHardware, "Follow the spec clears the panel's rows");
+    other.hardware = [];
+    ok(c.panelFollowsSpecHardware, "taking every row off follows the spec again");
+    c.selectLeaf([[0, 0]]);
+    c.removeHardware(0);
+    c.selectLeaf([[0, 1]]);
     c.selectLeaf([[0, 1]]);
     c.copyHardwareFromPanel({ target: { value: "1" } });
     ok(c.panelHardware.length === 0, "copying from a panel with none leaves none");
@@ -1648,6 +1658,155 @@ console.log("\n  the Frame label is the SHORT name:");
        "Hardware has Series set and On panels");
     ok(xml.includes("No hardware yet. Select a panel and use + Hardware in the Panel tab."),
        "the empty text says what to do");
+}
+
+// ---------------------------------------------------------------------
+console.log("\nUNDO / REDO (the layout since the last save):");
+{
+    const c = make([{ height_mm: 3200.4, is_auto: false,
+                      leaves: [panel(1219.2), panel(1219.2)] }]);
+    c.resetHistory();
+    ok(!c.state.canUndo && !c.state.canRedo, "nothing to undo at the start");
+    c.state.data.header.location = "Hall";
+    c.touch();
+    ok(c.state.dirty && c.state.canUndo, "an edit is a step");
+    c.state.data.header.location = "Hall 2";
+    c.touch();
+    ok(c.history.undo.length === 1, "a burst of typing is one step");
+    c.undo();
+    ok(c.state.data.header.location === "", "undo steps back the whole burst");
+    ok(!c.state.dirty, "back at the saved layout there are no unsaved changes");
+    ok(c.state.canRedo && !c.state.canUndo, "redo is offered");
+    c.redo();
+    ok(c.state.data.header.location === "Hall 2" && c.state.dirty, "redo steps forward");
+    c.history.at = 0;
+    c.state.data.rows[0].leaves[0].width_mm = 1000;
+    c.touch();
+    ok(c.history.undo.length === 2, "a later edit is a step of its own");
+    c.undo();
+    ok(c.state.data.rows[0].leaves[0].width_mm === 1219.2
+       && c.state.data.header.location === "Hall 2" && c.state.dirty,
+       "one undo steps back one change, not all of them");
+    c.history.at = 0;
+    c.state.data.header.location = "Hall 3";
+    c.touch();
+    ok(!c.state.canRedo, "a new edit drops the redo steps");
+    c.state.selected = [[0, 0]];
+    c.undo();
+    ok(c.state.selected === null, "the selection is cleared by a step (it may no longer exist)");
+    c.resetHistory();
+    ok(!c.state.canUndo && !c.state.canRedo, "a save or reload starts the history afresh");
+}
+{
+    const c = make([{ height_mm: 3200.4, is_auto: false, leaves: [panel(1219.2)] }]);
+    c.resetHistory();
+    c.state.data.header.location = "A";
+    c.touch();
+    let prevented = 0;
+    const key = (k, extra = {}) => ({
+        key: k, ctrlKey: true, shiftKey: false, altKey: false,
+        target: { tagName: "DIV" }, preventDefault() { prevented++; }, ...extra,
+    });
+    c.keyDown(key("z", { target: { tagName: "INPUT" } }));
+    ok(c.state.data.header.location === "A" && !prevented,
+       "Ctrl+Z inside a field is the field's own undo");
+    c.keyDown(key("z"));
+    ok(c.state.data.header.location === "" && prevented === 1, "Ctrl+Z undoes");
+    c.keyDown(key("y"));
+    ok(c.state.data.header.location === "A", "Ctrl+Y redoes");
+    c.keyDown(key("z"));
+    c.keyDown(key("z", { shiftKey: true }));
+    ok(c.state.data.header.location === "A", "Ctrl+Shift+Z redoes");
+    c.keyDown(key("z", { ctrlKey: false }));
+    ok(c.state.data.header.location === "A", "Z alone does nothing");
+}
+
+console.log("\nDISCARD (the X):");
+{
+    const c = make([{ height_mm: 3200.4, is_auto: false, leaves: [panel(1219.2)] }]);
+    const shown = [];
+    let back = 0;
+    let loaded = 0;
+    c.dialog = { add: (_cls, props) => shown.push(props) };
+    c.env = { config: { historyBack: () => { back++; } } };
+    c.load = async () => { loaded++; };
+    c.state.dirty = false;
+    c.discard();
+    ok(back === 1 && shown.length === 0, "with nothing to lose it just leaves");
+    c.state.dirty = true;
+    c.discard();
+    ok(shown.length === 1 && back === 1, "with changes it asks first");
+    ok(loaded === 0, "and has not thrown anything away yet");
+    shown[0].confirm();
+    ok(loaded === 1, "Discard reloads the saved window");
+    ok(typeof shown[0].cancel === "function", "Keep editing leaves everything as it was");
+}
+
+console.log("\nDIVIDERS ARE NAMED BY PLACE:");
+{
+    const three = make([{ height_mm: 3200.4, is_auto: false,
+                          leaves: [panel(800), panel(800), panel(800)] }]);
+    const labelsV = three.scene.dividers.filter((d) => d.kind === "v").map((d) => d.label);
+    ok(labelsV.join("|") === "Divider after P1|Divider after P2",
+       "a 3-across window has Divider after P1 and Divider after P2");
+    ok(three.dividersOfKind("h").length === 0, "and no horizontal divider");
+    ok(three.partPlaces({ scope: "junction_mullion" }) === "Divider after P1, Divider after P2",
+       "the Parts tab lists where the vertical dividers are");
+    const stacked = make([
+        { height_mm: 1600, is_auto: false, leaves: [panel(1200), panel(1200)] },
+        { height_mm: 1600, is_auto: false, leaves: [panel(2400)] },
+    ]);
+    const h = stacked.scene.dividers.filter((d) => d.kind === "h").map((d) => d.label);
+    ok(h.join("|") === "Divider below P1-P2", "a horizontal divider: below the panels above it");
+    three.state.selectedDivider = three.scene.dividers[1].key;
+    ok(three.selectedDividerLabel === "Divider after P2", "the selected divider shows its name");
+}
+
+console.log("\nPARTS TAB: parts with no piece are not listed:");
+{
+    const c = make([{ height_mm: 3200.4, is_auto: false,
+                      leaves: [panel(800), panel(800), panel(800)] }]);
+    const row = (extra) => ({ position_id: 1, scope: "", changed: false, added: false,
+                              needs_thickness: false, pieces: 0, ...extra });
+    c.state.data.spec_parts = { has_pieces: true, profiles: [], addable: [] };
+    ok(!c.partRowVisible(row({})), "a part that made no piece is hidden");
+    ok(c.partRowVisible(row({ pieces: 2 })), "a part that made pieces is shown");
+    ok(c.partRowVisible(row({ changed: true })), "a part changed for this window is shown");
+    ok(c.partRowVisible(row({ needs_thickness: true })), "a part waiting for a thickness is shown");
+    ok(c.partRowVisible(row({ scope: "junction_mullion" })),
+       "vertical dividers drawn since the last save are shown");
+    ok(!c.partRowVisible(row({ scope: "transom" })),
+       "Divider - Horizontal is hidden on a 3-across window: it has no horizontal divider");
+    c.state.data.spec_parts.has_pieces = false;
+    ok(c.partRowVisible(row({})), "before the window has any piece every part is shown");
+}
+
+console.log("\nPARTS TAB: thickness is chosen on the group heading:");
+{
+    const c = make([{ height_mm: 3200.4, is_auto: false,
+                      leaves: [panel(1200), panel(1200)] }]);
+    const A = { position_id: 10, scope_key: "outer", part_key: "frame", code: "RE-8",
+                scope: "frame", pieces: 1, changed: false, added: false, needs_thickness: false,
+                thickness_id: 2, thickness_name: "1.6MM",
+                thickness_options: [{ id: 1, name: "1.2MM" }, { id: 2, name: "1.6MM" }] };
+    const B = { ...A, position_id: 11, code: "RE-9", thickness_id: 1, thickness_name: "1.2MM",
+                thickness_options: [{ id: 1, name: "1.2MM" }] };
+    c.state.data.spec_parts = { has_pieces: true, profiles: [A, B], addable: [] };
+    const group = { gkey: "outer:frame", rows: [A, B] };
+    const info = c.groupThickness(group);
+    ok(info.options.map((o) => o.name).join(",") === "1.2MM,1.6MM", "the heading offers every thickness its lines offer");
+    ok(info.mixed && info.current === 0, "different thicknesses show as mixed");
+    const calls = [];
+    c.partCall = async (method, args) => { calls.push([method, args]); };
+    c.applyGroupThickness(group, 2);
+    ok(calls.length === 1 && calls[0][0] === "apply_thickness_rows"
+       && calls[0][1][0] === 2 && calls[0][1][1].join() === "10",
+       "applying a thickness sends only the lines whose profile is sold in it");
+    ok(c.rowThicknessWarning(group, B).includes("RE-9") && c.rowThicknessWarning(group, B).includes("1.6MM"),
+       "a line whose profile lacks that thickness gets a warning");
+    ok(c.rowThicknessWarning(group, A) === "", "a line that has it has none");
+    const same = c.groupThickness({ gkey: "x", rows: [A, { ...A, position_id: 12 }] });
+    ok(!same.mixed && same.current === 2, "the same thickness on every line is not mixed");
 }
 
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");

@@ -985,6 +985,18 @@ class AwDesign(models.Model):
                 'note': (change.note or '') if change else '',
             })
 
+        # How many pieces each position made on this window, so a part the
+        # window makes none of (no horizontal divider on a 3-across window)
+        # is not listed. Counted from the BOM as last saved.
+        made = {}
+        profile_bom = self.bom_line_ids.filtered(
+            lambda b: b.kind == 'profile' and not b.is_free_form)
+        for bom in profile_bom:
+            position_id = bom.template_line_id.position_id.id
+            made[position_id] = made.get(position_id, 0) + 1
+        for row in profiles:
+            row['pieces'] = made.get(row['position_id'], 0)
+
         hardware = []
         for line in self._spec_hardware_lines().sorted(
                 lambda l: (l.sequence, l.id)):
@@ -1007,6 +1019,9 @@ class AwDesign(models.Model):
             'system_role': self.window_series_id.system_role or '',
             'mesh_cloth': self._mesh_cloth_payload(),
             'profiles': profiles,
+            # False until the window has been exploded: then every part is
+            # listed, since "no pieces" only means something after a BOM
+            'has_pieces': bool(profile_bom),
             'hardware': hardware,
             'groups': [{'key': k, 'label': l} for k, l in groups],
             'addable': self._addable_positions(),

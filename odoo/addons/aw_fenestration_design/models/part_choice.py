@@ -225,6 +225,25 @@ class AwDesign(models.Model):
         self._explode()
         return self.get_configurator_data()
 
+    def apply_thickness_rows(self, thickness_id, position_ids):
+        """The Parts tab's group heading (Frame, Sash, ...): give these
+        lines that thickness. Lines whose profile is not sold in it are left
+        as they are and the screen says so; nothing outside this window's
+        own rows can be touched."""
+        self.ensure_one()
+        thickness = self.env['product.attribute.value'].browse(
+            int(thickness_id or 0)).exists()
+        if not thickness:
+            raise UserError(_("Choose a thickness first."))
+        wanted = {int(p) for p in (position_ids or [])}
+        for line in self._profile_rows():
+            if line.position_id.id not in wanted:
+                continue
+            if thickness in self._thickness_options(self._row_template(line)):
+                self._set_row_thickness(line, thickness)
+        self._explode()
+        return self.get_configurator_data()
+
     def apply_thickness_all(self, thickness_id):
         """Give every row that offers this thickness that thickness.
         Rows whose profile is not sold in it are left as they are; rows
