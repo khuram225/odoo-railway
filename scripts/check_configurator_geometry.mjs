@@ -1809,5 +1809,68 @@ console.log("\nPARTS TAB: thickness is chosen on the group heading:");
     ok(!same.mixed && same.current === 2, "the same thickness on every line is not mixed");
 }
 
+console.log("\nPART C: selection, frame hardware, the drawing's unit:");
+{
+    const c = make([{ height_mm: 3200.4, is_auto: false,
+                      leaves: [panel(1219.2), panel(1219.2)] }]);
+    ok(c.selectionMode === "none", "nothing is selected at the start");
+    c.selectFrame();
+    ok(c.selectionMode === "frame" && c.state.selected === null, "a click on the frame selects the frame");
+    c.selectLeaf([[0, 0]]);
+    ok(c.selectionMode === "panel" && !c.state.selectedFrame, "selecting a panel lets the frame go");
+    c.selectFrame();
+    ok(c.state.selected === null, "selecting the frame lets the panel go");
+    c.keyDown({ key: "Escape", target: { tagName: "DIV" } });
+    ok(c.selectionMode === "none", "Esc clears the selection");
+    c.selectFrame();
+    c.keyDown({ key: "Escape", target: { tagName: "INPUT" } });
+    ok(c.selectionMode === "frame", "Esc inside a field is the field's own");
+    c.onCanvasClick({ clientX: 5, clientY: 5, target: { closest: () => null } });
+    ok(c.selectionMode === "none", "a click outside the window clears the selection");
+    c.selectFrame();
+    c.onCanvasClick({ clientX: 5, clientY: 5, target: { closest: () => ({}) } });
+    ok(c.selectionMode === "frame", "a click on a control does not");
+    c._canvasDown = { x: 0, y: 0 };
+    c.onCanvasClick({ clientX: 50, clientY: 0, target: { closest: () => null } });
+    ok(c.selectionMode === "frame", "a click that ended a drag does not");
+
+    // the frame's hardware
+    c.state.data.header.hardware = [];
+    c.state.data.hardware_products = [{ id: 7, name: "Corner key", cost: 12 }];
+    c.selectFrame();
+    c.addHardware();
+    ok(c.state.data.header.hardware.length === 1 && c.panelHardware.length === 1,
+       "a row added with the frame selected is the frame's");
+    c.setHardwareProduct(0, "7");
+    c.setHardwareQty(0, "4");
+    ok(c.panelHardwareCost === 48, "the frame's rows are costed like a panel's");
+    ok(c.panelHardwareRows[0].no === 0 && c.panelHardwareRows[0].cost === 48,
+       "the Parts list shows the frame's rows");
+    ok(c.hardwareOwnerLabel === "the frame", "the section names its owner");
+    c.selectLeaf([[0, 0]]);
+    ok(c.panelHardware.length === 0, "a panel does not see the frame's rows");
+    c.selectFrame();
+    c.copyHardwareFromPanel({ target: { value: "1" } });
+    ok(c.state.data.header.hardware.length === 0,
+       "Copy from panel replaces the frame's rows with that panel's");
+    ok("hardware" in JSON.parse(c.layoutSnapshot()).header,
+       "the frame's rows travel in the saved header");
+
+    // the drawing follows In / mm / Both
+    c.setUnitMode("mm");
+    ok(c.drawingLength(1219.2) === "1219.2", "mm mode draws millimetres");
+    c.setUnitMode("in");
+    ok(!c.drawingLength(1219.2).includes("|") && c.drawingLength(1219.2) !== "1219.2",
+       "in mode draws inches");
+    c.setUnitMode("both");
+    ok(c.drawingLength(1219.2).includes("|") && c.drawingLength(1219.2).includes("1219.2"),
+       "Both draws both");
+    ok(c.scene.dims.some((d) => d.text.includes("1219.2")),
+       "the dimension lines on the drawing follow the switch");
+    ok(c.drawingUnitLabel.length > 0, "the caption names the unit");
+    const r = c.renderedSize;
+    ok(Number.isInteger(r.w) && Number.isInteger(r.h), "the drawing is sized in whole pixels");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

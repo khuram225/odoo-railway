@@ -334,3 +334,9 @@
     0%, 60% { background-color: rgba(255, 193, 7, 0.45); }
     100% { background-color: transparent; }
 }
+
+// Static strokes keep their width in screen pixels at any zoom (a hairline
+// stays one device-sharp line rather than scaling with the viewBox).
+.o_aw_cfg_svg .o_aw_hair {
+    vector-effect: non-scaling-stroke;
+}

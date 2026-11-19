@@ -373,6 +373,7 @@ export class DesignConfigurator extends Component {
             groupTarget: {},
             data: null,
             selected: null, // path: [[rowIdx, leafIdx], ...]
+            selectedFrame: false, // the frame (the window itself) is selected
             // Panels picked with Ctrl/Shift-click, when more than one.
             // Only honoured while `selected` is one of them, so any
             // code that moves the selection elsewhere drops it.
@@ -597,6 +598,20 @@ export class DesignConfigurator extends Component {
         const trim = (v) => String(Math.round(v * 100) / 100);
         const text = this.uom === "mm" ? trim(mm) : formatInches(mm, style);
         return withUnit ? `${text} ${this.uom}` : text;
+    }
+
+    /** A length on the DRAWING: follows the Panel tab's In / mm / Both switch.
+     * Bare numbers, the caption says which unit. */
+    drawingLength(mm) {
+        const metric = String(Math.round((mm || 0) * 100) / 100);
+        const inches = formatInches(mm || 0, "fraction");
+        return { in: inches, mm: metric, both: `${inches} | ${metric}` }[
+            this.state.unitMode] || inches;
+    }
+
+    get drawingUnitLabel() {
+        return { in: _t("inches"), mm: _t("mm"), both: _t("inches | mm") }[
+            this.state.unitMode] || _t("inches");
     }
 
     /** Two lengths with the unit written once after them: "72 x 70 1/2 in". */
@@ -1950,9 +1965,7 @@ export class DesignConfigurator extends Component {
         const layout = JSON.parse(snap);
         this.state.data.header = layout.header;
         this.state.data.rows = layout.rows;
-        this.state.selected = null;
-        this.state.selectedDivider = null;
-        this.state.multiSel = [];
+        this.clearSelection();
         this.history.last = snap;
         this.history.at = 0;
         // back at the saved layout is "no unsaved changes" again
@@ -1981,6 +1994,13 @@ export class DesignConfigurator extends Component {
 
     /** Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z, except while typing in a field. */
     keyDown(ev) {
+        if (ev.key === "Escape" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+            const field = (ev.target?.tagName || "").toLowerCase();
+            if (!["input", "textarea", "select"].includes(field)) {
+                this.clearSelection();
+            }
+            return;
+        }
         if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) {
             return;
         }
@@ -2345,12 +2365,25 @@ export class DesignConfigurator extends Component {
     // A panel's own rows replace the spec's per-panel hardware lines for it;
     // with none it follows the spec. The quantity is a plain number and the
     // rate used defaults to the product's cost.
+    /** Who owns the rows on screen: the selected panel, or the FRAME (its
+     * rows ride on the header, as the window's default glass does). */
+    get hardwareHolder() {
+        if (this.state.selectedFrame) {
+            return this.state.data?.header || null;
+        }
+        return this.selectedPanel;
+    }
+
+    get hardwareOwnerLabel() {
+        return this.state.selectedFrame ? _t("the frame") : _t("this panel");
+    }
+
     get hardwareProducts() {
         return this.state.data?.hardware_products || [];
     }
 
     get panelHardware() {
-        return this.selectedPanel?.hardware || [];
+        return this.hardwareHolder?.hardware || [];
     }
 
     get panelFollowsSpecHardware() {
@@ -2407,6 +2440,17 @@ export class DesignConfigurator extends Component {
     /** One row per hardware row on a panel: panel, product, qty, rate, cost. */
     get panelHardwareRows() {
         const rows = [];
+        (this.state.data?.header?.hardware || []).forEach((row, index) => {
+            rows.push({
+                key: `frame:${index}`,
+                no: 0,
+                name: row.name || _t("(no product)"),
+                qty: row.qty,
+                rate: this.hardwareRateUsed(row),
+                manual: !!row.rate_manual,
+                cost: this.hardwareCost(row),
+            });
+        });
         for (const { no, leaf } of this.hardwarePanels) {
             (leaf.hardware || []).forEach((row, index) => {
                 rows.push({
@@ -2435,11 +2479,20 @@ export class DesignConfigurator extends Component {
 
     /** A row click: select the panel and open its Hardware section. */
     goToPanelHardware(no) {
+        if (!no) {
+            this.selectFrame();
+            this.setRightTab("panel");
+            const next = { ...this.state.collapsed, panel: false, hardware: false };
+            this.state.collapsed = next;
+            saveCollapsed(next);
+            this.flash("hardware");
+            return;
+        }
         this.goToCheck({ target_kind: "hardware", panel_no: no });
     }
 
     get otherHardwarePanels() {
-        return this.hardwarePanels.filter((p) => p.leaf !== this.selectedPanel);
+        return this.hardwarePanels.filter((p) => p.leaf !== this.hardwareHolder);
     }
 
     cloneHardware(rows) {
@@ -2447,7 +2500,7 @@ export class DesignConfigurator extends Component {
     }
 
     addHardware() {
-        const leaf = this.selectedPanel;
+        const leaf = this.hardwareHolder;
         if (!leaf) {
             return;
         }
@@ -2499,31 +2552,35 @@ export class DesignConfigurator extends Component {
     }
 
     removeHardware(index) {
-        const leaf = this.selectedPanel;
+        const leaf = this.hardwareHolder;
         if (leaf && leaf.hardware) {
             leaf.hardware = leaf.hardware.filter((_row, i) => i !== index);
             this.touch();
         }
     }
 
-    /** The spec's hardware for this panel, quantities as calculated. */
+    /** The spec's hardware for this panel (or the frame), quantities as calculated. */
     async addSpecHardware() {
-        const leaf = this.selectedPanel;
+        const holder = this.hardwareHolder;
         const entry = this.selectedSceneLeaf;
-        if (!leaf || !entry) {
+        const frame = this.state.selectedFrame;
+        if (!holder || (!frame && !entry)) {
             return;
         }
         if (this.state.dirty) {
             await this.save();
         }
-        const rows = await this.orm.call(
-            "aw.design", "hardware_from_spec", [[this.designId], entry.panelNo]);
+        const rows = frame
+            ? await this.orm.call("aw.design", "frame_hardware_from_spec", [[this.designId]])
+            : await this.orm.call(
+                "aw.design", "hardware_from_spec", [[this.designId], entry.panelNo]);
         if (!rows.length) {
             this.notification.add(
-                _t("The spec gives this panel no hardware."), { type: "info" });
+                frame ? _t("The spec gives the frame no hardware.")
+                    : _t("The spec gives this panel no hardware."), { type: "info" });
             return;
         }
-        leaf.hardware = [...(leaf.hardware || []), ...this.cloneHardware(rows)];
+        holder.hardware = [...(holder.hardware || []), ...this.cloneHardware(rows)];
         this.touch();
     }
 
@@ -2590,7 +2647,7 @@ export class DesignConfigurator extends Component {
     copyHardwareFromPanel(ev) {
         const value = ev.target.value;
         ev.target.value = "";
-        const leaf = this.selectedPanel;
+        const leaf = this.hardwareHolder;
         const source = this.hardwarePanels.find((p) => String(p.no) === String(value));
         if (!leaf || !source || source.leaf === leaf) {
             return;
@@ -2960,7 +3017,41 @@ export class DesignConfigurator extends Component {
         if (this.selectedDividerEntry) {
             return "divider";
         }
+        if (this.state.selectedFrame) {
+            return "frame";
+        }
         return "none";
+    }
+
+    /** Select the frame (the window itself); a panel or divider is let go. */
+    selectFrame(ev) {
+        ev?.stopPropagation();
+        this.state.selected = null;
+        this.state.multiSel = [];
+        this.state.selectedDivider = null;
+        this.state.selectedFrame = true;
+    }
+
+    /** Nothing selected: the Panel tab asks for a choice. */
+    clearSelection() {
+        this.state.selected = null;
+        this.state.multiSel = [];
+        this.state.selectedDivider = null;
+        this.state.selectedFrame = false;
+    }
+
+    /** A click on the empty canvas or the margin round the window. A click
+     * that ended a drag, or that landed on a control, is not one. */
+    onCanvasClick(ev) {
+        const down = this._canvasDown;
+        this._canvasDown = null;
+        if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 4) {
+            return;
+        }
+        if (ev.target?.closest?.(".o_aw_divider, button, input, select, a")) {
+            return;
+        }
+        this.clearSelection();
     }
 
     /** The selected panel's data, or null. */
@@ -3099,6 +3190,7 @@ export class DesignConfigurator extends Component {
         // A click that ended a pan shouldn't also change the selection.
         ev?.stopPropagation();
         this.state.selectedDivider = null;
+        this.state.selectedFrame = false;
         if (ev && (ev.ctrlKey || ev.shiftKey || ev.metaKey)) {
             // Ctrl and Shift both TOGGLE: a panel in or out of the set.
             const set = this.selectionPaths.length
@@ -3191,6 +3283,7 @@ export class DesignConfigurator extends Component {
             return;
         }
         this.state.selectedDivider = divider.key;
+        this.state.selectedFrame = false;
         this.state.selected = null;
     }
 
@@ -4140,7 +4233,7 @@ export class DesignConfigurator extends Component {
                             dy,
                             cx + lw,
                             dy,
-                            this.formatLength(leaf.width_mm || 0, false),
+                            this.drawingLength(leaf.width_mm || 0),
                             false
                         )
                     );
@@ -4150,7 +4243,7 @@ export class DesignConfigurator extends Component {
             }
         });
         dims.push(
-            this.dim("W", x0, dy, x0 + w, dy, this.formatLength(W, false), false)
+            this.dim("W", x0, dy, x0 + w, dy, this.drawingLength(W), false)
         );
 
         if (rows.length > 1) {
@@ -4171,7 +4264,7 @@ export class DesignConfigurator extends Component {
                         ry2,
                         x0 - 22,
                         ry2 + rh,
-                        this.formatLength(row.height_mm || 0, false),
+                        this.drawingLength(row.height_mm || 0),
                         true
                     )
                 );
@@ -4185,7 +4278,7 @@ export class DesignConfigurator extends Component {
                     y0,
                     x0 - 22,
                     y0 + h,
-                    this.formatLength(H, false),
+                    this.drawingLength(H),
                     true
                 )
             );
@@ -4571,7 +4664,9 @@ export class DesignConfigurator extends Component {
             return { w: 0, h: 0 };
         }
         const k = this.fitScale * this.state.zoom;
-        return { w: scene.vbW * k, h: scene.vbH * k };
+        // Whole CSS pixels: a fractional size puts every edge between two
+        // device pixels, which is what made the drawing look soft.
+        return { w: Math.round(scene.vbW * k), h: Math.round(scene.vbH * k) };
     }
 
     get zoomPercent() {
@@ -4902,6 +4997,7 @@ export class DesignConfigurator extends Component {
 
     // -- panning -----------------------------------------------------------
     onCanvasPointerDown(ev) {
+        this._canvasDown = { x: ev.clientX, y: ev.clientY };
         // Only from empty background, and only when there's somewhere to
         // pan to. Leaves and dividers stop propagation before this.
         const el = this.canvasRef.el;
@@ -5948,7 +6044,7 @@ export class DesignConfigurator extends Component {
      */
     async snapshotPng(svg, width, height) {
         try {
-            const scale = Math.min(3, Math.max(1, 1400 / width));
+            const scale = Math.min(4, Math.max(2, 1800 / width));
             const image = new Image();
             await new Promise((resolve, reject) => {
                 image.onload = resolve;

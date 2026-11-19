@@ -957,10 +957,27 @@ class AwDesign(models.Model):
             self.row_ids, by_scope, self.width_mm, self.height_mm, out,
             demand, spans)
 
-        for line in self._spec_hardware_lines():
-            if line.scope == 'design':
-                out.extend(self._hardware_line(
-                    line, frame_context, _('design')))
+        if self.frame_hardware_ids:
+            # The frame's OWN rows replace the spec's window-level lines,
+            # as a panel's own rows replace the spec's per-panel ones.
+            for row in self.frame_hardware_ids.sorted('sequence'):
+                qty = int(round(row.qty or 0.0))
+                if qty <= 0 or not row.product_id:
+                    continue
+                out.append({
+                    'kind': 'hardware',
+                    'product_id': row.product_id.id,
+                    'qty': qty,
+                    'panel_no': 0,
+                    'label': '%s %s' % (_('frame'), row.product_id.display_name),
+                    'rate_is_manual': row.rate_manual,
+                    'manual_rate': row.manual_rate if row.rate_manual else 0.0,
+                })
+        else:
+            for line in self._spec_hardware_lines():
+                if line.scope == 'design':
+                    out.extend(self._hardware_line(
+                        line, frame_context, _('design')))
 
         # Everything above is per ONE window; the position may be for
         # several. Profiles are expanded into one line per physical

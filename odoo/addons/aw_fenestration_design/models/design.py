@@ -1430,6 +1430,9 @@ class AwDesign(models.Model):
                 # The window's default glass stack, which new panels copy.
                 'glass_stack': self._glass_stack_client(
                     self._glass_stack_dicts()),
+                # The frame's own hardware (empty: it follows the spec).
+                'hardware': [h._as_dict() for h in
+                             self.frame_hardware_ids.sorted('sequence')],
                 'finish_id': self.finish_id.id,
                 'thickness_id': self.thickness_id.id,
                 'profile_section_id': self.profile_section_id.id,
@@ -1797,6 +1800,34 @@ class AwDesign(models.Model):
             lambda l: l.kind == 'hardware' and l.panel_no == panel_no
             and l.product_id)]
 
+    def frame_hardware_from_spec(self):
+        """What the spec gives the FRAME, as rows the frame can own, with
+        the quantities as calculated (the same figures the explosion uses).
+        Only offered while the frame follows the spec."""
+        self.ensure_one()
+        if self.frame_hardware_ids:
+            raise UserError(_(
+                "The frame has its own hardware. Take its rows off first, "
+                "then add the spec's set."))
+        top_row = self.row_ids.sorted(lambda r: (r.sequence, r.id))[:1]
+        context = self._formula_context(
+            ow_panels=len(top_row.leaf_ids) or 1)
+        rows = []
+        for line in self._spec_hardware_lines():
+            if line.scope != 'design':
+                continue
+            for values in self._hardware_line(line, context, _('frame')):
+                product = self.env['product.product'].browse(
+                    values['product_id'])
+                rows.append({
+                    'product_id': product.id,
+                    'name': product.display_name or '',
+                    'qty': values['qty'],
+                    'rate_manual': False, 'manual_rate': 0.0,
+                    'list_rate': product.standard_price or 0.0,
+                })
+        return rows
+
     def save_layout(self, payload):
         """Replace the whole row/leaf grid and the header in ONE call, so
         it's one transaction: either the new layout lands complete or the
@@ -1829,6 +1860,11 @@ class AwDesign(models.Model):
             # The window's default glass stack, replaced whole.
             self.glass_part_ids = [(5, 0, 0)] + self.env[
                 'aw.glass.part']._commands_from(incoming['glass_stack'] or [])
+        if 'hardware' in incoming:
+            # The frame's own hardware, replaced whole; not sent, not touched.
+            self.frame_hardware_ids = [(5, 0, 0)] + self.env[
+                'aw.design.hardware']._commands_from(
+                    incoming['hardware'] or [])
         # Only ever refills what was NOT sent, so clearing a value from
         # the UI still works and is not undone here.
         self._apply_header_defaults(unsent)
@@ -2018,6 +2054,10 @@ class AwDesign(models.Model):
         copy.glass_part_ids = [(5, 0, 0)] + self.env[
             'aw.glass.part']._commands_from(
                 [p._as_dict() for p in self.glass_part_ids.sorted('sequence')])
+        copy.frame_hardware_ids = [(5, 0, 0)] + self.env[
+            'aw.design.hardware']._commands_from(
+                [h._as_dict() for h in
+                 self.frame_hardware_ids.sorted('sequence')])
         # Per-window changes. copy() on each override rather than a
         # hand-built dict, so a field added to aw.design.override later
         # comes along without this line being remembered.
