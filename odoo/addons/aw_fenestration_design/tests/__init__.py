@@ -44,3 +44,4 @@ from . import test_current_cost
 from . import test_cost_freeze
 from . import test_cost_preview
 from . import test_cost_basis
+from . import test_parts_tab_groups

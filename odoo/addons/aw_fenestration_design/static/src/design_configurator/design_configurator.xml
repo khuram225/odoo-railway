@@ -229,9 +229,25 @@
                                     title="Print the shop drawing for this window">
                                 Shop Drawing
                             </button>
+                            <button class="btn btn-sm btn-light border" t-on-click="undo"
+                                    t-att-disabled="!state.canUndo" aria-label="Undo"
+                                    title="Undo (Ctrl+Z): steps back one change to the layout. Changes made on the Parts tab are saved at once and are not undone.">
+                                <i class="fa fa-undo"/>
+                            </button>
+                            <button class="btn btn-sm btn-light border" t-on-click="redo"
+                                    t-att-disabled="!state.canRedo" aria-label="Redo"
+                                    title="Redo (Ctrl+Y or Ctrl+Shift+Z)">
+                                <i class="fa fa-repeat"/>
+                            </button>
                             <button class="btn btn-sm btn-primary" t-on-click="save"
-                                    t-att-disabled="!state.dirty">
-                                Save
+                                    t-att-disabled="!state.dirty" aria-label="Save"
+                                    title="Save this window">
+                                <i class="fa fa-cloud-upload"/>
+                            </button>
+                            <button class="btn btn-sm btn-light border" t-on-click="discard"
+                                    aria-label="Discard"
+                                    title="Discard unsaved changes (asks first); with nothing to discard, closes this window">
+                                <i class="fa fa-times"/>
                             </button>
                         </div>
                     </div>
@@ -847,7 +863,7 @@
                                  t-on-click="() => this.toggleSection('panel')">
                                 <i t-att-class="sectionIcon('panel')"/>
                                 <t t-if="selectionMode === 'panel'"><t t-esc="selectedPanelLabel"/></t>
-                                <t t-elif="selectionMode === 'divider'">Junction</t>
+                                <t t-elif="selectionMode === 'divider'"><t t-esc="selectedDividerLabel"/></t>
                                 <t t-else="">Selection</t>
                             </div>
 
@@ -1183,11 +1199,6 @@
                                                     class="btn btn-sm btn-outline-secondary"
                                                     title="Copy what the spec gives this panel, to edit"
                                                     t-on-click="addSpecHardware">Add the spec's set</button>
-                                            <button t-else="" type="button" class="btn btn-sm btn-outline-secondary"
-                                                    t-on-click="followSpecHardware">Follow the spec</button>
-                                            <button t-if="panelHardware.length" type="button"
-                                                    class="btn btn-sm btn-outline-secondary"
-                                                    t-on-click="copyHardwareToOthers">Copy to other panels</button>
                                         </div>
                                         <div t-if="otherHardwarePanels.length" class="d-flex gap-1 align-items-center mb-1">
                                             <span class="text-muted small">Copy from panel</span>
@@ -1789,6 +1800,17 @@
                                                 <span class="o_aw_tree_chev"><i t-att-class="sectionIcon('profp:' + ptype.key + ':' + group.key)"/></span>
                                                 <span class="o_aw_tree_title"><t t-esc="group.label"/></span>
                                                 <span class="o_aw_tree_count badge text-bg-light border"><t t-esc="group.rows.length"/></span>
+                                                <t t-set="gth" t-value="groupThickness(group)"/>
+                                                <span class="ms-2 d-inline-flex gap-1 align-items-center"
+                                                      title="Thickness for every line of this group">
+                                                    <button t-foreach="gth.options" t-as="th" t-key="th.id"
+                                                            type="button" class="btn btn-sm py-0 px-1"
+                                                            t-att-class="th.id === gth.current ? 'btn-primary' : 'btn-outline-secondary'"
+                                                            t-on-click.stop="() => this.applyGroupThickness(group, th.id)">
+                                                        <t t-esc="th.name"/>
+                                                    </button>
+                                                    <span t-if="gth.mixed" class="badge text-bg-warning">mixed</span>
+                                                </span>
                                             </div>
                                             <div t-if="!isCollapsed('profp:' + ptype.key + ':' + group.key)" class="o_aw_tree_rows">
                                                 <div t-foreach="group.rows" t-as="row" t-key="row.position_id"
@@ -1805,16 +1827,16 @@
                                                             &#183; <t t-esc="partFinishName(row)"/>
                                                         </span>
                                                     </span>
-                                                    <button t-foreach="row.thickness_options" t-as="th" t-key="th.id"
-                                                            class="btn btn-sm py-0 px-1"
-                                                            t-att-class="th.id === row.thickness_id ? 'btn-primary' : 'btn-outline-secondary'"
-                                                            t-on-click="() => this.setPartThickness(row, th.id)">
-                                                        <t t-esc="th.name"/>
-                                                    </button>
+                                                    <span class="small text-muted" t-if="row.thickness_name">
+                                                        <t t-esc="row.thickness_name"/>
+                                                    </span>
                                                     <span t-if="row.needs_thickness"
                                                           class="small text-danger fw-bold">
-                                                        choose a thickness
+                                                        choose a thickness (use the group above)
                                                     </span>
+                                                    <span t-if="rowThicknessWarning(group, row)"
+                                                          class="small text-warning fw-bold"
+                                                          t-esc="rowThicknessWarning(group, row)"/>
                                                     <select class="form-select form-select-sm w-auto py-0"
                                                             title="Finish for this profile only; the window's own when left on 'Window finish'"
                                                             t-on-change="(ev) => this.onPartFinishChange(row, ev)">
@@ -1840,6 +1862,9 @@
                                                     </span>
                                                     <div class="o_aw_tree_rule">
                                                         <t t-esc="row.position_name"/>
+                                                        <t t-if="partPlaces(row)">
+                                                            &#183; <t t-esc="partPlaces(row)"/>
+                                                        </t>
                                                         <t t-if="row.length_rule">
                                                             &#183; <t t-esc="row.length_rule"/>
                                                         </t>

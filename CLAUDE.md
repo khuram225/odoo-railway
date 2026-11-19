@@ -606,6 +606,22 @@ the profile and was not written by the sync (`[rates sync]` tag in the `product.
 kept and listed (the button's message, the order's chatter). Switching the basis rewrites no cost by
 itself: run the preview, then the button. Confirmed orders keep their stored cost (freeze).
 
+**Configurator top bar and Parts tab (client feedback, Part B).** Top bar: Undo / Redo
+(Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z; ignored while typing in a field), Save (cloud) and Discard (X).
+Undo is a history of `{header, rows}` snapshots: every edit calls `touch()` (it replaced the 43
+`state.dirty = true` lines), a burst of typing within 600 ms is one step, going back to the saved
+layout clears "unsaved", and a load, a save or a Parts-tab change starts the history afresh.
+What the Parts tab changes is saved at once on the server and is NOT undone. The X asks first when
+there are changes and then reloads the saved window; with nothing to lose it leaves like a form's
+(`env.config.historyBack`). Hardware keeps "Add the spec's set" and "Copy from panel" only (taking
+every row off follows the spec again). Parts tab: the thickness chips are on the group heading
+(Frame, Sash...), apply to every line whose profile is sold in it (`apply_thickness_rows`), a line
+that is not gets a warning, and differing thicknesses show "mixed". A part the window made no
+piece of (`pieces` in `_spec_parts_payload`, counted from the BOM as last saved; `has_pieces` false
+before the first BOM) is not listed unless changed, added or waiting for a thickness, which is why
+Divider - Horizontal is gone from a 3-across window: the spec lists it, the window has none.
+Dividers are named by place ("Divider after P1", "Divider below P1-P2") from the drawing.
+
 **"Invalid controller to restore" (`static/src/stale_page/`).** Odoo raises `ControllerNotFoundError`
 when a breadcrumb or `soft_reload` asks for a page that is no longer in its stack (a stack rebuilt
 from the address, a page replaced behind a screen still open). Not a stale tab after a deploy: the
