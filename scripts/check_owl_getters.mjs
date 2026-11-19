@@ -175,6 +175,8 @@ const useService = () => ({});
 const registry = { category: () => ({ add: () => {} }) };
 const standardActionServiceProps = {};
 const _t = (s) => s;
+const setUnsavedCheck = () => {};
+const clearUnsavedCheck = () => {};
 const ConfirmationDialog = class {};
 // Imported from ../preset_thumbnail in the real bundle; stubbed so the
 // harness mirrors production instead of failing where production works.
