@@ -606,6 +606,20 @@ the profile and was not written by the sync (`[rates sync]` tag in the `product.
 kept and listed (the button's message, the order's chatter). Switching the basis rewrites no cost by
 itself: run the preview, then the button. Confirmed orders keep their stored cost (freeze).
 
+**"Invalid controller to restore" (`static/src/stale_page/`).** Odoo raises `ControllerNotFoundError`
+when a breadcrumb or `soft_reload` asks for a page that is no longer in its stack (a stack rebuilt
+from the address, a page replaced behind a screen still open). Not a stale tab after a deploy: the
+asset bundle in the report was the live one and the last deploy was nine days earlier. The
+configurator now publishes `updateActionState({ active_id: designId })` (the address and a page
+rebuilt from it keep the design; Odoo already seeds it from the action context, this makes the
+component itself the source; note Odoo drops an EARLIER controller of the same client action when it
+rebuilds a stack, so two configurators stacked by Duplicate position / Make copies come back as one),
+and a handler (`stale_page.js`, its decision in the Odoo-free `stale_page_logic.js`, run by
+`scripts/check_stale_page.mjs`) turns the error into "This page was updated or is no longer
+available": with no unsaved changes it reloads ONCE (remembered 30 s in sessionStorage, so an error
+right after a reload is shown and stops: no loop); with unsaved changes on the configurator it never
+reloads by itself and offers a Reload button.
+
 **Cost Rule Preview (`models/cost_preview.py`, menu Vendor Rates > Cost Rule Preview, Fenestration
 managers).** Re-costs every quote still being quoted (draft or sent) twice, each in a savepoint that
 is always rolled back: as today (context `aw_cost_basis = 'list'`) and with the rule (`'rule'`, read

@@ -15,6 +15,7 @@ import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_d
 import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
+import { clearUnsavedCheck, setUnsavedCheck } from "../stale_page/stale_page_logic";
 import { SizeBox } from "./size_box";
 import { Many2One } from "@web/views/fields/many2one/many2one";
 
@@ -354,6 +355,11 @@ export class DesignConfigurator extends Component {
         this.designId =
             this.props.action.params?.design_id ||
             this.props.action.context?.active_id;
+        // Publish which design this page is, so the address and a page
+        // rebuilt from it (a reload, Back, a breadcrumb) keep the design.
+        // Each configurator, also one opened on top of another by
+        // Duplicate position or Make copies, carries its own.
+        this.props.updateActionState?.({ active_id: this.designId });
 
         this.state = useState({
             loading: true,
@@ -425,6 +431,10 @@ export class DesignConfigurator extends Component {
         // isn't known until it's laid out and changes with the window, the
         // sidebar, or anything else that reflows around it.
         onMounted(() => {
+            // asked by the "page is no longer available" handler: with
+            // unsaved changes it never reloads by itself
+            this.unsavedCheck = () => this.state.dirty;
+            setUnsavedCheck(this.unsavedCheck);
             this.resizeObserver = new ResizeObserver(() => this.measure());
             if (this.canvasRef.el) {
                 this.resizeObserver.observe(this.canvasRef.el);
@@ -436,6 +446,7 @@ export class DesignConfigurator extends Component {
         onPatched(() => this.updateToolbar());
 
         onWillUnmount(() => {
+            clearUnsavedCheck(this.unsavedCheck);
             this.resizeObserver?.disconnect();
             this.endDrag(); // never leave window listeners behind
         });
