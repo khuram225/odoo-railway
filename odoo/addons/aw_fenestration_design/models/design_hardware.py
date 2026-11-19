@@ -48,6 +48,14 @@ class AwDesignHardware(models.Model):
         string='Product cost', compute='_compute_list_rate',
         digits='Product Price')
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        rows = super().create(vals_list)
+        # a constraint runs only for the fields given, and a row with
+        # neither owner gives neither
+        rows._check_one_owner()
+        return rows
+
     @api.constrains('leaf_id', 'design_id')
     def _check_one_owner(self):
         for row in self:
