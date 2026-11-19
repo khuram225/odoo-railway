@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""A panel's own hardware.
+"""A panel's own hardware, and the FRAME's.
+
+The frame (the window itself) has a section of its own, the same as a
+panel's: rows with a product, a quantity and a rate. Those rows belong to
+the window (`design_id`) instead of a panel (`leaf_id`); with none, the
+window's hardware is what the spec gives it.
 
 A panel with rows here is built from THEM and the spec's per-panel
 hardware lines are not used for it; a panel with none follows the spec.
@@ -10,7 +15,8 @@ The quantity is a plain number. The rate used defaults to the product's
 cost and is typed per row (flagged manual, Reset returns to the product
 cost).
 """
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class AwDesignHardware(models.Model):
@@ -18,8 +24,13 @@ class AwDesignHardware(models.Model):
     _description = 'Panel Hardware'
     _order = 'sequence, id'
 
+    # exactly one owner: a panel, or the window's frame
     leaf_id = fields.Many2one(
-        'aw.design.leaf', required=True, ondelete='cascade', index=True)
+        'aw.design.leaf', ondelete='cascade', index=True)
+    design_id = fields.Many2one(
+        'aw.design', string='Window (frame hardware)', ondelete='cascade',
+        index=True,
+        help="Set on the FRAME's own hardware; a panel's rows have a panel.")
     sequence = fields.Integer(default=10)
     product_id = fields.Many2one(
         'product.product', required=True, ondelete='restrict',
@@ -36,6 +47,14 @@ class AwDesignHardware(models.Model):
     list_rate = fields.Float(
         string='Product cost', compute='_compute_list_rate',
         digits='Product Price')
+
+    @api.constrains('leaf_id', 'design_id')
+    def _check_one_owner(self):
+        for row in self:
+            if bool(row.leaf_id) == bool(row.design_id):
+                raise ValidationError(_(
+                    "Hardware belongs to a panel or to the frame, not both "
+                    "and not neither."))
 
     @api.depends('product_id.standard_price')
     def _compute_list_rate(self):
@@ -105,3 +124,13 @@ class AwDesignHardware(models.Model):
         })
         return {'id': product.id, 'name': product.display_name,
                 'cost': product.standard_price or 0.0}
+
+
+class AwDesign(models.Model):
+    _inherit = 'aw.design'
+
+    frame_hardware_ids = fields.One2many(
+        'aw.design.hardware', 'design_id', string='Frame hardware',
+        copy=False,
+        help="The window's own hardware. With rows here the spec's "
+             "window-level hardware lines are not used.")

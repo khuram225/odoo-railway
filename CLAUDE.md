@@ -622,6 +622,23 @@ before the first BOM) is not listed unless changed, added or waiting for a thick
 Divider - Horizontal is gone from a 3-across window: the spec lists it, the window has none.
 Dividers are named by place ("Divider after P1", "Divider below P1-P2") from the drawing.
 
+**Configurator drawing, selection and frame hardware (client feedback, Part C).** Selection has a
+fourth state, `selectionMode === "frame"` (`state.selectedFrame`, set by a click on the frame
+rect). A click on the empty canvas or Esc (outside a field) calls `clearSelection()`; with nothing
+selected the Panel tab says only "Select a panel or the frame." Parts, Pricing and Checks always
+show the whole window. The frame's own hardware is `aw.design.hardware` rows with `design_id`
+instead of `leaf_id` (exactly one owner, `_check_one_owner`; `aw.design.frame_hardware_ids`),
+carried in the configurator header as `header.hardware`, saved by `save_layout`, copied by
+`copy_position`, and in the explosion REPLACING the spec's window-level (`scope == "design"`)
+hardware lines when present, as a panel's own rows replace the spec's per-panel ones. One
+`HardwareSection` template serves both; `hardwareHolder` says whose rows. The drawing's dimension
+labels follow the In / mm / Both switch (`drawingLength`); the frame, sash, dividers and mesh
+frame are painted in the finish's colour (`html_color` on the finish value, no new column; the
+Finishes list shows it; `_seed_finish_drawing_colours` fills Wood and any finish still without one,
+once, never over a colour somebody chose). Sharpness: the drawing is sized in whole CSS pixels and
+its static strokes (`.o_aw_hair`) are `vector-effect: non-scaling-stroke`; adornment strokes stay in
+viewBox units.
+
 **"Invalid controller to restore" (`static/src/stale_page/`).** Odoo raises `ControllerNotFoundError`
 when a breadcrumb or `soft_reload` asks for a page that is no longer in its stack (a stack rebuilt
 from the address, a page replaced behind a screen still open). Not a stale tab after a deploy: the

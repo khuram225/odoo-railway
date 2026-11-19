@@ -60,6 +60,7 @@
              the chains it rebuilds are already complete. -->
         <function model="aw.profile.rate" name="_merge_chawla_vendor"/>
         <function model="product.attribute" name="_seed_finish_colours"/>
+        <function model="product.attribute" name="_seed_finish_drawing_colours"/>
         <!-- Glass types of the first supplier list and the supplier; fill-only. -->
         <function model="aw.glass.type" name="_seed_glass_types"/>
         <function model="aw.glass.option" name="_seed_glass_options"/>

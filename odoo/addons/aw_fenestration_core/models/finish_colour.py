@@ -28,6 +28,9 @@ from odoo import api, models
 _logger = logging.getLogger(__name__)
 
 SEEDED_PARAM = 'aw_fenestration.finish_colours_seeded'
+DRAWING_SEEDED_PARAM = 'aw_fenestration.finish_drawing_colours_seeded'
+NEUTRAL_GREY = '#8A9095'  # what the drawing used before a finish had a colour
+WOOD_TONE = '#A47551'
 
 # value name -> (html_color, tag colour index)
 FINISH_COLOURS = {
@@ -86,4 +89,32 @@ class ProductAttribute(models.Model):
         _logger.info(
             "aw_fenestration_core: Finish is now a colour attribute; "
             "%s value(s) given a colour.", filled)
+        return filled
+
+    @api.model
+    def _seed_finish_drawing_colours(self):
+        """The drawing paints the frame, dividers, sash and mesh frame in the
+        finish's colour, so every finish should have one. Once per database,
+        fill-only: Wood gets a wood tone, any other finish still without a
+        colour the neutral grey the drawing used before. A colour somebody
+        has set is never touched."""
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(DRAWING_SEEDED_PARAM):
+            return 0
+        attribute = self.env.ref(
+            'aw_fenestration_core.aw_attribute_finish',
+            raise_if_not_found=False)
+        if not attribute:
+            return 0
+        filled = 0
+        for value in attribute.value_ids:
+            if value.html_color:
+                continue
+            wood = 'wood' in (value.name or '').lower()
+            value.write({'html_color': WOOD_TONE if wood else NEUTRAL_GREY})
+            filled += 1
+        param.set_param(DRAWING_SEEDED_PARAM, '1')
+        _logger.info(
+            "aw_fenestration_core: %s finish(es) given a drawing colour.",
+            filled)
         return filled
