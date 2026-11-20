@@ -1205,6 +1205,16 @@ the Profile vendor it was built with: Regenerate uses the QUOTE's vendor
 (`aw_profile_vendor_id`, default Chawla), so switching off a length of another vendor
 changes nothing for that quote.
 
+**Six bar lengths and the last-bar settings (PR 1).** 10, 12 and 20 ft join the lengths
+that already carry 14, 16 and 18: `_seed_six_bar_lengths()` (a `<function>`, once, parameter
+`aw_fenestration.six_bar_lengths_seeded`) extends the global list and each vendor's
+VENDOR-WIDE rows, FILL-ONLY: only a list that holds all of 14, 16 and 18, never a length that
+exists (switched off too), never a profile's own rows, one chatter note per vendor. The global
+parameter is changed only when it is explicitly set, so a fresh database keeps `14,16,18`.
+Settings added in Settings > Fenestration > Cutting (`ir.config_parameter`, no schema): waste
+limit 102 mm, keep from 1219 mm, handy leftover 1800 mm, last-bar extra-feet cap 4 ft, and the
+Last-bar rule switch (OFF). The planner does not read them yet.
+
 ## Odoo tests (the `odoo tests` job)
 
 `odoo tests` in `.github/workflows/checks.yml` installs the aluminum modules

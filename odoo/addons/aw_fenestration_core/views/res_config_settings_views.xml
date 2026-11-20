@@ -62,6 +62,28 @@
                             <field name="aw_offcut_min_mm"/>
                         </setting>
                     </block>
+                    <block title="Last bar of a profile" name="aw_fenestration_last_bar_setting_container">
+                        <setting id="aw_last_bar_rule_setting" string="Last-bar rule"
+                                 help="Off by default. Not used by the cutting plan yet: the settings below are saved for the change that reads them.">
+                            <field name="aw_last_bar_rule"/>
+                        </setting>
+                        <setting id="aw_waste_limit_setting" string="Waste limit"
+                                 help="A leftover up to this long, in mm (4 in = 102), is waste.">
+                            <field name="aw_waste_limit_mm"/>
+                        </setting>
+                        <setting id="aw_keep_from_setting" string="Keep from"
+                                 help="A leftover at least this long, in mm (4 ft = 1219), is kept as stock.">
+                            <field name="aw_keep_from_mm"/>
+                        </setting>
+                        <setting id="aw_handy_setting" string="Handy leftover"
+                                 help="The leftover the last-bar rule aims for, in mm (1800).">
+                            <field name="aw_handy_mm"/>
+                        </setting>
+                        <setting id="aw_last_bar_cap_setting" string="Extra feet cap"
+                                 help="Swap the last bar for a bigger one only when it buys at most this many extra feet.">
+                            <field name="aw_last_bar_cap_ft"/>
+                        </setting>
+                    </block>
                 </app>
             </xpath>
         </field>

@@ -18,10 +18,19 @@ Its own model rather than a field on res.partner: a stored field on a core
 model read on every request is what took the site down once (see CLAUDE.md).
 Every change is written on the vendor's chatter with the user and the date.
 """
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+_logger = logging.getLogger(__name__)
+
 SEEDED_PARAM = 'aw_fenestration.vendor_bar_lengths_seeded'
+SIX_SEEDED_PARAM = 'aw_fenestration.six_bar_lengths_seeded'
+# The lengths a list must already carry before the other three are added to
+# it, and the three that are added (ft).
+CURRENT_LENGTHS = (14.0, 16.0, 18.0)
+ADDED_LENGTHS = (10.0, 12.0, 20.0)
 
 
 class AwVendorBarLength(models.Model):
@@ -232,4 +241,69 @@ class AwVendorBarLength(models.Model):
                     {'vendor_id': vendor.id, 'length_ft': ft}
                     for ft in lengths])
         param.set_param(SEEDED_PARAM, '1')
+        return True
+
+    @api.model
+    def _seed_six_bar_lengths(self):
+        """Once: 10, 12 and 20 ft join the lengths that carry 14, 16 and 18.
+
+        Fill-only. The global list (``aw_fenestration.stock_lengths_ft``)
+        and each vendor's VENDOR-WIDE rows get the lengths they are missing,
+        and only when they already hold all of 14, 16 and 18: a list somebody
+        shortened or changed on purpose is not ours to extend. A length that
+        exists, active or switched off, is never touched, a profile's own rows
+        are never touched, and a vendor gets one note on its chatter. The
+        global list is changed only when the parameter is explicitly set, so
+        a database that never set it (every fresh one) keeps its default.
+        One-shot by parameter, so a length a user later removes does not come
+        back at the next upgrade.
+        """
+        param = self.env['ir.config_parameter'].sudo()
+        if param.get_param(SIX_SEEDED_PARAM):
+            return False
+        done = {'global': 0, 'vendors': 0, 'rows': 0}
+        raw = param.get_param('aw_fenestration.stock_lengths_ft')
+        if raw:
+            try:
+                have = [float(t) for t in raw.split(',') if t.strip()]
+            except ValueError:
+                have = []
+            if all(ft in have for ft in CURRENT_LENGTHS):
+                missing = [ft for ft in ADDED_LENGTHS if ft not in have]
+                if missing:
+                    merged = sorted(set(have) | set(missing))
+                    param.set_param(
+                        'aw_fenestration.stock_lengths_ft',
+                        ','.join('%g' % ft for ft in merged))
+                    done['global'] = len(missing)
+        vendors = self.sudo().with_context(active_test=False).search(
+            [('product_tmpl_id', '=', False)]).mapped('vendor_id')
+        for vendor in vendors:
+            rows = self.sudo().with_context(active_test=False).search([
+                ('vendor_id', '=', vendor.id),
+                ('product_tmpl_id', '=', False)])
+            have = rows.mapped('length_ft')
+            if not all(any(abs(h - ft) < 1e-6 for h in have)
+                       for ft in CURRENT_LENGTHS):
+                continue
+            missing = [ft for ft in ADDED_LENGTHS
+                       if not any(abs(h - ft) < 1e-6 for h in have)]
+            if not missing:
+                continue
+            with self.env.cr.savepoint():
+                self.sudo().with_context(aw_no_log=True).create([
+                    {'vendor_id': vendor.id, 'length_ft': ft}
+                    for ft in missing])
+                vendor.sudo().message_post(
+                    body=_("Bar lengths %(lengths)s ft added to all profiles "
+                           "by the upgrade (10, 12 and 20 ft are now "
+                           "available). Existing lengths were not changed.",
+                           lengths=', '.join('%g' % ft for ft in missing)),
+                    subtype_xmlid='mail.mt_note')
+            done['vendors'] += 1
+            done['rows'] += len(missing)
+        param.set_param(SIX_SEEDED_PARAM, '1')
+        _logger.info(
+            "six bar lengths: global +%(global)d, %(vendors)d vendors, "
+            "%(rows)d rows", done)
         return True

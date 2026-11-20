@@ -61,6 +61,99 @@ class TestVendorBarLengths(TransactionCase):
 
 
 @tagged('post_install', '-at_install')
+class TestSixBarLengths(TransactionCase):
+    """10, 12 and 20 ft join the lengths that carry 14, 16 and 18."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Length = cls.env['aw.vendor.bar.length']
+        cls.param = cls.env['ir.config_parameter'].sudo()
+        cls.Length.search([]).unlink()
+        cls.param.set_param('aw_fenestration.six_bar_lengths_seeded', '')
+
+    def _vendor(self, name, lengths, active=True):
+        vendor = self.env['res.partner'].create({'name': name})
+        self.Length.with_context(aw_no_log=True).create([
+            {'vendor_id': vendor.id, 'length_ft': ft, 'active': active}
+            for ft in lengths])
+        return vendor
+
+    def _lengths(self, vendor, tmpl=False):
+        return sorted(self.Length.with_context(active_test=False).search([
+            ('vendor_id', '=', vendor.id),
+            ('product_tmpl_id', '=', tmpl)]).mapped('length_ft'))
+
+    def test_a_vendor_with_14_16_18_gets_the_other_three_and_a_note(self):
+        vendor = self._vendor('Six A', (14, 16, 18))
+        self.param.set_param('aw_fenestration.stock_lengths_ft', '14,16,18')
+        self.assertTrue(self.Length._seed_six_bar_lengths())
+        self.assertEqual(self._lengths(vendor), [10, 12, 14, 16, 18, 20])
+        self.assertTrue(all(self.Length.search(
+            [('vendor_id', '=', vendor.id)]).mapped('active')))
+        notes = vendor.message_ids.filtered(
+            lambda m: '10, 12, 20' in (m.body or ''))
+        self.assertEqual(len(notes), 1)
+        self.assertEqual(
+            self.param.get_param('aw_fenestration.stock_lengths_ft'),
+            '10,12,14,16,18,20')
+
+    def test_it_is_once_and_idempotent(self):
+        vendor = self._vendor('Six B', (14, 16, 18))
+        self.Length._seed_six_bar_lengths()
+        self.assertFalse(self.Length._seed_six_bar_lengths())
+        self.Length.search([('vendor_id', '=', vendor.id),
+                            ('length_ft', '=', 12)]).unlink()
+        self.assertFalse(self.Length._seed_six_bar_lengths())
+        self.assertNotIn(12, self._lengths(vendor))
+        # even with the guard off, nothing is doubled
+        self.param.set_param('aw_fenestration.six_bar_lengths_seeded', '')
+        self.Length._seed_six_bar_lengths()
+        self.assertEqual(self._lengths(vendor), [10, 12, 14, 16, 18, 20])
+
+    def test_a_vendor_without_all_three_current_lengths_is_left_alone(self):
+        short = self._vendor('Six C', (14, 18))
+        other = self._vendor('Six D', (12, 14, 16, 18, 24))
+        self.Length._seed_six_bar_lengths()
+        self.assertEqual(self._lengths(short), [14, 18])
+        self.assertEqual(self._lengths(other), [10, 12, 14, 16, 18, 20, 24])
+
+    def test_an_existing_length_switched_off_is_not_touched(self):
+        vendor = self._vendor('Six E', (14, 16, 18))
+        off = self.Length.with_context(aw_no_log=True).create({
+            'vendor_id': vendor.id, 'length_ft': 20, 'active': False})
+        self.Length._seed_six_bar_lengths()
+        self.assertFalse(off.active)
+        self.assertEqual(self.Length.with_context(active_test=False).search_count(
+            [('vendor_id', '=', vendor.id), ('length_ft', '=', 20)]), 1)
+
+    def test_a_profiles_own_rows_are_not_touched(self):
+        vendor = self._vendor('Six F', (14, 16, 18))
+        tmpl = self.env['product.template'].search([], limit=1)
+        self.Length.with_context(aw_no_log=True).create({
+            'vendor_id': vendor.id, 'product_tmpl_id': tmpl.id,
+            'length_ft': 14})
+        self.Length._seed_six_bar_lengths()
+        self.assertEqual(self._lengths(vendor, tmpl.id), [14])
+
+    def test_the_global_list_is_left_alone_unless_it_carries_14_16_18(self):
+        self.param.set_param('aw_fenestration.stock_lengths_ft', '16,18')
+        self.Length._seed_six_bar_lengths()
+        self.assertEqual(
+            self.param.get_param('aw_fenestration.stock_lengths_ft'), '16,18')
+
+    def test_the_settings_have_their_defaults_and_the_switch_is_off(self):
+        values = self.env['res.config.settings'].default_get([
+            'aw_waste_limit_mm', 'aw_keep_from_mm', 'aw_handy_mm',
+            'aw_last_bar_cap_ft', 'aw_last_bar_rule'])
+        self.assertEqual(values['aw_waste_limit_mm'], 102.0)
+        self.assertEqual(values['aw_keep_from_mm'], 1219.0)
+        self.assertEqual(values['aw_handy_mm'], 1800.0)
+        self.assertEqual(values['aw_last_bar_cap_ft'], 4.0)
+        self.assertFalse(values['aw_last_bar_rule'])
+
+
+@tagged('post_install', '-at_install')
 class TestVendorBarLengthActive(TransactionCase):
 
     @classmethod
