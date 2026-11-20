@@ -24,6 +24,8 @@
                             confirm="Mark the bars bought? The batch is then locked."/>
                     <button name="action_print_cutting_sheet" type="object"
                             string="Cutting Sheet"/>
+                    <button name="action_download_cut_summary" type="object"
+                            string="Download cut summary"/>
                     <button name="action_print_labels" type="object"
                             string="Labels (A4)"/>
                     <button name="action_print_thermal_labels" type="object"

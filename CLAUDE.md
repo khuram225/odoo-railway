@@ -965,6 +965,20 @@ picker makes a price-free product through `sudo()` with fixed values, because
 a quoting user may not be able to create products. A hardware BOM line keeps
 the product cost in `rate_list`; its typed rate is `manual_rate`.
 
+## Cut summary download
+
+*Download cut summary* on the batch form (`action_download_cut_summary`, then the route
+`/aw/cut_summary/<plan id>`, `controllers/cut_summary.py`; nothing is stored) gives an .xlsx made by
+`models/cut_summary_xlsx.py` (Odoo-free, `scripts/check_cut_summary_xlsx.py`, xlsxwriter, read back with
+openpyxl) from `aw.cut.plan._cut_summary_data()`: one entry per `aw.cut.plan.cut`, so each piece traces to
+its BOM line, window and bar (bar numbers count within a profile). Sheet "Summary": a block per profile
+group (code / thickness / finish), rows the windows in natural order, columns the distinct cut lengths
+longest first (workshop style over the exact mm); sheet "Cut list": one row per cut, with the typed-length
+flag (a free-form line, or a manual one whose length differs from the computed), autofilter and frozen
+header. A cut is one piece and the plan's quantities already include a window's qty. A stale plan still
+downloads with a red note; a batch with no cuts is refused. File name
+`cut_summary_<quote>_batch<N>_<date>.xlsx`. No schema change.
+
 ## Hardware Sets (saved from the configurator)
 
 `aw.hardware.kit` / `aw.hardware.kit.line` (design module; the screen says "Hardware Sets", Setup >
