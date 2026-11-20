@@ -70,6 +70,15 @@ class TestCutSummary(TransactionCase):
             self.assertEqual([r['window'] for r in block['rows']],
                              [self.design.name])
 
+    def test_a_cut_that_lost_its_bom_line_finds_its_window_by_reference(self):
+        cut = self.batch.group_ids.bar_ids.cut_ids[:1]
+        self.assertTrue(cut.piece_ref)
+        cut.bom_line_id = False
+        data = self.batch._cut_summary_data()
+        self.assertNotIn('-', {c['window'] for c in data['cuts']})
+        self.assertEqual({c['window'] for c in data['cuts']},
+                         {self.design.name})
+
     def test_a_typed_length_is_flagged(self):
         cut = self.batch.group_ids.bar_ids.cut_ids[:1]
         line = cut.bom_line_id
