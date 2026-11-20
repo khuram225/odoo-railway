@@ -19,6 +19,7 @@ from . import family
 from . import glass_part
 from . import glass_unit
 from . import design_hardware
+from . import hardware_kit
 from . import chatter_log
 from . import mesh_cloth
 from . import glass_default_stack

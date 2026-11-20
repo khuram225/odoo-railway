@@ -1347,6 +1347,8 @@ class AwDesign(models.Model):
             ._product_catalogue(),
             'hardware_category_id': self.env['aw.design.hardware']
             ._hardware_category().id,
+            'hardware_kits': self.env['aw.hardware.kit']._configurator_payload(),
+            'can_edit_hardware_kits': self.env['aw.hardware.kit']._can_edit(),
             'grid_patterns': [{
                 'id': g.id, 'name': g.display_name, 'code': g.code or '',
                 'kind': g.kind,

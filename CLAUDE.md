@@ -965,6 +965,22 @@ picker makes a price-free product through `sudo()` with fixed values, because
 a quoting user may not be able to create products. A hardware BOM line keeps
 the product cost in `rate_list`; its typed rate is `manual_rate`.
 
+## Hardware Sets (saved from the configurator)
+
+`aw.hardware.kit` / `aw.hardware.kit.line` (design module; the screen says "Hardware Sets", Setup >
+Hardware Sets). A set is a plain list: product, quantity and, only when saved with rates, a typed
+rate (flagged manual when used). **It is not `aw.hardware.set`**, the Series-owned legacy model with
+scope/condition/leaf-type triggers that only the spec link and the spec form still touch (the one
+set, "HW 1", is the `hardware_set_id` of the "GSL" spec of Double Glaze - Sliding and is mirrored on
+`aw.design.hardware_set_id`); its action is renamed "Old Hardware Sets (legacy)" and it has no menu.
+Picking a set COPIES its rows onto the panel's (or the frame's) own `aw.design.hardware` rows in the
+client, so editing or deleting a set never changes a window. The dropdown sits beside "Copy from
+panel", sets of the panel's type first (for the frame, sets with no type first); with rows already
+there it asks Add (default) or Replace, and Replace asks again naming the number of rows removed.
+Save as set (`create_from_rows`, Fenestration manager only, checked on the server) shows the typed
+rates it will save when "Save rates" is ticked (default off). Quantities are plain numbers; a
+formula that follows the panel size (evaluated when picked) is possible but not built.
+
 ## Checks as links
 
 A Checks row (`aw.design.check`) can carry where it leads: `target_kind`

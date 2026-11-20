@@ -20,8 +20,9 @@ const onWillUnmount = () => {};
 const useService = () => ({});
 const registry = { category: () => ({ add: () => {} }) };
 const standardActionServiceProps = {};
-const _t = (s, o) => (o ? s.replace(/%\\((\\w+)\\)s/g, (_m, k) => o[k]) : s);
+const _t = (s, ...a) => (a[0] && typeof a[0] === "object" ? s.replace(/%\\((\\w+)\\)s/g, (_m, k) => a[0][k]) : a.length ? s.replace(/%s/g, () => String(a.shift())) : s);
 const ConfirmationDialog = class {};
+const HardwareKitDialog = class {};
 const setUnsavedCheck = () => {};
 const clearUnsavedCheck = () => {};
 `;
@@ -1868,6 +1869,93 @@ console.log("\nPART C: selection, frame hardware, the drawing's unit:");
        "Copy from panel replaces the frame's rows with that panel's");
     ok("hardware" in JSON.parse(c.layoutSnapshot()).header,
        "the frame's rows travel in the saved header");
+
+    // hardware sets: saved lists, COPIED onto the rows
+    {
+        const dialogs = [];
+        c.dialog = { add: (cls, props) => dialogs.push({ cls, props }) };
+        c.notification = { add: () => {} };
+        const slider = c.state.data.leaf_types[0].id;
+        const other = c.state.data.leaf_types.find((t) => t.id !== slider)?.id || 999;
+        c.state.data.can_edit_hardware_kits = true;
+        c.state.data.hardware_kits = [
+            { id: 1, name: "Zeta any", leaf_type_id: false, leaf_type_name: "",
+              rows: [{ product_id: 7, name: "Corner key", qty: 2, rate_manual: false,
+                       manual_rate: 0, list_rate: 12 }] },
+            { id: 2, name: "Beta other", leaf_type_id: other, leaf_type_name: "Other",
+              rows: [{ product_id: 7, name: "Corner key", qty: 1, rate_manual: false,
+                       manual_rate: 0, list_rate: 12 }] },
+            { id: 3, name: "Alpha own", leaf_type_id: slider, leaf_type_name: "Own",
+              rows: [{ product_id: 7, name: "Corner key", qty: 3, rate_manual: true,
+                       manual_rate: 9, list_rate: 12 },
+                     { product_id: 7, name: "Corner key", qty: 4, rate_manual: false,
+                       manual_rate: 0, list_rate: 12 }] },
+        ];
+        // a panel: its own type first, then the rest by name
+        c.selectLeaf([[0, 0]]);
+        c.selectedPanel.leaf_type_id = slider;
+        ok(c.hardwareKits.map((k) => k.id).join() === "3,2,1",
+           "sets of the panel's type come first, then by name");
+        // the frame: sets with no panel type first
+        c.selectFrame();
+        ok(c.hardwareKits[0].id === 1, "for the frame the sets with no type come first");
+
+        // picking onto an empty panel adds the rows, a rate only if saved with one
+        c.selectLeaf([[0, 0]]);
+        c.selectedPanel.hardware = [];
+        c.pickHardwareKit({ target: { value: "3" } });
+        const rows = c.selectedPanel.hardware;
+        ok(rows.length === 2 && rows[0].qty === 3 && rows[0].rate_manual
+           && rows[0].manual_rate === 9 && !rows[1].rate_manual,
+           "an empty panel takes the rows; a rate is kept only where it was saved");
+        ok(dialogs.length === 0, "nothing is asked of an empty panel");
+        ok(rows[0] !== c.state.data.hardware_kits[2].rows[0],
+           "the rows are copies, not the set's own");
+        rows[0].qty = 99;
+        ok(c.state.data.hardware_kits[2].rows[0].qty === 3,
+           "editing the panel does not touch the set");
+
+        // a panel with rows is asked: Add (default) or Replace, then a second question
+        c.pickHardwareKit({ target: { value: "1" } });
+        ok(dialogs.length === 1 && dialogs[0].props.confirmLabel === "Add"
+           && dialogs[0].props.cancelLabel === "Replace",
+           "a panel with rows is asked add or replace, Add being the default");
+        ok(dialogs[0].props.dismiss() === undefined && c.selectedPanel.hardware.length === 2,
+           "closing the question changes nothing");
+        dialogs[0].props.cancel();
+        ok(dialogs.length === 2 && dialogs[1].props.body.includes("2 row(s)")
+           && dialogs[1].props.confirmLabel.includes("2"),
+           "Replace asks again and names the number of rows to be removed");
+        ok(c.selectedPanel.hardware.length === 2, "nothing is removed before the second answer");
+        dialogs[1].props.confirm();
+        ok(c.selectedPanel.hardware.length === 1 && c.selectedPanel.hardware[0].qty === 2,
+           "the second answer replaces the rows with the set's");
+        c.selectedPanel.hardware = [{ product_id: 7, name: "Corner key", qty: 1,
+                                      rate_manual: false, manual_rate: 0, list_rate: 12 }];
+        c.pickHardwareKit({ target: { value: "1" } });
+        dialogs[dialogs.length - 1].props.confirm();
+        ok(c.selectedPanel.hardware.length === 2, "Add keeps the rows and adds the set's");
+
+        // Save as set: only managers, only with a product row
+        ok(c.canSaveHardwareKit, "a manager can save the rows as a set");
+        c.state.data.can_edit_hardware_kits = false;
+        ok(!c.canSaveHardwareKit, "nobody else is offered Save as set");
+        c.state.data.can_edit_hardware_kits = true;
+        c.selectedPanel.hardware = [];
+        ok(!c.canSaveHardwareKit, "and not with no hardware");
+        c.selectedPanel.hardware = [{ product_id: 7, name: "Corner key", qty: 1,
+                                      rate_manual: true, manual_rate: 5, list_rate: 12 }];
+        c.saveHardwareKit();
+        const dlg = dialogs[dialogs.length - 1];
+        ok(dlg.props.rows.length === 1 && dlg.props.leafTypeId === slider,
+           "the dialog gets the rows and defaults to the panel's type");
+        c.orm = { call: async (_m, _f, args) => ({
+            id: 9, name: args[0], leaf_type_id: args[1], leaf_type_name: "",
+            rows: args[2] }) };
+        await dlg.props.onSave({ name: "New set", leafTypeId: slider, withRates: true });
+        ok(c.state.data.hardware_kits.some((k) => k.id === 9),
+           "the saved set is in the list at once");
+    }
 
     // the drawing follows In / mm / Both
     c.setUnitMode("mm");

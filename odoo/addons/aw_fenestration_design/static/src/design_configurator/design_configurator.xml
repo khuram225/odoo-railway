@@ -2160,6 +2160,20 @@
                                 t-att-value="op.no" t-esc="op.no"/>
                     </select>
                 </div>
+                <div t-if="hardwareKits.length" class="d-flex gap-1 align-items-center mb-1">
+                    <span class="text-muted small">Hardware set</span>
+                    <select class="form-select form-select-sm" style="max-width: 11rem;"
+                            t-on-change="(ev) => this.pickHardwareKit(ev)">
+                        <option value="">...</option>
+                        <option t-foreach="hardwareKits" t-as="kit" t-key="kit.id"
+                                t-att-value="kit.id" t-esc="hardwareKitLabel(kit)"/>
+                    </select>
+                </div>
+                <div t-if="canSaveHardwareKit" class="mb-1">
+                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                            title="Save the hardware above as a Hardware Set"
+                            t-on-click="saveHardwareKit">Save as set</button>
+                </div>
                 <div t-if="panelHardware.length" class="small text-end mb-2">
                     Hardware cost <strong><t t-esc="formatMoney(panelHardwareCost)"/></strong>
                 </div>

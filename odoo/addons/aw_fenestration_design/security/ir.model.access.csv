@@ -65,3 +65,7 @@ access_aw_po_receive_line,aw.po.receive.line,model_aw_po_receive_line,aw_fenestr
 access_aw_cost_preview_wizard,aw.cost.preview.wizard,model_aw_cost_preview_wizard,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_cost_preview_line,aw.cost.preview.line,model_aw_cost_preview_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_cost_preview_variant,aw.cost.preview.variant,model_aw_cost_preview_variant,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_hardware_kit_user,aw.hardware.kit.user,model_aw_hardware_kit,base.group_user,1,0,0,0
+access_aw_hardware_kit_manager,aw.hardware.kit.manager,model_aw_hardware_kit,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_hardware_kit_line_user,aw.hardware.kit.line.user,model_aw_hardware_kit_line,base.group_user,1,0,0,0
+access_aw_hardware_kit_line_manager,aw.hardware.kit.line.manager,model_aw_hardware_kit_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
