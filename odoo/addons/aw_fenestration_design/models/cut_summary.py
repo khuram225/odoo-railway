@@ -21,6 +21,12 @@ class AwCutPlan(models.Model):
         vendor = self.sale_order_id.aw_profile_vendor_id
         states = dict(self._fields['state'].selection)
         cuts = []
+        # A cut keeps its BOM line only until the window is exploded again
+        # (the link is set null so a printed plan is not deleted). The piece
+        # reference is stable, so a cut that lost its line finds it again by
+        # that, and still reaches its window and panel.
+        by_ref = {line.piece_ref: line for line in self._profile_lines()
+                  if line.piece_ref}
         for group in self.group_ids:
             product = group.product_id
             template = product.product_tmpl_id
@@ -35,7 +41,8 @@ class AwCutPlan(models.Model):
                     or template.name or '')
             for bar_no, bar in enumerate(group.bar_ids, start=1):
                 for cut in bar.cut_ids:
-                    line = cut.bom_line_id
+                    line = cut.bom_line_id or by_ref.get(
+                        cut.piece_ref, self.env['aw.design.bom.line'])
                     design = line.design_id
                     typed = bool(line.is_free_form or (
                         line.is_manual and abs(
