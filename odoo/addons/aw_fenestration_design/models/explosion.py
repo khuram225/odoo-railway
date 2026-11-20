@@ -647,42 +647,30 @@ class AwDesign(models.Model):
                 'calc_worked_h': substitute_formula(rule_h, context),
                 'qty': 1,
             }
-            Part = self.env['aw.glass.part']
-            GlassType = self.env['aw.glass.type'].sudo()
-            stack = self._glass_stack_dicts(leaf)
-            if not stack:
-                # Not `missing_product`: that reports per line, and a
-                # window's glass is built once in the header, so a
-                # 6-panel design would say the same thing six times.
-                # Flagged separately and summarised once per design.
-                out.append(dict(
-                    base, product_id=False, label='%s glass' % label,
-                    missing_glass=True))
-            for part in stack:
-                variant = False
-                if part['kind'] != 'gap' and part['glass_type_id'] \
-                        and part['thickness_mm']:
-                    # The Glass Sheet variant of this type and thickness,
-                    # made on demand.
-                    variant = GlassType.browse(
-                        part['glass_type_id'])._variant_for(
-                            part['thickness_mm']).id
-                part_label = Part._label_of(part)
-                out.append(dict(
-                    base,
-                    product_id=variant or False,
-                    label='%s glass: %s' % (label, part_label),
-                    glass_part_kind=part['kind'],
-                    glass_type_id=part['glass_type_id'] or False,
-                    glass_mm=(part['gap_mm'] if part['kind'] == 'gap'
-                              else part['thickness_mm']),
-                    glass_label=part_label,
-                    glass_remark=part['remark'],
-                    glass_spacer=part['spacer_type'],
-                    glass_gas=part['gas'],
-                    glass_extra_id=part['extra_id'] or False,
-                    glass_manual_rate=part['manual_rate'],
-                    rate_is_manual=part['rate_manual']))
+            product = self._glass_product_for(leaf)
+            line = dict(base)
+            if leaf.glass_size_manual and leaf.glass_w_mm > 0 \
+                    and leaf.glass_h_mm > 0:
+                # typed for this panel: a decision, not a rule
+                line.update(
+                    glass_w=leaf.glass_w_mm, glass_h=leaf.glass_h_mm,
+                    calc_rule='', calc_rule_h='',
+                    calc_source=_('Typed on the panel'),
+                    calc_worked='', calc_worked_h='')
+            remark = self._glass_remark_for(leaf)
+            out.append(dict(
+                line,
+                product_id=product.id or False,
+                label='%s glass: %s' % (label, product.display_name or '-'),
+                glass_part_kind='unit',
+                glass_label=product.display_name or '',
+                glass_remark=remark or '',
+                glass_manual_rate=leaf.glass_manual_rate,
+                rate_is_manual=leaf.glass_rate_manual,
+                # Not `missing_product`: that reports per line. Flagged
+                # separately so Checks can say "choose a glass product"
+                # once per panel.
+                missing_glass=not product))
 
         if leaf.grid_pattern_id:
             out.extend(self._attachment_lines(
@@ -1171,13 +1159,7 @@ class AwDesign(models.Model):
                 h=round(values.get('glass_h') or 0.0)),
                 self._target('glass', panel_no)))
 
-        # Glass is chosen once, so it is reported once -- naming the two
-        # places it can be set, since "no product for P1 glass" told the
-        # reader what was wrong but not where to fix it.
-        if any(v.get('missing_glass') for v in (exploded or [])):
-            problems.append(('warning', _(
-                "No glass for %s — build the glass stack in the header, "
-                "or on the panel.", self.display_name)))
+        problems.extend(self._glass_choose_problems(exploded))
 
         problems.extend(self._glass_extra_problems())
 

@@ -54,9 +54,7 @@ class TestConfiguratorRoundTrip(TransactionCase):
         """The core property: load, save the payload back untouched, and
         nothing about the header moves."""
         self.design.manual_rate = 123.45
-        self.design.glass_part_ids = [(5, 0, 0)] + self.env[
-            'aw.glass.part']._commands_from([
-                {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 6.0}])
+        self.design.glass_product_id = self._glass_unit()
 
         data = self.design.get_configurator_data()
         before = self._header_snapshot()
@@ -68,6 +66,9 @@ class TestConfiguratorRoundTrip(TransactionCase):
         self.assertEqual(
             self._header_snapshot(), before,
             "Saving the configurator payload unchanged altered the header.")
+        self.assertEqual(
+            self.design.glass_product_id, self._glass_unit(),
+            "Saving the payload unchanged altered the window's glass.")
 
     def test_header_field_missing_from_payload_is_not_blanked(self):
         """The actual failure mode: a hidden control sends nothing, and
@@ -90,16 +91,22 @@ class TestConfiguratorRoundTrip(TransactionCase):
 
     def test_explicit_clear_still_clears(self):
         """The other half: a real 'no glass' choice must still be possible
-        -- sending an empty window stack clears it."""
-        self.design.glass_part_ids = [(5, 0, 0)] + self.env[
-            'aw.glass.part']._commands_from([
-                {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 6.0}])
-        self.assertTrue(self.design.glass_part_ids)
+        -- sending an empty window glass clears it."""
+        self.design.glass_product_id = self._glass_unit()
+        self.assertTrue(self.design.glass_product_id)
 
         data = self.design.get_configurator_data()
-        header = dict(data['header'], glass_stack=[])
+        header = dict(data['header'], glass_product_id=False)
         self.design.save_layout({'header': header, 'rows': data['rows']})
 
         self.assertFalse(
-            self.design.glass_part_ids,
-            "Clearing the glass stack from the header did not take effect.")
+            self.design.glass_product_id,
+            "Clearing the window glass from the header did not take effect.")
+
+    def _glass_unit(self):
+        Product = self.env['product.product']
+        found = Product.search([('name', '=', 'Roundtrip glass unit')], limit=1)
+        return found or Product.create({
+            'name': 'Roundtrip glass unit',
+            'categ_id': self.env.ref(
+                'aw_fenestration_core.product_category_glass').id})

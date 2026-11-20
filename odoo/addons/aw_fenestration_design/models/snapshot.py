@@ -101,12 +101,25 @@ class AwDesign(models.Model):
                 (p.leaf_id.panel_no or 0, p.sequence, p.kind,
                  p.glass_type_id.id, p.thickness_mm, p.gap_mm)
                 for p in edited)
+        # The glass PRODUCT counts once it is no longer the migration's:
+        # a window or panel that still carries its old stack keeps the
+        # fingerprint it had, for the same reason as above.
+        unit = []
+        if self.glass_product_id and not self.glass_part_ids:
+            unit.append((0, self.glass_product_id.id))
+        for leaf in self._all_panels():
+            if leaf.glass_product_id and not leaf.glass_part_ids:
+                unit.append((leaf.panel_no or 0, leaf.glass_product_id.id,
+                             leaf.glass_size_manual, leaf.glass_w_mm,
+                             leaf.glass_h_mm))
+        if unit:
+            payload['glass_unit'] = sorted(unit)
         # sort_keys so an unrelated dict ordering change can never look
         # like a layout change.
         blob = json.dumps(payload, sort_keys=True, separators=(',', ':'))
         return hashlib.sha256(blob.encode('utf-8')).hexdigest()
 
-    @api.depends('width_mm', 'height_mm', 'glass_part_ids',
+    @api.depends('width_mm', 'height_mm', 'glass_part_ids', 'glass_product_id',
                  'elevation_hash',
                  'elevation_svg',
                  'row_ids.height_mm', 'row_ids.leaf_ids.width_mm',
@@ -118,7 +131,11 @@ class AwDesign(models.Model):
                  'row_ids.leaf_ids.mesh_cassette_side',
                  'row_ids.leaf_ids.infill_type_id',
                  'row_ids.leaf_ids.grid_pattern_id',
-                 'row_ids.leaf_ids.glass_part_ids')
+                 'row_ids.leaf_ids.glass_part_ids',
+                 'row_ids.leaf_ids.glass_product_id',
+                 'row_ids.leaf_ids.glass_size_manual',
+                 'row_ids.leaf_ids.glass_w_mm',
+                 'row_ids.leaf_ids.glass_h_mm')
     def _compute_elevation_is_current(self):
         for design in self:
             design.elevation_is_current = bool(

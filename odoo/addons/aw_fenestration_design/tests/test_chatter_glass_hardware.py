@@ -89,33 +89,37 @@ class TestChatterGlassHardware(TransactionCase):
 
     # -- glass ---------------------------------------------------------------------------
     def test_the_window_default_and_a_panels_glass_are_logged(self):
+        Product = self.env['product.product']
+        category = self.env.ref('aw_fenestration_core.product_category_glass')
+        unit = Product.create({'name': 'Chatter unit 6+12+6', 'categ_id': category.id})
+        thick = Product.create({'name': 'Chatter unit 8+8+8', 'categ_id': category.id})
+
         def window(data):
-            data['header']['glass_stack'] = [
-                {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 6.0},
-                {'kind': 'gap', 'gap_mm': 12.0, 'spacer_type': 'Aluminium',
-                 'spacer_colour': 'Silver', 'gas': 'Air'},
-                {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 6.0}]
+            data['header']['glass_product_id'] = unit.id
         self._save(window)
         text = self._text(self._last())
-        self.assertIn('Window glass: added 6 mm Clear', text)
+        self.assertIn('Window glass: added Chatter unit 6+12+6', text)
 
         def panel(data):
-            data['rows'][0]['leaves'][1]['glass_chosen'] = True
-            data['rows'][0]['leaves'][1]['glass_parts'] = [
-                {'kind': 'sheet', 'glass_type': 'Clear', 'thickness_mm': 8.0,
-                 'rate_manual': True, 'manual_rate': 55.0}]
+            leaf = data['rows'][0]['leaves'][1]
+            leaf['glass_chosen'] = True
+            leaf['glass_product_id'] = thick.id
+            leaf['glass_rate_manual'] = True
+            leaf['glass_manual_rate'] = 55.0
         self._save(panel)
         text = self._text(self._last())
-        self.assertIn('Panel 2 glass: added 8 mm Clear', text)
+        self.assertIn('Panel 2 glass: added Chatter unit 8+8+8', text)
 
         def change(data):
-            data['rows'][0]['leaves'][1]['glass_chosen'] = True
-            part = data['rows'][0]['leaves'][1]['glass_parts'][0]
-            part.update(thickness_mm=10.0, rate_manual=False, manual_rate=0.0)
+            leaf = data['rows'][0]['leaves'][1]
+            leaf['glass_chosen'] = True
+            leaf['glass_product_id'] = unit.id
+            leaf['glass_rate_manual'] = False
+            leaf['glass_manual_rate'] = 0.0
         self._save(change)
         text = self._text(self._last())
-        self.assertIn('8 mm Clear → 10 mm Clear', text)
-        self.assertIn('rate reset to the list rate', text)
+        self.assertIn('Chatter unit 8+8+8 → Chatter unit 6+12+6', text)
+        self.assertIn('rate reset to the', text)
 
     def test_the_price_is_not_logged(self):
         self._save(lambda d: d['rows'][0]['leaves'][0].update(hardware=[self._row()]))

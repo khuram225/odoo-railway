@@ -16,6 +16,11 @@
             <xpath expr="//page[@name='general_information']/group" position="before">
                 <field name="aw_priced_by_rates" invisible="1"/>
                 <field name="aw_is_mesh_cloth" invisible="1"/>
+                <field name="aw_is_glass_unit" invisible="1"/>
+                <group string="Glass rate" invisible="not aw_is_glass_unit">
+                    <field name="aw_glass_latest_rate"/>
+                    <field name="aw_glass_latest_rate_date"/>
+                </group>
             </xpath>
             <xpath expr="//span[@name='sale_option']" position="attributes">
                 <attribute name="invisible">aw_priced_by_rates or aw_is_mesh_cloth</attribute>

@@ -27,7 +27,6 @@ import re
 
 from odoo import api, models
 
-from .glass_recipes import recipe_for_spec
 
 WET_WORDS = 'aw_fenestration.glass_wet_words'
 DEFAULT_WET_WORDS = 'BATH, POWDER, TOILET, WC, WASHROOM'
@@ -86,38 +85,3 @@ class AwDesign(models.Model):
         if area_m2 >= small:
             return CLEAR_6_10_8
         return ''
-
-    def _suggest_glass(self):
-        """Fill the glass of panels that have none; see the module note."""
-        for design in self:
-            if not (design.suggest_glass
-                    and design.family_id.glazing == 'double'):
-                continue
-            Part = self.env['aw.glass.part']
-            default = Part._signature(design._glass_stack_dicts())
-            for leaf in design._all_panels():
-                if leaf.leaf_type_id.code == 'MESH' or (
-                        leaf.infill_type_id
-                        and not leaf.infill_type_id.uses_glass):
-                    continue
-                if leaf.glass_chosen or (
-                        leaf.glass_part_ids and not leaf.glass_suggested):
-                    continue          # chosen by hand: never replaced
-                pick = design._suggested_glass_for(leaf)
-                items = []
-                if pick:
-                    recipe = recipe_for_spec(pick, priced=True)
-                    items = [dict(design._recipe_dict(p), migrated=False,
-                                  rate_manual=False)
-                             for p in (recipe or [])]
-                if items and Part._signature(items) != default:
-                    values = {'glass_part_ids': [(5, 0, 0)]
-                              + Part._commands_from(items),
-                              'glass_suggested': True}
-                else:
-                    # Nothing to suggest (or it equals the window's own
-                    # glass): a previous suggestion is withdrawn, and the
-                    # panel follows the window's stack again.
-                    values = {'glass_part_ids': [(5, 0, 0)],
-                              'glass_suggested': False}
-                leaf.write(values)

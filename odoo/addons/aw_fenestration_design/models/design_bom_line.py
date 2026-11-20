@@ -109,7 +109,8 @@ class AwDesignBomLine(models.Model):
              "drawing beside the line.")
     # One glass line per part of the panel's stack (Sheet, Gap, Protector).
     glass_part_kind = fields.Selection([
-        ('sheet', 'Sheet'), ('gap', 'Gap'), ('protector', 'Protector')])
+        ('sheet', 'Sheet'), ('gap', 'Gap'), ('protector', 'Protector'),
+        ('unit', 'Glass product')])
     glass_type_id = fields.Many2one('aw.glass.type', ondelete='restrict')
     glass_mm = fields.Float(string='Glass / gap (mm)')
     glass_label = fields.Char(string='Glass part')

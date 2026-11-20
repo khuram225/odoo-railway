@@ -220,6 +220,33 @@ class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
     aw_is_glass_sheet = fields.Boolean(compute='_compute_aw_is_glass_sheet')
+    aw_is_glass_unit = fields.Boolean(
+        compute='_compute_aw_is_glass_unit',
+        help="A glass product other than the Glass Sheet: a finished unit "
+             "(sealed unit, toughened, frosted...) defined in Inventory, "
+             "priced per sqft by the latest rate typed here.")
+    aw_glass_latest_rate = fields.Float(
+        string='Latest rate / sqft', digits='Product Price',
+        help="What this glass costs per sqft, as last typed. Costing uses "
+             "the newer of this and the glass vendor's list rate (a Glass "
+             "Sheet variant has one).")
+    aw_glass_latest_rate_date = fields.Date(
+        string='Latest rate of',
+        help="The day the latest rate holds from. Without a date it counts "
+             "as older than any vendor rate.")
+
+    @api.depends('categ_id')
+    def _compute_aw_is_glass_unit(self):
+        category = self.env.ref(
+            'aw_fenestration_core.product_category_glass',
+            raise_if_not_found=False)
+        sheet = self.env['aw.glass.type']._glass_sheet()
+        for template in self:
+            path = template.categ_id.parent_path or ''
+            template.aw_is_glass_unit = bool(
+                category and category.parent_path
+                and path.startswith(category.parent_path)
+                and not (sheet and template == sheet))
     aw_priced_by_rates = fields.Boolean(
         compute='_compute_aw_priced_by_rates',
         help="A profile or the Glass Sheet: priced from dated vendor rates, "
