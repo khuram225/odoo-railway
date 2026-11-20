@@ -20,8 +20,6 @@ from . import glass_part
 from . import glass_unit
 from . import design_hardware
 from . import hardware_kit
-from . import cut_summary_xlsx
-from . import cut_summary
 from . import chatter_log
 from . import mesh_cloth
 from . import glass_default_stack
@@ -39,6 +37,9 @@ from . import cut_list
 from . import vendor_bar_length
 from . import cut_plan
 from . import cut_plan_purchase
+# after cut_plan: it extends aw.cut.plan, which must already exist
+from . import cut_summary_xlsx
+from . import cut_summary
 from . import purchase_order_line
 from . import product_profile_picker
 from . import po_bars_grid
