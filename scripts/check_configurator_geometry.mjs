@@ -1885,5 +1885,23 @@ console.log("\nPART C: selection, frame hardware, the drawing's unit:");
     ok(Number.isInteger(r.w) && Number.isInteger(r.h), "the drawing is sized in whole pixels");
 }
 
+console.log("\nMESH never takes the finish colour:");
+{
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [panel(600, "FIXED")] }]);
+    c.state.data.header.finish_id = 5;
+    c.state.data.finish_options = [{ id: 5, name: "Black", color: "#1e1e1e" }];
+    ok(c.meshFrameFill === "#e6eaec" && c.meshOutline !== c.meshFrameFill,
+       "the mesh is a light neutral with an outline");
+    ok(c.meshFrameFill !== c.finishFill, "and not the finish colour");
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    const strips = xml.slice(xml.indexOf('t-foreach="leaf.attach.meshStrips"'));
+    ok(strips.slice(0, 700).includes("meshFrameFill") && !strips.slice(0, 700).includes("finishFill"),
+       "the attached mesh frame uses the neutral colour");
+    ok(xml.includes("leaf.isMesh ? meshFrameFill : finishFill"),
+       "a mesh panel's frame uses it too; other panels keep the finish");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);
