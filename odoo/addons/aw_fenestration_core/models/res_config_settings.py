@@ -94,6 +94,34 @@ class ResConfigSettings(models.TransientModel):
         help="A bar's remainder at least this long is listed as "
              "'return to stock' rather than scrap.")
 
+    # Remainder rule for the LAST bar of a profile group (see the cutting
+    # plan). ir.config_parameter again: no schema change.
+    aw_waste_limit_mm = fields.Float(
+        string='Waste Limit (mm)', default=102.0,
+        config_parameter='aw_fenestration.waste_limit_mm',
+        help="A bar's leftover up to this long (4 in) is waste: nobody "
+             "would keep it.")
+    aw_keep_from_mm = fields.Float(
+        string='Keep From (mm)', default=1219.0,
+        config_parameter='aw_fenestration.keep_from_mm',
+        help="A bar's leftover at least this long (4 ft) is kept as "
+             "stock. Between the waste limit and this it is neither.")
+    aw_handy_mm = fields.Float(
+        string='Handy Leftover (mm)', default=1800.0,
+        config_parameter='aw_fenestration.handy_mm',
+        help="The leftover the last-bar rule aims for: a handy offcut.")
+    aw_last_bar_cap_ft = fields.Float(
+        string='Last-bar Extra Feet Cap (ft)', default=4.0,
+        config_parameter='aw_fenestration.last_bar_cap_ft',
+        help="The last bar of a profile group may be swapped for a bigger "
+             "one that leaves a handy offcut only when it buys at most "
+             "this many extra feet.")
+    aw_last_bar_rule = fields.Boolean(
+        string='Last-bar Rule',
+        config_parameter='aw_fenestration.last_bar_rule',
+        help="Off by default. When on, the cutting plan looks at the last "
+             "bar of each profile group.")
+
     @api.model
     def get_values(self):
         """A stored 'ftin' (the retired option) reads as inches."""
