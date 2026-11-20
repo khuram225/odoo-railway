@@ -17,6 +17,7 @@ import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 import { presetThumb } from "../preset_thumbnail/preset_thumbnail";
 import { clearUnsavedCheck, setUnsavedCheck } from "../stale_page/stale_page_logic";
 import { SizeBox } from "./size_box";
+import { HardwareKitDialog } from "./hardware_kit_dialog";
 import { Many2One } from "@web/views/fields/many2one/many2one";
 
 const MM_PER_IN = 25.4;
@@ -2633,6 +2634,129 @@ export class DesignConfigurator extends Component {
             this.state.data.hardware_products = [...this.hardwareProducts, product];
         }
         this.setHardwareProduct(index, String(product.id));
+    }
+
+    // -- hardware sets (saved lists of hardware) ----------------------------
+    // A set is COPIED onto the panel's own rows: changing or deleting it
+    // later changes nothing already on a window.
+    get hardwareKits() {
+        const kits = this.state.data?.hardware_kits || [];
+        const type = this.state.selectedFrame
+            ? false : (this.selectedPanel?.leaf_type_id || false);
+        // the panel's own type first; for the frame (or a panel with no
+        // type) the sets with no type first
+        const rank = (kit) => ((kit.leaf_type_id || false) === type ? 0 : 1);
+        return [...kits].sort(
+            (a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name));
+    }
+
+    hardwareKitLabel(kit) {
+        return kit.leaf_type_name ? `${kit.name} (${kit.leaf_type_name})` : kit.name;
+    }
+
+    get canSaveHardwareKit() {
+        return !!this.state.data?.can_edit_hardware_kits
+            && this.panelHardware.some((row) => row.product_id);
+    }
+
+    saveHardwareKit() {
+        const rows = this.panelHardware.filter((row) => row.product_id);
+        if (!rows.length) {
+            return;
+        }
+        const type = this.state.selectedFrame
+            ? false : (this.selectedPanel?.leaf_type_id || false);
+        this.dialog.add(HardwareKitDialog, {
+            rows: rows.map((row) => ({ ...row })),
+            leafTypes: this.state.data?.leaf_types || [],
+            leafTypeId: type,
+            onSave: (values) => this.createHardwareKit(rows, values),
+        });
+    }
+
+    async createHardwareKit(rows, values) {
+        try {
+            const kit = await this.orm.call(
+                "aw.hardware.kit", "create_from_rows",
+                [values.name, values.leafTypeId, rows.map((row) => ({ ...row })),
+                    values.withRates]);
+            this.state.data.hardware_kits = [
+                ...(this.state.data.hardware_kits || []), kit];
+            this.notification.add(
+                _t("Saved hardware set %s.", kit.name), { type: "success" });
+            return true;
+        } catch (error) {
+            this.notification.add(
+                error?.data?.message || _t("The set could not be saved."),
+                { type: "danger" });
+            return false;
+        }
+    }
+
+    /** The set's rows as panel rows: a rate only if it was saved with one. */
+    kitRows(kit) {
+        return kit.rows.map((row) => ({
+            product_id: row.product_id,
+            name: row.name,
+            qty: row.qty,
+            rate_manual: !!row.rate_manual,
+            manual_rate: row.rate_manual ? row.manual_rate : 0,
+            list_rate: row.list_rate || 0,
+        }));
+    }
+
+    pickHardwareKit(ev) {
+        const value = ev.target.value;
+        ev.target.value = "";
+        const holder = this.hardwareHolder;
+        const kit = this.hardwareKits.find((k) => String(k.id) === String(value));
+        if (!holder || !kit || !kit.rows.length) {
+            return;
+        }
+        const existing = (holder.hardware || []).length;
+        if (!existing) {
+            this.applyHardwareKit(kit, false);
+            return;
+        }
+        // Add is the default; closing the dialog does nothing.
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Hardware set: %s", kit.name),
+            body: _t(
+                "%s already has %s row(s). Add the set's %s row(s) to them, " +
+                    "or replace them?",
+                this.hardwareOwnerLabel, existing, kit.rows.length),
+            confirmLabel: _t("Add"),
+            confirm: () => this.applyHardwareKit(kit, false),
+            cancelLabel: _t("Replace"),
+            cancel: () => this.confirmReplaceHardware(kit, existing),
+            dismiss: () => {},
+        });
+    }
+
+    confirmReplaceHardware(kit, existing) {
+        this.dialog.add(ConfirmationDialog, {
+            title: _t("Replace the hardware?"),
+            body: _t(
+                "This removes the %s row(s) now on %s and puts the %s row(s) " +
+                    "of '%s' in their place.",
+                existing, this.hardwareOwnerLabel, kit.rows.length, kit.name),
+            confirmLabel: _t("Remove %s row(s) and replace", existing),
+            confirmClass: "btn-danger",
+            confirm: () => this.applyHardwareKit(kit, true),
+            cancelLabel: _t("Cancel"),
+            cancel: () => {},
+            dismiss: () => {},
+        });
+    }
+
+    applyHardwareKit(kit, replace) {
+        const holder = this.hardwareHolder;
+        if (!holder) {
+            return;
+        }
+        const rows = this.kitRows(kit);
+        holder.hardware = replace ? rows : [...(holder.hardware || []), ...rows];
+        this.touch();
     }
 
     copyHardwareFromPanel(ev) {

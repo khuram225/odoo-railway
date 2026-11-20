@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="aw_fenestration_design.HardwareKitDialog">
+        <Dialog size="'md'" title="'Save as set'">
+            <div class="mb-2">
+                <label class="form-label small mb-0">Name</label>
+                <input type="text" class="form-control form-control-sm"
+                       placeholder="e.g. Casement 2-hinge set"
+                       t-model="state.name"/>
+            </div>
+            <div class="mb-2">
+                <label class="form-label small mb-0">Panel type (optional)</label>
+                <select class="form-select form-select-sm" t-model="state.leafTypeId">
+                    <option value="">Any panel, and the frame</option>
+                    <option t-foreach="props.leafTypes" t-as="ptype" t-key="ptype.id"
+                            t-att-value="ptype.id" t-esc="ptype.name"/>
+                </select>
+            </div>
+            <div class="small text-muted mb-1">
+                <t t-esc="props.rows.length"/> row(s) will be saved with their quantities.
+            </div>
+            <div class="form-check mb-2">
+                <input type="checkbox" class="form-check-input" id="aw_kit_rates"
+                       t-model="state.withRates"/>
+                <label class="form-check-label" for="aw_kit_rates">Save rates</label>
+            </div>
+            <div t-if="state.withRates" class="border rounded p-2 small mb-2 o_aw_kit_rates">
+                <t t-if="typedRates.length">
+                    <div class="mb-1">These rates will be saved (flagged manual when used):</div>
+                    <div t-foreach="typedRates" t-as="row" t-key="row_index"
+                         class="d-flex justify-content-between">
+                        <span t-esc="row.name"/>
+                        <strong t-esc="row.manual_rate"/>
+                    </div>
+                </t>
+                <t t-else="">
+                    No row has a typed rate, so there is no rate to save. Rows
+                    on the product's cost follow the product's cost.
+                </t>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" t-att-disabled="!canSave"
+                        t-on-click="save">Save set</button>
+                <button class="btn btn-secondary" t-on-click="props.close">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>

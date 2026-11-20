@@ -178,6 +178,7 @@ const _t = (s) => s;
 const setUnsavedCheck = () => {};
 const clearUnsavedCheck = () => {};
 const ConfirmationDialog = class {};
+const HardwareKitDialog = class {};
 // Imported from ../preset_thumbnail in the real bundle; stubbed so the
 // harness mirrors production instead of failing where production works.
 const presetThumb = () => ({ viewBox: "0 0 58 42", frame: { W: 58, H: 42 }, rects: [] });
