@@ -94,11 +94,12 @@ class TestGlassStack(TransactionCase):
     def test_one_panel_can_differ_and_the_others_do_not(self):
         self.design.glass_product_id = self.unit
         self.leaves[0].glass_product_id = self.other
-        first = self._lines(self.leaves[0].panel_no)
-        second = self._lines(self.leaves[1].panel_no)
-        self.assertEqual(first.product_id, self.other)
-        self.assertEqual(second.product_id, self.unit)
-        self.assertEqual(len(first), 1, "one glass line per panel")
+        # read each line before the next explosion replaces the records
+        lines = self._lines()
+        by_panel = {l.panel_no: l.product_id for l in lines}
+        self.assertEqual(len(lines), 2, "one glass line per panel")
+        self.assertEqual(by_panel[self.leaves[0].panel_no], self.other)
+        self.assertEqual(by_panel[self.leaves[1].panel_no], self.unit)
 
     def test_a_new_window_starts_from_the_spec_default(self):
         spec = self.design.template_id
