@@ -151,7 +151,7 @@ class AwDesign(models.Model):
         today = fields.Date.context_today(self)
         vendor = self._glass_vendor()
         products = self.env['product.product'].search(
-            _glass_domain(self), order='display_name')
+            _glass_domain(self), order='name')
         out = []
         for product in products:
             rate, date, source = self._glass_unit_rate(product, today, vendor)
