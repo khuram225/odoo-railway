@@ -17,6 +17,7 @@ from . import cut_reopen_wizard
 from . import design_preset_wizard
 from . import family
 from . import glass_part
+from . import glass_unit
 from . import design_hardware
 from . import chatter_log
 from . import mesh_cloth

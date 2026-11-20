@@ -29,19 +29,35 @@ class AwDesign(models.Model):
         panels = {}
         for leaf in self._all_panels():
             panels[leaf.panel_no or 0] = {
-                'glass': [p._as_dict()
-                          for p in leaf.glass_part_ids.sorted('sequence')],
+                'glass': [self._glass_unit_dict(leaf)]
+                if leaf.glass_product_id else [],
                 'hardware': [h._as_dict()
                              for h in leaf.hardware_ids.sorted('sequence')],
             }
         return {
-            'window': [p._as_dict()
-                       for p in self.glass_part_ids.sorted('sequence')],
+            'window': [self._glass_unit_dict(self)]
+            if self.glass_product_id else [],
             'panels': panels,
+        }
+
+    @staticmethod
+    def _glass_unit_dict(owner):
+        """A window's or a panel's glass choice, as the log compares it."""
+        manual_size = bool(getattr(owner, 'glass_size_manual', False))
+        return {
+            'kind': 'unit',
+            'product_id': owner.glass_product_id.id,
+            'name': owner.glass_product_id.display_name or '',
+            'size': ('%g x %g mm' % (owner.glass_w_mm, owner.glass_h_mm)
+                     if manual_size else ''),
+            'rate_manual': bool(getattr(owner, 'glass_rate_manual', False)),
+            'manual_rate': getattr(owner, 'glass_manual_rate', 0.0),
         }
 
     # -- the words -------------------------------------------------------------------
     def _glass_text(self, item):
+        if item.get('kind') == 'unit':
+            return '%s (%s)' % (item['name'], item['size'])                 if item.get('size') else item['name']
         label = self.env['aw.glass.part']._label_of(item)
         if item.get('kind') == 'gap':
             extras = [x for x in (item.get('spacer_type'),

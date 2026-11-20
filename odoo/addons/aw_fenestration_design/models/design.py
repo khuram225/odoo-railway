@@ -347,13 +347,11 @@ class AwDesign(models.Model):
             # field to say what it already says -- and the FINISH is the
             # design's own since phase 7e, defaulted from the order, so a
             # spec has no say in it.
-            if spec.glass_part_ids and (
-                    force or not design._has_glass_stacks()):
-                # The spec's default stack becomes the window's, copied.
-                design.glass_part_ids = [(5, 0, 0)] + self.env[
-                    'aw.glass.part']._commands_from(
-                        [p._as_dict() for p in spec.glass_part_ids.sorted(
-                            'sequence')])
+            if force:
+                # Picking a spec means taking its glass: the window follows
+                # the spec's default again.
+                design.glass_product_id = False
+                design.glass_choose = False
 
     def _resolve_spec(self):
         """Give a design without a spec its system's default one.
@@ -788,11 +786,20 @@ class AwDesign(models.Model):
                 'infill_uses_glass': (
                     leaf.infill_type_id.uses_glass
                     if leaf.infill_type_id else True),
-                # The panel's OWN stack; empty means it follows the
-                # window's.
-                'glass_parts': self._glass_stack_client(
-                    [p._as_dict() for p in leaf.glass_part_ids.sorted(
-                        'sequence')]),
+                # The panel's OWN glass product; empty means it follows
+                # the window's. The size the rules give it is what the
+                # last explosion made (0 while typed or before one).
+                'glass_product_id': leaf.glass_product_id.id or False,
+                'glass_product_name': leaf.glass_product_id.display_name or '',
+                'glass_remark': leaf.glass_remark or '',
+                'glass_choose': leaf.glass_choose,
+                'glass_size_manual': leaf.glass_size_manual,
+                'glass_w_mm': leaf.glass_w_mm,
+                'glass_h_mm': leaf.glass_h_mm,
+                'glass_rule_w': leaf._glass_rule_size()[0],
+                'glass_rule_h': leaf._glass_rule_size()[1],
+                'glass_rate_manual': leaf.glass_rate_manual,
+                'glass_manual_rate': leaf.glass_manual_rate,
                 'glass_suggested': leaf.glass_suggested,
                 'glass_chosen': leaf.glass_chosen,
                 # The panel's OWN hardware; empty means it follows the
@@ -1227,9 +1234,9 @@ class AwDesign(models.Model):
             # components added to the window (below). The glass and
             # panel rules are the system's own, which is what the
             # window was being cut to (see _deduction_rules).
-            if not self._glass_stack_dicts():
+            if not self._glass_product_for():
                 raise UserError(_(
-                    "Build a glass for this window first: a specification "
+                    "Choose a glass for this window first: a specification "
                     "needs one."))
             rules = ('glass_fixed_w', 'glass_fixed_h', 'glass_sash_w',
                      'glass_sash_h', 'mesh_w', 'mesh_h', 'max_panel_w',
@@ -1238,8 +1245,7 @@ class AwDesign(models.Model):
                 {f: system[f] for f in rules},
                 name=name,
                 window_type_id=system.id,
-                glass_part_ids=self.env['aw.glass.part']._commands_from(
-                    self._glass_stack_dicts()),
+                glass_product_id=self._glass_product_for().id,
                 is_default=False,
                 notes=_("Saved from custom window %s.", self.name or '')))
         for line in spec.profile_line_ids.filtered('is_used'):
@@ -1334,7 +1340,9 @@ class AwDesign(models.Model):
                 'family_sequence': (
                     i.family_id.sequence if i.family_id else 999),
             } for i in available['infill']],
-            'glass_catalog': self._glass_catalog(),
+            'glass_products': self._glass_products_payload(),
+            'glass_category_id': self.env.ref(
+                'aw_fenestration_core.product_category_glass').id,
             'hardware_products': self.env['aw.design.hardware']
             ._product_catalogue(),
             'hardware_category_id': self.env['aw.design.hardware']
@@ -1427,9 +1435,16 @@ class AwDesign(models.Model):
                 'height_mm': self.height_mm,
                 'window_series_id': series.id,
                 'window_series_name': series.display_name or '',
-                # The window's default glass stack, which new panels copy.
-                'glass_stack': self._glass_stack_client(
-                    self._glass_stack_dicts()),
+                # The window's glass product (panels follow it), and what
+                # it falls back to: the spec's.
+                'glass_product_id': self.glass_product_id.id or False,
+                'glass_product_name': self.glass_product_id.display_name or '',
+                'glass_remark': self.glass_remark or '',
+                'glass_choose': self.glass_choose,
+                'glass_spec_product_id':
+                    self.template_id.glass_product_id.id or False,
+                'glass_spec_product_name':
+                    self.template_id.glass_product_id.display_name or '',
                 # The frame's own hardware (empty: it follows the spec).
                 'hardware': [h._as_dict() for h in
                              self.frame_hardware_ids.sorted('sequence')],
@@ -1750,11 +1765,22 @@ class AwDesign(models.Model):
                         float(leaf.get('mesh_manual_rate') or 0.0)
                         if leaf.get('mesh_rate_manual') else 0.0),
                     'infill_type_id': leaf.get('infill_type_id') or False,
-                    'glass_part_ids': self.env['aw.glass.part']
-                    ._commands_from(leaf.get('glass_parts') or []),
+                    'glass_product_id': leaf.get('glass_product_id') or False,
+                    'glass_remark': leaf.get('glass_remark') or False,
+                    'glass_choose': bool(leaf.get('glass_choose'))
+                    and not leaf.get('glass_product_id'),
+                    'glass_size_manual': bool(leaf.get('glass_size_manual')),
+                    'glass_w_mm': float(leaf.get('glass_w_mm') or 0.0)
+                    if leaf.get('glass_size_manual') else 0.0,
+                    'glass_h_mm': float(leaf.get('glass_h_mm') or 0.0)
+                    if leaf.get('glass_size_manual') else 0.0,
+                    'glass_rate_manual': bool(leaf.get('glass_rate_manual')),
+                    'glass_manual_rate': (
+                        float(leaf.get('glass_manual_rate') or 0.0)
+                        if leaf.get('glass_rate_manual') else 0.0),
                     'glass_suggested': bool(
                         leaf.get('glass_suggested')
-                        and leaf.get('glass_parts')),
+                        and leaf.get('glass_product_id')),
                     'glass_chosen': bool(leaf.get('glass_chosen')),
                     'hardware_ids': self.env['aw.design.hardware']
                     ._commands_from(leaf.get('hardware') or []),
@@ -1856,10 +1882,15 @@ class AwDesign(models.Model):
             header.pop(key, None)
         if header:
             self.write(header)
-        if 'glass_stack' in incoming:
-            # The window's default glass stack, replaced whole.
-            self.glass_part_ids = [(5, 0, 0)] + self.env[
-                'aw.glass.part']._commands_from(incoming['glass_stack'] or [])
+        if 'glass_product_id' in incoming:
+            # The window's glass: a product, or none (the spec's).
+            self.glass_part_ids = [(5, 0, 0)]      # the old stack goes
+            self.write({
+                'glass_product_id': incoming['glass_product_id'] or False,
+                'glass_remark': incoming.get('glass_remark') or False,
+                'glass_choose': bool(incoming.get('glass_choose'))
+                and not incoming['glass_product_id'],
+            })
         if 'hardware' in incoming:
             # The frame's own hardware, replaced whole; not sent, not touched.
             self.frame_hardware_ids = [(5, 0, 0)] + self.env[
@@ -2051,9 +2082,9 @@ class AwDesign(models.Model):
             'thickness_id': self.thickness_id.id,
             'manual_rate': self.manual_rate,
         })
-        copy.glass_part_ids = [(5, 0, 0)] + self.env[
-            'aw.glass.part']._commands_from(
-                [p._as_dict() for p in self.glass_part_ids.sorted('sequence')])
+        copy.write({'glass_product_id': self.glass_product_id.id,
+                    'glass_remark': self.glass_remark,
+                    'glass_choose': self.glass_choose})
         copy.frame_hardware_ids = [(5, 0, 0)] + self.env[
             'aw.design.hardware']._commands_from(
                 [h._as_dict() for h in

@@ -914,6 +914,36 @@ the next upgrade. The seeded "Double Glaze - Openable" spec gets its default
 stack from the design module (`glass_default_stack.py`), found through the
 `aw_fenestration.spec_dg_openable_id` parameter because it is renamed 'RE'.
 
+## Glass: one product per panel (G1)
+
+**This supersedes "Glass stacks" above for everything that is priced; that section describes the
+tables G2 will remove.** A panel is glazed with ONE glass product (`aw.design.leaf.glass_product_id`):
+a finished unit defined in Inventory under Fenestration / Glass (sealed, toughened, frosted: the
+treatment is in its name and price) or a Glass Sheet variant. Which: the panel's own, else the
+window's (`aw.design.glass_product_id`), else the spec's default (`aw.window.template.glass_product_id`),
+resolved by `aw.design._glass_product_for(leaf)`. A panel flagged `glass_choose` (and a window flagged
+the same) does NOT follow: it was a sealed unit or a protector, no product was invented for it, and
+Checks says "Panel N: choose a glass product" (`_glass_choose_problems`, one per panel).
+
+**Rate per sqft** (`_glass_unit_rate`, used by `_cost_glass_unit`): the NEWER of the glass vendor's
+list rate (a Glass Sheet variant has one: `aw.glass.rate`, the 61 Ghani rates are not re-keyed) and the
+product's `aw_glass_latest_rate` / `aw_glass_latest_rate_date` (typed on the product form; a tie goes to
+the typed one; dated after the day costed it is not in force; no date counts as oldest). A rate typed on
+the panel (`glass_rate_manual` / `glass_manual_rate`) overrides both and is an info note, Reset returns
+to the list. **Size** comes from the deduction rules unless typed (`glass_size_manual`, `glass_w_mm`,
+`glass_h_mm`; both must be above 0 or the rule is used); `calc_source` says "Typed on the panel".
+The BOM has one glass line per panel (`glass_part_kind = 'unit'`).
+
+Suggestions (Lake City schedule) now pick a product BY NAME (`_glass_product_named`): the rule still
+yields '6+10+8 Clear Tempered' and so on, and a product of that name in Fenestration / Glass is used;
+none is created. The thresholds are untouched. The configurator has no "Apply to all panels"; the
+window's product sits in the top bar, the panel has product, size, rate, Follow the window and Copy from
+panel. `_migrate_glass_products` (registry hook, once, parameter `aw_fenestration.glass_products_migrated`)
+moved single sheets to their Glass Sheet variant (only an existing variant: none is made during an
+upgrade), carrying a typed rate and the remark, and flagged everything else `glass_choose`. Nothing
+was deleted: `aw.glass.part` and its rows stay until G2, and are no longer read by costing. The gap
+warning (`_glass_extra_problems`) can no longer fire (no gap line is built) and goes with G2.
+
 ## Hardware per panel
 
 A panel's own hardware is `aw.design.hardware` (product in Fenestration /

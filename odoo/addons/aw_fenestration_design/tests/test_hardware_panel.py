@@ -218,6 +218,9 @@ class TestHardwarePerPanel(TransactionCase):
                 'glass_fixed_w', 'glass_fixed_h', 'glass_sash_w',
                 'glass_sash_h', 'mesh_w', 'mesh_h')})
         self._set(self.leaf_a, [self._row(1)])
+        self.design.glass_product_id = self.env['product.product'].create({
+            'name': 'Zero glass unit',
+            'categ_id': self.env.ref('aw_fenestration_core.product_category_glass').id})
         self.design._explode()
         check = self._checks('glass size is 0')[:1]
         self.assertEqual((check.target_kind, check.panel_no),

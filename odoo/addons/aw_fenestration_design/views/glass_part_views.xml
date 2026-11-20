@@ -36,4 +36,16 @@
         <field name="domain">[('remark', '!=', False), ('leaf_id', '!=', False)]</field>
     </record>
 
+    <!-- The glass a window of this spec starts with: one glass product. -->
+    <record id="view_aw_window_template_form_glass" model="ir.ui.view">
+        <field name="name">aw.window.template.form.glass</field>
+        <field name="model">aw.window.template</field>
+        <field name="inherit_id" ref="aw_fenestration_core.view_aw_window_template_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='default_vendor_id']" position="after">
+                <field name="glass_product_id" options="{'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>

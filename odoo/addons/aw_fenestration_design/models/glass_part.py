@@ -356,14 +356,3 @@ class AwDesign(models.Model):
         self.ensure_one()
         return (self.sale_order_id.aw_glass_vendor_id
                 or self.env['aw.glass.type']._default_glass_vendor())
-
-    def _glass_stack_text(self, leaf=None):
-        """Stack summary plus any remarks, as printed on a quote or a
-        shop drawing: a frosted glass is never printed as plain Clear."""
-        self.ensure_one()
-        Part = self.env['aw.glass.part']
-        items = self._glass_stack_dicts(leaf)
-        text = Part._summary_of(items)
-        remarks = Part._remarks_of(items)
-        return '%s (%s)' % (text, '; '.join(remarks)) if remarks and text \
-            else text

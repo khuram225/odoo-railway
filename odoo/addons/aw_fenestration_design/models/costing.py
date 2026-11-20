@@ -290,6 +290,33 @@ class AwDesign(models.Model):
                     self._target('glass', panel)))
         return problems
 
+    def _cost_glass_unit(self, line, on_date):
+        """(rate used, rate date, note) for a panel's glass product: its
+        area in sqft times the rate. The rate is the newer of the glass
+        vendor's list rate and the latest rate typed on the product, unless
+        a rate was typed for this panel (flagged manual). A panel with no
+        product costs nothing here: Checks asks for one."""
+        product = line.product_id
+        if not product:
+            line.rate_list = 0.0
+            line.line_cost = 0.0
+            return 0.0, False, ''
+        label = product.display_name or _('glass')
+        area_sqft = (line.area_sqm or 0.0) * SQFT_PER_SQM
+        listed, rate_date, _source = self._glass_unit_rate(
+            product, on_date, self._glass_vendor())
+        used = line.glass_manual_rate if line.rate_is_manual else listed
+        line.rate_list = listed
+        line.line_cost = used * area_sqft
+        if line.rate_is_manual:
+            note = _("%(label)s: manual rate %(used)g (list rate %(listed)g)",
+                     label=label, used=used, listed=listed)
+        elif not listed:
+            note = _("%s: no rate", label)
+        else:
+            note = ''
+        return used, rate_date, note
+
     def _cost_glass_line(self, line, on_date):
         """(rate used, rate date, note) for one row of a panel's glass
         stack, and the line's cost.
@@ -302,6 +329,8 @@ class AwDesign(models.Model):
         gas it costs nothing and says nothing, because a missing price
         there is expected until the supplier gives one.
         """
+        if line.glass_part_kind == 'unit':
+            return self._cost_glass_unit(line, on_date)
         Extra = self.env['aw.glass.extra']
         vendor = self._glass_vendor()
         label = line.glass_label or _('glass')
@@ -581,7 +610,7 @@ class AwDesign(models.Model):
                 feet += (line.length_mm or 0.0) * (line.qty or 0) / 304.8
             elif line.kind == 'glass':
                 glass += line.line_cost
-                if line.glass_part_kind in ('sheet', 'protector'):
+                if line.glass_part_kind in ('sheet', 'protector', 'unit'):
                     glass_sqft += (line.area_sqm or 0.0) * SQFT_PER_SQM
             elif line.kind == 'mesh':
                 if line.glass_w or line.glass_h:
