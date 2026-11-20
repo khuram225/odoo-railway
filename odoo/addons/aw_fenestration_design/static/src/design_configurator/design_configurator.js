@@ -2738,6 +2738,16 @@ export class DesignConfigurator extends Component {
             ? this.currentFinish.color : "#8a9095";
     }
 
+    /** A fly screen or mesh panel never takes the finish: a light neutral
+     * with a dark outline, so it shows against a black or brown frame. */
+    get meshFrameFill() {
+        return "#e6eaec";
+    }
+
+    get meshOutline() {
+        return "#4a5358";
+    }
+
     get finishStroke() {
         const hex = this.finishFill.slice(1);
         const full = hex.length === 3

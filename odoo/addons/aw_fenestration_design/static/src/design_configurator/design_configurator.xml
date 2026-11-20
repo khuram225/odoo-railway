@@ -583,13 +583,14 @@
                                         <rect t-att-x="leaf.x" t-att-y="leaf.y"
                                               t-att-width="leaf.w" t-att-height="leaf.h"
                                               class="o_aw_hair"
-                                              t-att-fill="finishFill" fill-opacity="0.9"
-                                              t-att-stroke="finishStroke" stroke-width="0.7"/>
+                                              t-att-fill="leaf.isMesh ? meshFrameFill : finishFill"
+                                              t-att-fill-opacity="leaf.isMesh ? 1 : 0.9"
+                                              t-att-stroke="leaf.isMesh ? meshOutline : finishStroke" stroke-width="0.7"/>
                                         <rect t-att-x="leaf.glassX" t-att-y="leaf.glassY"
                                               t-att-width="leaf.glassW" t-att-height="leaf.glassH"
                                               t-att-fill="leaf.isMesh ? 'url(#aw_mesh)' : '#c3dce3'"
                                               class="o_aw_hair"
-                                              stroke="#9dbfc9" stroke-width="0.6"/>
+                                              t-att-stroke="leaf.isMesh ? meshOutline : '#9dbfc9'" stroke-width="0.6"/>
 
                                         <path t-if="leaf.glyph.arrow" t-att-d="leaf.glyph.arrow"
                                               stroke="#4a5358" fill="none"
@@ -680,8 +681,8 @@
                                                 <rect t-att-x="strip.x" t-att-y="strip.y"
                                                       t-att-width="strip.w" t-att-height="strip.h"
                                                       class="o_aw_hair"
-                                                      t-att-fill="finishFill" t-att-stroke="finishStroke"
-                                                      stroke-width="0.6"/>
+                                                      t-att-fill="meshFrameFill" t-att-stroke="meshOutline"
+                                                      stroke-width="0.8"/>
                                                 <rect t-att-x="strip.x" t-att-y="strip.y"
                                                       t-att-width="strip.w" t-att-height="strip.h"
                                                       fill="url(#aw_mesh)" fill-opacity="0.6"

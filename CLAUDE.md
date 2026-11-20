@@ -639,6 +639,8 @@ once, never over a colour somebody chose). Sharpness: the drawing is sized in wh
 its static strokes (`.o_aw_hair`) are `vector-effect: non-scaling-stroke`; adornment strokes stay in
 viewBox units.
 
+**Mesh is never painted in the finish colour.** A mesh panel and an attached fly screen (frame and cloth) use `meshFrameFill` (a light neutral) with `meshOutline`, so they show against a black or brown frame; the frame, dividers and sash keep the finish colour.
+
 **"Invalid controller to restore" (`static/src/stale_page/`).** Odoo raises `ControllerNotFoundError`
 when a breadcrumb or `soft_reload` asks for a page that is no longer in its stack (a stack rebuilt
 from the address, a page replaced behind a screen still open). Not a stale tab after a deploy: the
