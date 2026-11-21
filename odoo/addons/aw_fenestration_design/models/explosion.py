@@ -980,6 +980,7 @@ class AwDesign(models.Model):
 
         sequence = 0
         ordinal = {}
+        adjustments = self._piece_adjustments()
         for unit in range(1, multiplier + 1):
             for index, values in enumerate(profiles, start=1):
                 sequence += 10
@@ -996,9 +997,22 @@ class AwDesign(models.Model):
                 key = (values.get('template_line_id'),
                        values.get('panel_no') or 0, unit)
                 ordinal[key] = ordinal.get(key, 0) + 1
+                piece_key = '%s|%s|%s|%s' % (key + (ordinal[key],))
+                # Rule length, then this piece's own adjustment (or the
+                # series default), after the rule and before anything typed
+                # on the piece, which is applied further down and wins.
+                length = values.get('length_mm') or 0.0
+                if not values.get('cut_on_site'):
+                    shift = adjustments.get(piece_key)
+                    if shift is None:
+                        shift = self._adjust_default_mm(
+                            values.get('template_line_id'))
+                    if shift:        # no adjustment: the rule, untouched
+                        length = max(0.0, length + shift)
                 values.update({
-                    'piece_key': '%s|%s|%s|%s' % (key + (ordinal[key],)),
-                    'computed_length_mm': values.get('length_mm') or 0.0,
+                    'piece_key': piece_key,
+                    'length_mm': length,
+                    'computed_length_mm': length,
                     'computed_product_id': values.get('product_id') or False,
                 })
                 self.env['aw.design.bom.line'].create(values)
