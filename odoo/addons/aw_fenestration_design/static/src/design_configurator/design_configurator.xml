@@ -7,7 +7,8 @@
              min-height:auto, i.e. it refuses to shrink below its content,
              which is what pushes a tall drawing past the bottom of the page
              instead of letting the canvas scroll internally. -->
-        <div class="o_aw_configurator d-flex flex-column h-100 overflow-hidden">
+        <div class="o_aw_configurator d-flex flex-column h-100 overflow-hidden"
+             t-att-class="state.phone ? 'o_aw_phone' : ''">
             <!-- The profile picture popup: ONE element, placed by
                  showProfileZoom() beside the right-hand panel, so it is
                  in the same place whichever row is hovered. -->
@@ -22,7 +23,58 @@
             <t t-else="">
                 <!-- Header -->
                 <div class="o_aw_cfg_header border-bottom bg-view p-3 flex-shrink-0">
-                    <div class="d-flex flex-wrap gap-3 align-items-end">
+                    <div class="o_aw_cfg_fields d-flex flex-wrap gap-3 align-items-end"
+                         t-att-class="state.phone and !state.phoneDetails ? 'o_aw_hdr_collapsed' : ''">
+                        <!-- Phone only: the few things a phone needs at
+                             once. Layouts opens the drawer, Details shows
+                             the rest of the header, and everything that is
+                             not a daily action sits behind the three
+                             dots. The desktop bar further down is not
+                             rendered on a phone. -->
+                        <div t-if="state.phone"
+                             class="o_aw_phone_bar d-flex align-items-center gap-2 w-100">
+                            <button type="button" class="btn btn-sm btn-light border"
+                                    t-on-click="toggleLibrary">
+                                <i class="fa fa-th-large me-1"/> Layouts
+                            </button>
+                            <button type="button" class="btn btn-sm btn-light border"
+                                    t-att-class="state.phoneDetails ? 'active' : ''"
+                                    t-on-click="togglePhoneDetails">
+                                Details
+                                <i t-att-class="state.phoneDetails ? 'fa fa-chevron-up ms-1' : 'fa fa-chevron-down ms-1'"/>
+                            </button>
+                            <div class="ms-auto d-flex align-items-center gap-1">
+                                <button class="btn btn-sm btn-light border" t-on-click="undo"
+                                        t-att-disabled="!state.canUndo" aria-label="Undo">
+                                    <i class="fa fa-undo"/>
+                                </button>
+                                <button class="btn btn-sm btn-light border" t-on-click="redo"
+                                        t-att-disabled="!state.canRedo" aria-label="Redo">
+                                    <i class="fa fa-repeat"/>
+                                </button>
+                                <button class="btn btn-sm btn-primary" t-on-click="save"
+                                        t-att-disabled="!state.dirty" aria-label="Save">
+                                    <i class="fa fa-cloud-upload"/>
+                                </button>
+                                <div class="dropdown">
+                                    <button type="button" class="btn btn-sm btn-light border"
+                                            data-bs-toggle="dropdown" aria-expanded="false"
+                                            aria-label="More actions">
+                                        <i class="fa fa-ellipsis-v"/>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><button type="button" class="dropdown-item" t-on-click="saveAsPreset">Save as Preset</button></li>
+                                        <li><button type="button" class="dropdown-item" t-on-click="duplicatePosition">Duplicate</button></li>
+                                        <li><button type="button" class="dropdown-item" t-on-click="makeCopies">Make copies</button></li>
+                                        <li><button type="button" class="dropdown-item" t-on-click="openHistory">History</button></li>
+                                        <li t-if="state.data.header.sale_order_id"><button type="button" class="dropdown-item" t-on-click="openQuotation">Quotation</button></li>
+                                        <li><button type="button" class="dropdown-item" t-on-click="printShopDrawing">Shop Drawing</button></li>
+                                        <li><hr class="dropdown-divider"/></li>
+                                        <li><button type="button" class="dropdown-item" t-on-click="discard">Close / discard changes</button></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
                         <!-- Family first: it is the question a quote
                              actually starts from. The profile system
                              below follows from the panels drawn. -->
@@ -60,7 +112,7 @@
                                    t-on-input="() => this.markDirty()"
                                    t-on-change="(ev) => this.onHeaderChange('location', ev.target.value)"/>
                         </div>
-                        <div t-if="showIn">
+                        <div t-if="showIn" class="o_aw_hdr_core">
                             <label class="form-label small text-muted mb-0">
                                 Width (in)
                             </label>
@@ -74,7 +126,7 @@
                                       onCommit="(text) => this.commitSizeBox('width_mm', 'in', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div t-if="showMm">
+                        <div t-if="showMm" class="o_aw_hdr_core">
                             <label class="form-label small text-muted mb-0">
                                 Width (mm)
                             </label>
@@ -87,7 +139,7 @@
                                       onCommit="(text) => this.commitSizeBox('width_mm', 'mm', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div t-if="showIn">
+                        <div t-if="showIn" class="o_aw_hdr_core">
                             <label class="form-label small text-muted mb-0">
                                 Height (in)
                             </label>
@@ -101,7 +153,7 @@
                                       onCommit="(text) => this.commitSizeBox('height_mm', 'in', text)"
                                       onCancel="() => this.cancelSizeBox()"/>
                         </div>
-                        <div t-if="showMm">
+                        <div t-if="showMm" class="o_aw_hdr_core">
                             <label class="form-label small text-muted mb-0">
                                 Height (mm)
                             </label>
@@ -207,7 +259,7 @@
                                 </ul>
                             </div>
                         </div>
-                        <div class="ms-auto d-flex gap-2">
+                        <div t-if="!state.phone" class="ms-auto d-flex gap-2">
                             <button class="btn btn-sm btn-secondary" t-on-click="saveAsPreset"
                                     title="Save this layout as a reusable preset">
                                 Save as Preset
@@ -257,19 +309,36 @@
                     </div>
                 </div>
 
-                <div class="d-flex flex-grow-1 overflow-hidden" style="min-height: 0;">
+                <div class="o_aw_cfg_main d-flex flex-grow-1 overflow-hidden" style="min-height: 0;">
 
-                    <!-- LEFT: preset library, collapsible -->
+                    <!-- Phone only: dims the screen behind the drawer;
+                         a tap on it closes the drawer. -->
+                    <div t-if="state.phone and state.phoneLibrary"
+                         class="o_aw_drawer_backdrop"
+                         t-on-click="closePhoneLibrary"/>
+
+                    <!-- LEFT: preset library, collapsible (a drawer on a phone) -->
                     <div class="o_aw_cfg_library border-end bg-view d-flex flex-column flex-shrink-0"
+                         t-att-class="state.phone ? (state.phoneLibrary ? 'o_aw_drawer o_aw_drawer_open' : 'o_aw_drawer') : ''"
                          t-att-style="leftPaneStyle">
-                        <button class="btn btn-sm btn-light border-0 rounded-0 text-start d-flex align-items-center gap-1 flex-shrink-0"
+                        <div t-if="state.phone"
+                             class="d-flex align-items-center justify-content-between px-3 py-2 border-bottom flex-shrink-0">
+                            <span class="fw-bold">Layouts</span>
+                            <button type="button" class="btn btn-sm btn-light border"
+                                    aria-label="Close"
+                                    t-on-click="closePhoneLibrary">
+                                <i class="fa fa-times"/>
+                            </button>
+                        </div>
+                        <button t-if="!state.phone"
+                                class="btn btn-sm btn-light border-0 rounded-0 text-start d-flex align-items-center gap-1 flex-shrink-0"
                                 t-on-click="toggleLibrary"
                                 t-att-title="state.libraryOpen ? 'Hide preset library' : 'Show preset library'">
                             <i t-att-class="state.libraryOpen ? 'fa fa-chevron-left' : 'fa fa-chevron-right'"/>
                             <span t-if="state.libraryOpen" class="small text-muted">Layouts</span>
                         </button>
 
-                        <div t-if="state.libraryOpen"
+                        <div t-if="libraryShown"
                              class="d-flex gap-1 px-2 pb-1 flex-shrink-0">
                             <button class="btn btn-sm btn-link p-0 small"
                                     t-on-click="expandAllLeft">Expand all</button>
@@ -277,7 +346,7 @@
                             <button class="btn btn-sm btn-link p-0 small"
                                     t-on-click="collapseAllLeft">Collapse all</button>
                         </div>
-                        <div t-if="state.libraryOpen" class="overflow-auto p-2" style="min-height: 0;">
+                        <div t-if="libraryShown" class="overflow-auto p-2" style="min-height: 0;">
 
                             <!-- Part 2 (revised): the family strip is gone
                                  with the families. What sat there was a
@@ -500,12 +569,12 @@
 
                     <!-- CENTER: drawing, full height -->
                     <div class="o_aw_cfg_resizer flex-shrink-0"
-                         t-if="state.libraryOpen"
+                         t-if="libraryShown and !state.phone"
                          title="Drag to resize, double-click to reset"
                          t-on-pointerdown="onLeftDragStart"
                          t-on-dblclick="onLeftDragReset"/>
 
-                    <div class="flex-grow-1 d-flex flex-column p-3" style="min-width: 0; min-height: 0;">
+                    <div class="o_aw_cfg_center flex-grow-1 d-flex flex-column p-3" style="min-width: 0; min-height: 0;">
                         <div class="o_aw_cfg_canvas_wrap position-relative flex-grow-1"
                              style="min-height: 0;">
 

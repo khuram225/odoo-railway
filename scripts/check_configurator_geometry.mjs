@@ -1991,5 +1991,126 @@ console.log("\nMESH never takes the finish colour:");
        "a mesh panel's frame uses it too; other panels keep the finish");
 }
 
+console.log("\nPHONE LAYOUT SHELL (under 768 px):");
+{
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    const scss = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.scss",
+        "utf8");
+
+    // -- the switch itself: one media query, read once and followed ----
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [panel(600, "FIXED")] }]);
+    const realWindow = globalThis.window;
+    globalThis.window = { ...realWindow };
+    ok(c.readPhone() === false, "no matchMedia (a test, an old browser) is not a phone");
+    globalThis.window.matchMedia = (q) => ({ matches: q.includes("767.98") });
+    ok(c.readPhone() === true, "a 390 px screen matches the phone query");
+    globalThis.window.matchMedia = () => ({ matches: false });
+    ok(c.readPhone() === false, "a desktop screen does not");
+    globalThis.window.matchMedia = () => { throw new Error("blocked"); };
+    ok(c.readPhone() === false, "a browser that refuses the query is not a phone");
+    globalThis.window = realWindow;
+
+    // -- desktop: exactly as it was ----------------------------------
+    c.state.paneLeft = 220;
+    c.state.paneRight = 260;
+    c.state.phone = false;
+    c.state.phoneLibrary = false;
+    c.state.libraryOpen = true;
+    ok(c.libraryShown === true, "desktop: the library column is shown when open");
+    ok(/width: \d+px/.test(c.leftPaneStyle) && /width: \d+px/.test(c.rightPaneStyle),
+       "desktop: the panes keep their pixel widths");
+    c.state.libraryOpen = false;
+    ok(c.libraryShown === false && c.leftPaneStyle.includes("2.25rem"),
+       "desktop: a closed library is the narrow bar");
+    c.toggleLibrary();
+    ok(c.state.libraryOpen === true && c.state.phoneLibrary === false,
+       "desktop: the toggle works the column, not the drawer");
+
+    // -- phone ---------------------------------------------------------
+    c.state.phone = true;
+    c.state.libraryOpen = true;           // the desktop's remembered choice
+    c.state.phoneLibrary = false;
+    ok(c.libraryShown === false, "phone: the drawer is closed whatever the desktop remembered");
+    ok(!/width/.test(c.leftPaneStyle) && !/width/.test(c.rightPaneStyle),
+       "phone: no inline pane widths (full width is the stylesheet's)");
+    c.toggleLibrary();
+    ok(c.state.phoneLibrary === true && c.libraryShown === true,
+       "phone: Layouts opens the drawer");
+    ok(c.state.libraryOpen === true, "phone: and leaves the desktop's choice alone");
+    c.closePhoneLibrary();
+    ok(c.libraryShown === false, "phone: the backdrop and the X close it");
+
+    c.state.phoneLibrary = true;
+    c.keyDown({ key: "Escape", target: { tagName: "DIV" } });
+    ok(c.state.phoneLibrary === false, "phone: Escape closes the drawer first");
+
+    c.state.phoneLibrary = true;
+    c.applyShape = () => {};
+    c.applyPreset = () => {};
+    c.applyAttachment = () => {};
+    c.applyLibraryItem({ kind: "preset" }, { kind: "design" });
+    ok(c.state.phoneLibrary === false, "phone: choosing a layout closes the drawer");
+    c.state.phoneLibrary = true;
+    c.applyLibraryItem({ kind: "fly" }, {});
+    ok(c.state.phoneLibrary === false, "phone: so does choosing an add-on");
+    c.state.phone = false;
+    c.state.phoneLibrary = true;
+    c.applyLibraryItem({ kind: "preset" }, { kind: "shape" });
+    ok(c.state.phoneLibrary === true, "desktop: choosing does not touch the drawer flag");
+
+    // -- Details ---------------------------------------------------------
+    c.state.phoneDetails = false;
+    c.togglePhoneDetails();
+    ok(c.state.phoneDetails === true, "Details opens the rest of the header");
+    c.togglePhoneDetails();
+    ok(c.state.phoneDetails === false, "and closes it again");
+
+    // -- turning the device ----------------------------------------------
+    c.state.phone = true;
+    c.state.phoneLibrary = true;
+    c.state.phoneDetails = true;
+    c.onPhoneChange({ matches: false });
+    ok(c.state.phone === false && c.state.phoneLibrary === false
+       && c.state.phoneDetails === false,
+       "leaving the phone width resets the drawer and the details");
+    c.onPhoneChange({ matches: true });
+    ok(c.state.phone === true, "entering it switches the layout on");
+
+    // -- the template and the stylesheet agree ----------------------------
+    ok(xml.includes("state.phone ? 'o_aw_phone' : ''"), "the root carries o_aw_phone on a phone");
+    ok(/<div t-if="!state\.phone" class="ms-auto d-flex gap-2">/.test(xml),
+       "the desktop button bar is not rendered on a phone");
+    ok(/<div t-if="state\.phone"\s+class="o_aw_phone_bar/.test(xml),
+       "the phone bar is rendered only on a phone");
+    // every action of the desktop bar is reachable from the phone's menu
+    const desktop = xml.slice(xml.indexOf('<div t-if="!state.phone" class="ms-auto d-flex gap-2">'));
+    const desktopBar = desktop.slice(0, desktop.indexOf("</div>"));
+    const phoneBar = xml.slice(xml.indexOf("o_aw_phone_bar"),
+                               xml.indexOf("<!-- Family first"));
+    for (const handler of [...desktopBar.matchAll(/t-on-click="(\w+)"/g)].map((m) => m[1])) {
+        ok(phoneBar.includes(`t-on-click="${handler}"`),
+           `the phone bar or its menu reaches ${handler}`);
+    }
+    ok(/class="o_aw_hdr_core"/.test(xml) && (xml.match(/o_aw_hdr_core/g) || []).length === 4,
+       "the four size boxes stay in the header on a phone");
+    ok(xml.includes('t-if="libraryShown and !state.phone"'), "no pane resizer on a phone");
+    ok(xml.includes("o_aw_drawer_backdrop"), "a backdrop sits behind the drawer");
+    for (const rule of [".o_aw_phone {", ".o_aw_cfg_main {", "flex-direction: column",
+                        ".o_aw_drawer.o_aw_drawer_open", ".o_aw_hdr_collapsed",
+                        ".o_aw_cfg_center {", ".o_aw_cfg_side {"]) {
+        ok(scss.includes(rule), `the stylesheet has ${rule}`);
+    }
+    // the phone rules are all inside .o_aw_phone: nothing leaks to the desktop
+    const phoneStart = scss.indexOf(".o_aw_phone {");
+    ok(phoneStart > 0 && !/o_aw_drawer|o_aw_hdr_collapsed|o_aw_cfg_center/.test(scss.slice(0, phoneStart)),
+       "the drawer, the collapsed header and the stacked centre exist only under .o_aw_phone");
+    // the desktop's full-width tabs and pane rules were not touched
+    ok(scss.includes(".o_aw_cfg_tabs {") && scss.includes(".o_aw_cfg_resizer {"),
+       "the desktop rules are still there");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

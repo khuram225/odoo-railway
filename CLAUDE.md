@@ -641,6 +641,20 @@ viewBox units.
 
 **Mesh is never painted in the finish colour.** A mesh panel and an attached fly screen (frame and cloth) use `meshFrameFill` (a light neutral) with `meshOutline`, so they show against a black or brown frame; the frame, dividers and sash keep the finish colour.
 
+**Configurator on a phone (under 768 px, mobile PR a).** `state.phone` follows one media query
+(`PHONE_QUERY` in `design_configurator.js`, Bootstrap's md break), read once at setup and followed by
+`onPhoneChange`; the root then carries `o_aw_phone` and every phone rule in the stylesheet is nested under
+it, so nothing changes above the break. The three columns become: the drawing on top (46% of the height),
+the tabs below at full width, and the layout library in a bottom-sheet DRAWER (`state.phoneLibrary`, closed
+by its X, the backdrop, Escape, or choosing a layout; `libraryShown` is the one getter that says whether the
+library is on screen, on either layout). The drawer has its own flag, so a phone never overwrites the
+desktop's remembered library choice. The header keeps a bar (Layouts, Details, Undo, Redo, Save, a three-dot
+menu with Save as Preset, Duplicate, Make copies, History, Quotation, Shop Drawing and Close) and the four
+size boxes; Details (`state.phoneDetails`) shows the rest. The desktop button group is not rendered on a
+phone, so every action must be in the phone menu: `check_configurator_geometry.mjs` fails when one is
+missing. Touch targets, pinch zoom, tap instead of hover and the fixes from real screenshots are the next
+two PRs (b, c). Browser code only.
+
 **"Invalid controller to restore" (`static/src/stale_page/`).** Odoo raises `ControllerNotFoundError`
 when a breadcrumb or `soft_reload` asks for a page that is no longer in its stack (a stack rebuilt
 from the address, a page replaced behind a screen still open). Not a stale tab after a deploy: the
