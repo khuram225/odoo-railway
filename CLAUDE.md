@@ -1321,6 +1321,19 @@ remove the line in the PR that fixes it. Failures come out as annotations
 (readable without a login), with the line of the test, the addon frame and the
 assertion diff.
 
+**Skipped tests are a hole, and are counted.** A test that skips itself (`self.skipTest`, or
+`unittest.SkipTest` in `setUpClass`, which skips the whole class and its tests are not even in the
+`tests: N ran` total) because the database lacks a record it wants proves nothing and looks like a pass. Every
+run prints `skipped: N` with each name and reason (read from Odoo's own `skipped ...` log lines), and
+`tests/known_skips.txt` (same shape and same rule as the known failures) fails the job on a skip that is
+not listed -- a PR that adds a skip adds its line and says why -- and on a listed skip that no longer
+skips, so it can only shrink. First count: 17 skips, 14 tests and 3 whole classes (11 more tests that never
+ran), money first: the cost-basis tests, the rates test, the glass retirement tests. They wait for a shared
+fixture (a minimal design, quote line, profile variant with two finishes and a default vendor). Fresh
+databases have profile TEMPLATES (the catalogue is data) but almost no profile VARIANTS, which is why
+most of them skip. The first version of this report read only `Class.test` lines and missed the three
+classes: a report that cannot see a whole class skipping is the failure it was written to prevent.
+
 **A database installed from scratch is not production.** Three things differ
 and each has produced test failures: the RE specification is not seeded (its
 seed runs before the Chawla profiles are imported and then marks itself done;

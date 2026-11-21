@@ -532,7 +532,8 @@ jobs:
           end=$(date +%s)
           echo "::notice::odoo exited $code; the test run took $((end - start))s"
           sh scripts/ci_assert_tests.sh /tmp/tests.log \
-            odoo/addons/aw_fenestration_design/tests/known_failures.txt
+            odoo/addons/aw_fenestration_design/tests/known_failures.txt \
+            odoo/addons/aw_fenestration_design/tests/known_skips.txt
 
   # =====================================================================
   # The single status Railway waits on. It has no steps: its only job is
