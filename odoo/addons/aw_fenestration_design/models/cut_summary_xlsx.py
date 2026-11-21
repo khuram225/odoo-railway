@@ -4,7 +4,7 @@
 Free of Odoo imports, like rate_xlsx.py, so scripts/check_cut_summary_xlsx.py
 runs this very code. It takes plain values in and returns the bytes.
 
-Two sheets, both starting with the same few lines (batch, quote, date, plan
+Three sheets, all starting with the same few lines (batch, quote, date, plan
 state, bars and feet bought, and a red note when the plan is stale):
 
   Summary   one block per profile (code, thickness, finish). Rows are the
@@ -13,28 +13,46 @@ state, bars and feet bought, and a red note when the plan is stale):
             first, written in the workshop style with the exact mm under it.
             A cell is a piece count, blank for zero; every row ends with its
             total pieces and total feet, every block with column totals.
-  Cut list  flat, one row per cut, with autofilter and a frozen header.
+            Window and location stay frozen, it prints landscape, the exact
+            mm row is labelled "mm" in Location, and each block ends with a
+            line of the bars used ("Bars: 23 x 18 ft", or the mix).
+  Bars      one row per bar in the cutting sheet's own order and wording
+            (piece references W19.4, remainder label): profile, "1 of 23",
+            length (ft), the cuts in order, pieces, used, remainder. Marked
+            "from an old plan" when the plan is stale.
+  Cut list  flat, one row per cut, with the piece reference, autofilter and
+            a frozen header.
 
 A cut is one piece. A window's quantity is already in the plan (the BOM line
 carries qty x the window's qty), so counting cuts is counting what is cut.
 
 Input, `data`:
   batch, quote, date, state (text), bars (int), feet (float), stale (bool)
-  cuts   one dict per cut: window, location, panel (int), code, thickness,
-         finish, position, length_text (workshop style), length_mm, angle,
-         bar_no, typed (bool), block (the profile block it belongs to, in the
-         order the blocks should appear)
+  cuts   one dict per cut: window, location, piece_ref, panel (int), code,
+         thickness, finish, position, length_text (workshop style),
+         length_mm, angle, bar_no, typed (bool), block (the profile block it
+         belongs to, in the order the blocks should appear)
+  bar_rows  one dict per bar, in the cutting sheet's order: block, code,
+         thickness, finish, bar_no, bar_count, stock_mm, cuts [{ref, text,
+         mm}], used_mm, used_text, remainder_mm, remainder_text, from_stock
 """
 import io
 import re
 
 MM_PER_FOOT = 304.8
 SUMMARY_SHEET = 'Summary'
+BARS_SHEET = 'Bars'
 CUTLIST_SHEET = 'Cut list'
 STALE_NOTE = 'Plan is stale: regenerate before cutting'
-CUT_HEADERS = ['Window', 'Location', 'Panel', 'Profile', 'Thickness',
-               'Finish', 'Position', 'Length (in)', 'Length (mm)', 'Angle',
-               'Qty', 'Bar', 'Typed length']
+BARS_STALE_NOTE = 'From an old plan: these bars are not the current cuts'
+FEET_NOTE = ('Feet are rounded to 0.1 per row; each total adds the exact '
+             'lengths, so a column of rounded rows can differ from it by '
+             '0.1 or so.')
+CUT_HEADERS = ['Window', 'Location', 'Piece', 'Panel', 'Profile',
+               'Thickness', 'Finish', 'Position', 'Length (in)',
+               'Length (mm)', 'Angle', 'Qty', 'Bar', 'Typed length']
+BAR_HEADERS = ['Profile', 'Bar', 'Length (ft)', 'Cuts (in)', 'Pieces',
+               'Used (in)', 'Remainder (in)', 'From stock']
 
 
 def need_library():
@@ -124,6 +142,35 @@ def blocks_of(cuts):
     return blocks
 
 
+def profile_title(item):
+    """Code / thickness / finish, as the Summary block heading says it."""
+    return ' / '.join(part for part in (
+        item.get('code'), item.get('thickness'), item.get('finish')) if part)
+
+
+def bars_line(bars):
+    """'Bars: 23 x 18 ft', or the mix 'Bars: 3 x 20 ft + 2 x 18 ft'.
+
+    Offcuts of earlier batches are not bought: they are told apart,
+    '(+ 2 from stock)'."""
+    bought, from_stock = {}, 0
+    for bar in bars:
+        if bar.get('from_stock'):
+            from_stock += 1
+        else:
+            feet = round(bar['stock_mm'] / MM_PER_FOOT, 2)
+            bought[feet] = bought.get(feet, 0) + 1
+    mix = ' + '.join('%d x %g ft' % (count, feet)
+                     for feet, count in sorted(bought.items(), reverse=True))
+    if not mix:
+        text = 'Bars: none bought'
+    else:
+        text = 'Bars: ' + mix
+    if from_stock:
+        text += ' (+ %d from stock)' % from_stock
+    return text
+
+
 def _top(book, sheet, data, formats):
     """The lines both sheets start with; returns the next free row."""
     rows = [('Batch', data['batch']), ('Quote', data['quote']),
@@ -175,11 +222,20 @@ def build_cut_summary(data):
         'totname': book.add_format({'bold': True, 'border': 1,
                                     'bg_color': '#E2EFDA'}),
         'mm': book.add_format({'num_format': '0.0'}),
+        'note': book.add_format({'italic': True,
+                                 'font_color': '#595959'}),
+        'barsline': book.add_format({'bold': True,
+                                     'font_color': '#1F4E78'}),
     }
 
     # -- Summary -----------------------------------------------------------
     sheet = book.add_worksheet(SUMMARY_SHEET)
     row = _top(book, sheet, data, formats)
+    sheet.write_string(row - 1, 0, FEET_NOTE, formats['note'])
+    row += 1
+    bars_by_block = {}
+    for bar in data.get('bar_rows') or []:
+        bars_by_block.setdefault(bar['block'], []).append(bar)
     widest = 0
     for block in blocks_of(cuts):
         count = len(block['lengths'])
@@ -197,9 +253,10 @@ def build_cut_summary(data):
                 sheet.write_number(row + 1, 2 + index, mm, formats['headmm'])
         sheet.write_string(row, 2 + count, 'Pieces', formats['head'])
         sheet.write_string(row, 3 + count, 'Feet', formats['head'])
+        # The exact-mm row is labelled where the eye starts, in Location.
         sheet.write_blank(row + 1, 0, None, formats['headmm'])
-        sheet.write_blank(row + 1, 1, None, formats['headmm'])
-        sheet.write_string(row + 1, 2 + count, 'mm above', formats['headmm'])
+        sheet.write_string(row + 1, 1, 'mm', formats['headmm'])
+        sheet.write_blank(row + 1, 2 + count, None, formats['headmm'])
         sheet.write_blank(row + 1, 3 + count, None, formats['headmm'])
         row += 2
         for entry in block['rows']:
@@ -224,10 +281,61 @@ def build_cut_summary(data):
                            formats['tot'])
         sheet.write_number(row, 3 + count, round(block['totals']['feet'], 1),
                            formats['totfeet'])
-        row += 2
+        row += 1
+        if block['key'] in bars_by_block:
+            sheet.write_string(row, 0, bars_line(bars_by_block[block['key']]),
+                               formats['barsline'])
+            row += 1
+        row += 1
     sheet.set_column(0, 0, 11)
     sheet.set_column(1, 1, 24)
     sheet.set_column(2, max(widest, 3), 9)
+    # A wide table stays readable: window and location stay put while the
+    # lengths scroll, and it prints landscape on as many pages as it needs.
+    sheet.freeze_panes(0, 2)
+    sheet.set_landscape()
+    sheet.set_paper(9)
+    sheet.fit_to_pages(1, 0)
+
+    # -- Bars --------------------------------------------------------------
+    bars_sheet = book.add_worksheet(BARS_SHEET)
+    row = _top(book, bars_sheet, data, formats)
+    if data.get('stale'):
+        bars_sheet.write_string(row - 1, 0, BARS_STALE_NOTE, formats['stale'])
+        row += 1
+    header_row = row
+    for col, title in enumerate(BAR_HEADERS):
+        bars_sheet.write_string(header_row, col, title, formats['head'])
+    bars = list(data.get('bar_rows') or [])
+    for offset, bar in enumerate(bars, start=1):
+        line = header_row + offset
+        bars_sheet.write_string(line, 0, profile_title(bar), formats['text'])
+        bars_sheet.write_string(
+            line, 1, '%d of %d' % (bar['bar_no'], bar['bar_count']),
+            formats['text'])
+        bars_sheet.write_number(
+            line, 2, round(bar['stock_mm'] / MM_PER_FOOT, 2), formats['feet'])
+        bars_sheet.write_string(line, 3, ' + '.join(
+            '%s (%s)' % (c['text'], c['ref']) if c['ref'] else c['text']
+            for c in bar['cuts']), formats['text'])
+        bars_sheet.write_number(line, 4, len(bar['cuts']))
+        bars_sheet.write_string(line, 5, bar['used_text'], formats['text'])
+        bars_sheet.write_string(line, 6, bar['remainder_text'],
+                                formats['text'])
+        bars_sheet.write_string(line, 7, bar.get('from_stock') or '',
+                                formats['text'])
+    bars_sheet.autofilter(header_row, 0, header_row + len(bars),
+                          len(BAR_HEADERS) - 1)
+    bars_sheet.freeze_panes(header_row + 1, 0)
+    bars_sheet.set_column(0, 0, 22)
+    bars_sheet.set_column(1, 2, 10)
+    bars_sheet.set_column(3, 3, 70)
+    bars_sheet.set_column(4, 6, 14)
+    bars_sheet.set_column(7, 7, 28)
+    bars_sheet.set_landscape()
+    bars_sheet.set_paper(9)
+    bars_sheet.fit_to_pages(1, 0)
+    bars_sheet.repeat_rows(header_row)
 
     # -- Cut list ----------------------------------------------------------
     flat = book.add_worksheet(CUTLIST_SHEET)
@@ -241,26 +349,28 @@ def build_cut_summary(data):
         line = header_row + offset
         flat.write_string(line, 0, cut['window'], formats['text'])
         flat.write_string(line, 1, cut['location'], formats['text'])
-        flat.write_number(line, 2, cut['panel'] or 0)
-        flat.write_string(line, 3, cut['code'], formats['text'])
-        flat.write_string(line, 4, cut['thickness'], formats['text'])
-        flat.write_string(line, 5, cut['finish'], formats['text'])
-        flat.write_string(line, 6, cut['position'], formats['text'])
-        flat.write_string(line, 7, cut['length_text'], formats['text'])
-        flat.write_number(line, 8, round(cut['length_mm'], 1), formats['mm'])
-        flat.write_string(line, 9, cut['angle'], formats['text'])
-        flat.write_number(line, 10, 1)
-        flat.write_number(line, 11, cut['bar_no'])
-        flat.write_string(line, 12, 'typed' if cut['typed'] else '',
+        flat.write_string(line, 2, cut.get('piece_ref') or '', formats['text'])
+        flat.write_number(line, 3, cut['panel'] or 0)
+        flat.write_string(line, 4, cut['code'], formats['text'])
+        flat.write_string(line, 5, cut['thickness'], formats['text'])
+        flat.write_string(line, 6, cut['finish'], formats['text'])
+        flat.write_string(line, 7, cut['position'], formats['text'])
+        flat.write_string(line, 8, cut['length_text'], formats['text'])
+        flat.write_number(line, 9, round(cut['length_mm'], 1), formats['mm'])
+        flat.write_string(line, 10, cut['angle'], formats['text'])
+        flat.write_number(line, 11, 1)
+        flat.write_number(line, 12, cut['bar_no'])
+        flat.write_string(line, 13, 'typed' if cut['typed'] else '',
                           formats['text'])
     flat.autofilter(header_row, 0, header_row + len(ordered),
                     len(CUT_HEADERS) - 1)
     flat.freeze_panes(header_row + 1, 0)
     flat.set_column(0, 0, 10)
     flat.set_column(1, 1, 22)
-    flat.set_column(2, 2, 7)
-    flat.set_column(3, 6, 16)
-    flat.set_column(7, 12, 12)
+    flat.set_column(2, 2, 10)
+    flat.set_column(3, 3, 7)
+    flat.set_column(4, 7, 16)
+    flat.set_column(8, 13, 12)
 
     book.close()
     return buffer.getvalue()

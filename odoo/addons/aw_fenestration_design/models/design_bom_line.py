@@ -262,6 +262,14 @@ class AwDesignBomLine(models.Model):
         # recompute keeps it. The generator itself writes under
         # `aw_bom_generating` and must not flag anything.
         if (not self.env.context.get('aw_bom_generating')
+                and 'length_mm' in vals and not (vals['length_mm'] or 0) > 0):
+            for line in self:
+                if line.kind == 'profile' and not line.cut_on_site \
+                        and not vals.get('cut_on_site'):
+                    raise UserError(_(
+                        "A piece cannot be 0 long. Type a real length, or "
+                        "use the rule to go back to the spec's length."))
+        if (not self.env.context.get('aw_bom_generating')
                 and 'is_manual' not in vals
                 and any(k in vals for k in (
                     'length_mm', 'qty', 'product_id'))):

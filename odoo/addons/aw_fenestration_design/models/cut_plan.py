@@ -481,10 +481,22 @@ class AwCutPlan(models.Model):
         existing = {group.product_id.id: group for group in self.group_ids}
 
         pooled = {}
+        zero_length = []
         for line in self._profile_lines():
             product = line.product_id
             if not product:
                 continue          # reported by the design's own checks
+            if (line.length_mm or 0.0) <= 0:
+                # A 0 mm cut is a mistake, not a piece: it would sit on a
+                # bar and be printed. Left out and listed, so it cannot be
+                # bought past (blocked_note stops Mark bars bought).
+                for _n in range(max(1, line.qty or 1)):
+                    zero_length.append(_(
+                        "Not planned: length 0 - %(ref)s (%(label)s) on "
+                        "%(window)s.",
+                        ref=line.piece_ref or '?', label=line.label or '',
+                        window=line.design_id.name or '?'))
+                continue
             entry = pooled.setdefault(product.id, {
                 'product': product, 'pieces': []})
             for index in range(max(1, line.qty or 1)):
@@ -625,7 +637,7 @@ class AwCutPlan(models.Model):
             'bom_fingerprint': self._live_fingerprint(),
             'stock_planned': not self.plan_without_stock,
             'oversize_note': '\n'.join(oversize_notes),
-            'blocked_note': '\n'.join(blocked),
+            'blocked_note': '\n'.join(blocked + zero_length),
         })
 
     @api.model

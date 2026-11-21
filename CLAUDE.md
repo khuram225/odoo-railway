@@ -976,8 +976,25 @@ group (code / thickness / finish), rows the windows in natural order, columns th
 longest first (workshop style over the exact mm); sheet "Cut list": one row per cut, with the typed-length
 flag (a free-form line, or a manual one whose length differs from the computed), autofilter and frozen
 header. A cut is one piece and the plan's quantities already include a window's qty. A stale plan still
-downloads with a red note; a batch with no cuts is refused. File name
+downloads with a red note on every sheet; a batch with no cuts is refused. File name
 `cut_summary_<quote>_batch<N>_<date>.xlsx`. No schema change.
+
+Sheet "Bars" (between Summary and Cut list): one row per bar in the cutting sheet's own order and
+wording (`cut.piece_ref` such as W19.4, `cut.length_label`, `bar.remainder_label`; the unit is in the
+column heading, as the sheet prints no "in"), bar "1 of 23", length in ft, cuts in order, pieces, used,
+remainder, and "From stock" for an offcut of an earlier batch. A stale plan marks it "from an old plan".
+Each Summary block ends with "Bars: 23 x 18 ft" (or the mix, offcuts counted apart). The Summary freezes
+window and location, prints landscape and says feet are rounded per row; the exact-mm row is labelled "mm"
+in Location. The data key for the bar rows is `bar_rows` (`bars` is the bar COUNT). A cut that lost its BOM
+line finds its window by piece reference.
+
+**A piece of length 0 is a mistake, and is handled in four places.** Typing 0 in the Pieces box (or the
+Cut list tab) is refused (`aw.design.bom.line.write`; the generator writes under `aw_bom_generating`, so a
+rule that gives 0 still shows); the button "Use the rule" (`use_piece_rule`) clears a typed length and
+recomputes; Checks warns "Panel N: piece W21.5 has length 0" with a link to the piece; and `_generate`
+leaves such a piece out of the plan and lists it in `blocked_note` as "Not planned: length 0", which also
+stops Mark bars bought until it is fixed. Found on S00003's W21, where a typed 0 had replaced the divider's
+rule (CH = 2159 mm).
 
 ## Hardware Sets (saved from the configurator)
 

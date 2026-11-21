@@ -20,7 +20,7 @@ class AwCutPlan(models.Model):
         self.ensure_one()
         vendor = self.sale_order_id.aw_profile_vendor_id
         states = dict(self._fields['state'].selection)
-        cuts = []
+        cuts, bars = [], []
         # A cut keeps its BOM line only until the window is exploded again
         # (the link is set null so a printed plan is not deleted). The piece
         # reference is stable, so a cut that lost its line finds it again by
@@ -40,6 +40,25 @@ class AwCutPlan(models.Model):
             code = (product.default_code or template.default_code
                     or template.name or '')
             for bar_no, bar in enumerate(group.bar_ids, start=1):
+                # One row of the Bars sheet, in the cutting sheet's own
+                # order and wording (cut.length_label, cut.piece_ref,
+                # bar.remainder_label), so the two documents agree.
+                bars.append({
+                    'block': group.id, 'code': code,
+                    'thickness': thickness, 'finish': finish,
+                    'bar_no': bar_no, 'bar_count': len(group.bar_ids),
+                    'stock_mm': bar.stock_mm or 0.0,
+                    'cuts': [{'ref': cut.piece_ref or '',
+                              'text': cut.length_label or '',
+                              'mm': cut.length_mm or 0.0}
+                             for cut in bar.cut_ids],
+                    'used_mm': sum(bar.cut_ids.mapped('length_mm')),
+                    'used_text': to_display(
+                        sum(bar.cut_ids.mapped('length_mm')), 'soot'),
+                    'remainder_mm': bar.remainder_mm or 0.0,
+                    'remainder_text': bar.remainder_label or '',
+                    'from_stock': bar.source_label or '',
+                })
                 for cut in bar.cut_ids:
                     line = cut.bom_line_id or by_ref.get(
                         cut.piece_ref, self.env['aw.design.bom.line'])
@@ -51,6 +70,7 @@ class AwCutPlan(models.Model):
                     cuts.append({
                         'window': design.name or '-',
                         'location': design.location or '',
+                        'piece_ref': cut.piece_ref or line.piece_ref or '',
                         'panel': line.panel_no or 0,
                         'code': code,
                         'thickness': thickness,
@@ -73,6 +93,7 @@ class AwCutPlan(models.Model):
             'feet': self.feet_bought,
             'stale': not self.is_current,
             'cuts': cuts,
+            'bar_rows': bars,
         }
 
     def _cut_summary_file(self):
