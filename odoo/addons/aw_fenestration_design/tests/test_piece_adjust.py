@@ -164,13 +164,36 @@ class TestPieceAdjust(TransactionCase):
         self.assertFalse(self.design.piece_adjust_ids)
 
     def test_it_cannot_make_a_piece_zero_long(self):
-        lines = self._adjustable().sorted('length_mm')
+        # Its own small window, so there is always a piece well under the
+        # 1 m limit: this test used to skip itself when the shared window
+        # had none, and a skipped test proves nothing.
+        env = self.env
+        family, series = seeded_family_series(env)
+        small = self.order._create_fenestration_position(
+            series, family=family, location='Small')
+        small.write({'width_mm': 600.0, 'height_mm': 600.0})
+        leaf = {'width_mm': 300.0, 'leaf_type_id': series.leaf_type_ids[0].id}
+        small.save_layout({
+            'header': small.get_configurator_data()['header'],
+            'rows': [{'height_mm': 600.0,
+                      'leaves': [dict(leaf), dict(leaf)]}]})
+        lines = small.bom_line_ids.filtered(
+            lambda l: l.kind == 'profile' and l.piece_key
+            and l.template_line_id and not l.cut_on_site
+            and not l.is_free_form).sorted('length_mm')
+        self.assertTrue(lines, "the small window made no piece")
         shortest = lines[0]
-        if shortest.length_mm > 1000.0:
-            self.skipTest("no piece short enough for the 1 m limit")
+        self.assertGreater(shortest.length_mm, 1.0)
+        self.assertLess(shortest.length_mm, 1000.0)
         with self.assertRaises(UserError):
-            self.design.set_piece_adjustment(
+            small.set_piece_adjustment(
                 shortest.piece_key, -shortest.length_mm)
+        # one millimetre short of the whole piece is allowed
+        small.set_piece_adjustment(
+            shortest.piece_key, -(shortest.length_mm - 1.0))
+        after = small.bom_line_ids.filtered(
+            lambda l: l.piece_key == shortest.piece_key)
+        self.assertAlmostEqual(after.length_mm, 1.0)
 
     def test_one_adjustment_per_piece(self):
         key = self._piece()
