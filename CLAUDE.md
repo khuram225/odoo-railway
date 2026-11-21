@@ -659,6 +659,35 @@ and never stored as 0. A copy of the window (Duplicate, Make copies) keeps its a
 spec leaves them dormant (the keys name the old spec's lines). Not in this PR: the series default and the
 snapshot at confirmation (PR 3).
 
+**Printing the window sheets of a whole quote: "Thread creation error", wkhtmltopdf -11 (found 2026-11-22).**
+"Window Sheets (with calculation)" for a quote of 21 windows died in 0.4 s with `QThread::start: Thread creation
+error: Resource temporarily unavailable`; one window printed fine. It was NOT the container's process limit (the
+cgroup's `pids.max` is 1000 and its peak was 49) and NOT memory (`memory.max` 8 GB, peak RSS 0.8 GB). It was
+**address space**: Odoo's worker sets `RLIMIT_AS` to `limit_memory_hard` (1342177280, `odoo.conf`), the limit is
+inherited by the wkhtmltopdf child, and wkhtmltopdf's peak VIRTUAL size for the quote was 2.5 GB. The cause of that
+size: every `<img src="/report/barcode/...">` is fetched over HTTP by wkhtmltopdf, one request and one THREAD each
+(21 QR codes: 25 threads), and each thread reserves an arena of address space. Reproduced in the production container
+(`railway ssh`, a rolled-back `odoo shell`) with the limit on and off. `aw.cut.plan._qr_src()` now returns the QR as
+a data URI (same generator and options), so the page asks for nothing: 5 threads, peak 0.98 GB, through the
+limit. Cut labels (a QR per sticker) were heading the same way. **What is left**: the peak still grows about 31 MB per
+window, so about 28 windows in one document is the ceiling under 1.25 GiB. If a quote ever has more, the two ways out
+are `limit_memory_hard` (the setting; it is a cap on virtual size per worker, not memory used, so raising it costs
+headroom against a runaway, not RAM) or a wrapper that raises the soft limit for wkhtmltopdf only (the hard limit is
+unlimited). Check an embedded image before blaming memory: `grep -c '/report/barcode' ` on the rendered HTML.
+
+**Elevation drawings at print size (`models/elevation_print.py`).** The stored PNG is made at screen size; its
+dimension labels are 10 drawing units, which is 3.3 pt once the picture is scaled into a schedule cell. The print
+code redraws them from the stored SVG against the PRINTED size: it finds each dimension (five consecutive elements:
+line, two ticks, white box, text; found by their look, so drawings stored before the `o_aw_hair` class existed work
+too), takes them out, and draws them again at the requested size in points on the page (heavier lines, 0.3 mm; boxes
+that do not touch), with the viewBox grown to fit. The drawing itself is untouched. As an `<img>` with a data URI,
+because wkhtmltopdf draws that and not an inline `<svg>`; it ignores `dominant-baseline`, so the text is shifted to
+match. Labels: the schedule's six-per-page cell gets about 6 pt (5.1 to 6.0 on the 29 stored drawings, where a narrow
+window leaves no room), the one-window layouts 10 pt. A stored drawing that cannot be read falls back to the PNG.
+Vector is also smaller: the 21-window schedule went from 2.27 MB of HTML, a 610 KB PDF and 181 MB peak to 0.52 MB, 68 KB
+and 49 MB. Area ("28.33 sqft · 2.63 sqm") is `_schedule_area()`, in the schedule and the window sheet's header.
+`scripts/check_elevation_print.py` runs the real code on four stored drawings (`tests/data/elevation_*.svg`).
+
 **Configurator on a phone (under 768 px, mobile PR a).** `state.phone` follows one media query
 (`PHONE_QUERY` in `design_configurator.js`, Bootstrap's md break), read once at setup and followed by
 `onPhoneChange`; the root then carries `o_aw_phone` and every phone rule in the stylesheet is nested under
