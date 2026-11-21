@@ -47,3 +47,4 @@ from . import test_cost_preview
 from . import test_cost_basis
 from . import test_parts_tab_groups
 from . import test_frame_hardware
+from . import test_piece_adjust
