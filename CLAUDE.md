@@ -2122,6 +2122,14 @@ window was built to and the spec keeps a legacy link to it.
   in a dependency module, or by core Odoo, is fine wherever it is extended. It carries its own
   self-test (the wrong order must fail, the right one pass) and was shown failing on #134's order.
 
+- `scripts/check_tests_imported.py` fails when a `tests/test_*.py` is not imported by its
+  `tests/__init__.py`. Odoo finds an addon's tests only through that import, so a test file that is not in
+  it does not fail: it never runs, and the job stays green. That happened to `test_piece_adjust.py` (14
+  tests): `odoo tests` read 492 tests before the PR and 492 after, and nothing said why. Found by comparing
+  the count (484 at #136, 492 at #137 for the 8 tests that PR added) -- worth doing whenever a PR adds tests:
+  **the `tests: N ran` annotation must go up by the number you added.** It carries its own self-test and was
+  shown failing on the old `__init__.py`.
+
 **`scripts/check_all.sh` runs every check and is the one place that
 cannot forget one.** It DISCOVERS `scripts/check_*.py` and
 `scripts/check_*.mjs` rather than listing them, because a list here would
