@@ -182,17 +182,16 @@ class TestPieceAdjust(TransactionCase):
             and l.template_line_id and not l.cut_on_site
             and not l.is_free_form).sorted('length_mm')
         self.assertTrue(lines, "the small window made no piece")
-        shortest = lines[0]
-        self.assertGreater(shortest.length_mm, 1.0)
-        self.assertLess(shortest.length_mm, 1000.0)
+        # Read now: setting an adjustment recomputes the window, which
+        # replaces every BOM line, so `lines[0]` would be a deleted record.
+        key, length = lines[0].piece_key, lines[0].length_mm
+        self.assertGreater(length, 1.0)
+        self.assertLess(length, 1000.0)
         with self.assertRaises(UserError):
-            small.set_piece_adjustment(
-                shortest.piece_key, -shortest.length_mm)
+            small.set_piece_adjustment(key, -length)
         # one millimetre short of the whole piece is allowed
-        small.set_piece_adjustment(
-            shortest.piece_key, -(shortest.length_mm - 1.0))
-        after = small.bom_line_ids.filtered(
-            lambda l: l.piece_key == shortest.piece_key)
+        small.set_piece_adjustment(key, -(length - 1.0))
+        after = small.bom_line_ids.filtered(lambda l: l.piece_key == key)
         self.assertAlmostEqual(after.length_mm, 1.0)
 
     def test_one_adjustment_per_piece(self):
