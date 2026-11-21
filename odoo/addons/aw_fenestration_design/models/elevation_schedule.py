@@ -5,13 +5,27 @@ Everything the template shows is worked out here, so the template is
 only layout: wkhtmltopdf has no flexbox, and logic in QWeb is harder to
 check than logic in Python.
 """
+import logging
 import re
 
 from odoo import models
 
 from odoo.addons.aw_fenestration_core.models.units import to_display
 
+from . import elevation_print
+
+_logger = logging.getLogger(__name__)
+
 PER_PAGE = 6          # three across, two down
+
+# The drawing's box on the printed page, in mm, and the size its dimension
+# labels are drawn at. The schedule keeps six to a page, so its cell is small
+# and its labels are what fit (about 6 pt, a little less on a narrow window);
+# the one-window sheet has room for 10 pt.
+SCHEDULE_BOX_MM = (86.0, 46.0)
+SCHEDULE_LABEL_PT = 6.0
+SHEET_BOX_MM = (168.0, 150.0)
+SHEET_LABEL_PT = 10.0
 
 
 def _natural_key(design):
@@ -33,6 +47,41 @@ class AwDesign(models.Model):
         then millimetres to one decimal, whatever the unit setting is."""
         self.ensure_one()
         return '%s in (%.1f mm)' % (to_display(mm), mm or 0.0)
+
+    def _schedule_area(self):
+        """'28.33 sqft · 2.63 sqm': width x height of the window, whatever
+        the unit setting. sqft is square inches / 144, sqm is m2; two
+        decimals, so the two figures agree to the digit a customer can
+        check with a calculator."""
+        self.ensure_one()
+        width, height = self.width_mm or 0.0, self.height_mm or 0.0
+        sqft = (width / 25.4) * (height / 25.4) / 144.0
+        sqm = width * height / 1000000.0
+        return '%.2f sqft · %.2f sqm' % (sqft, sqm)
+
+    def _elevation_print(self, box_mm, label_pt):
+        """The drawing redrawn for a printed box, or False.
+
+        From the stored SVG, with the dimension labels at `label_pt` on the
+        PAGE (the stored PNG is made at screen size and cannot be rescaled),
+        and as a vector: a fifth of the bytes of the PNG, so a document with
+        many windows is no longer made of many large bitmaps. False when
+        there is no stored SVG or it cannot be read; the report then prints
+        the stored PNG as it always did.
+        """
+        self.ensure_one()
+        if not self.elevation_svg:
+            return False
+        try:
+            out = elevation_print.print_svg(
+                self.elevation_svg, box_mm, label_pt, min_pt=label_pt - 2)
+        except Exception:                          # a drawing must never stop a report
+            _logger.warning("elevation %s: the stored drawing could not be "
+                            "redrawn; the PNG is printed", self.display_name,
+                            exc_info=True)
+            return False
+        out['src'] = elevation_print.data_uri(out['svg'])
+        return out
 
     def _schedule_glass(self):
         """Glass grouped by panel number: '(1) 6+10+8 Clear Tempered;

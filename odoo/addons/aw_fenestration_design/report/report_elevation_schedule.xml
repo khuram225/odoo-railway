@@ -22,6 +22,8 @@
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="order">
                 <t t-set="pages" t-value="order._aw_elevation_schedule_pages()"/>
+                <t t-set="schedule_box" t-value="(86.0, 46.0)"/>
+                <t t-set="schedule_pt" t-value="6.0"/>
                 <div t-if="not pages" style="font-size:14px; padding:20mm;">
                     No windows on this quote
                 </div>
@@ -60,13 +62,21 @@
                                                 <div style="text-align:center; font-weight:bold; margin-bottom:1mm;">
                                                     View From Inside
                                                 </div>
+                                                <!-- Redrawn from the stored SVG at print size (labels
+                                                     about 6 pt on the page, vector, a fraction of the
+                                                     bytes of the PNG). The stored PNG is the fallback
+                                                     for a window with no readable SVG. -->
+                                                <t t-set="printed" t-value="doc._elevation_print(schedule_box, schedule_pt)"/>
                                                 <div style="text-align:center; height:48mm;">
-                                                    <img t-if="doc.elevation_png"
+                                                    <img t-if="printed"
+                                                         t-att-src="printed['src']"
+                                                         t-att-style="'width:%.2fmm; height:%.2fmm;' % (printed['width_mm'], printed['height_mm'])"/>
+                                                    <img t-elif="doc.elevation_png"
                                                          t-att-src="image_data_uri(doc.elevation_png)"
                                                          style="max-width:100%; max-height:48mm;"/>
                                                     <span t-else="" style="color:#888;">No drawing</span>
                                                 </div>
-                                                <div t-if="doc.elevation_png and not doc.elevation_is_current"
+                                                <div t-if="(printed or doc.elevation_png) and not doc.elevation_is_current"
                                                      style="text-align:center; color:#a00; font-weight:bold;">
                                                     Drawing out of date
                                                 </div>
@@ -90,6 +100,10 @@
                                                     <tr>
                                                         <td><strong>H</strong></td>
                                                         <td><span t-esc="doc._schedule_dimension(doc.height_mm)"/></td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td><strong>Area</strong></td>
+                                                        <td><span t-esc="doc._schedule_area()"/></td>
                                                     </tr>
                                                     <tr>
                                                         <td style="vertical-align:top;"><strong>Glass</strong></td>

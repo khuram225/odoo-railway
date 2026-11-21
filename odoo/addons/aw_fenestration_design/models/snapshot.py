@@ -239,6 +239,7 @@ class AwDesign(models.Model):
             (_('Window'), self.name or ''),
             (_('Location'), self.location or ''),
             (_('Size'), self.size_display or ''),
+            (_('Area'), self._schedule_area()),
             (_('System'), self.window_series_id.display_name or ''),
             (_('Spec'), spec.full_name or spec.display_name or ''),
             (_('Finish'), self.finish_id.aw_doc_name() if self.finish_id else ''),

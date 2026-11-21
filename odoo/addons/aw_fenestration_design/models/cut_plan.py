@@ -11,10 +11,10 @@ of the BOM it was built from, so a design edited afterwards makes the
 plan say "out of date" instead of quietly describing a window that no
 longer exists.
 """
+import base64
 import hashlib
 import json
 import time
-from urllib.parse import urlencode
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
@@ -714,23 +714,23 @@ class AwCutPlan(models.Model):
 
     @api.model
     def _qr_src(self, payload):
-        """The barcode controller URL for a QR of `payload`.
+        """The QR of `payload` as an <img src>: a data URI, the image itself.
 
-        Built here rather than in the template because QWeb cannot
-        url-encode, and both are needed: the payload carries "/" and
-        "|", and `barLevel` only reaches the controller as a query
-        parameter -- the `/report/barcode/QR/<value>` path form accepts
-        no options at all, so it would silently stay at level L.
+        It used to be the barcode controller URL (`/report/barcode/?...`),
+        which wkhtmltopdf then FETCHED over HTTP, one request per image and
+        one thread per request. A quote of 21 windows (one QR each) made it
+        25 threads, and each thread reserves an arena of address space: a
+        peak of 2.4 GB against the 1.25 GiB `limit_memory_hard` that the
+        Odoo worker, and so wkhtmltopdf, runs under, so every print of the
+        whole quote died with "QThread::start: Thread creation error:
+        Resource temporarily unavailable" (error code -11). Cut labels, a QR
+        per sticker, were heading the same way. Made here the same way the
+        controller makes it (same generator, same options, `barLevel`
+        included), the page needs no request and no extra thread.
         """
-        # urlencode from the stdlib, not werkzeug.urls.url_encode:
-        # werkzeug removed that helper and Odoo only still imports it
-        # through a compatibility shim, which is not something a module
-        # should depend on.
-        return '/report/barcode/?' + urlencode({
-            'barcode_type': 'QR',
-            'value': payload,
-            'barLevel': self.QR_ERROR_LEVEL,
-        })
+        png = self.env['ir.actions.report'].barcode(
+            'QR', payload, barLevel=self.QR_ERROR_LEVEL)
+        return 'data:image/png;base64,' + base64.b64encode(png).decode('ascii')
 
     def _sticker_qr(self, cut, product, thickness, finish, design,
                     bar_no, bar_total, cut_no):

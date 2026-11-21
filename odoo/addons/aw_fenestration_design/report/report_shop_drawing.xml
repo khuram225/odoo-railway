@@ -53,9 +53,18 @@
                     </tr>
                 </table>
 
-                <!-- PNG, not the SVG: reports render through wkhtmltopdf,
-                     whose QtWebKit engine handles inline SVG unreliably. -->
-                <div class="text-center mb-2" t-if="doc.elevation_png">
+                <!-- Redrawn from the stored SVG as an <img> (wkhtmltopdf draws
+                     that, not an inline <svg>), labels about 8 pt on the page,
+                     and a fraction of the bytes of the stored PNG: a quote of
+                     many windows is one document, and its size is what made
+                     wkhtmltopdf run out of address space (-11). The PNG is the
+                     fallback for a window with no readable SVG. -->
+                <t t-set="printed" t-value="doc._elevation_print((176.0, 100.0), 8.0)"/>
+                <div class="text-center mb-2" t-if="printed">
+                    <img t-att-src="printed['src']"
+                         t-att-style="'width:%.2fmm; height:%.2fmm;' % (printed['width_mm'], printed['height_mm'])"/>
+                </div>
+                <div class="text-center mb-2" t-elif="doc.elevation_png">
                     <img t-att-src="image_data_uri(doc.elevation_png)"
                          style="max-width:100%; max-height:380px;"/>
                 </div>
