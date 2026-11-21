@@ -215,6 +215,14 @@ const PANE_DEFAULTS = { left: 220, right: 260 };
 // top, the tabs below, the layout library in a drawer. Wider screens keep
 // the three columns exactly as they were. Bootstrap's own "md" break.
 const PHONE_QUERY = "(max-width: 767.98px)";
+// The grab width of a divider, in CSS pixels: a mouse needs ~14, a finger 44.
+const DIVIDER_HIT_PX = 14;
+const DIVIDER_HIT_TOUCH_PX = 44;
+// A touch also fires emulated mouse events a moment later; for this long
+// after one, a hover is not taken as the pointer resting on something.
+const TOUCH_HOVER_GRACE_MS = 1000;
+// The click that follows the last finger of a pinch is not a tap.
+const PINCH_CLICK_GRACE_MS = 400;
 const STORE_PANE = "aw_cfg_pane_";
 const STORE_COLLAPSED = "aw_cfg_collapsed";
 const STORE_UNIT_MODE = "aw_cfg_unit_mode";
@@ -436,6 +444,11 @@ export class DesignConfigurator extends Component {
         // mutates row/leaf sizes, which are.
         this.dragging = null;
         this.panning = null;
+        // Fingers on the canvas, by pointer id, and the pinch they make.
+        this.touches = new Map();
+        this.pinch = null;
+        this._onTouchMove = (ev) => this.onTouchMove(ev);
+        this._onTouchEnd = (ev) => this.onTouchEnd(ev);
 
         this.canvasRef = useRef("canvas");
         this.svgRef = useRef("svg");
@@ -467,13 +480,17 @@ export class DesignConfigurator extends Component {
         });
         // After every render: the drawing may have moved (zoom, resize,
         // a split) and the toolbar has to follow it.
-        onPatched(() => this.updateToolbar());
+        onPatched(() => {
+            this.updateToolbar();
+            this.applyPinchScroll();
+        });
 
         onWillUnmount(() => {
             clearUnsavedCheck(this.unsavedCheck);
             window.removeEventListener("keydown", this.onKeyDown);
             this.phoneMedia?.removeEventListener?.("change", this.onPhoneMedia);
             this.resizeObserver?.disconnect();
+            this.endTouches();
             this.endDrag(); // never leave window listeners behind
         });
     }
@@ -1595,12 +1612,42 @@ export class DesignConfigurator extends Component {
         const size = PROFILE_ZOOM_PX;
         const gap = 12;
         const rect = pane.getBoundingClientRect();
-        const left = Math.max(gap, rect.left - size - gap);
-        const top = Math.max(
+        let left = Math.max(gap, rect.left - size - gap);
+        let top = Math.max(
             gap, Math.min(rect.top, window.innerHeight - size - gap));
+        if (this.state.phone) {
+            // The pane is the whole width: there is no room beside it, so
+            // the picture sits in the middle of the screen, and a tap on
+            // it (or on the thumbnail again) puts it away.
+            left = Math.max(gap, (window.innerWidth - size) / 2);
+            top = Math.max(gap, (window.innerHeight - size) / 2);
+        }
         this.state.zoomPic = {
             url: this.profileImage(row, 512), left, top,
+            rowId: row.position_id,
         };
+    }
+
+    /** A mouse resting on a thumbnail. Ignored right after a touch, whose
+     *  emulated mouse events would otherwise undo the tap. */
+    hoverProfileZoom(row) {
+        if (Date.now() - (this._touchAt || 0) < TOUCH_HOVER_GRACE_MS) {
+            return;
+        }
+        this.showProfileZoom(row);
+    }
+
+    /** A finger on a thumbnail: tap shows the picture, tap again hides it. */
+    tapProfileZoom(row, ev) {
+        if (ev.pointerType !== "touch") {
+            return;
+        }
+        this._touchAt = Date.now();
+        if (this.state.zoomPic && this.state.zoomPic.rowId === row.position_id) {
+            this.hideProfileZoom();
+        } else {
+            this.showProfileZoom(row);
+        }
     }
 
     hideProfileZoom() {
@@ -3189,6 +3236,9 @@ export class DesignConfigurator extends Component {
     onCanvasClick(ev) {
         const down = this._canvasDown;
         this._canvasDown = null;
+        if (Date.now() - (this._pinchEndedAt || 0) < PINCH_CLICK_GRACE_MS) {
+            return;
+        }
         if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 4) {
             return;
         }
@@ -4857,6 +4907,128 @@ export class DesignConfigurator extends Component {
         }
     }
 
+    // -- pinch: two fingers zoom and pan the drawing ---------------------
+    /** The zoom a pinch gives: the start zoom scaled by how much the
+     *  fingers moved apart, kept inside the zoom limits. */
+    static pinchZoom(startZoom, startDist, dist) {
+        if (!(startDist > 0) || !(dist > 0)) {
+            return startZoom;
+        }
+        return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, startZoom * dist / startDist));
+    }
+
+    /** The scroll offset that puts content fraction `frac` under the point
+     *  `mid` pixels into the viewport, in a scroll area of `size` pixels. */
+    static pinchScroll(frac, size, mid) {
+        return Math.max(0, frac * size - mid);
+    }
+
+    /** Capture-phase pointerdown on the canvas: a divider stops the event
+     *  from reaching the canvas handler, and a second finger must still be
+     *  counted wherever it lands. */
+    trackTouch(ev) {
+        if (ev.pointerType !== "touch") {
+            return;
+        }
+        this._touchAt = Date.now();
+        this.touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+        if (this.touches.size === 1) {
+            window.addEventListener("pointermove", this._onTouchMove);
+            window.addEventListener("pointerup", this._onTouchEnd);
+            window.addEventListener("pointercancel", this._onTouchEnd);
+        }
+        if (this.touches.size === 2) {
+            this.startPinch();
+        }
+    }
+
+    onTouchMove(ev) {
+        const finger = this.touches.get(ev.pointerId);
+        if (!finger) {
+            return;
+        }
+        finger.x = ev.clientX;
+        finger.y = ev.clientY;
+        if (this.pinch) {
+            this.movePinch();
+        }
+    }
+
+    onTouchEnd(ev) {
+        this.touches.delete(ev.pointerId);
+        if (this.touches.size < 2 && this.pinch) {
+            this.pinch = null;
+            this._pinchEndedAt = Date.now();
+        }
+        if (!this.touches.size) {
+            this.endTouches();
+        }
+    }
+
+    endTouches() {
+        this.touches.clear();
+        this.pinch = null;
+        window.removeEventListener("pointermove", this._onTouchMove);
+        window.removeEventListener("pointerup", this._onTouchEnd);
+        window.removeEventListener("pointercancel", this._onTouchEnd);
+    }
+
+    pinchGeometry() {
+        const [a, b] = [...this.touches.values()];
+        return {
+            dist: Math.hypot(a.x - b.x, a.y - b.y),
+            mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        };
+    }
+
+    startPinch() {
+        // Two fingers are a gesture, not a drag or a pan of one.
+        this.endDrag();
+        this.panning = null;
+        const el = this.canvasRef.el;
+        if (el) {
+            el.style.cursor = "";
+        }
+        this._canvasDown = null;
+        const { dist, mid } = this.pinchGeometry();
+        const rect = el ? el.getBoundingClientRect() : { left: 0, top: 0 };
+        this.pinch = {
+            dist,
+            zoom: this.state.zoom,
+            // The part of the drawing under the fingers, as a fraction of
+            // the scrollable area, so it stays under them as they move.
+            fx: el && el.scrollWidth
+                ? (el.scrollLeft + mid.x - rect.left) / el.scrollWidth : 0,
+            fy: el && el.scrollHeight
+                ? (el.scrollTop + mid.y - rect.top) / el.scrollHeight : 0,
+            mid,
+        };
+    }
+
+    movePinch() {
+        const pinch = this.pinch;
+        const { dist, mid } = this.pinchGeometry();
+        pinch.mid = mid;
+        this.setZoom(DesignConfigurator.pinchZoom(pinch.zoom, pinch.dist, dist));
+        pinch.dirty = true;
+        // The scroll area has not been resized yet: onPatched does this
+        // once the drawing has its new size.
+        this.applyPinchScroll();
+    }
+
+    applyPinchScroll() {
+        const pinch = this.pinch;
+        const el = this.canvasRef.el;
+        if (!pinch || !el || !pinch.dirty) {
+            return;
+        }
+        const rect = el.getBoundingClientRect();
+        el.scrollLeft = DesignConfigurator.pinchScroll(
+            pinch.fx, el.scrollWidth, pinch.mid.x - rect.left);
+        el.scrollTop = DesignConfigurator.pinchScroll(
+            pinch.fy, el.scrollHeight, pinch.mid.y - rect.top);
+    }
+
     /**
      * Where the floating toolbar goes, in CSS pixels relative to the
      * canvas viewport.
@@ -5049,7 +5221,9 @@ export class DesignConfigurator extends Component {
             return { badgeR: 0, badgeFont: 0, dividers: [] };
         }
         const upp = this.unitsPerPixel;
-        const hit = 14 * upp; // ~14 CSS px, comfortably grabbable
+        // ~14 CSS px for a mouse, 44 for a finger.
+        const hit = (this.state.phone
+            ? DIVIDER_HIT_TOUCH_PX : DIVIDER_HIT_PX) * upp;
         const stroke = 2 * upp;
         return {
             badgeR: 11 * upp,
@@ -5151,6 +5325,9 @@ export class DesignConfigurator extends Component {
 
     // -- panning -----------------------------------------------------------
     onCanvasPointerDown(ev) {
+        if (this.pinch) {
+            return; // the second finger belongs to the pinch
+        }
         this._canvasDown = { x: ev.clientX, y: ev.clientY };
         // Only from empty background, and only when there's somewhere to
         // pan to. Leaves and dividers stop propagation before this.
@@ -5253,6 +5430,9 @@ export class DesignConfigurator extends Component {
     }
 
     onPointerMove(ev) {
+        if (this.pinch) {
+            return; // two fingers zoom and pan; nothing else moves
+        }
         if (this.panning) {
             const el = this.canvasRef.el;
             el.scrollLeft = this.panning.left - (ev.clientX - this.panning.x);

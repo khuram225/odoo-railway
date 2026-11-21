@@ -2112,5 +2112,148 @@ console.log("\nPHONE LAYOUT SHELL (under 768 px):");
        "the desktop rules are still there");
 }
 
+console.log("\nTOUCH (mobile b): pinch, tap instead of hover, 44 px:");
+{
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    const scss = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.scss",
+        "utf8");
+    const D = DesignConfigurator;
+
+    // -- the pinch arithmetic ------------------------------------------
+    near(D.pinchZoom(1, 100, 200), 2, "fingers twice as far apart: twice the zoom");
+    near(D.pinchZoom(2, 100, 50), 1, "half as far apart: half the zoom");
+    near(D.pinchZoom(1, 100, 100000), 4, "capped at the largest zoom");
+    near(D.pinchZoom(1, 100, 1), 0.25, "and at the smallest");
+    near(D.pinchZoom(1.5, 0, 80), 1.5, "no start distance: unchanged");
+    near(D.pinchZoom(1.5, 80, 0), 1.5, "no distance: unchanged");
+    near(D.pinchScroll(0.5, 2000, 200), 800, "the point under the fingers stays under them");
+    near(D.pinchScroll(0, 2000, 200), 0, "and the scroll never goes negative");
+
+    // -- the gesture ----------------------------------------------------
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [panel(600, "FIXED"), panel(600, "FIXED")] }]);
+    c.touches = new Map();
+    c.pinch = null;
+    c._onTouchMove = (ev) => c.onTouchMove(ev);
+    c._onTouchEnd = (ev) => c.onTouchEnd(ev);
+    const el = {
+        scrollLeft: 100, scrollTop: 50, scrollWidth: 1800, scrollHeight: 1200,
+        style: {}, getBoundingClientRect: () => ({ left: 10, top: 20 }),
+    };
+    c.canvasRef = { el };
+    const down = (id, x, y, type = "touch") =>
+        c.trackTouch({ pointerType: type, pointerId: id, clientX: x, clientY: y });
+
+    down(1, 100, 100, "mouse");
+    ok(c.touches.size === 0, "a mouse is not a finger");
+    down(1, 100, 100);
+    ok(c.touches.size === 1 && !c.pinch, "one finger is tracked, and is not a pinch");
+
+    c.dragging = { kind: "v" };
+    c.panning = { x: 0, y: 0, left: 0, top: 0 };
+    c.state.zoom = 1;
+    down(2, 300, 100);
+    ok(c.pinch && c.touches.size === 2, "the second finger starts the pinch");
+    ok(c.dragging === null && c.panning === null,
+       "a drag or a pan in progress is dropped for the gesture");
+    near(c.pinch.dist, 200, "the start distance is measured");
+    near(c.pinch.fx, (100 + 200 - 10) / 1800, "the content under the fingers is remembered");
+
+    c.onTouchMove({ pointerId: 2, clientX: 500, clientY: 100 });   // 400 apart
+    near(c.state.zoom, 2, "fingers apart: zoom doubles");
+    near(el.scrollLeft, Math.max(0, c.pinch.fx * 1800 - (300 - 10)),
+         "and the scroll puts the same content under the fingers' midpoint");
+    c.onTouchMove({ pointerId: 2, clientX: 140, clientY: 100 });   // 40 apart
+    near(c.state.zoom, 0.25, "fingers together: zoom out, to the limit");
+
+    // while pinching, nothing else reads the pointer
+    const before = el.scrollLeft;
+    c.onCanvasPointerDown({ clientX: 5, clientY: 5 });
+    c.onPointerMove({ clientX: 900, clientY: 900 });
+    ok(c.panning === null && el.scrollLeft === before,
+       "a pinch is not also a pan of one finger");
+
+    let cleared = 0;
+    c.clearSelection = () => { cleared++; };
+    c.onTouchEnd({ pointerId: 2 });
+    ok(c.pinch === null && c.touches.size === 1, "lifting one finger ends the pinch");
+    c._canvasDown = null;
+    c.onCanvasClick({ clientX: 100, clientY: 100, target: null });
+    ok(cleared === 0, "the click after a pinch is not a tap on the background");
+    c._pinchEndedAt = Date.now() - 1000;
+    c.onCanvasClick({ clientX: 100, clientY: 100, target: null });
+    ok(cleared === 1, "a tap a moment later is");
+    c.onTouchEnd({ pointerId: 1 });
+    ok(c.touches.size === 0, "all fingers up: nothing is tracked");
+
+    // -- the divider is wide enough for a finger ---------------------------
+    c.state.phone = false;
+    const mouseHit = c.adornments.dividers[0].hitW;
+    c.state.phone = true;
+    const fingerHit = c.adornments.dividers[0].hitW;
+    near(fingerHit / mouseHit, 44 / 14, "a divider's grab width is 44 px on a phone, 14 for a mouse", 0.01);
+
+    // -- tap instead of hover for the profile picture ------------------------
+    const realWindow = globalThis.window;
+    globalThis.window = { ...realWindow, innerWidth: 390, innerHeight: 800 };
+    const t = make([]);
+    t.rightPaneRef = { el: { getBoundingClientRect: () => ({ left: 0, top: 120 }) } };
+    t.profileImage = () => "/img";
+    t.state.zoomPic = null;
+    const row = { position_id: 7 };
+    t.state.phone = false;
+    t.hoverProfileZoom(row);
+    ok(t.state.zoomPic && t.state.zoomPic.url === "/img", "a mouse resting on a thumbnail shows the picture");
+    t.hideProfileZoom();
+    t._touchAt = Date.now();
+    t.hoverProfileZoom(row);
+    ok(!t.state.zoomPic, "the emulated hover right after a touch does not");
+    t._touchAt = 0;
+    t.tapProfileZoom(row, { pointerType: "mouse" });
+    ok(!t.state.zoomPic, "a mouse click is not a tap");
+    t.state.phone = true;
+    t.tapProfileZoom(row, { pointerType: "touch" });
+    ok(t.state.zoomPic && t.state.zoomPic.rowId === 7, "a tap shows the picture");
+    near(t.state.zoomPic.left, (390 - 280) / 2, "centred across a phone screen", 40);
+    t.hoverProfileZoom(row);
+    ok(t.state.zoomPic !== null, "(the emulated hover does not undo the tap)");
+    t.tapProfileZoom(row, { pointerType: "touch" });
+    ok(t.state.zoomPic === null, "a second tap puts it away");
+    t.tapProfileZoom(row, { pointerType: "touch" });
+    t.tapProfileZoom({ position_id: 8 }, { pointerType: "touch" });
+    ok(t.state.zoomPic && t.state.zoomPic.rowId === 8, "a tap on another thumbnail shows that one");
+    globalThis.window = realWindow;
+
+    // -- the template and the stylesheet --------------------------------------
+    ok(xml.includes('t-on-pointerdown.capture="trackTouch"'),
+       "the canvas counts fingers before a divider can swallow the event");
+    ok(xml.includes("hoverProfileZoom(row)") && xml.includes("tapProfileZoom(row, ev)"),
+       "the thumbnail works by hover with a mouse and by tap with a finger");
+    ok(!/t-on-mouseenter="\(\) => this\.showProfileZoom/.test(xml),
+       "no thumbnail action is hover only");
+    ok(/class="o_aw_spec_zoom"[\s\S]{0,80}t-on-click="hideProfileZoom"/.test(xml),
+       "the enlarged picture closes on a tap");
+    ok(/\.o_aw_phone \.o_aw_cfg_canvas \{\s*touch-action: none;/.test(scss)
+       && /@media \(pointer: coarse\)[\s\S]{0,80}touch-action: none/.test(scss),
+       "touch-action: none on the canvas, on a phone and on any touch screen");
+    ok(/\.nav-link,\s*\.dropdown-item \{\s*min-height: 44px;/.test(scss)
+       && /\.btn \{\s*min-width: 44px;/.test(scss),
+       "44 px targets for buttons, fields, tabs and menu items on a phone");
+    const phoneAt = scss.indexOf(".o_aw_phone {");
+    const touchAt = scss.indexOf("Touch (mobile PR b)");
+    const touchPart = scss.slice(touchAt);
+    ok(touchPart.indexOf("min-height: 44px") > touchPart.indexOf(".o_aw_phone {"),
+       "the 44 px rules are inside the phone layout, not outside it");
+    const hovers = scss.match(/&:hover/g) || [];
+    const guarded = scss.match(/@media \(hover: hover\) \{\s*&:hover/g) || [];
+    ok(hovers.length > 0 && hovers.length === guarded.length,
+       `every :hover rule is guarded by (hover: hover) (${guarded.length} of ${hovers.length})`);
+    ok(!/ontouch|touchstart|touchmove/.test(xml),
+       "pointer events only, no second event family to keep in step");
+    ok(phoneAt > 0, "(the phone shell is still there)");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

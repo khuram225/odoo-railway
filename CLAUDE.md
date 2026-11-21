@@ -652,8 +652,21 @@ desktop's remembered library choice. The header keeps a bar (Layouts, Details, U
 menu with Save as Preset, Duplicate, Make copies, History, Quotation, Shop Drawing and Close) and the four
 size boxes; Details (`state.phoneDetails`) shows the rest. The desktop button group is not rendered on a
 phone, so every action must be in the phone menu: `check_configurator_geometry.mjs` fails when one is
-missing. Touch targets, pinch zoom, tap instead of hover and the fixes from real screenshots are the next
-two PRs (b, c). Browser code only.
+missing. Browser code only.
+
+**Touch (mobile PR b).** The canvas is a gesture surface: one finger on the background pans, a finger on
+a divider drags it (its grab width is 44 px on a phone, 14 for a mouse), and TWO fingers zoom and pan
+(`trackTouch`, `startPinch`/`movePinch`/`applyPinchScroll`; the maths is `DesignConfigurator.pinchZoom` and
+`pinchScroll`, tested directly). `touch-action: none` on the canvas (on a phone, and on any
+`pointer: coarse` screen) is what stops the page scrolling under those fingers, and it removes the
+browser's own touch scrolling, which is why the pan is done by hand. The finger count is taken in the
+CAPTURE phase of pointerdown (`t-on-pointerdown.capture`) because a divider stops the event from
+reaching the canvas handler. A click within 400 ms of a pinch ending is not a tap on the background.
+Nothing is hover-only: the profile picture shows on hover with a mouse and by TAP with a finger (a second
+tap, or a tap on the picture, puts it away; the mouse events a touch emulates a moment later are ignored
+for a second, `_touchAt`), and every `:hover` rule is inside `@media (hover: hover)`, so a touch screen
+does not keep the last thing tapped highlighted. On a phone buttons, fields, tabs and menu items are at
+least 44 px high (all under `.o_aw_phone`). Pointer events only; there is no touch-event code.
 
 **"Invalid controller to restore" (`static/src/stale_page/`).** Odoo raises `ControllerNotFoundError`
 when a breadcrumb or `soft_reload` asks for a page that is no longer in its stack (a stack rebuilt

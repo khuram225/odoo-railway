@@ -36,8 +36,12 @@
         fill-opacity: 0.45;
     }
 
-    &:hover .o_aw_divider_line {
-        stroke-opacity: 1;
+    // Only where there is a hover to have. On a touch screen :hover sticks
+    // to whatever was tapped last; there the selected state says it.
+    @media (hover: hover) {
+        &:hover .o_aw_divider_line {
+            stroke-opacity: 1;
+        }
     }
 }
 
@@ -197,8 +201,10 @@
         right: -3px;
     }
 
-    &:hover {
-        background: var(--o-color-3, #bbb);
+    @media (hover: hover) {
+        &:hover {
+            background: var(--o-color-3, #bbb);
+        }
     }
 }
 
@@ -207,8 +213,10 @@
     cursor: pointer;
     user-select: none;
 
-    &:hover {
-        color: var(--o-color-1, #714b67) !important;
+    @media (hover: hover) {
+        &:hover {
+            color: var(--o-color-1, #714b67) !important;
+        }
     }
 
     > i {
@@ -424,5 +432,58 @@
     // The presets use the whole width of the sheet.
     .o_aw_drawer .o_aw_cfg_preset {
         width: 30%;
+    }
+}
+
+// ---------------------------------------------------------------------
+// Touch (mobile PR b). Nothing here applies to a mouse on a desktop.
+// ---------------------------------------------------------------------
+// The canvas handles its own gestures: one finger on the background pans,
+// two fingers zoom and pan (see trackTouch), a finger on a divider drags
+// it. touch-action: none keeps the page from scrolling or zooming under
+// those fingers. Also on a tablet, which has no phone layout but has
+// fingers.
+.o_aw_phone .o_aw_cfg_canvas {
+    touch-action: none;
+}
+
+@media (pointer: coarse) {
+    .o_aw_cfg_canvas {
+        touch-action: none;
+    }
+}
+
+.o_aw_phone {
+    // 44px is the smallest target a finger can hit reliably.
+    .btn,
+    .form-select,
+    .form-control,
+    .nav-link,
+    .dropdown-item {
+        min-height: 44px;
+    }
+
+    .btn {
+        min-width: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+
+    .o_aw_cfg_sec {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+    }
+
+    .form-check-input {
+        width: 1.5rem;
+        height: 1.5rem;
+    }
+
+    // The profile picture sits mid-screen on a phone and a tap puts it away.
+    .o_aw_spec_zoom {
+        pointer-events: auto;
     }
 }
