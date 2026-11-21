@@ -1,0 +1,9 @@
+# Known test skips, agreed. One per line: KEY  area; why it skips; why that is accepted.
+#
+# KEY is Class.test_name. A test that skips itself (self.skipTest, because the
+# database lacks a record it wants) counts as run and proves nothing, so a
+# skip is a hole in the suite. CI (scripts/ci_assert_tests.sh) prints
+# "skipped: N" with every name and reason on each run, and FAILS when a test
+# skips that is NOT listed here (a PR that adds a skip adds its line and says
+# why) and when a listed test no longer skips (so this file can only shrink:
+# remove the line in the PR that makes the test run).
