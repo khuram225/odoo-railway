@@ -7,3 +7,34 @@
 # skips that is NOT listed here (a PR that adds a skip adds its line and says
 # why) and when a listed test no longer skips (so this file can only shrink:
 # remove the line in the PR that makes the test run).
+#
+# Recorded from the first full run (17 skips: 14 tests, and 3 whole classes
+# that hold 11 more tests which are not even counted in "tests: N ran").
+# Every line says why it skips; none is "fine", all wait for the shared
+# fixture (a minimal design, quote line, profile variant with two finishes
+# and a default vendor), which is planned.
+
+# -- money: costs and rates --------------------------------------------------
+TestCostBasis.test_a_new_profile_variant_is_costed_when_it_is_made  costs; no profile variant exists in a fresh database (674 of 694 profiles have none); needs the fixture
+TestCostBasis.test_confirming_a_purchase_order_moves_the_cost_only_when_the_rule_is_on  costs; same
+TestCostBasis.test_the_cost_field_follows_the_list_by_default_and_the_rule_when_on  costs; same
+TestCostBasis.test_the_sync_tags_what_it_writes_and_leaves_a_typed_cost_alone  costs; same
+TestCostBasis.test_the_update_button_says_what_it_kept  costs; same
+TestCostPreview.test_a_variant_with_cost_zero_is_listed_first  costs; the profile has no default vendor in a fresh database; needs the fixture
+TestRatesGuidedShell.test_a_list_dated_before_newer_rates_passes_next_like_chawla_jan_over_oct  rates; no profile with a thickness and a finish in a fresh database; needs the fixture
+
+# -- glass ---------------------------------------------------------------------
+TestRetireFlatGlass.test_a_profile_spec_pointer_is_cleared_when_it_has_a_stack  glass; no window spec in a fresh database (the RE spec is seeded by tests/common.py only for classes that ask)
+TestRetireFlatGlass.test_a_profile_spec_without_a_stack_blocks_everything  glass; same
+
+# -- cutting -------------------------------------------------------------------
+TestPieceAdjust.test_it_cannot_make_a_piece_zero_long  cutting; the test window has no piece under 1 m; to be fixed to build its own short piece
+setUpClass:TestAddComponentThickness  cutting; HD-3 GROOVE is not in a fresh database; the whole class (4 tests) never runs
+setUpClass:TestOneLinePerPosition  cutting; no spec or profile in a fresh database; the whole class (5 tests) never runs
+setUpClass:TestRegenerateUsesTheQuotesVendor  cutting; the test window has no profile lines; the whole class (2 tests) never runs
+
+# -- configurator and catalogue ---------------------------------------------------
+TestOpenConfiguratorDirectly.test_the_history_page_is_still_the_form  configurator; searches for an existing design and a fresh database has none; needs the fixture
+TestOpenConfiguratorDirectly.test_the_quote_line_opens_the_configurator  configurator; same, for a quote line with a window
+TestPartsTabGroups.test_only_the_listed_lines_take_the_thickness  configurator; no two spec lines with a thickness choice here; needs a second thickness in the fixture
+TestPositionCatalog.test_copy_from_series_is_one_time_and_only_on_an_empty_series  catalogue; no other series with used lines to copy from; needs a second spec in the fixture
