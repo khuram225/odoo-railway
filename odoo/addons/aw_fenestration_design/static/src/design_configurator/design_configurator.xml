@@ -13,6 +13,7 @@
                  showProfileZoom() beside the right-hand panel, so it is
                  in the same place whichever row is hovered. -->
             <img t-if="state.zoomPic" class="o_aw_spec_zoom" alt=""
+                 t-on-click="hideProfileZoom"
                  t-att-src="state.zoomPic.url"
                  t-att-style="'left: ' + state.zoomPic.left + 'px; top: ' + state.zoomPic.top + 'px;'"/>
 
@@ -601,6 +602,7 @@
                                  ResizeObserver watches exactly this element. -->
                             <div class="o_aw_cfg_canvas h-100 w-100 overflow-auto border rounded bg-white"
                                  t-ref="canvas"
+                                 t-on-pointerdown.capture="trackTouch"
                                  t-on-wheel="onWheel"
                                  t-on-scroll="onCanvasScroll"
                                  t-on-pointerdown="onCanvasPointerDown"
@@ -1914,8 +1916,9 @@
                                                 <div t-foreach="group.rows" t-as="row" t-key="row.position_id"
                                                      class="o_aw_tree_row">
                                                     <div class="o_aw_spec_thumb"
-                                                         t-on-mouseenter="() => this.showProfileZoom(row)"
-                                                         t-on-mouseleave="() => this.hideProfileZoom()">
+                                                         t-on-mouseenter="() => this.hoverProfileZoom(row)"
+                                                         t-on-mouseleave="() => this.hideProfileZoom()"
+                                                         t-on-pointerup="(ev) => this.tapProfileZoom(row, ev)">
                                                         <img t-att-src="profileImage(row, 128)"
                                                              width="32" height="32" alt=""/>
                                                     </div>
