@@ -24,7 +24,9 @@ PER_PAGE = 6          # three across, two down
 # the one-window sheet has room for 10 pt.
 SCHEDULE_BOX_MM = (86.0, 46.0)
 SCHEDULE_LABEL_PT = 6.0
-SHEET_BOX_MM = (168.0, 150.0)
+# The one-window Elevation Sheet: A4 landscape, a header of about 36 mm, the
+# drawing on the left (62% of the width) and the details on the right.
+SHEET_BOX_MM = (168.0, 138.0)
 SHEET_LABEL_PT = 10.0
 
 
@@ -62,8 +64,10 @@ class AwDesign(models.Model):
     def _elevation_print(self, box_mm, label_pt):
         """The drawing redrawn for a printed box, or False.
 
-        From the stored SVG, with the dimension labels at `label_pt` on the
-        PAGE (the stored PNG is made at screen size and cannot be rescaled),
+        From the stored SVG, with the dimension labels at `label_pt` ON THE
+        PAPER (not in CSS terms: the page prints at 0.85 of its CSS size, see
+        elevation_print.PAPER_SCALE; the stored PNG is made at screen size and
+        cannot be rescaled),
         and as a vector: a fifth of the bytes of the PNG, so a document with
         many windows is no longer made of many large bitmaps. False when
         there is no stored SVG or it cannot be read; the report then prints
@@ -73,8 +77,8 @@ class AwDesign(models.Model):
         if not self.elevation_svg:
             return False
         try:
-            out = elevation_print.print_svg(
-                self.elevation_svg, box_mm, label_pt, min_pt=label_pt - 2)
+            out = elevation_print.print_for_paper(
+                self.elevation_svg, box_mm, label_pt, min_paper_pt=label_pt - 2)
         except Exception:                          # a drawing must never stop a report
             _logger.warning("elevation %s: the stored drawing could not be "
                             "redrawn; the PNG is printed", self.display_name,
@@ -82,6 +86,11 @@ class AwDesign(models.Model):
             return False
         out['src'] = elevation_print.data_uri(out['svg'])
         return out
+
+    def _elevation_sheet_print(self):
+        """The drawing for the one-window Elevation Sheet: labels at 10 pt."""
+        self.ensure_one()
+        return self._elevation_print(SHEET_BOX_MM, SHEET_LABEL_PT)
 
     def _schedule_glass(self):
         """Glass grouped by panel number: '(1) 6+10+8 Clear Tempered;
@@ -101,10 +110,14 @@ class AwDesign(models.Model):
 class SaleOrder(models.Model):
     _inherit = 'sale.order'
 
+    def _aw_elevation_designs(self):
+        """The order's active windows in Design Ref order (W2 before W10)."""
+        self.ensure_one()
+        return self.aw_design_ids.filtered('active').sorted(key=_natural_key)
+
     def _aw_elevation_schedule_pages(self):
         """The order's active windows in Design Ref order, six to a page."""
         self.ensure_one()
-        designs = self.aw_design_ids.filtered('active').sorted(
-            key=_natural_key)
+        designs = self._aw_elevation_designs()
         return [designs[i:i + PER_PAGE]
                 for i in range(0, len(designs), PER_PAGE)]

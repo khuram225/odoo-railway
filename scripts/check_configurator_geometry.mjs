@@ -2338,5 +2338,59 @@ console.log("\nPIECE ADJUSTMENT (+/-) in the Pieces row:");
        "Reset is offered only to a piece that has its own adjustment");
 }
 
+console.log("THE SELECTION IS NOT STORED IN THE DRAWING:");
+{
+    // A tiny stand-in for the cloned <svg>: just what the function touches.
+    const node = (cls, attrs = {}, kids = []) => {
+        const el = {
+            attrs: { ...attrs }, kids, next: null,
+            getAttribute(k) { return this.attrs[k] ?? null; },
+            setAttribute(k, v) { this.attrs[k] = v; },
+            classList: {
+                list: new Set(cls.split(" ").filter(Boolean)),
+                contains(c) { return this.list.has(c); },
+                remove(c) { this.list.delete(c); },
+            },
+            get nextElementSibling() { return this.next; },
+            querySelectorAll(sel) {
+                const want = sel.replace(".", "");
+                const out = [];
+                const walk = (n) => n.kids.forEach((k) => {
+                    if (k.classList.contains(want)) { out.push(k); }
+                    walk(k);
+                });
+                walk(this);
+                return out;
+            },
+        };
+        return el;
+    };
+    const selectedBadge = node("o_aw_panel_badge", { fill: "rgb(107, 74, 99)", stroke: "rgb(107, 74, 99)" });
+    const selectedText = node("o_aw_panel_badge_text", { fill: "rgb(255, 255, 255)" });
+    selectedBadge.next = selectedText;
+    const plainBadge = node("o_aw_panel_badge", { fill: "rgb(255, 255, 255)", stroke: "rgb(106, 112, 117)" });
+    const plainText = node("o_aw_panel_badge_text", { fill: "rgb(20, 24, 27)" });
+    plainBadge.next = plainText;
+    const line = node("o_aw_divider_line", { "stroke-opacity": "1", "stroke-dasharray": "4, 3" });
+    const divider = node("o_aw_divider o_aw_divider_selected", {}, [line]);
+    const root = node("", {}, [selectedBadge, selectedText, plainBadge, plainText, divider, line]);
+    const changed = DesignConfigurator.neutraliseSelection(root);
+    ok(changed === 2, "one selected panel and one selected divider were changed (" + changed + ")");
+    ok(selectedBadge.attrs.fill === "rgb(255, 255, 255)" && selectedBadge.attrs.stroke === "rgb(106, 112, 117)",
+       "the selected panel's badge is the plain one");
+    ok(selectedText.attrs.fill === "rgb(20, 24, 27)", "and its number is dark, not white on purple");
+    ok(plainBadge.attrs.fill === "rgb(255, 255, 255)" && plainText.attrs.fill === "rgb(20, 24, 27)",
+       "a plain badge is left as it was");
+    ok(!divider.classList.contains("o_aw_divider_selected"), "the divider is no longer selected");
+    ok(line.attrs["stroke-dasharray"] === "none" && line.attrs["stroke-opacity"] === "0.55",
+       "and its line is the plain line, not dashed");
+    ok(DesignConfigurator.neutraliseSelection(root) === 0, "nothing left to change the second time");
+    const src = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.js", "utf8");
+    ok(src.indexOf("DesignConfigurator.neutraliseSelection(clone)") > 0
+       && src.indexOf("DesignConfigurator.neutraliseSelection(clone)") < src.indexOf("new XMLSerializer"),
+       "the snapshot neutralises the selection before it is serialised");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

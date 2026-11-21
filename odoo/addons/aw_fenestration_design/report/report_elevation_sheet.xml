@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The Elevation Sheet: ONE window to a page, A4 landscape, the drawing on
+         the left and the details on the right, the dimension labels at 10 pt on
+         the paper. It is separate from the Elevation Schedule (six windows to
+         a page), which keeps its layout and gets labels of about 6 pt.
+
+         The drawing is the stored SVG redrawn at print size (the dimension
+         labels at the size asked for in points, the selection the editor
+         happened to have taken out, every panel number drawn the same), as an
+         <img> with a data URI. No barcode link, no image fetched by
+         wkhtmltopdf: see the note on _qr_src in cut_plan.py. Tables, because
+         wkhtmltopdf has no flexbox. -->
+
+    <template id="report_elevation_sheet_document">
+        <t t-set="printed" t-value="doc._elevation_sheet_print()"/>
+        <div class="o_aw_elevation_sheet o_aw_utf8"
+             t-attf-style="font-size:13px; #{'page-break-after: always;' if not is_last else ''}">
+
+            <table style="width:100%; table-layout:fixed; margin-bottom:5mm;">
+                <tr>
+                    <td style="width:34%; vertical-align:middle;">
+                        <img t-if="doc.sale_order_id.company_id.logo"
+                             t-att-src="image_data_uri(doc.sale_order_id.company_id.logo)"
+                             style="max-height:28mm; max-width:90mm;"/>
+                    </td>
+                    <td style="width:32%; text-align:center; vertical-align:middle;">
+                        <span style="font-size:24px; font-weight:bold;">View From Inside</span>
+                    </td>
+                    <td style="width:34%; text-align:right; vertical-align:middle; font-size:11px;">
+                        <t t-if="doc.sale_order_id">
+                            <div><strong t-esc="doc.sale_order_id.partner_id.display_name"/></div>
+                            <div t-esc="doc.sale_order_id._aw_site_address()"/>
+                            <div>
+                                <span t-esc="doc.sale_order_id.date_order" t-options="{'widget': 'date'}"/>
+                                &#183; <span t-esc="doc.sale_order_id.name"/>
+                            </div>
+                        </t>
+                    </td>
+                </tr>
+            </table>
+
+            <table style="width:100%; table-layout:fixed;">
+                <tr>
+                    <td style="width:62%; vertical-align:top; text-align:center;">
+                        <img t-if="printed"
+                             t-att-src="printed['src']"
+                             t-att-style="'width:%.2fmm; height:%.2fmm;' % (printed['width_mm'], printed['height_mm'])"/>
+                        <img t-elif="doc.elevation_png"
+                             t-att-src="image_data_uri(doc.elevation_png)"
+                             style="max-width:100%; max-height:138mm;"/>
+                        <div t-else="" style="color:#888; padding-top:30mm;">No drawing</div>
+                        <div t-if="(printed or doc.elevation_png) and not doc.elevation_is_current"
+                             style="color:#a00; font-weight:bold; margin-top:2mm;">
+                            Drawing out of date
+                        </div>
+                    </td>
+                    <td style="vertical-align:top; padding-left:8mm;">
+                        <table style="width:100%; font-size:15px;">
+                            <tr>
+                                <td style="width:30%; padding:2mm 0;"><strong>Design Ref</strong></td>
+                                <td><span t-esc="doc.name"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:2mm 0;"><strong>Qty</strong></td>
+                                <td><span t-esc="doc.qty"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:2mm 0;"><strong>Location</strong></td>
+                                <td><span t-esc="doc.location or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:2mm 0;"><strong>W</strong></td>
+                                <td><span t-esc="doc._schedule_dimension(doc.width_mm)"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:2mm 0;"><strong>H</strong></td>
+                                <td><span t-esc="doc._schedule_dimension(doc.height_mm)"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:2mm 0;"><strong>Area</strong></td>
+                                <td><span t-esc="doc._schedule_area()"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:2mm 0; vertical-align:top;"><strong>Glass</strong></td>
+                                <td><span t-esc="doc._schedule_glass() or '-'"/></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:2mm 0;"><strong>Finish</strong></td>
+                                <td><span t-esc="doc.finish_id.aw_doc_name() if doc.finish_id else '-'"/></td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </template>
+
+    <!-- The windows picked (from the window, or from a list of windows). -->
+    <template id="report_elevation_sheet">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="doc">
+                <t t-set="is_last" t-value="doc_last"/>
+                <t t-call="aw_fenestration_design.report_elevation_sheet_document"/>
+            </t>
+        </t>
+    </template>
+
+    <!-- A whole quote: one page for each window, in Design Ref order. -->
+    <template id="report_elevation_sheet_order">
+        <t t-call="web.html_container">
+            <t t-foreach="docs" t-as="order">
+                <t t-foreach="order._aw_elevation_designs()" t-as="doc" t-key="doc.id">
+                    <t t-set="is_last" t-value="doc_last and order_last"/>
+                    <t t-call="aw_fenestration_design.report_elevation_sheet_document"/>
+                </t>
+            </t>
+        </t>
+    </template>
+
+    <record id="action_report_aw_elevation_sheet" model="ir.actions.report">
+        <field name="name">Elevation Sheet</field>
+        <field name="model">aw.design</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_elevation_sheet</field>
+        <field name="report_file">aw_fenestration_design.report_elevation_sheet</field>
+        <field name="print_report_name">'Elevation Sheet - %s' % (object.name or '')</field>
+        <field name="paperformat_id" ref="paperformat_aw_elevation_schedule"/>
+        <field name="binding_model_id" ref="model_aw_design"/>
+        <field name="binding_type">report</field>
+    </record>
+
+    <record id="action_report_aw_elevation_sheet_order" model="ir.actions.report">
+        <field name="name">Elevation Sheets (one per window)</field>
+        <field name="model">sale.order</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">aw_fenestration_design.report_elevation_sheet_order</field>
+        <field name="report_file">aw_fenestration_design.report_elevation_sheet_order</field>
+        <field name="print_report_name">'Elevation Sheets - %s' % (object.name or '')</field>
+        <field name="paperformat_id" ref="paperformat_aw_elevation_schedule"/>
+        <field name="binding_model_id" ref="sale.model_sale_order"/>
+        <field name="binding_type">report</field>
+    </record>
+
+</odoo>

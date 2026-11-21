@@ -79,6 +79,7 @@ row/leaf grid shape:
         'views/menu_views.xml',
         'report/report_shop_drawing.xml',
         'report/report_elevation_schedule.xml',
+        'report/report_elevation_sheet.xml',
         'report/report_sale_order.xml',
         'report/report_cutting_sheet.xml',
         'report/report_purchase_order.xml',

@@ -6400,6 +6400,42 @@ export class DesignConfigurator extends Component {
      * as presentation attributes, which keeps the SCSS as the single
      * source of truth instead of duplicating it here.
      */
+    /**
+     * Take the editor's selection out of a drawing about to be stored: the
+     * selected panel's number badge is purple with white text, a selected
+     * divider is dashed. On paper that reads as one panel being special
+     * (reports print this drawing), so every badge goes back to the plain
+     * one. Counts what it changed. The server does the same to drawings
+     * stored before this (elevation_print.neutralise_selection).
+     */
+    static neutraliseSelection(root) {
+        const SELECTED = "rgb(107, 74, 99)";
+        let changed = 0;
+        for (const circle of root.querySelectorAll(".o_aw_panel_badge")) {
+            const fill = circle.getAttribute("fill");
+            const stroke = circle.getAttribute("stroke");
+            if (fill !== SELECTED && stroke !== SELECTED) {
+                continue;
+            }
+            circle.setAttribute("fill", "rgb(255, 255, 255)");
+            circle.setAttribute("stroke", "rgb(106, 112, 117)");
+            const label = circle.nextElementSibling;
+            if (label && label.classList.contains("o_aw_panel_badge_text")) {
+                label.setAttribute("fill", "rgb(20, 24, 27)");
+            }
+            changed += 1;
+        }
+        for (const group of root.querySelectorAll(".o_aw_divider_selected")) {
+            group.classList.remove("o_aw_divider_selected");
+            for (const line of group.querySelectorAll(".o_aw_divider_line")) {
+                line.setAttribute("stroke-opacity", "0.55");
+                line.setAttribute("stroke-dasharray", "none");
+            }
+            changed += 1;
+        }
+        return changed;
+    }
+
     snapshotSvg() {
         const live = this.svgRef.el;
         if (!live) {
@@ -6431,6 +6467,9 @@ export class DesignConfigurator extends Component {
         )) {
             node.remove();
         }
+        // The panel that happened to be selected when the window was saved
+        // must not be saved as part of the picture.
+        DesignConfigurator.neutraliseSelection(clone);
         clone.removeAttribute("style");
         clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
         const box = (clone.getAttribute("viewBox") || "").split(/\s+/);

@@ -14,6 +14,8 @@ DATA = os.path.join(os.path.dirname(__file__), 'data')
 SCHEDULE = 'aw_fenestration_design.report_elevation_schedule'
 WINDOW_SHEETS_CALC = 'aw_fenestration_design.report_window_sheet_order_calc'
 WINDOW_SHEET_CALC = 'aw_fenestration_design.report_window_sheet_calc'
+SHEET = 'aw_fenestration_design.report_elevation_sheet'
+SHEETS = 'aw_fenestration_design.report_elevation_sheet_order'
 
 
 def stored(name):
@@ -91,9 +93,12 @@ class TestElevationPrint(TransactionCase):
         svg = base64.b64decode(out['src'].split(',', 1)[1]).decode()
         font = max(float(m) for m in re.findall(
             r'fill="#14181b"[^>]*font-size="([\d.]+)"', svg))
-        width_mm = float(re.search(r'width="([\d.]+)mm"', svg).group(1))
+        width_mm = out['width_mm']        # the size the <img> is given
         view_w = float(re.search(r'viewBox="[-\d.]+ [-\d.]+ ([\d.]+)', svg).group(1))
-        points = font * (width_mm / view_w) / elevation_print.PT_MM
+        # CSS mm per unit, then points in CSS terms, then what the PAPER gets:
+        # Odoo's wkhtmltopdf settings print everything at 0.85 of its CSS size
+        points = (font * (width_mm / view_w) / elevation_print.PT_MM
+                  * elevation_print.PAPER_SCALE)
         self.assertGreaterEqual(points, 10.0 - 0.05)
 
     def test_no_stored_svg_means_no_vector_drawing(self):
@@ -133,3 +138,77 @@ class TestElevationPrint(TransactionCase):
                                 len(self.order.aw_design_ids))
         one = self._html(WINDOW_SHEET_CALC, self.w21.ids)
         self.assertNotIn('/report/barcode', one)
+
+    # -- the one-window Elevation Sheet ----------------------------------------
+    def test_the_sheet_is_one_page_per_window_with_the_details(self):
+        html = self._html(SHEETS)
+        self.assertIn('View From Inside', html)
+        self.assertEqual(html.count('o_aw_elevation_sheet'),
+                         len(self.order.aw_design_ids))
+        for label in ('Design Ref', 'Qty', 'Location', 'Area', 'Glass', 'Finish'):
+            self.assertIn('<strong>%s</strong>' % label, html)
+        self.assertIn('48 in (1219.2 mm)', html)
+        self.assertIn('85 in (2159.0 mm)', html)
+        self.assertIn('28.33 sqft · 2.63 sqm', html)
+        self.assertIn('70.13 sqft · 6.51 sqm', html)
+
+    def test_the_sheet_for_one_window_is_that_window_only(self):
+        html = self._html(SHEET, self.w21.ids)
+        self.assertEqual(html.count('o_aw_elevation_sheet'), 1)
+        self.assertIn('28.33 sqft', html)
+        self.assertNotIn('70.13 sqft', html)
+
+    def test_the_sheet_asks_wkhtmltopdf_to_fetch_nothing(self):
+        html = self._html(SHEETS)
+        self.assertNotIn('/report/barcode', html)
+        self.assertEqual(html.count('data:image/svg+xml;base64,'),
+                         len(self.order.aw_design_ids))
+
+    def test_it_can_be_printed_from_the_window_and_from_a_quote(self):
+        one = self.env.ref('aw_fenestration_design.action_report_aw_elevation_sheet')
+        many = self.env.ref(
+            'aw_fenestration_design.action_report_aw_elevation_sheet_order')
+        self.assertEqual(one.model, 'aw.design')
+        self.assertEqual(one.binding_model_id.model, 'aw.design')
+        self.assertEqual(many.model, 'sale.order')
+        self.assertEqual(many.binding_model_id.model, 'sale.order')
+        self.assertEqual(one.report_type, 'qweb-pdf')
+
+    def test_the_sheet_label_is_10_pt_on_the_paper(self):
+        for design in (self.w21, self.three):
+            self.assertGreaterEqual(
+                design._elevation_sheet_print()['label_pt'], 10.0 - 0.05)
+
+    # -- the selection never prints ------------------------------------------------
+    def test_the_selected_panel_is_drawn_like_the_others(self):
+        stored_svg = stored('elevation_W21_two_casements.svg')
+        self.assertIn('rgb(107, 74, 99)', stored_svg)    # panel 2 was selected
+        out = self.w21._elevation_sheet_print()
+        svg = base64.b64decode(out['src'].split(',', 1)[1]).decode()
+        circles = re.findall(r'<circle[^>]*o_aw_panel_badge[^>]*/>', svg)
+        self.assertEqual(len(circles), 2)
+        for circle in circles:
+            self.assertIn('fill="rgb(255, 255, 255)"', circle)
+            self.assertNotIn('rgb(107, 74, 99)', circle)
+        self.assertNotIn('o_aw_divider_selected', svg)
+
+    def test_a_drawing_stored_with_a_selected_divider_prints_plain(self):
+        self.w21.write({'elevation_svg': stored('elevation_old_no_hair_class.svg')})
+        svg = base64.b64decode(
+            self.w21._elevation_sheet_print()['src'].split(',', 1)[1]).decode()
+        self.assertNotIn('o_aw_divider_selected', svg)
+
+    # -- the charset of a body-only report -------------------------------------------
+    def test_a_body_only_report_declares_its_charset(self):
+        report = self.env.ref('aw_fenestration_design.action_report_aw_elevation_sheet')
+        html = self._html(SHEETS)
+        bodies = report._prepare_html(html, report_model='sale.order')[0]
+        self.assertTrue(bodies[0].startswith('<meta http-equiv="Content-Type"'))
+        self.assertIn('charset=utf-8', bodies[0][:200])
+
+    def test_only_our_bodies_get_the_declaration(self):
+        declare = self.env['ir.actions.report']._aw_declare_charset
+        self.assertTrue(declare('<div class="o_aw_utf8">x</div>').startswith('<meta'))
+        self.assertEqual(declare('<div>x</div>'), '<div>x</div>')
+        already = '<meta charset="utf-8"/><div class="o_aw_utf8">x</div>'
+        self.assertEqual(declare(already), already)

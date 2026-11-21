@@ -15,6 +15,9 @@ page needs:
   * no label box touches another, a tick, or another dimension's line;
   * everything is inside the viewBox and the drawing fits its box;
   * the drawing itself (frame, panels, glyphs) is the stored one, untouched;
+  * the editor's selection never prints: every panel's number badge is the
+    same plain one (13 of the first 29 stored drawings had one panel purple,
+    a selected divider is dashed), in the redraw;
   * a drawing it does not recognise comes back as stored, never an error.
 """
 import importlib.util
@@ -31,10 +34,11 @@ spec = importlib.util.spec_from_file_location(
 ep = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ep)
 
-SHEET = ((168.0, 150.0), 10.0, 10.0)        # box mm, label pt, floor pt
-SCHEDULE = ((86.0, 46.0), 6.0, 5.0)
+SHEET = ((168.0, 138.0), 10.0, 10.0)        # box CSS mm, label pt ON THE PAPER, floor pt
+SCHEDULE = ((86.0, 46.0), 6.0, 4.0)
 
 failures = []
+had_selection = []
 
 
 def check(label, ok, detail=''):
@@ -68,19 +72,25 @@ for path in files:
 
     for (box, pt, floor), kind in ((SHEET, 'sheet'), (SCHEDULE, 'schedule')):
         tag = '%s/%s' % (path.name, kind)
-        out = ep.print_svg(svg, box, pt, min_pt=floor)
+        out = ep.print_for_paper(svg, box, pt, min_paper_pt=floor)
         check(tag + ': redrawn', out['redrawn'])
         root = etree.fromstring(out['svg'].encode())          # well-formed XML
         vb = [float(n) for n in root.get('viewBox').split()]
-        width_mm, height_mm = num(root, 'width'), num(root, 'height')
-        check(tag + ': width and height are in mm',
-              root.get('width', '').endswith('mm') and root.get('height', '').endswith('mm'))
+        # The size the <img> is given in CSS. The drawing states none of its own:
+        # an SVG with a size in mm is drawn at that size inside a smaller img and
+        # cut off with scroll bars (seen in the production container).
+        width_mm, height_mm = out['width_mm'], out['height_mm']
+        check(tag + ': the drawing states its size in CSS px, the size of its box',
+              abs(num(root, 'width') - width_mm * ep.CSS_PX_PER_MM) < 0.05
+              and abs(num(root, 'height') - height_mm * ep.CSS_PX_PER_MM) < 0.05
+              and root.get('width', '').endswith('px'),
+              (root.get('width'), root.get('height'), width_mm, height_mm))
         check(tag + ': fits its box',
               width_mm <= box[0] + 0.01 and height_mm <= box[1] + 0.01,
               (width_mm, height_mm))
-        scale = width_mm / vb[2]
+        scale = width_mm / vb[2]          # CSS mm per drawing unit
         check(tag + ': one scale in both directions',
-              abs(height_mm / vb[3] - scale) < 1e-3 * scale)   # sizes are written to 0.001 mm
+              abs(height_mm / vb[3] - scale) < 1e-6 * scale)
 
         # -- the label size, read back from the output -------------------
         texts = [t for t in root.iter(ep._q('text'))
@@ -88,12 +98,12 @@ for path in files:
         check(tag + ': one label per dimension', len(texts) == len(stored_dims),
               (len(texts), len(stored_dims)))
         for t in texts:
-            size_pt = num(t, 'font-size') * scale / ep.PT_MM
+            size_pt = num(t, 'font-size') * scale / ep.PT_MM * ep.PAPER_SCALE
             check(tag + ': label %s is at least %.1f pt' % (t.text, floor),
                   size_pt >= floor - 0.05, round(size_pt, 2))
         reported = out['label_pt']
         check(tag + ': the reported size is the drawn size',
-              all(abs(num(t, 'font-size') * scale / ep.PT_MM - reported) < 0.05
+              all(abs(num(t, 'font-size') * scale / ep.PT_MM * ep.PAPER_SCALE - reported) < 0.05
                   for t in texts), reported)
         if kind == 'sheet':
             check(tag + ': 10 pt on the sheet', reported >= 10.0 - 0.05, reported)
@@ -134,6 +144,23 @@ for path in files:
               and min(ys) >= vb[1] - 1e-6 and max(ys) <= vb[1] + vb[3] + 1e-6,
               (vb, min(xs), max(xs), min(ys), max(ys)))
 
+        # -- the selection never prints -------------------------------------
+        for circle in root.iter(ep._q('circle')):
+            if 'o_aw_panel_badge' in (circle.get('class') or ''):
+                check(tag + ': every panel badge is the plain one',
+                      circle.get('fill') == 'rgb(255, 255, 255)'
+                      and circle.get('stroke') == 'rgb(106, 112, 117)',
+                      (circle.get('fill'), circle.get('stroke')))
+                nxt = circle.getnext()
+                check(tag + ': and its number is dark',
+                      nxt is not None and nxt.get('fill') == 'rgb(20, 24, 27)',
+                      None if nxt is None else nxt.get('fill'))
+        check(tag + ': no selected divider',
+              'o_aw_divider_selected' not in out['svg'])
+        check(tag + ': no selection colour on a badge',
+              not re.search(r'<circle[^>]*o_aw_panel_badge[^>]*rgb\(107, 74, 99\)',
+                            out['svg']))
+
         # -- the drawing itself is the stored one -------------------------
         def geometry(tree, skip):
             skip_ids = set(id(e) for e in skip)
@@ -145,7 +172,8 @@ for path in files:
                 if name in ('rect', 'polyline', 'circle', 'path', 'polygon'):
                     out.append((name, e.get('x'), e.get('y'), e.get('width'),
                                 e.get('height'), e.get('points'), e.get('cx'),
-                                e.get('cy'), e.get('d'), e.get('fill')))
+                                e.get('cy'), e.get('d'),
+                                e.get('fill') if name == 'rect' else None))
             return sorted(out, key=repr)
 
         old = [e for _k, g, _l, _t in stored_dims for e in g]
@@ -156,10 +184,16 @@ for path in files:
         check(tag + ': the stored drawing is untouched', kept_before == kept_after,
               (len(kept_before), len(kept_after)))
 
+    if re.search(r'o_aw_panel_badge[^>]*rgb\(107, 74, 99\)|o_aw_divider_selected', svg):
+        had_selection.append(path.name)
+
     # -- the old size, for the record ------------------------------------
     vb = [float(n) for n in re.search(r'viewBox="([^"]+)"', svg).group(1).split()]
-    old_pt = 10 * min(86.0 / vb[2], 46.0 / vb[3]) / ep.PT_MM
-    check('%s: it was small in the schedule' % path.name, old_pt < 4.0, old_pt)
+    old_pt = 10 * min(86.0 / vb[2], 46.0 / vb[3]) / ep.PT_MM * ep.PAPER_SCALE
+    check('%s: it was small in the schedule' % path.name, old_pt < 3.5, old_pt)
+
+check('the fixtures include a saved selection (a panel and a divider), so the '
+      'check above proves something', len(had_selection) >= 3, had_selection)
 
 # -- a drawing it does not recognise ----------------------------------------
 plain = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100">'
