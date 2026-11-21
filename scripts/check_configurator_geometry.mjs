@@ -2255,5 +2255,88 @@ console.log("\nTOUCH (mobile b): pinch, tap instead of hover, 44 px:");
     ok(phoneAt > 0, "(the phone shell is still there)");
 }
 
+console.log("\nPIECE ADJUSTMENT (+/-) in the Pieces row:");
+{
+    const xml = readFileSync(
+        "odoo/addons/aw_fenestration_design/static/src/design_configurator/design_configurator.xml",
+        "utf8");
+    const c = make([{ height_mm: 1500, is_auto: false, leaves: [panel(600, "FIXED")] }]);
+    const calls = [];
+    const notes = [];
+    c.designId = 5;
+    c.orm = { call: async (model, method, args) => { calls.push([method, args]); return c.state.data; } };
+    c.notification = { add: (m) => notes.push(m) };
+    c.surfaceCheckErrors = () => {};
+    c.save = async () => { calls.push(["save"]); c.state.dirty = false; };
+
+    // -- what the box shows ------------------------------------------------
+    c.state.unitMode = "in";
+    ok(c.adjustBoxValue({ adjust_mm: null }) === "", "no adjustment of its own: the box is empty");
+    ok(c.adjustBoxValue({}) === "", "(and so is a piece the server sent none for)");
+    ok(c.adjustBoxValue({ adjust_mm: 0 }) === "0", "a typed 0 shows 0: it is the piece's own, final adjustment");
+    ok(c.adjustBoxValue({ adjust_mm: 25.4 }) === "+1", "+1 inch shows +1");
+    ok(c.adjustBoxValue({ adjust_mm: -6.35 }) === "-0-2", "two soot short shows -0-2");
+    ok(c.adjustBoxValue({ adjust_mm: 3.175 }) === "+0-1", "one soot long shows +0-1");
+    c.state.unitMode = "mm";
+    ok(c.adjustBoxValue({ adjust_mm: -6.35 }) === "-6.35", "mm mode shows signed mm");
+    ok(c.adjustBoxValue({ adjust_mm: 3 }) === "+3", "and +3 for 3 mm");
+    c.state.unitMode = "both";
+    ok(c.adjustBoxValue({ adjust_mm: 25.4 }) === "+1", "Both shows inches in the box");
+
+    // -- what is typed, in the box's unit -----------------------------------
+    c.state.unitMode = "in";
+    near(c.parseAdjust("+1"), 25.4, "+1 is one inch");
+    near(c.parseAdjust("-0-2"), -6.35, "-0-2 is two soot short");
+    near(c.parseAdjust("-1/2"), -12.7, "-1/2 is half an inch short");
+    near(c.parseAdjust("+0-1"), 3.18, "+0-1 is one soot long", 0.01);
+    ok(c.parseAdjust("abc") === null, "words are not an adjustment");
+    c.state.unitMode = "mm";
+    near(c.parseAdjust("+3"), 3, "in mm, +3 is 3 mm");
+    near(c.parseAdjust("-2.5"), -2.5, "and -2.5 is 2.5 mm short");
+    ok(c.parseAdjust("3mm") === null && c.parseAdjust("x") === null,
+       "mm mode takes a plain number only");
+    c.state.unitMode = "in";
+
+    // -- committing -------------------------------------------------------
+    const piece = { piece_key: "7|1|1|2", adjust_mm: null };
+    calls.length = 0;
+    await c.commitAdjust(piece, "-0-2");
+    ok(calls.length === 1 && calls[0][0] === "set_piece_adjustment"
+       && calls[0][1][0][0] === 5 && calls[0][1][1] === "7|1|1|2"
+       && Math.abs(calls[0][1][2] + 6.35) < 0.001,
+       "a typed value is sent as this piece's own adjustment, in mm");
+    calls.length = 0;
+    await c.commitAdjust(piece, "   ");
+    ok(calls.length === 0, "blank on a piece that has none changes nothing");
+    calls.length = 0;
+    await c.commitAdjust({ piece_key: "7|1|1|2", adjust_mm: -6.35 }, "");
+    ok(calls.length === 1 && calls[0][0] === "reset_piece_adjustment",
+       "blank on a piece that has one resets it to the series default");
+    calls.length = 0;
+    await c.commitAdjust(piece, "banana");
+    ok(calls.length === 0 && notes.length === 1,
+       "something unreadable is refused with a message, never stored as 0");
+    calls.length = 0;
+    await c.commitAdjust(piece, "0");
+    ok(calls.length === 1 && calls[0][1][2] === 0,
+       "a typed 0 is stored: it overrides the series default");
+    calls.length = 0;
+    await c.resetAdjust(piece);
+    ok(calls.length === 1 && calls[0][0] === "reset_piece_adjustment", "Reset deletes the row");
+    c.state.dirty = true;
+    calls.length = 0;
+    await c.commitAdjust(piece, "+1");
+    ok(calls[0][0] === "save" && calls[1][0] === "set_piece_adjustment",
+       "unsaved layout changes are saved first: the server works on what is stored");
+
+    // -- the row ----------------------------------------------------------
+    ok(/piece\.adjustable/.test(xml) && xml.includes('onCommit="(text) => this.commitAdjust(piece, text)"'),
+       "the Pieces row has an adjustment box for an adjustable piece");
+    ok(xml.includes("rule_length_mm") && xml.includes("Final"),
+       "and shows the rule length and the final length");
+    ok(/piece\.adjust_mm !== null and piece\.adjust_mm !== undefined[\s\S]{0,600}resetAdjust\(piece\)/.test(xml),
+       "Reset is offered only to a piece that has its own adjustment");
+}
+
 console.log(fail ? `\n${fail} FAILURES` : "\nall passed");
 process.exit(fail ? 1 : 0);

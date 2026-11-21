@@ -1530,6 +1530,25 @@
                                                            onCommit="(text) => this.commitPiece(piece, text)"/>
                                                         <span t-if="state.unitMode === 'mm'" class="small text-muted">mm</span>
                                                     </t>
+                                                    <div t-if="piece.adjustable" class="o_aw_piece_adjust d-flex align-items-center gap-2 flex-wrap w-100">
+                                                        <span class="small text-muted">
+                                                            Rule <b><t t-esc="pieceBoxValue(piece.rule_length_mm)"/></b><t t-if="state.unitMode === 'mm'"> mm</t>
+                                                        </span>
+                                                        <span class="small text-muted">+/-</span>
+                                                        <SizeBox class="'form-control o_aw_touch_input'"
+                                                                 style="'max-width: 6rem;'"
+                                                                 value="adjustBoxValue(piece)"
+                                                                 placeholder="'series: 0'"
+                                                                 onCommit="(text) => this.commitAdjust(piece, text)"/>
+                                                        <button t-if="piece.adjust_mm !== null and piece.adjust_mm !== undefined"
+                                                                type="button" class="btn btn-outline-secondary btn-sm o_aw_touch"
+                                                                title="Delete this piece's own adjustment: it follows the series default again"
+                                                                t-on-click="() => this.resetAdjust(piece)">Reset</button>
+                                                        <span class="small text-muted">
+                                                            Final <b><t t-esc="pieceBoxValue(piece.length_mm)"/></b><t t-if="state.unitMode === 'mm'"> mm</t>
+                                                            <t t-if="piece.is_manual"> (typed)</t>
+                                                        </span>
+                                                    </div>
                                                     <div class="o_aw_tree_rule">
                                                         <t t-esc="piece.qty"/> pc<t t-if="piece.cut_angle"> · <t t-esc="piece.cut_angle"/>° ends</t>
                                                         <t t-if="piece.editable and !piece.cut_on_site">

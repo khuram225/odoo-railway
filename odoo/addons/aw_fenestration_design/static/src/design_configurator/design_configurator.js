@@ -1082,6 +1082,76 @@ export class DesignConfigurator extends Component {
         this.surfaceCheckErrors();
     }
 
+    // -- the +/- adjustment of a piece ---------------------------------------
+    /** The adjustment as the box shows it: signed, in the box's unit; empty
+     *  when the piece has none of its own (it follows the series default). */
+    adjustBoxValue(piece) {
+        const mm = piece.adjust_mm;
+        if (mm === null || mm === undefined) {
+            return "";
+        }
+        return this.adjustText(mm);
+    }
+
+    adjustText(mm) {
+        if (!mm) {
+            return "0";
+        }
+        const sign = mm < 0 ? "-" : "+";
+        const size = this.state.unitMode === "mm"
+            ? this.pieceMmText(Math.abs(mm))
+            : formatInches(Math.abs(mm), "soot");
+        return `${sign}${size}`;
+    }
+
+    /** What was typed in an adjustment box, in mm, or null if unreadable.
+     *  "+1" is one inch, "-0-2" is two soot short, "+3" in the mm unit is
+     *  3 mm. Unlike a length, nothing unreadable is taken as 0. */
+    parseAdjust(text) {
+        const str = String(text || "").trim();
+        if (this.state.unitMode === "mm") {
+            return /^[+-]?\d+(\.\d+)?$/.test(str) ? Number(str) : null;
+        }
+        const mm = parseInches(str);
+        return Number.isFinite(mm) ? mm : null;
+    }
+
+    /** Blank resets to the series default; anything else is this piece's
+     *  own, final adjustment. */
+    async commitAdjust(piece, text) {
+        const str = String(text || "").trim();
+        if (!str) {
+            if (piece.adjust_mm !== null && piece.adjust_mm !== undefined) {
+                await this.resetAdjust(piece);
+            }
+            return;
+        }
+        const mm = this.parseAdjust(str);
+        if (mm === null) {
+            this.notification.add(
+                "That adjustment cannot be read. Use +1, -0-2 or +3/8 in inches, or +3 in mm.",
+                { type: "warning" });
+            return;
+        }
+        if (this.state.dirty) {
+            await this.save();
+        }
+        this.state.data = await this.orm.call(
+            "aw.design", "set_piece_adjustment",
+            [[this.designId], piece.piece_key, mm]);
+        this.surfaceCheckErrors();
+    }
+
+    async resetAdjust(piece) {
+        if (this.state.dirty) {
+            await this.save();
+        }
+        this.state.data = await this.orm.call(
+            "aw.design", "reset_piece_adjustment",
+            [[this.designId], piece.piece_key]);
+        this.surfaceCheckErrors();
+    }
+
     async recomputePieces() {
         if (this.state.dirty) {
             await this.save();

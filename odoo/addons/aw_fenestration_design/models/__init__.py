@@ -25,6 +25,7 @@ from . import mesh_cloth
 from . import glass_default_stack
 from . import glass_suggestion
 from . import override
+from . import piece_adjust
 from . import part_choice
 from . import explosion
 from . import snapshot

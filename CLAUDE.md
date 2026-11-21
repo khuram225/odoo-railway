@@ -641,6 +641,24 @@ viewBox units.
 
 **Mesh is never painted in the finish colour.** A mesh panel and an attached fly screen (frame and cloth) use `meshFrameFill` (a light neutral) with `meshOutline`, so they show against a black or brown frame; the frame, dividers and sash keep the finish colour.
 
+**Piece adjustment, +/- (`models/piece_adjust.py`, table `aw_design_piece_adjust`).** A piece's final
+length is its RULE length (the spec's formula) plus an ADJUSTMENT: `final = rule + adjustment`. One row per
+piece per window (design, `piece_key`, mm), keyed like a typed length so a resize or a recompute finds it
+again; being a number added after the rule, it follows the window's size, which an absolute length typed
+on the piece does not. Applied in `_explode` right after the rule and before anything typed, so **a typed
+absolute length still wins** (it is re-applied afterwards by `_apply_manual_cut_lines`), and **nothing
+cascades**: a frame adjustment does not move the sash or the bead, whatever the formulas say. Replace
+semantics: a row is the FINAL adjustment for that piece (a typed 0 is a row: "none here"); no row follows
+`_adjust_default_mm()`, the series default, which is zero until the Size rules page. `computed_length_mm`
+on the BOM line is rule + adjustment (the length before anything was typed), so "was", Use the rule and the
+typed flag keep their meaning; the rule alone is `_rule_length()` = computed less the adjustment, which is
+what the Pieces row shows as "Rule". Set and reset (`set_piece_adjustment`, `reset_piece_adjustment`) recompute
+the window and write a note on its chatter; an adjustment over 1000 mm (a length typed where an adjustment was
+meant) or one that would make the piece 0 long is refused; a blank box resets, unreadable text is refused
+and never stored as 0. A copy of the window (Duplicate, Make copies) keeps its adjustments. A change of
+spec leaves them dormant (the keys name the old spec's lines). Not in this PR: the series default and the
+snapshot at confirmation (PR 3).
+
 **Configurator on a phone (under 768 px, mobile PR a).** `state.phone` follows one media query
 (`PHONE_QUERY` in `design_configurator.js`, Bootstrap's md break), read once at setup and followed by
 `onPhoneChange`; the root then carries `o_aw_phone` and every phone rule in the stylesheet is nested under

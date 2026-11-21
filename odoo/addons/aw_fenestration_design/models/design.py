@@ -1659,6 +1659,7 @@ class AwDesign(models.Model):
         """BOM and checks for the configurator's right-hand column."""
         self.ensure_one()
         groups = {}
+        adjustments = self._piece_adjustments()
         for line in self.bom_line_ids:
             groups.setdefault(line.kind or 'profile', []).append({
                 'id': line.id,
@@ -1705,6 +1706,13 @@ class AwDesign(models.Model):
                 'cut_angle': line.cut_angle or '',
                 'length_mm': line.length_mm or 0.0,
                 'computed_length_mm': line.computed_length_mm or 0.0,
+                # The +/- adjustment: None follows the series default.
+                'adjustable': bool(
+                    line.kind == 'profile' and not line.cut_on_site
+                    and not line.is_free_form and line.template_line_id
+                    and line.piece_key),
+                'adjust_mm': adjustments.get(line.piece_key),
+                'rule_length_mm': self._rule_length(line, adjustments),
                 'cut_on_site': bool(line.cut_on_site),
                 'is_manual': bool(line.is_manual),
                 'is_orphan': bool(line.is_orphan),
@@ -2112,6 +2120,9 @@ class AwDesign(models.Model):
         # comes along without this line being remembered.
         for override in self.override_ids:
             override.copy({'design_id': copy.id})
+        # The piece adjustments: same spec, same layout, same piece keys.
+        for adjust in self.piece_adjust_ids:
+            adjust.copy({'design_id': copy.id})
 
         copy.row_ids.unlink()          # drop the starter row
         copy._create_rows(rows, parent_leaf=None)
