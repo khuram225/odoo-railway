@@ -67,12 +67,19 @@ work=$(mktemp -d)
 
 # -- skipped tests: always reported, and checked against the agreed list -------
 # "skipped Class.test_name : reason" -> "Class.test_name<TAB>reason"
-grep -E ' skipped [A-Za-z0-9_]+[.][A-Za-z0-9_]+ : ' "$log" \
-    | sed -E 's/.* skipped ([A-Za-z0-9_]+[.][A-Za-z0-9_]+) : (.*)$/\1\t\2/' \
-    | sort -u > "$work/skips.tsv" || true
+# A test: "skipped Class.test_name : reason". A whole CLASS (self.skipTest or
+# unittest.SkipTest raised in setUpClass) logs "skipped setUpClass (mod.Class)
+# : reason" and runs none of its tests, which are not even counted in "T tests":
+# keyed setUpClass:Class, as the known-failures file does.
+{
+    grep -E ' skipped [A-Za-z0-9_]+[.][A-Za-z0-9_]+ : ' "$log" \
+        | sed -E 's/.* skipped ([A-Za-z0-9_]+[.][A-Za-z0-9_]+) : (.*)$/\1\t\2/'
+    grep -E ' skipped setUpClass [(][A-Za-z0-9_.]+[)] : ' "$log" \
+        | sed -E 's/.* skipped setUpClass [(][A-Za-z0-9_.]*[.]([A-Za-z0-9_]+)[)] : (.*)$/setUpClass:\1\t\2/'
+} | sort -u > "$work/skips.tsv" || true
 cut -f1 "$work/skips.tsv" | sort -u > "$work/skipping"
 nskips=$(wc -l < "$work/skipping" | tr -d ' ')
-echo "::notice::skipped: $nskips of $total tests skipped themselves"
+echo "::notice::skipped: $nskips skip(s) among $total tests (a skipped class counts once and none of its tests are in the total)"
 if [ "$nskips" -gt 0 ]; then
     awk -F'\t' '{printf "%s -- %s\n", $1, $2}' "$work/skips.tsv" > "$work/skip_lines"
     split -l 12 "$work/skip_lines" "$work/skip."
