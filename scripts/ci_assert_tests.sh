@@ -21,14 +21,30 @@
 # signed-in user to read and annotations do not. GitHub shows only 10
 # annotations per step, so they go out in chunks of 12 tests per annotation.
 #
-# Usage: scripts/ci_assert_tests.sh /tmp/tests.log [known_failures.txt]
+# SKIPPED TESTS. A test that skips itself (self.skipTest, because the database
+# lacks a record it wants) neither fails nor passes: it counts in "T tests" and
+# proves nothing, and a green run looks the same with or without it. Odoo logs
+# each one ("skipped Class.test_name : reason"), so every run states
+# "skipped: N" with the names and reasons, and an optional third argument is a
+# file of the skips that are known and agreed (tests/known_skips.txt), same
+# shape and same rule as the known failures: the run FAILS when
+#   - a test skips that is not listed        (a PR that adds a skip must add
+#                                             its line, and say why in it), or
+#   - a listed test no longer skips          (so the list can only shrink).
+#
+# Usage: scripts/ci_assert_tests.sh /tmp/tests.log [known_failures.txt [known_skips.txt]]
 set -eu
 
-log=${1:?usage: ci_assert_tests.sh <logfile> [known_failures.txt]}
+log=${1:?usage: ci_assert_tests.sh <logfile> [known_failures.txt [known_skips.txt]]}
 known=${2:-}
+known_skips=${3:-}
 [ -f "$log" ] || { echo "FATAL: $log does not exist, so nothing was checked" >&2; exit 1; }
 if [ -n "$known" ] && [ ! -f "$known" ]; then
     echo "FATAL: $known does not exist" >&2
+    exit 1
+fi
+if [ -n "$known_skips" ] && [ ! -f "$known_skips" ]; then
+    echo "FATAL: $known_skips does not exist" >&2
     exit 1
 fi
 
@@ -48,6 +64,47 @@ if [ "$total" -eq 0 ]; then
 fi
 
 work=$(mktemp -d)
+
+# -- skipped tests: always reported, and checked against the agreed list -------
+# "skipped Class.test_name : reason" -> "Class.test_name<TAB>reason"
+# A test: "skipped Class.test_name : reason". A whole CLASS (self.skipTest or
+# unittest.SkipTest raised in setUpClass) logs "skipped setUpClass (mod.Class)
+# : reason" and runs none of its tests, which are not even counted in "T tests":
+# keyed setUpClass:Class, as the known-failures file does.
+{
+    grep -E ' skipped [A-Za-z0-9_]+[.][A-Za-z0-9_]+ : ' "$log" \
+        | sed -E 's/.* skipped ([A-Za-z0-9_]+[.][A-Za-z0-9_]+) : (.*)$/\1\t\2/'
+    grep -E ' skipped setUpClass [(][A-Za-z0-9_.]+[)] : ' "$log" \
+        | sed -E 's/.* skipped setUpClass [(][A-Za-z0-9_.]*[.]([A-Za-z0-9_]+)[)] : (.*)$/setUpClass:\1\t\2/'
+} | sort -u > "$work/skips.tsv" || true
+cut -f1 "$work/skips.tsv" | sort -u > "$work/skipping"
+nskips=$(wc -l < "$work/skipping" | tr -d ' ')
+echo "::notice::skipped: $nskips skip(s) among $total tests (a skipped class counts once and none of its tests are in the total)"
+if [ "$nskips" -gt 0 ]; then
+    awk -F'\t' '{printf "%s -- %s\n", $1, $2}' "$work/skips.tsv" > "$work/skip_lines"
+    split -l 12 "$work/skip_lines" "$work/skip."
+    for part in "$work"/skip.*; do
+        [ -f "$part" ] || continue
+        printf '::notice::skipped tests: %s\n' "$(awk '{printf "%s%%0A", $0}' "$part")"
+    done
+fi
+if [ -n "$known_skips" ]; then
+    grep -vE '^[[:space:]]*(#|$)' "$known_skips" | awk '{print $1}' | sort -u > "$work/skip_listed"
+    comm -23 "$work/skipping" "$work/skip_listed" > "$work/skip_new"     # skips, not listed
+    comm -13 "$work/skipping" "$work/skip_listed" > "$work/skip_stale"   # listed, not skipping
+else
+    : > "$work/skip_new"
+    : > "$work/skip_stale"
+fi
+skipbad=0
+if [ -s "$work/skip_new" ]; then
+    echo "::error::$(wc -l < "$work/skip_new" | tr -d ' ') test(s) skip that are not in the known-skips list (add a line to $known_skips saying why, or make the test run): $(tr '\n' ' ' < "$work/skip_new" | cut -c1-1500)"
+    skipbad=1
+fi
+if [ -s "$work/skip_stale" ]; then
+    echo "::error::$(wc -l < "$work/skip_stale" | tr -d ' ') listed skip(s) no longer skip or no longer exist -- remove them from $known_skips: $(tr '\n' ' ' < "$work/skip_stale" | cut -c1-1500)"
+    skipbad=1
+fi
 
 # the key of every failing test, as the known-failures file spells it
 grep -E '(FAIL|ERROR): ([A-Za-z0-9_]+[.][A-Za-z0-9_]+|setUpClass)' "$log" \
@@ -94,7 +151,7 @@ if [ -s "$work/new" ]; then
     done
 fi
 
-bad=0
+bad=$skipbad
 if [ -s "$work/new" ]; then
     echo "::error::$(wc -l < "$work/new" | tr -d ' ') test(s) failed that are not in the known-failures list"
     bad=1
@@ -104,7 +161,7 @@ if [ -s "$work/stale" ]; then
     bad=1
 fi
 if [ "$bad" -ne 0 ]; then
-    echo "::error::$failed failed, $errors errored of $total tests"
+    echo "::error::$failed failed, $errors errored of $total tests, $nskips skipped"
     exit 1
 fi
 
