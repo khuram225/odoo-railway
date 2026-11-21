@@ -211,6 +211,10 @@ const SNAP_ALIGN_PX = 6;
 const PANE_MIN_PX = 180;
 const PANE_MAX_FRACTION = 0.45;
 const PANE_DEFAULTS = { left: 220, right: 260 };
+// Below this width the configurator is laid out for a phone: the drawing on
+// top, the tabs below, the layout library in a drawer. Wider screens keep
+// the three columns exactly as they were. Bootstrap's own "md" break.
+const PHONE_QUERY = "(max-width: 767.98px)";
 const STORE_PANE = "aw_cfg_pane_";
 const STORE_COLLAPSED = "aw_cfg_collapsed";
 const STORE_UNIT_MODE = "aw_cfg_unit_mode";
@@ -410,6 +414,12 @@ export class DesignConfigurator extends Component {
             gridCols: 2,
             gridRows: 2,
             libraryOpen: true,
+            // The phone layout (see PHONE_QUERY). The drawer and the
+            // header details have their own flags so a phone never
+            // overwrites the desktop's remembered library choice.
+            phone: this.readPhone(),
+            phoneLibrary: false,
+            phoneDetails: false,
             // The other box of a Width/Height pair, shown live while one
             // is being typed into: { field, source, text }.
             sizeDraft: null,
@@ -446,6 +456,9 @@ export class DesignConfigurator extends Component {
             setUnsavedCheck(this.unsavedCheck);
             this.onKeyDown = (ev) => this.keyDown(ev);
             window.addEventListener("keydown", this.onKeyDown);
+            this.phoneMedia = window.matchMedia?.(PHONE_QUERY) || null;
+            this.onPhoneMedia = (ev) => this.onPhoneChange(ev);
+            this.phoneMedia?.addEventListener?.("change", this.onPhoneMedia);
             this.resizeObserver = new ResizeObserver(() => this.measure());
             if (this.canvasRef.el) {
                 this.resizeObserver.observe(this.canvasRef.el);
@@ -459,9 +472,44 @@ export class DesignConfigurator extends Component {
         onWillUnmount(() => {
             clearUnsavedCheck(this.unsavedCheck);
             window.removeEventListener("keydown", this.onKeyDown);
+            this.phoneMedia?.removeEventListener?.("change", this.onPhoneMedia);
             this.resizeObserver?.disconnect();
             this.endDrag(); // never leave window listeners behind
         });
+    }
+
+    /** Is this screen a phone? No matchMedia (a test, an old browser) is no. */
+    readPhone() {
+        try {
+            return !!window.matchMedia?.(PHONE_QUERY)?.matches;
+        } catch {
+            return false;
+        }
+    }
+
+    /** The screen crossed the phone break (a turn of the device, a resize). */
+    onPhoneChange(ev) {
+        this.state.phone = !!ev.matches;
+        if (!this.state.phone) {
+            this.state.phoneLibrary = false;
+            this.state.phoneDetails = false;
+        }
+    }
+
+    /** Whether the layout library is on screen: its column on a desktop,
+     *  its drawer on a phone. */
+    get libraryShown() {
+        return this.state.phone
+            ? !!this.state.phoneLibrary
+            : !!this.state.libraryOpen;
+    }
+
+    closePhoneLibrary() {
+        this.state.phoneLibrary = false;
+    }
+
+    togglePhoneDetails() {
+        this.state.phoneDetails = !this.state.phoneDetails;
     }
 
     measure() {
@@ -639,6 +687,9 @@ export class DesignConfigurator extends Component {
     // kind of getter, never with `scene`: the drawing must not read a
     // pane width or the cycle scene -> fitScale -> scene comes back.
     get leftPaneStyle() {
+        if (this.state.phone) {
+            return "min-height: 0;"; // the drawer is sized by its stylesheet
+        }
         if (!this.state.libraryOpen) {
             return "width: 2.25rem; min-height: 0;";
         }
@@ -646,6 +697,9 @@ export class DesignConfigurator extends Component {
     }
 
     get rightPaneStyle() {
+        if (this.state.phone) {
+            return "min-height: 0;"; // full width, below the drawing
+        }
         return `width: ${this.state.paneRight}px; min-height: 0;`;
     }
 
@@ -2010,6 +2064,11 @@ export class DesignConfigurator extends Component {
 
     /** Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z, except while typing in a field. */
     keyDown(ev) {
+        if (ev.key === "Escape" && !ev.ctrlKey && !ev.metaKey && !ev.altKey
+                && this.state.phone && this.state.phoneLibrary) {
+            this.state.phoneLibrary = false; // the drawer first
+            return;
+        }
         if (ev.key === "Escape" && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
             const field = (ev.target?.tagName || "").toLowerCase();
             if (!["input", "textarea", "select"].includes(field)) {
@@ -3813,6 +3872,10 @@ export class DesignConfigurator extends Component {
     }
 
     toggleLibrary() {
+        if (this.state.phone) {
+            this.state.phoneLibrary = !this.state.phoneLibrary;
+            return;
+        }
         this.state.libraryOpen = !this.state.libraryOpen;
     }
 
@@ -3829,12 +3892,14 @@ export class DesignConfigurator extends Component {
     applyLibraryItem(group, item) {
         if (group.kind !== "preset") {
             this.applyAttachment(item);
-            return;
-        }
-        if (item.kind === "shape") {
+        } else if (item.kind === "shape") {
             this.applyShape(item);
         } else {
             this.applyPreset(item);
+        }
+        // A drawer covers the drawing: once something is chosen, show it.
+        if (this.state.phone) {
+            this.state.phoneLibrary = false;
         }
     }
 

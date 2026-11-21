@@ -340,3 +340,89 @@
 .o_aw_cfg_svg .o_aw_hair {
     vector-effect: non-scaling-stroke;
 }
+
+// ---------------------------------------------------------------------
+// Phone layout (under 768px; the class is set by the component from the
+// same media query, so the stylesheet and the template cannot disagree).
+// The drawing on top, the tabs below, the layout library in a drawer. None
+// of this applies above the break: the desktop is exactly as it was.
+// ---------------------------------------------------------------------
+.o_aw_phone {
+    .o_aw_cfg_header {
+        padding: 0.5rem !important;
+    }
+
+    // Only the size boxes and the bar stay in the header; "Details" shows
+    // the rest (family, ref, location, series, glass, finish...).
+    .o_aw_hdr_collapsed > :not(.o_aw_hdr_core):not(.o_aw_phone_bar) {
+        display: none !important;
+    }
+
+    .o_aw_cfg_fields {
+        gap: 0.5rem !important;
+    }
+
+    .o_aw_cfg_main {
+        flex-direction: column;
+    }
+
+    // The pane borders can't be dragged on a phone: the columns are gone.
+    .o_aw_cfg_resizer {
+        display: none !important;
+    }
+
+    .o_aw_cfg_center {
+        flex: 0 0 auto !important;
+        height: 46vh;
+        height: 46dvh;
+        min-height: 240px;
+        padding: 0.5rem !important;
+    }
+
+    .o_aw_cfg_side {
+        width: 100% !important;
+        flex: 1 1 0 !important;
+        min-height: 0;
+        border-left: 0 !important;
+        border-top: 1px solid var(--bs-border-color, #dee2e6);
+    }
+
+    // The tabs scroll sideways rather than wrap (already so on a desktop).
+    .o_aw_cfg_tabs {
+        -webkit-overflow-scrolling: touch;
+    }
+
+    // The layout library: a sheet from the bottom, over a dimmed screen.
+    // Kept below Bootstrap's modal (1055) so a dialog opened from it still
+    // lands on top.
+    .o_aw_drawer:not(.o_aw_drawer_open) {
+        display: none !important;
+    }
+
+    .o_aw_drawer.o_aw_drawer_open {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100% !important;
+        height: 72vh;
+        height: 72dvh;
+        z-index: 1041;
+        border-top-left-radius: 0.75rem;
+        border-top-right-radius: 0.75rem;
+        border-right: 0 !important;
+        box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+    }
+
+    .o_aw_drawer_backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 1040;
+        background: rgba(0, 0, 0, 0.4);
+    }
+
+    // The presets use the whole width of the sheet.
+    .o_aw_drawer .o_aw_cfg_preset {
+        width: 30%;
+    }
+}
