@@ -1441,6 +1441,10 @@
                                                     </t>
                                                     <span t-if="piece.is_manual" class="badge text-bg-warning">Manual</span>
                                                     <span t-if="piece.is_orphan" class="badge text-bg-danger">Orphan</span>
+                                                    <button t-if="piece.is_manual and piece.editable and !piece.cut_on_site and !piece.is_orphan"
+                                                            type="button" class="btn btn-outline-secondary btn-sm o_aw_touch"
+                                                            title="Clear the typed length and go back to the length the spec's rule gives"
+                                                            t-on-click="() => this.useRule(piece)">Use the rule</button>
                                                     <t t-if="!piece.editable">
                                                         <span class="ms-auto small text-muted"><t t-esc="pieceSizeText(piece)"/></span>
                                                     </t>

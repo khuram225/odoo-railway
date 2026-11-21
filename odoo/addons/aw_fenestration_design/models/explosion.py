@@ -1300,6 +1300,15 @@ class AwDesign(models.Model):
         for line in self.bom_line_ids:
             if line.kind != 'profile':
                 continue
+            if not line.cut_on_site and (line.length_mm or 0.0) <= 0:
+                where = (_("Panel %s", line.panel_no) if line.panel_no
+                         else _("Frame and dividers"))
+                problems.append(('warning', _(
+                    "%(where)s: piece %(ref)s has length 0, so it is left "
+                    "out of the cutting plan. Type a real length or use "
+                    "the rule.",
+                    where=where, ref=line.piece_ref or line.label or '?'),
+                    self._target('piece', line.panel_no, line.piece_key)))
             template = line.product_id.product_tmpl_id
             if template.id not in limits:
                 limits[template.id] = self._max_piece_mm(vendor, template)

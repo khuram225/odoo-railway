@@ -6,18 +6,25 @@ aw_fenestration_design/models/cut_summary_xlsx.py (Odoo-free for exactly this)
 and reads the bytes back with openpyxl, a second library, so a mistake in how
 it was written shows up as something Excel would see:
 
-  * two sheets, "Summary" and "Cut list", both starting with batch, quote,
-    date, plan state, bars and feet bought;
-  * a stale plan carries the red note on both sheets, a current one carries
-    none; an empty batch is refused with a message;
+  * three sheets, "Summary", "Bars" and "Cut list", all starting with batch,
+    quote, date, plan state, bars and feet bought;
+  * a stale plan carries the red note on every sheet (and the Bars sheet says
+    it is from an old plan), a current one carries none; an empty batch is
+    refused with a message;
   * one block per profile; rows are windows in NATURAL order (W2 before W10);
     columns are the distinct lengths, longest first, workshop text over the
     exact mm; zero cells are blank; a profile with one length has one column;
   * every row ends with pieces and feet, every block with column totals, and
     the totals equal what the cuts add up to;
   * a window with two profiles is in two blocks;
-  * the Cut list is flat, one row per cut, with the typed-length flag, an
-    autofilter and a frozen header;
+  * the Summary freezes its window and location columns, prints landscape,
+    labels the exact-mm row "mm" in Location, says feet are rounded per row,
+    and ends each block with "Bars: 2 x 18 ft" (or the mix);
+  * the Bars sheet has one row per bar in the cutting sheet's order, the cuts
+    in order with their piece references, and its pieces and feet equal the
+    Summary's;
+  * the Cut list is flat, one row per cut, with the piece reference, the
+    typed-length flag, an autofilter and a frozen header;
   * the file name.
 
 Skips loudly when openpyxl or xlsxwriter is missing; CI installs both and runs
@@ -52,6 +59,7 @@ def check(label, ok, detail=''):
 def cut(window, location, block, code, mm, text, bar=1, typed=False,
         panel=1, angle='45'):
     return {'window': window, 'location': location, 'panel': panel,
+            'piece_ref': '%s.%d' % (window, panel),
             'code': code, 'thickness': '1.2', 'finish': 'Natural',
             'position': 'Outer Frame - Top', 'length_text': text,
             'length_mm': mm, 'angle': angle, 'bar_no': bar, 'typed': typed,
@@ -68,9 +76,41 @@ CUTS = (
     + [cut('W2', 'Kitchen', 2, 'RE-3', 700.0, '27-4', bar=1)] * 4
     + [cut('W10', 'Hall', 2, 'RE-3', 700.0, '27-4', bar=1)] * 4
 )
+
+
+def bars_of(cuts):
+    """The plan's bars for CUTS: one per (block, bar_no), in that order."""
+    keyed, order = {}, []
+    for c in cuts:
+        key = (c['block'], c['bar_no'])
+        if key not in keyed:
+            keyed[key] = []
+            order.append(key)
+        keyed[key].append(c)
+    counts = {}
+    for block, _no in order:
+        counts[block] = counts.get(block, 0) + 1
+    out = []
+    for block, no in order:
+        members = keyed[(block, no)]
+        used = sum(m['length_mm'] for m in members)
+        stock = 6096.0 if block == 2 else 5486.4
+        out.append({
+            'block': block, 'code': members[0]['code'], 'thickness': '1.2',
+            'finish': 'Natural', 'bar_no': no, 'bar_count': counts[block],
+            'stock_mm': stock,
+            'cuts': [{'ref': m['piece_ref'], 'text': m['length_text'],
+                      'mm': m['length_mm']} for m in members],
+            'used_mm': used, 'used_text': '%g' % used,
+            'remainder_mm': stock - used, 'remainder_text': '0-5.5',
+            'from_stock': ''})
+    return out
+
+
+BARS = bars_of(CUTS)
 DATA = {'batch': 'Batch 1', 'quote': 'S00009', 'date': '2026-11-20',
         'state': 'Draft', 'bars': 3, 'feet': 42.0, 'stale': False,
-        'cuts': CUTS}
+        'cuts': CUTS, 'bar_rows': BARS}
 
 
 def rows_of(sheet):
@@ -82,10 +122,11 @@ def build(data):
 
 
 book = build(DATA)
-check('sheets', book.sheetnames == ['Summary', 'Cut list'], book.sheetnames)
-summary, flat = book['Summary'], book['Cut list']
+check('sheets', book.sheetnames == ['Summary', 'Bars', 'Cut list'],
+      book.sheetnames)
+summary, bars_sheet, flat = book['Summary'], book['Bars'], book['Cut list']
 
-for sheet in (summary, flat):
+for sheet in (summary, bars_sheet, flat):
     top = rows_of(sheet)[:6]
     check('top rows %s' % sheet.title, [r[0] for r in top] == [
         'Batch', 'Quote', 'Date', 'Plan state', 'Bars bought', 'Feet bought'],
@@ -166,14 +207,65 @@ header_row = next(i for i, r in enumerate(flat_rows) if r[0] == 'Window')
 check('cut list header', flat_rows[header_row] == x.CUT_HEADERS)
 body = [r for r in flat_rows[header_row + 1:] if r[0]]
 check('one row per cut', len(body) == len(CUTS), len(body))
-check('typed flag', sum(1 for r in body if r[12] == 'typed') == 2,
-      [r[12] for r in body])
-check('mm is a number', all(isinstance(r[8], (int, float)) for r in body))
+check('typed flag', sum(1 for r in body if r[13] == 'typed') == 2,
+      [r[13] for r in body])
+check('mm is a number', all(isinstance(r[9], (int, float)) for r in body))
+check('piece reference on every cut',
+      all(r[2] and '.' in r[2] for r in body), [r[2] for r in body])
 check('autofilter',
       flat.auto_filter.ref and flat.auto_filter.ref.startswith('A%d' % (header_row + 1)),
       flat.auto_filter.ref)
 check('frozen header', flat.freeze_panes == 'A%d' % (header_row + 2),
       flat.freeze_panes)
+
+# -- Summary layout -------------------------------------------------------
+check('window and location columns frozen', summary.freeze_panes == 'C1',
+      summary.freeze_panes)
+check('prints landscape', summary.page_setup.orientation == 'landscape',
+      summary.page_setup.orientation)
+check('feet note', any(r[0] == x.FEET_NOTE for r in cells))
+check('mm caption is in the Location column',
+      under[1] == 'mm' and 'mm above' not in [c for r in cells for c in r],
+      under)
+total_at = titles[0] + 6
+check('bars line under the first block total',
+      cells[total_at + 1][0] == 'Bars: 2 x 18 ft', cells[total_at + 1][0])
+check('bars line under the second block',
+      any(r[0] == 'Bars: 1 x 20 ft' for r in cells))
+check('bars line can be a mix',
+      x.bars_line([{'stock_mm': 6096.0}, {'stock_mm': 6096.0},
+                   {'stock_mm': 5486.4},
+                   {'stock_mm': 900.0, 'from_stock': 'S1, bar 2'}])
+      == 'Bars: 2 x 20 ft + 1 x 18 ft (+ 1 from stock)')
+
+# -- the Bars sheet -------------------------------------------------------
+bar_rows = rows_of(bars_sheet)
+bar_head = next(i for i, r in enumerate(bar_rows) if r[0] == 'Profile')
+check('bars header', bar_rows[bar_head] == x.BAR_HEADERS, bar_rows[bar_head])
+bar_body = [r for r in bar_rows[bar_head + 1:] if r[0]]
+check('one row per bar', len(bar_body) == len(BARS), len(bar_body))
+check('bars in the cutting sheet order, "n of m"',
+      [r[1] for r in bar_body] == ['1 of 2', '2 of 2', '1 of 1'],
+      [r[1] for r in bar_body])
+check('length in ft', [r[2] for r in bar_body] == [18.0, 18.0, 20.0],
+      [r[2] for r in bar_body])
+check('cuts in order with piece references',
+      bar_body[0][3] == '47-2 (W10.1) + 47-2 (W10.1) + 47-2 (W2.1) + 47-2 (W2.1)',
+      bar_body[0][3])
+check('pieces on the Bars sheet equal the Summary and the cuts',
+      sum(r[4] for r in bar_body) == len(CUTS)
+      == sum(b['totals']['pieces'] for b in blocks),
+      sum(r[4] for r in bar_body))
+check('each rows cuts text has as many cuts as its Pieces',
+      all(len(r[3].split(' + ')) == r[4] for r in bar_body))
+check('feet on the Bars sheet equal the Summary',
+      abs(sum(b['used_mm'] for b in BARS) / x.MM_PER_FOOT
+          - sum(b['totals']['feet'] for b in blocks)) < 1e-9)
+check('remainder wording is passed through',
+      all(r[6] == '0-5.5' for r in bar_body))
+check('Bars sheet autofilter and frozen header',
+      bars_sheet.auto_filter.ref and bars_sheet.freeze_panes == 'A%d' % (bar_head + 2),
+      (bars_sheet.auto_filter.ref, bars_sheet.freeze_panes))
 
 # -- stale ----------------------------------------------------------------
 stale = build(dict(DATA, stale=True))
@@ -183,6 +275,9 @@ for sheet in stale.worksheets:
     check('stale note is red on %s' % sheet.title,
           notes and notes[0].font.color is not None
           and notes[0].font.color.rgb.endswith('C00000'))
+old = [c for row in stale['Bars'].iter_rows() for c in row
+       if c.value == x.BARS_STALE_NOTE]
+check('Bars sheet says it is from an old plan', len(old) == 1, len(old))
 
 # -- an empty batch -------------------------------------------------------
 try:

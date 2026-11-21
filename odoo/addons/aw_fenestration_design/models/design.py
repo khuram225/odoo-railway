@@ -1629,7 +1629,23 @@ class AwDesign(models.Model):
         length_mm = float(length_mm or 0.0)
         if length_mm < 0:
             raise UserError(_("A length cannot be negative."))
-        line.write({'length_mm': length_mm})
+        line.write({'length_mm': length_mm})      # refuses 0 (bom line write)
+        return self.get_configurator_data()
+
+    def use_piece_rule(self, line_id):
+        """Clear a typed length: the piece goes back to what the spec's rule
+        gives, and the window is recomputed so Checks match."""
+        self.ensure_one()
+        line = self.bom_line_ids.filtered(
+            lambda l: l.id == line_id and l.kind == 'profile'
+            and not l.is_free_form)
+        if not line:
+            raise UserError(_("That cut line is not on this window."))
+        if line.cut_on_site:
+            raise UserError(_("A line cut on site has no length."))
+        line.with_context(aw_bom_generating=True).write({
+            'length_mm': line.computed_length_mm, 'is_manual': False})
+        self.action_recompute_cut_list()
         return self.get_configurator_data()
 
     def recompute_pieces(self):

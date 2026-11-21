@@ -70,6 +70,15 @@ class TestCutSummary(TransactionCase):
             self.assertEqual([r['window'] for r in block['rows']],
                              [self.design.name])
 
+    def test_a_cut_that_lost_its_bom_line_finds_its_window_by_reference(self):
+        cut = self.batch.group_ids.bar_ids.cut_ids[:1]
+        self.assertTrue(cut.piece_ref)
+        cut.bom_line_id = False
+        data = self.batch._cut_summary_data()
+        self.assertNotIn('-', {c['window'] for c in data['cuts']})
+        self.assertEqual({c['window'] for c in data['cuts']},
+                         {self.design.name})
+
     def test_a_typed_length_is_flagged(self):
         cut = self.batch.group_ids.bar_ids.cut_ids[:1]
         line = cut.bom_line_id
@@ -104,3 +113,114 @@ class TestCutSummary(TransactionCase):
         with self.assertRaises(UserError) as caught:
             empty.action_download_cut_summary()
         self.assertIn('no cuts', str(caught.exception))
+
+    # -- the Bars sheet ----------------------------------------------------
+    def test_the_bars_are_the_plans_in_the_cutting_sheets_order(self):
+        data = self.batch._cut_summary_data()
+        rows = data['bar_rows']
+        bars = self.batch.group_ids.bar_ids
+        self.assertEqual(len(rows), len(bars))
+        self.assertEqual(len(rows), data['bars'])
+        # same order, same piece references and wording as the sheet reads
+        for row, bar in zip(rows, bars):
+            self.assertEqual([c['ref'] for c in row['cuts']],
+                             [cut.piece_ref or '' for cut in bar.cut_ids])
+            self.assertEqual([c['text'] for c in row['cuts']],
+                             [cut.length_label or '' for cut in bar.cut_ids])
+            self.assertEqual(row['remainder_text'], bar.remainder_label or '')
+        # pieces and feet equal the Summary and the plan
+        blocks = cut_summary_xlsx.blocks_of(data['cuts'])
+        self.assertEqual(sum(len(r['cuts']) for r in rows),
+                         sum(b['totals']['pieces'] for b in blocks))
+        self.assertAlmostEqual(
+            sum(r['used_mm'] for r in rows) / MM_PER_FOOT,
+            self.batch.feet_used, places=6)
+        self.assertEqual(
+            sum(len(r['cuts']) for r in rows),
+            sum(self.batch.group_ids.mapped('piece_count')))
+
+    def test_a_bars_used_plus_remainder_is_its_length_within_kerf(self):
+        plan = self.batch
+        for row in plan._cut_summary_data()['bar_rows']:
+            lost = row['stock_mm'] - row['used_mm'] - row['remainder_mm']
+            allowed = (plan.start_trim_mm + plan.safety_margin_mm
+                       + len(row['cuts']) * plan.kerf_mm * 1.5 + 0.01)
+            self.assertGreaterEqual(lost, -0.01)
+            self.assertLessEqual(lost, allowed)
+
+    def test_the_workbook_has_the_bars_sheet_and_the_references(self):
+        import io
+        import openpyxl
+        _name, content = self.batch._cut_summary_file()
+        book = openpyxl.load_workbook(io.BytesIO(content))
+        self.assertEqual(book.sheetnames, ['Summary', 'Bars', 'Cut list'])
+        rows = [[c.value for c in row] for row in book['Bars'].iter_rows()]
+        head = next(i for i, r in enumerate(rows) if r[0] == 'Profile')
+        body = [r for r in rows[head + 1:] if r[0]]
+        self.assertEqual(len(body), self.batch.bar_count)
+        refs = {cut.piece_ref for cut in
+                self.batch.group_ids.bar_ids.cut_ids}
+        for r in body:
+            for part in r[3].split(' + '):
+                self.assertIn(part.rsplit('(', 1)[1].rstrip(')'), refs)
+        flat = [[c.value for c in row] for row in book['Cut list'].iter_rows()]
+        flat_head = next(i for i, r in enumerate(flat) if r[0] == 'Window')
+        self.assertEqual(
+            {r[2] for r in flat[flat_head + 1:] if r[0]}, refs)
+
+    # -- a piece of length 0 ----------------------------------------------
+    def _zero_a_piece(self):
+        line = self.design.bom_line_ids.filtered(
+            lambda l: l.kind == 'profile' and l.piece_key
+            and not l.cut_on_site)[:1]
+        key, ref = line.piece_key, line.piece_ref
+        # how a 0 got onto W21: typed before typing 0 was refused
+        line.with_context(aw_bom_generating=True).write(
+            {'length_mm': 0.0, 'is_manual': True})
+        self.design._explode()
+        return key, ref
+
+    def test_typing_zero_is_refused(self):
+        line = self.design.bom_line_ids.filtered(
+            lambda l: l.kind == 'profile' and not l.cut_on_site)[:1]
+        with self.assertRaises(UserError):
+            line.write({'length_mm': 0.0})
+        with self.assertRaises(UserError):
+            self.design.set_piece_length(line.id, 0)
+        self.assertGreater(line.length_mm, 0)
+
+    def test_a_zero_length_piece_is_warned_about_with_a_link(self):
+        key, ref = self._zero_a_piece()
+        checks = self.design.check_line_ids.filtered(
+            lambda c: 'has length 0' in c.message)
+        self.assertEqual(len(checks), 1)
+        self.assertIn(ref, checks.message)
+        self.assertEqual(checks.target_kind, 'piece')
+        self.assertEqual(checks.target_key, key)
+        self.assertEqual(checks.level, 'warning')
+
+    def test_a_zero_length_piece_is_left_out_of_the_plan_and_listed(self):
+        key, ref = self._zero_a_piece()
+        self.batch.action_generate()
+        self.assertIn('Not planned: length 0', self.batch.blocked_note)
+        self.assertIn(ref, self.batch.blocked_note)
+        cuts = self.batch.group_ids.bar_ids.cut_ids
+        self.assertNotIn(0.0, cuts.mapped('length_mm'))
+        self.assertNotIn(ref, cuts.mapped('piece_ref'))
+        # and it cannot be bought past
+        with self.assertRaises(UserError):
+            self.batch.action_mark_bought()
+
+    def test_use_the_rule_clears_a_typed_length(self):
+        key, _ref = self._zero_a_piece()
+        line = self.design.bom_line_ids.filtered(
+            lambda l: l.piece_key == key)
+        self.assertEqual(line.length_mm, 0.0)
+        self.design.use_piece_rule(line.id)
+        line = self.design.bom_line_ids.filtered(
+            lambda l: l.piece_key == key)
+        self.assertGreater(line.length_mm, 0.0)
+        self.assertAlmostEqual(line.length_mm, line.computed_length_mm)
+        self.assertFalse(line.is_manual)
+        self.assertFalse(self.design.check_line_ids.filtered(
+            lambda c: 'has length 0' in c.message))

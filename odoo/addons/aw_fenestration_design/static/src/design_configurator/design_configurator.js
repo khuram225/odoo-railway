@@ -986,6 +986,12 @@ export class DesignConfigurator extends Component {
                 { type: "warning" });
             return;
         }
+        if (mm === 0) {
+            this.notification.add(
+                "A piece cannot be 0 long. Use a real length, or press Use the rule to go back to the spec's length.",
+                { type: "warning" });
+            return;
+        }
         // The server works on the stored layout, so unsaved edits are
         // saved first rather than lost.
         if (this.state.dirty) {
@@ -993,6 +999,16 @@ export class DesignConfigurator extends Component {
         }
         this.state.data = await this.orm.call(
             "aw.design", "set_piece_length", [[this.designId], piece.id, mm]);
+    }
+
+    /** Clear a typed length: the piece goes back to the spec's rule. */
+    async useRule(piece) {
+        if (this.state.dirty) {
+            await this.save();
+        }
+        this.state.data = await this.orm.call(
+            "aw.design", "use_piece_rule", [[this.designId], piece.id]);
+        this.surfaceCheckErrors();
     }
 
     async recomputePieces() {
