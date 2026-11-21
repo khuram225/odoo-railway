@@ -2052,6 +2052,14 @@ window was built to and the spec keeps a legacy link to it.
   JavaScript that quietly yields an empty list; the mismatch only exists
   ACROSS the two files.
 
+- `scripts/check_model_import_order.py` fails when a file with `_inherit = 'x'` is imported in
+  `models/__init__.py` (or any `__init__` chain) BEFORE the file that defines `x` with `_name`. Odoo
+  adds a class to the registry the moment it is imported, so an extension imported first has nothing
+  to extend: *"Model 'aw.cut.plan' does not exist in registry"*. #134 did it (`cut_summary` before
+  `cut_plan`), the upgrade died in the entrypoint and the service was down until #135. A model defined
+  in a dependency module, or by core Odoo, is fine wherever it is extended. It carries its own
+  self-test (the wrong order must fail, the right one pass) and was shown failing on #134's order.
+
 **`scripts/check_all.sh` runs every check and is the one place that
 cannot forget one.** It DISCOVERS `scripts/check_*.py` and
 `scripts/check_*.mjs` rather than listing them, because a list here would
