@@ -34,6 +34,8 @@ from . import elevation_schedule
 from . import report_charset
 from . import print_chunks
 from . import report_chunks
+from . import pdf_watermark
+from . import watermark
 from . import costing
 from . import cost_freeze
 from . import cost_preview

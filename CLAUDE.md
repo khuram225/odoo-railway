@@ -659,6 +659,41 @@ and never stored as 0. A copy of the window (Duplicate, Make copies) keeps its a
 spec leaves them dormant (the keys name the old spec's lines). Not in this PR: the series default and the
 snapshot at confirmation (PR 3).
 
+**Elevation reports: one details block, rigid grid, watermark, order.** (1) `_elevation_detail_rows()` is the ONE list
+the Elevation Sheet and every Elevation Schedule cell print (Design Ref, Qty, Location, W and H each in inches and mm,
+Area, Glass, Finish, and Georgian bars only when the window has them): same fields, order and wording, only the size of
+the text differs (the sheet used to have a Finish row the schedule lacked, and one combined "W x H" row). (2) **The
+schedule's grid is six boxes placed by their coordinates**, each a fixed size and clipped, inside a box of fixed height
+(`_aw_schedule_layout`: `page_w`, `cell_w`, `cell_h`), NOT a table. As a table, adding two rows to the details made
+wkhtmltopdf split the second row of cells across the page edge whatever slack it was given (4 pages became 7; a
+bisect showed dropping either the Finish or the H row, or a 9 px font, brought it back). The grid is `PAGE_W_MM - 4`
+wide: at 1 mm wkhtmltopdf found the content a hair too wide and shrank the whole page (labels 6.37 pt instead of
+6.40); at 2 mm and up they read 6.40. Do not put `display:block` on the drawing image, it stops it being centred.
+(3) **Design Ref order** (`natural.natural_key`: W1, W2, W10; W1 before W1.1; a ref with no digit, GF-BATH, after the
+numbered ones; ties by id) is used by the Elevation Schedule, Elevation Sheets and Window Sheets through
+`sale.order._aw_elevation_designs()`. The quote lines and the quotation keep their own order. The cutting sheet lists
+bars, not windows (a bar's cuts are the optimiser's longest-first order), so it is untouched; the cut summary xlsx
+already had a natural order. (4) The elevation header has no customer name: order number, then the date ("S00003 ·
+22 Nov 2026", 18 px = about 11.5 pt on the paper), the site address, the page. The Quotation keeps its own.
+(5) **Watermark** (`pdf_watermark.stamp`, `watermark_image`, `watermark.py`): the company logo, turned -35 degrees,
+faded to 15% and the unturned logo 70% of the page width, on the Elevation Sheet, Elevation Schedule and Quotation
+(`report_chunks.WATERMARKED`; never the stickers, cut list or cut summary), a switch each in Settings > Watermark
+(`aw_fenestration.watermark_sheet|schedule|quotation`, a Selection on/off: a Boolean that is False deletes its
+parameter and would read as the default again). It is stamped on the FINISHED PDF, behind every page, after the
+groups are merged, so every part of a split print has it. **Not in the HTML**: wkhtmltopdf lays a `position:fixed`
+element out once for the whole document (one image straddling pages 2 and 3), and a flowing document like the
+Quotation has no per-page container. The fade and the turn are done in the image (CSS opacity or transform would make
+wkhtmltopdf bitmap the element). **Call `compressContentStreams()` after `mergePage`**: merging writes the page
+uncompressed, and a 135 KB schedule came out at 2.5 MB. No logo, a logo that is not an image, the switch off, or any
+error in stamping gives the PDF as it was, never an error. The Quotation's amounts stay readable at 15%. At 100
+windows (groups of 10, production, rolled back): schedule 17 pages, 393 KB (309 KB without), stamping 11 s; Elevation
+Sheets 511 KB (410 KB), 8 s; Quotation 755 KB (667 KB), 1.6 s; peak memory unchanged (415-547 MB), 5 threads
+(stamping runs in Odoo, not in wkhtmltopdf). Labels: 6.40 pt on every window of the schedule, 10.24 pt on the sheet.
+`scripts/check_watermark.py` (needs Pillow, added to the static job), `tests/test_elevation_watermark.py`. **A window
+made with Make copies has no stored drawing** (`elevation_svg`, `elevation_png`, `elevation_hash` are `copy=False`
+and `copy_position()` writes none), so it prints "No drawing" on the schedule and sheet and has no picture on the
+quotation until it is opened in the configurator and saved; a copy's layout fingerprint equals its source's hash.
+
 **Big quotes print in groups (`models/print_chunks.py`, `report_chunks.py`).** A quote of 100 windows died with -11 even after
 the QR fix: wkhtmltopdf's address space grows with the document (about 31 MB per window sheet; 1.28 GB at 100 windows against
 the 1.25 GiB limit). `_run_wkhtmltopdf` is overridden for OUR reports: the bodies are dealt out in runs of at most
@@ -722,7 +757,7 @@ real code on four stored drawings (`tests/data/elevation_*.svg`).
 **Elevation Schedule layout A (`models/elevation_schedule.py`, `report_elevation_schedule.xml`).** Six to a page, 3 x 2:
 each cell the drawing LEFT (56%) and the details right (Design Ref, Qty, Location, W x H in inches and mm, Area, Glass,
 and Georgian bars only when the window has them), the cell as tall as the page allows (`_aw_schedule_layout`; a bigger
-logo takes room from the cells, not from the page; slack because borders and padding add to a cell). Labels ask
+logo takes room from the cells, not from the page). Labels ask
 for 6.0 pt and print 6.40: the print engine draws text in whole device pixels (0.64 pt each, `PRINT_STEP_PT`), so
 `print_for_paper` steps the request UP to the next step; read from the PDF, all 21 windows of S00003 print 6.40 pt.
 **The details block is exactly as tall as the window's frame** (`print_svg` reports `frame_top_mm`/`frame_h_mm`;

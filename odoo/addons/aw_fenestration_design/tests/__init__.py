@@ -51,3 +51,4 @@ from . import test_piece_adjust
 from . import test_elevation_print
 from . import test_elevation_details
 from . import test_print_chunks
+from . import test_elevation_watermark

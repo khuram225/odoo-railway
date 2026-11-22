@@ -14,6 +14,7 @@ from odoo import _, models
 from odoo.addons.aw_fenestration_core.models.units import to_display
 
 from . import elevation_print
+from .natural import natural_key
 
 _logger = logging.getLogger(__name__)
 
@@ -48,14 +49,8 @@ SHEET_DETAIL_W_MM = PAGE_W_MM * 0.38 - 8.0
 
 
 def _natural_key(design):
-    """W1, W2 ... W10 in that order: digits compare as numbers, so W10
-    does not sort before W2. A ref with no digits sorts after the
-    numbered ones."""
-    name = (design.name or '').lower()
-    parts = re.split(r'(\d+)', name)
-    return (0 if re.search(r'\d', name) else 1,
-            [(0, int(p)) if p.isdigit() else (1, p) for p in parts],
-            design.id)
+    """W1, W2 ... W10 in that order (see natural.natural_key)."""
+    return natural_key(design.name, design.id)
 
 
 NOT_CHOSEN = 'not chosen'
@@ -158,19 +153,22 @@ class AwDesign(models.Model):
     # ------------------------------------------------------------------
     # the details block: as tall as the window's frame
     # ------------------------------------------------------------------
-    def _elevation_detail_rows(self, with_finish=False):
-        """[(label, text)] of the details beside a drawing, in print order.
+    def _elevation_detail_rows(self):
+        """[(label, text)] of the details beside a drawing, in print order: the
+        ONE list both the Elevation Sheet and every Elevation Schedule cell print
+        (same fields, order and wording; only the size of the text differs).
         The Georgian bars row is there only when the window has bars."""
         self.ensure_one()
-        width, height = self.width_mm or 0.0, self.height_mm or 0.0
         rows = [
             (_('Design Ref'), self.name or ''),
             (_('Qty'), '%s' % self.qty),
             (_('Location'), self.location or '-'),
-            (_('W x H'), '%s x %s in (%.1f x %.1f mm)' % (
-                to_display(width), to_display(height), width, height)),
+            (_('W'), self._schedule_dimension(self.width_mm)),
+            (_('H'), self._schedule_dimension(self.height_mm)),
             (_('Area'), self._schedule_area()),
             (_('Glass'), self._schedule_glass()),
+            (_('Finish'), self.finish_id.aw_doc_name()
+             if self.finish_id else '-'),
         ]
         bars = self._schedule_georgian()
         if bars:
@@ -180,13 +178,10 @@ class AwDesign(models.Model):
                 '%s: %s' % (panels, spec[len(prefix):]
                             if spec.startswith(prefix) else spec)
                 for panels, spec in bars)))
-        if with_finish:
-            rows.append((_('Finish'), self.finish_id.aw_doc_name()
-                         if self.finish_id else '-'))
         return rows
 
     def _elevation_details(self, frame_top_mm, frame_h_mm, font_px, width_mm,
-                           label_fraction=0.38, with_finish=False):
+                           label_fraction=0.38):
         """The details block, laid out to be exactly as tall as the window frame.
 
         Its top edge is on the top of the frame and its bottom edge on the
@@ -203,7 +198,7 @@ class AwDesign(models.Model):
         label_w = width_mm * label_fraction
         value_w = width_mm - label_w
         rows = []
-        for label, text in self._elevation_detail_rows(with_finish):
+        for label, text in self._elevation_detail_rows():
             per_line = max(1, int(value_w / char_mm * 0.9))
             lines = max(1, int(math.ceil(len(text) / float(per_line))))
             label_per_line = max(1, int(label_w / char_mm * 0.9))
@@ -242,7 +237,7 @@ class AwDesign(models.Model):
             'printed': printed,
             'details': self._elevation_details(
                 printed and printed.get('frame_top_mm'), frame,
-                SHEET_DETAIL_PX, SHEET_DETAIL_W_MM, with_finish=True),
+                SHEET_DETAIL_PX, SHEET_DETAIL_W_MM),
         }
 
 
@@ -255,9 +250,11 @@ class SaleOrder(models.Model):
         from the page), the drawing's box on the left and the width of the
         details on the right."""
         header = SCHEDULE_LOGO_H_MM + 3.0
-        cell_w = PAGE_W_MM / 3.0
-        # 7 mm of slack: borders and padding add up, and a page that is a
-        # millimetre too tall prints as two (seen: 4 pages became 7)
+        # 4 mm narrower than the page: at 1 mm wkhtmltopdf found the content a hair too
+        # wide and shrank the whole page, and the labels printed 6.37 pt instead of 6.40
+        page_w = PAGE_W_MM - 4.0
+        cell_w = page_w / 3.0
+        # slack under the grid: a page a millimetre too tall prints as two
         cell_h = (PAGE_H_MM - header - 12.0) / 2.0
         pad = 2.0
         inner_w = cell_w - 2 * pad - 0.5
@@ -265,6 +262,7 @@ class SaleOrder(models.Model):
         return {
             'logo_h': SCHEDULE_LOGO_H_MM, 'logo_w': SCHEDULE_LOGO_W_MM,
             'header_h': header, 'cell_h': cell_h, 'pad': pad,
+            'page_w': page_w, 'cell_w': cell_w,
             'title_h': SCHEDULE_TITLE_MM,
             'draw_w_pct': SCHEDULE_DRAW_FRACTION * 100.0,
             'draw_box': (inner_w * SCHEDULE_DRAW_FRACTION,

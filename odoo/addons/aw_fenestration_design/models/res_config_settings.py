@@ -32,6 +32,18 @@ class ResConfigSettings(models.TransientModel):
         config_parameter='aw_fenestration.receive_hide_prices',
         help="For people who only count bars: the Receive bars screen shows "
              "no price. A buyer or a manager still sees them.")
+    aw_watermark_sheet = fields.Selection(
+        [('on', 'On'), ('off', 'Off')], string='Watermark on the Elevation Sheet',
+        default='on', config_parameter='aw_fenestration.watermark_sheet',
+        help="The company logo, faded and turned, behind every page.")
+    aw_watermark_schedule = fields.Selection(
+        [('on', 'On'), ('off', 'Off')], string='Watermark on the Elevation Schedule',
+        default='on', config_parameter='aw_fenestration.watermark_schedule',
+        help="The company logo, faded and turned, behind every page.")
+    aw_watermark_quotation = fields.Selection(
+        [('on', 'On'), ('off', 'Off')], string='Watermark on the Quotation',
+        default='on', config_parameter='aw_fenestration.watermark_quotation',
+        help="The company logo, faded and turned, behind every page.")
     aw_label_w = fields.Float(
         string='Label Width (mm)', default=70.0,
         config_parameter=P + 'w')

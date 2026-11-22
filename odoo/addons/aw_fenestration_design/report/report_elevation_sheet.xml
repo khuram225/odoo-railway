@@ -32,12 +32,13 @@
                     </td>
                     <td style="width:34%; text-align:right; vertical-align:middle; font-size:11px;">
                         <t t-if="doc.sale_order_id">
-                            <div><strong t-esc="doc.sale_order_id.partner_id.display_name"/></div>
-                            <div t-esc="doc.sale_order_id._aw_site_address()"/>
-                            <div>
-                                <span t-esc="doc.sale_order_id.date_order" t-options="{'widget': 'date'}"/>
-                                &#183; <span t-esc="doc.sale_order_id.name"/>
+                            <!-- Order number, then the date, about 11.5 pt on the paper; no
+                                 customer name. -->
+                            <div style="font-size:18px; font-weight:bold; line-height:1.2;">
+                                <span t-esc="doc.sale_order_id.name"/>
+                                &#183; <span t-esc="doc.sale_order_id.date_order" t-options="{'widget': 'date', 'format': 'dd MMM yyyy'}"/>
                             </div>
+                            <div t-esc="doc.sale_order_id._aw_site_address()"/>
                         </t>
                     </td>
                 </tr>

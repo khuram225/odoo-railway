@@ -43,8 +43,8 @@ class TestElevationDetails(TransactionCase):
             'grid_pattern_id': cls.pattern.id, 'grid_rows': 4,
             'grid_cols': 2})
 
-    def _rows(self, design, with_finish=False):
-        return dict(design._elevation_detail_rows(with_finish))
+    def _rows(self, design):
+        return dict(design._elevation_detail_rows())
 
     # -- the Area row ---------------------------------------------------------
     def test_the_area_row_has_two_decimals_in_both_units(self):
@@ -53,9 +53,11 @@ class TestElevationDetails(TransactionCase):
         self.assertEqual(self._rows(self.bars)['Area'],
                          '70.13 sqft · 6.51 sqm')
 
-    def test_width_and_height_are_one_row_in_inches_and_millimetres(self):
-        self.assertEqual(self._rows(self.plain)['W x H'],
-                         '48 x 85 in (1219.2 x 2159.0 mm)')
+    def test_width_and_height_are_a_row_each_in_inches_and_millimetres(self):
+        rows = self._rows(self.plain)
+        self.assertEqual(rows['W'], '48 in (1219.2 mm)')
+        self.assertEqual(rows['H'], '85 in (2159.0 mm)')
+        self.assertNotIn('W x H', rows)
 
     # -- the Georgian bars line ------------------------------------------------
     def test_panels_with_the_same_bars_are_one_line(self):
@@ -98,7 +100,7 @@ class TestElevationDetails(TransactionCase):
     def test_a_row_with_more_lines_gets_more_room(self):
         block = self.bars._elevation_details(0.0, 80.0, 10.0, 30.0)
         rows = {r['label']: r for r in block['rows']}
-        self.assertGreater(rows['W x H']['height_mm'],
+        self.assertGreater(rows['Georgian bars']['height_mm'],
                            rows['Qty']['height_mm'])
 
     def test_a_drawing_that_cannot_be_read_gets_no_fixed_heights(self):
@@ -106,9 +108,8 @@ class TestElevationDetails(TransactionCase):
         self.assertEqual(block['top_mm'], 0.0)
         self.assertTrue(all(r['height_mm'] is None for r in block['rows']))
 
-    def test_the_sheet_adds_the_finish_row(self):
-        self.assertIn('Finish', self._rows(self.plain, with_finish=True))
-        self.assertNotIn('Finish', self._rows(self.plain))
+    def test_the_finish_is_on_every_window(self):
+        self.assertIn('Finish', self._rows(self.plain))
 
     # -- six to a page -----------------------------------------------------------
     def test_the_layout_fits_two_rows_of_cells_on_the_page(self):
