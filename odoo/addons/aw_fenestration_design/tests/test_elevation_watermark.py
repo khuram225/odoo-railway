@@ -148,10 +148,10 @@ class TestElevationWatermark(TransactionCase):
     def test_the_order_number_comes_before_the_date(self):
         html = self._html(SCHEDULE)
         date = self.order.date_order.strftime('%d %b %Y')
-        # <span>S00003</span> &#183; <span>22 Nov 2026</span>
+        # <span>S00003</span> &#183; <span data-oe-type="date" ...>22 Nov 2026</span>
         self.assertRegex(
             html, re.escape('<span>%s</span>' % self.order.name)
-            + r'\s*(?:·|&#183;)\s*' + re.escape('<span>%s</span>' % date))
+            + r'\s*(?:·|&#183;)\s*<span[^>]*>' + re.escape(date) + '</span>')
 
     # -- the watermark: stamped on the finished PDF, behind every page ----------
     def _print(self, report_name, bodies, pages_per_run=None):
