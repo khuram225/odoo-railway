@@ -20,6 +20,8 @@ import json
 
 from odoo import _, api, fields, models
 
+from . import drawing_mark
+
 
 class AwDesign(models.Model):
     _inherit = 'aw.design'
@@ -174,8 +176,107 @@ class AwDesign(models.Model):
             return _("No drawing yet — open this window in the "
                      "configurator and save.")
         if not self.elevation_is_current:
-            return _("Drawing out of date — open in configurator and save.")
+            return _("%s — open in configurator and save.",
+                     self._elevation_print_note())
         return ''
+
+    # ------------------------------------------------------------------
+    # a copy takes its source's drawing
+    # ------------------------------------------------------------------
+    def _copy_drawing_from(self, source):
+        """Give this window the stored drawing of `source`, the window it was
+        copied from, so a copy prints a picture without being opened.
+
+        Only when it is the SAME picture: the source's drawing is current, the
+        finish is the same (the frame is painted in the finish's colour and
+        the fingerprint does not cover it) and this window's own layout
+        fingerprint equals the hash the source's drawing was taken from. The
+        PNG is written from the same bytes, so the file store, which is named
+        by content, keeps ONE file. Marks the SVG as copied (drawing_mark), so
+        a later change of size is labelled as the source's picture.
+        Returns True when it copied."""
+        self.ensure_one()
+        if not (source.elevation_svg and source.elevation_is_current):
+            return False
+        if self.finish_id != source.finish_id:
+            return False
+        if self._layout_fingerprint() != source.elevation_hash:
+            return False
+        svg = drawing_mark.mark(
+            source.elevation_svg, source.name or '',
+            drawing_mark.size_text(source.width_mm, source.height_mm))
+        self.write({
+            'elevation_svg': svg,
+            'elevation_png': source.elevation_png or False,
+            'elevation_hash': source.elevation_hash,
+            'elevation_date': source.elevation_date,
+        })
+        return True
+
+    def _elevation_source_mark(self):
+        """(source ref, size text) when this window's drawing was copied from
+        another window and has not been redrawn since, else None."""
+        self.ensure_one()
+        return drawing_mark.read_mark(self.elevation_svg)
+
+    def _elevation_print_note(self):
+        """The note printed under a drawing that is not this window's own
+        current one, or '' (current, or no drawing at all)."""
+        self.ensure_one()
+        if not (self.elevation_svg or self.elevation_png):
+            return ''
+        if self.elevation_is_current:
+            return ''
+        mark = self._elevation_source_mark()
+        if mark:
+            now = drawing_mark.size_text(self.width_mm, self.height_mm)
+            if mark[1] != now:
+                return _("Drawing from the source window: size differs")
+            return _("Drawing from the source window: layout differs")
+        return _("Drawing out of date")
+
+    def _elevation_state(self):
+        """'ok' (a current drawing), 'none' (no drawing at all: a window made by
+        a copy before copies took the drawing, or never opened), 'copy' (the
+        source's picture, and this window no longer matches it) or 'stale' (its
+        own drawing, out of date). Everything but 'ok' prints a note and no
+        picture on the quotation."""
+        self.ensure_one()
+        if not (self.elevation_svg or self.elevation_png):
+            return 'none'
+        if not self._elevation_print_note():
+            return 'ok'
+        return 'copy' if self._elevation_source_mark() else 'stale'
+
+    @api.model
+    def _aw_twin_drawing_report(self, apply=False):
+        """Windows with NO drawing whose layout fingerprint equals the hash of a
+        current drawing of a window on the SAME quote with the SAME finish
+        (so the picture is exactly theirs). [(quote, window, source window)];
+        with apply=True the drawings are copied. Read by
+        scripts/backfill_copy_drawings.py, never run by an upgrade."""
+        designs = self.search([])
+        sources = {}
+        for design in designs.filtered(
+                lambda d: d.elevation_svg and d.elevation_is_current):
+            key = (design.sale_order_id.id, design.finish_id.id,
+                   design.elevation_hash)
+            # a window that drew itself is a better source than a copy
+            if key not in sources or (
+                    design._elevation_source_mark() is None
+                    and sources[key]._elevation_source_mark()):
+                sources[key] = design
+        found = []
+        for design in designs.filtered(lambda d: not d.elevation_svg):
+            source = sources.get((design.sale_order_id.id,
+                                  design.finish_id.id,
+                                  design._layout_fingerprint()))
+            if source:
+                found.append((design.sale_order_id.name, design, source))
+        if apply:
+            for _quote, design, source in found:
+                design._copy_drawing_from(source)
+        return found
 
     def _report_panels(self):
         """The panel schedule: every real panel, containers skipped."""

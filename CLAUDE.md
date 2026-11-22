@@ -694,6 +694,33 @@ made with Make copies has no stored drawing** (`elevation_svg`, `elevation_png`,
 and `copy_position()` writes none), so it prints "No drawing" on the schedule and sheet and has no picture on the
 quotation until it is opened in the configurator and saved; a copy's layout fingerprint equals its source's hash.
 
+**A copy takes its source's drawing (`snapshot._copy_drawing_from`, `drawing_mark.py`).** `elevation_svg`, `elevation_png`
+and `elevation_hash` are `copy=False`, so a window made by Make copies or Duplicate position used to print "No drawing"
+(schedule, sheet) and had no picture on the quotation until it was opened in the configurator and saved: every copy of
+a 50 to 100 window quote. At the end of `copy_position()` the copy now takes the source's SVG, PNG, hash and date, and
+only when it is the SAME picture: the source's drawing is current, the finish is the same (the frame is painted in the
+finish's colour and `_layout_fingerprint` does not cover it) and the copy's own fingerprint equals the source's hash
+(tested true for copies of W1 and W21 in production). The PNG is written from the same bytes, so the content-named file
+store keeps one file (two `ir.attachment` rows, one `store_fname`). **No new column**: the copied SVG carries
+`data-aw-from` (the source's Design Ref) and `data-aw-size` on its root element; the configurator stores a fresh SVG
+when the window is opened and saved, which has neither, so the mark goes by itself. A copy whose size or layout is
+changed in the form afterwards is no longer current, and says so: schedule, sheet and window sheet print "Drawing from
+the source window: size differs" (or "layout differs"), where a window's own stale drawing still says "Drawing out of
+date". **The quotation never prints a picture that is not the window's current one**: a copy's picture that no longer
+matches AND a window's own stale drawing are left out, and a small grey note takes their place ("Drawing from the
+source window: size differs", or "Drawing out of date"), so whoever sends the quotation sees why and a customer never
+gets an old-size picture (before, a stale drawing printed its picture there with no label at all; production had no
+stale drawing and no PNG-only window when this was made).
+**The quote says so before it goes out**: `sale.order.aw_drawing_issue_count` / `aw_drawing_issue_html` (computed, not
+stored: no column) give a yellow banner at the top of a quotation still being made (draft or sent), "N window(s) have no
+current drawing", listing each with its location and why (`aw.design._elevation_state()`: **none** = no drawing yet,
+a copy made before copies took the drawing or never opened; **stale** = its own drawing out of date; **copy** = a copy
+whose size or layout no longer matches the source's picture). Archived windows are not counted; the list stops at 30 and
+says how many more; names are escaped. Older copies: `scripts/backfill_copy_drawings.py`, run by hand through
+`odoo shell` after a dump, `AW_MODE=count` first (read only), `AW_MODE=apply` with `AW_CONFIRM=yes`; it only matches a
+window with no drawing to a window on the SAME quote with the SAME finish and fingerprint. `scripts/check_drawing_mark.py`,
+`tests/test_copy_drawing.py`.
+
 **Big quotes print in groups (`models/print_chunks.py`, `report_chunks.py`).** A quote of 100 windows died with -11 even after
 the QR fix: wkhtmltopdf's address space grows with the document (about 31 MB per window sheet; 1.28 GB at 100 windows against
 the 1.25 GiB limit). `_run_wkhtmltopdf` is overridden for OUR reports: the bodies are dealt out in runs of at most

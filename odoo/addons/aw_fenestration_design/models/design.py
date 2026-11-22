@@ -2128,6 +2128,9 @@ class AwDesign(models.Model):
         copy._create_rows(rows, parent_leaf=None)
         copy._renumber_panels()
         copy._sync_sale_order_line()
+        # the same layout, size and finish: the same picture, so the copy prints
+        # (and quotes) a drawing without being opened in the configurator
+        copy._copy_drawing_from(self)
         return copy
 
     def action_duplicate_position(self):

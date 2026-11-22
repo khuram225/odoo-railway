@@ -87,9 +87,9 @@
                                                          t-att-src="image_data_uri(doc.elevation_png)"
                                                          t-att-style="'max-width:100%%%%; max-height:%.1fmm;' % layout['draw_box'][1]"/>
                                                     <span t-else="" style="color:#888;">No drawing</span>
-                                                    <div t-if="(printed or doc.elevation_png) and not doc.elevation_is_current"
+                                                    <div t-if="doc._elevation_print_note()"
                                                          style="color:#a00; font-weight:bold; font-size:8px;">
-                                                        Drawing out of date
+                                                        <t t-esc="doc._elevation_print_note()"/>
                                                     </div>
                                                 </td>
                                                 <td style="vertical-align:top; padding-left:1.5mm;">

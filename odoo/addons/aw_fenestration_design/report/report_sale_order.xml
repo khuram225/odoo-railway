@@ -18,9 +18,16 @@
             <t t-set="aw_designs" t-value="line.aw_design_ids"/>
             <div t-if="aw_designs" class="mt-2">
                 <t t-foreach="aw_designs" t-as="aw_design" t-key="aw_design.id">
-                    <div t-if="aw_design.elevation_png" class="mb-1">
+                    <!-- A picture that is not this window's current one is never printed
+                         on a quotation: it would show the customer an old size or layout.
+                         The note takes its place, so whoever sends the quotation sees why. -->
+                    <t t-set="aw_note" t-value="aw_design._elevation_print_note()"/>
+                    <div t-if="aw_design.elevation_png and not aw_note" class="mb-1">
                         <img t-att-src="image_data_uri(aw_design.elevation_png)"
                              style="max-width:180px; max-height:150px;"/>
+                    </div>
+                    <div t-elif="aw_note" class="mb-1 small text-muted">
+                        <t t-esc="aw_note"/>
                     </div>
                     <div class="small text-muted">
                         <div>
