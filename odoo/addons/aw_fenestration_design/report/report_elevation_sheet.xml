@@ -82,10 +82,12 @@
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="order">
                 <t t-foreach="order._aw_elevation_designs()" t-as="doc" t-key="doc.id">
+                    <div class="o_aw_split" data-weight="0.5"/>
                     <t t-set="is_last" t-value="doc_last and order_last"/>
                     <t t-set="sheet_logo" t-value="doc._sheet_logo_mm()"/>
                     <t t-call="aw_fenestration_design.report_elevation_sheet_document"/>
                 </t>
+                <div class="o_aw_split_end"/>
             </t>
         </t>
     </template>
