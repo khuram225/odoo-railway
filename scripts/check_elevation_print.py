@@ -35,7 +35,7 @@ ep = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ep)
 
 SHEET = ((168.0, 138.0), 10.0, 10.0)        # box CSS mm, label pt ON THE PAPER, floor pt
-SCHEDULE = ((86.0, 46.0), 6.0, 4.0)
+SCHEDULE = ((59.0, 86.0), 6.0, 6.0)         # layout A: the drawing's box in a cell
 
 failures = []
 had_selection = []

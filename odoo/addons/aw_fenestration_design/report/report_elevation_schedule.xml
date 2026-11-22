@@ -17,27 +17,34 @@
     </record>
 
     <!-- Client-facing: no prices, no cut lists, no checks. Tables only,
-         because wkhtmltopdf has no flexbox. -->
+         because wkhtmltopdf has no flexbox.
+
+         Six windows to a page, three across and two down. Each cell is the
+         drawing on the LEFT and the details on the right, the cell as tall as
+         the page allows (a bigger logo takes room from the cells, not from the
+         page: _aw_schedule_layout). The details block starts on the top edge
+         of the window's frame and ends on its bottom edge, its rows spread in
+         between (_elevation_details); the same in every cell. The drawing is
+         the stored SVG redrawn at print size, labels 6.40 pt on the paper. -->
     <template id="report_elevation_schedule">
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="order">
                 <t t-set="pages" t-value="order._aw_elevation_schedule_pages()"/>
-                <t t-set="schedule_box" t-value="(86.0, 46.0)"/>
-                <t t-set="schedule_pt" t-value="6.0"/>
+                <t t-set="layout" t-value="order._aw_schedule_layout()"/>
                 <div t-if="not pages" style="font-size:14px; padding:20mm;">
                     No windows on this quote
                 </div>
                 <t t-foreach="pages" t-as="page">
                     <div class="o_aw_utf8" t-attf-style="font-size:11px; #{'page-break-after: always;' if not page_last else ''}">
 
-                        <table style="width:100%; table-layout:fixed; margin-bottom:3mm;">
+                        <table t-attf-style="width:100%; table-layout:fixed; height:#{'%.1f' % layout['header_h']}mm;">
                             <tr>
-                                <td style="width:28%; vertical-align:middle;">
+                                <td style="width:34%; vertical-align:middle;">
                                     <img t-if="order.company_id.logo"
                                          t-att-src="image_data_uri(order.company_id.logo)"
-                                         style="max-height:16mm; max-width:60mm;"/>
+                                         t-att-style="'max-height:%.1fmm; max-width:%.1fmm;' % (layout['logo_h'], layout['logo_w'])"/>
                                 </td>
-                                <td style="width:36%; text-align:center; vertical-align:middle;">
+                                <td style="width:30%; text-align:center; vertical-align:middle;">
                                     <span style="font-size:20px; font-weight:bold;">Elevation Diagram</span>
                                 </td>
                                 <td style="width:36%; text-align:right; vertical-align:middle; font-size:11px;">
@@ -57,57 +64,32 @@
                                 <tr>
                                     <t t-foreach="[0, 1, 2]" t-as="col">
                                         <t t-set="doc" t-value="page[start + col] if start + col &lt; len(page) else False"/>
-                                        <td style="width:33.33%; height:84mm; border:1px solid #444; vertical-align:top; padding:2mm; overflow:hidden;">
+                                        <td t-att-style="'width:33.33%%; height:%.1fmm; border:1px solid #444; vertical-align:top; padding:%.1fmm; overflow:hidden;' % (layout['cell_h'] - 2 * layout['pad'], layout['pad'])">
                                             <t t-if="doc">
-                                                <div style="text-align:center; font-weight:bold; margin-bottom:1mm;">
+                                                <t t-set="cell" t-value="doc._schedule_cell(layout)"/>
+                                                <t t-set="printed" t-value="cell['printed']"/>
+                                                <t t-set="details" t-value="cell['details']"/>
+                                                <div t-att-style="'text-align:center; font-weight:bold; font-size:9px; height:%.1fmm;' % layout['title_h']">
                                                     View From Inside
                                                 </div>
-                                                <!-- Redrawn from the stored SVG at print size (labels
-                                                     about 6 pt on the page, vector, a fraction of the
-                                                     bytes of the PNG). The stored PNG is the fallback
-                                                     for a window with no readable SVG. -->
-                                                <t t-set="printed" t-value="doc._elevation_print(schedule_box, schedule_pt)"/>
-                                                <div style="text-align:center; height:48mm;">
-                                                    <img t-if="printed"
-                                                         t-att-src="printed['src']"
-                                                         t-att-style="'width:%.2fmm; height:%.2fmm;' % (printed['width_mm'], printed['height_mm'])"/>
-                                                    <img t-elif="doc.elevation_png"
-                                                         t-att-src="image_data_uri(doc.elevation_png)"
-                                                         style="max-width:100%; max-height:48mm;"/>
-                                                    <span t-else="" style="color:#888;">No drawing</span>
-                                                </div>
-                                                <div t-if="(printed or doc.elevation_png) and not doc.elevation_is_current"
-                                                     style="text-align:center; color:#a00; font-weight:bold;">
-                                                    Drawing out of date
-                                                </div>
-                                                <table style="width:100%; margin-top:1mm;">
+                                                <table style="width:100%; table-layout:fixed;">
                                                     <tr>
-                                                        <td style="width:34%;"><strong>Design Ref</strong></td>
-                                                        <td><span t-esc="doc.name"/></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>Qty</strong></td>
-                                                        <td><span t-esc="doc.qty"/></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>Location</strong></td>
-                                                        <td><span t-esc="doc.location or '-'"/></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>W</strong></td>
-                                                        <td><span t-esc="doc._schedule_dimension(doc.width_mm)"/></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>H</strong></td>
-                                                        <td><span t-esc="doc._schedule_dimension(doc.height_mm)"/></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td><strong>Area</strong></td>
-                                                        <td><span t-esc="doc._schedule_area()"/></td>
-                                                    </tr>
-                                                    <tr>
-                                                        <td style="vertical-align:top;"><strong>Glass</strong></td>
-                                                        <td><span t-esc="doc._schedule_glass() or '-'"/></td>
+                                                        <td t-att-style="'width:%.1f%%; vertical-align:top; text-align:center;' % layout['draw_w_pct']">
+                                                            <img t-if="printed"
+                                                                 t-att-src="printed['src']"
+                                                                 t-att-style="'width:%.2fmm; height:%.2fmm;' % (printed['width_mm'], printed['height_mm'])"/>
+                                                            <img t-elif="doc.elevation_png"
+                                                                 t-att-src="image_data_uri(doc.elevation_png)"
+                                                                 t-att-style="'max-width:100%%; max-height:%.1fmm;' % layout['draw_box'][1]"/>
+                                                            <span t-else="" style="color:#888;">No drawing</span>
+                                                            <div t-if="(printed or doc.elevation_png) and not doc.elevation_is_current"
+                                                                 style="color:#a00; font-weight:bold; font-size:8px;">
+                                                                Drawing out of date
+                                                            </div>
+                                                        </td>
+                                                        <td style="vertical-align:top; padding-left:1.5mm;">
+                                                            <t t-call="aw_fenestration_design.report_elevation_details"/>
+                                                        </td>
                                                     </tr>
                                                 </table>
                                             </t>
@@ -120,6 +102,24 @@
                 </t>
             </t>
         </t>
+    </template>
+
+    <!-- The details block, shared by the schedule and the sheet: `details` from
+         _elevation_details. A spacer to the top of the frame, then rows whose
+         heights add up to the frame's height. -->
+    <template id="report_elevation_details">
+        <div t-att-style="'height:%.2fmm;' % details['top_mm']"/>
+        <table t-att-style="'width:100%%; table-layout:fixed; border-collapse:collapse; font-size:%spx; line-height:1.2;%s' % (int(details['font_px']), ('height:%.2fmm;' % details['height_mm']) if details['height_mm'] else '')">
+            <tr t-foreach="details['rows']" t-as="row" t-key="row_index"
+                t-att-style="('height:%.2fmm;' % row['height_mm']) if row['height_mm'] else ''">
+                <td t-att-style="'width:%.0f%%; vertical-align:middle; padding:0; overflow:hidden;' % details['label_fraction']">
+                    <strong t-esc="row['label']"/>
+                </td>
+                <td style="vertical-align:middle; padding:0; overflow:hidden;">
+                    <span t-esc="row['text']"/>
+                </td>
+            </tr>
+        </table>
     </template>
 
     <record id="action_report_aw_elevation_schedule" model="ir.actions.report">

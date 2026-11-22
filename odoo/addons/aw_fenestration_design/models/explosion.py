@@ -1306,6 +1306,21 @@ class AwDesign(models.Model):
                     type=leaf.leaf_type_id.display_name),
                     self._target('hardware', leaf.panel_no)))
 
+        # Georgian bars are drawn and printed but not costed: a pattern has no
+        # bar profile, no length rule and no rate yet, so they add nothing to
+        # the price. Said once, as information, so nobody quotes them at
+        # nothing by mistake; it goes when a pattern has a priced product.
+        unpriced = [
+            leaf.panel_no or 0 for leaf in self._all_panels()
+            if leaf.grid_pattern_id
+            and not leaf.grid_pattern_id.line_ids.filtered('product_id')]
+        if unpriced:
+            problems.append(('info', _(
+                "%(panels)s: Georgian bars have no cost in this quote "
+                "(there is no bar profile or rate for them yet).",
+                panels=', '.join('P%d' % n for n in sorted(unpriced))),
+                self._target('panel', sorted(unpriced)[0])))
+
         # No joints and no couplers: every piece comes out of one bar,
         # so one that cannot is a hard error rather than something the
         # optimiser works around.

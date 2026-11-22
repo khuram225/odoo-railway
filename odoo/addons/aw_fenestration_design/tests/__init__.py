@@ -49,3 +49,4 @@ from . import test_parts_tab_groups
 from . import test_frame_hardware
 from . import test_piece_adjust
 from . import test_elevation_print
+from . import test_elevation_details

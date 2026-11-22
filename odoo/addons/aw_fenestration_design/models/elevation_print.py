@@ -26,6 +26,7 @@ rotate(-90 ..) when vertical). A drawing that does not match is returned
 unchanged: it still prints, at its stored size.
 """
 import base64
+import math
 import re
 
 from lxml import etree
@@ -39,6 +40,11 @@ PT_MM = 25.4 / 72.0                 # one point, in millimetres
 # and 0.8535). A "10 pt" label in CSS terms is therefore 8.5 pt on the page;
 # print_for_paper() asks for the size that lands on the paper.
 PAPER_SCALE = 0.851
+# QtSvg draws text at a whole number of device pixels, and one pixel is 0.64 pt on
+# the paper here: what prints is 5.76, 6.40, 7.04 ... 10.24 pt, and a label asked
+# for 6.0 comes out 5.76. print_for_paper() asks for the next step up, so a floor
+# is a floor. Read from the PDFs the production container makes.
+PRINT_STEP_PT = 0.64
 CHAR_EM = 0.602                     # DejaVu Sans Mono: advance per em
 DIM_STROKE = 'rgb(74, 83, 88)'
 DIM_COLOUR = '#4a5358'
@@ -214,8 +220,9 @@ def _fix_text_baselines(root, skip):
 def print_svg(svg, box_mm, label_pt, min_pt=None):
     """Redraw `svg` for a box of box_mm = (width, height) millimetres.
 
-    Returns a dict: svg (the new text, with width and height in mm), width_mm,
-    height_mm, label_pt (the size the labels really got: the requested size,
+    Returns a dict: svg (the new text, sized in CSS px), width_mm,
+    height_mm, frame_top_mm and frame_h_mm (where the window's own frame sits
+    inside the image, measured from its top), label_pt (the size the labels really got: the requested size,
     or less where a label has no room in its segment), redrawn (False when
     the drawing was not recognised and is returned as stored, with its size
     only fitted to the box).
@@ -234,7 +241,10 @@ def print_svg(svg, box_mm, label_pt, min_pt=None):
         _finish(root, vb, box_w, box_h, scale)
         result.update(svg=_dump(root), width_mm=vb[2] * scale,
                       height_mm=vb[3] * scale,
-                      label_pt=10.0 * scale / PT_MM)
+                      label_pt=10.0 * scale / PT_MM,
+                      frame_top_mm=((frame[1] - vb[1]) * scale
+                                    if frame else None),
+                      frame_h_mm=frame[3] * scale if frame else None)
         return result
 
     old = [e for _k, group, _l, _t in dims for e in group]
@@ -363,9 +373,12 @@ def print_svg(svg, box_mm, label_pt, min_pt=None):
     _fix_text_baselines(root, drawn)
     vb_new = list(view)
     _finish(root, vb_new, box_w, box_h, scale)
+    # Where the window frame is inside the image, in mm: the details beside the
+    # drawing are laid out to start on its top edge and end on its bottom edge.
     result.update(svg=_dump(root), width_mm=vb_new[2] * scale,
                   height_mm=vb_new[3] * scale, label_pt=font_mm / PT_MM,
-                  redrawn=True)
+                  frame_top_mm=(fy - vb_new[1]) * scale,
+                  frame_h_mm=fh * scale, redrawn=True)
     return result
 
 
@@ -377,8 +390,9 @@ def print_for_paper(svg, box_mm, paper_pt, min_paper_pt=None):
 
     box_mm is the box in CSS mm, as the template lays it out. label_pt in
     the result is the size on the paper."""
+    stepped = max(1, math.ceil(paper_pt / PRINT_STEP_PT - 1e-9)) * PRINT_STEP_PT
     out = print_svg(
-        svg, box_mm, paper_pt / PAPER_SCALE,
+        svg, box_mm, stepped / PAPER_SCALE,
         min_pt=(min_paper_pt / PAPER_SCALE) if min_paper_pt else None)
     out['css_label_pt'] = out['label_pt']
     out['label_pt'] = out['label_pt'] * PAPER_SCALE
