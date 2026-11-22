@@ -79,6 +79,11 @@ class TestElevationWatermark(TransactionCase):
         cls.company.logo = logo_png()
         cls.params = env['ir.config_parameter'].sudo()
 
+    def setUp(self):
+        super().setUp()
+        from odoo.addons.aw_fenestration_design.models import watermark
+        watermark._CACHE.clear()
+
     def _html(self, report, ids=None):
         return self.env['ir.actions.report']._render_qweb_html(
             report, ids or self.order.ids)[0].decode()
@@ -143,8 +148,10 @@ class TestElevationWatermark(TransactionCase):
     def test_the_order_number_comes_before_the_date(self):
         html = self._html(SCHEDULE)
         date = self.order.date_order.strftime('%d %b %Y')
+        # <span>S00003</span> &#183; <span data-oe-type="date" ...>22 Nov 2026</span>
         self.assertRegex(
-            html, re.escape(self.order.name) + r'\s*·\s*' + re.escape(date))
+            html, re.escape('<span>%s</span>' % self.order.name)
+            + r'\s*(?:·|&#183;)\s*<span[^>]*>' + re.escape(date) + '</span>')
 
     # -- the watermark: stamped on the finished PDF, behind every page ----------
     def _print(self, report_name, bodies, pages_per_run=None):
@@ -201,9 +208,19 @@ class TestElevationWatermark(TransactionCase):
             self.assertEqual(images_on(pdf.getPage(0)), 0, report)
 
     def test_a_logo_that_is_not_an_image_is_no_watermark_and_no_error(self):
-        self.company.logo = base64.b64encode(b'not an image at all')
-        _calls, pdf = self._print(SCHEDULE, ['<p>x</p>'], pages_per_run=2)
-        self.assertEqual(images_on(pdf.getPage(0)), 0)
+        """Odoo will not store bytes that are not an image in the logo field, so
+        the image step is made to fail or to give nothing, which is what a logo it
+        cannot read does."""
+        from odoo.addons.aw_fenestration_design.models import watermark_image
+        from odoo.addons.aw_fenestration_design.models import watermark
+        for outcome in ({'return_value': None}, {'side_effect': ValueError('x')}):
+            watermark._CACHE.clear()
+            with mock.patch.object(watermark_image, 'watermark', **outcome):
+                _calls, pdf = self._print(
+                    SCHEDULE, ['<p>x</p>'], pages_per_run=2)
+            self.assertEqual(pdf.getNumPages(), 2)
+            self.assertEqual(images_on(pdf.getPage(0)), 0)
+        watermark._CACHE.clear()
 
     def test_stickers_cutting_sheet_and_cut_summary_are_not_watermarked(self):
         from odoo.addons.aw_fenestration_design.models import report_chunks
