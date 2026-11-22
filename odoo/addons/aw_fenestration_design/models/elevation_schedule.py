@@ -29,7 +29,7 @@ PAGE_H_MM = 194.0 / elevation_print.PAPER_SCALE
 # the details on the right. Cells are as tall as the page allows (the header
 # takes what the logo needs), labels at 6 pt on the paper (6.40: the next step
 # the print engine can draw, see PRINT_STEP_PT).
-LOGO_FACTOR = 1.5                 # of the size it printed at before (chosen after
+LOGO_FACTOR = 2.0                 # of the size it printed at before (chosen after
 SCHEDULE_LOGO_H_MM = 16.0 * LOGO_FACTOR      # looking at 1x, 1.5x and 2x)
 SCHEDULE_LOGO_W_MM = 60.0 * LOGO_FACTOR
 SCHEDULE_LABEL_PT = 6.0
@@ -258,7 +258,7 @@ class SaleOrder(models.Model):
         cell_w = PAGE_W_MM / 3.0
         # 7 mm of slack: borders and padding add up, and a page that is a
         # millimetre too tall prints as two (seen: 4 pages became 7)
-        cell_h = (PAGE_H_MM - header - 7.0) / 2.0
+        cell_h = (PAGE_H_MM - header - 12.0) / 2.0
         pad = 2.0
         inner_w = cell_w - 2 * pad - 0.5
         inner_h = cell_h - 2 * pad - 0.5
