@@ -48,56 +48,59 @@
                                     <span style="font-size:20px; font-weight:bold;">Elevation Diagram</span>
                                 </td>
                                 <td style="width:36%; text-align:right; vertical-align:middle; font-size:11px;">
-                                    <div><strong t-esc="order.partner_id.display_name"/></div>
-                                    <div t-esc="order._aw_site_address()"/>
-                                    <div>
-                                        <span t-esc="order.date_order" t-options="{'widget': 'date'}"/>
-                                        &#183; <span t-esc="order.name"/>
-                                        &#183; Page <span t-esc="page_index + 1"/> of <span t-esc="len(pages)"/>
+                                    <!-- Order number, then the date, about 11.5 pt on the paper
+                                         (18 px x 0.75 x 0.851). No customer name: this goes to the
+                                         shop and the site. -->
+                                    <div style="font-size:18px; font-weight:bold; line-height:1.2;">
+                                        <span t-esc="order.name"/>
+                                        &#183; <span t-esc="order.date_order" t-options="{'widget': 'date', 'format': 'dd MMM yyyy'}"/>
                                     </div>
+                                    <div t-esc="order._aw_site_address()"/>
+                                    <div>Page <span t-esc="page_index + 1"/> of <span t-esc="len(pages)"/></div>
                                 </td>
                             </tr>
                         </table>
 
-                        <table style="width:100%; table-layout:fixed; border-collapse:collapse;">
-                            <t t-foreach="[0, 3]" t-as="start">
-                                <tr>
-                                    <t t-foreach="[0, 1, 2]" t-as="col">
-                                        <t t-set="doc" t-value="page[start + col] if start + col &lt; len(page) else False"/>
-                                        <td t-att-style="'width:33.33%%%%; height:%.1fmm; border:1px solid #444; vertical-align:top; padding:%.1fmm; overflow:hidden;' % (layout['cell_h'] - 2 * layout['pad'], layout['pad'])">
-                                            <t t-if="doc">
-                                                <t t-set="cell" t-value="doc._schedule_cell(layout)"/>
-                                                <t t-set="printed" t-value="cell['printed']"/>
-                                                <t t-set="details" t-value="cell['details']"/>
-                                                <div t-att-style="'text-align:center; font-weight:bold; font-size:9px; height:%.1fmm;' % layout['title_h']">
-                                                    View From Inside
-                                                </div>
-                                                <table style="width:100%; table-layout:fixed;">
-                                                    <tr>
-                                                        <td t-att-style="'width:%.1f%%%%; vertical-align:top; text-align:center;' % layout['draw_w_pct']">
-                                                            <img t-if="printed"
-                                                                 t-att-src="printed['src']"
-                                                                 t-att-style="'width:%.2fmm; height:%.2fmm;' % (printed['width_mm'], printed['height_mm'])"/>
-                                                            <img t-elif="doc.elevation_png"
-                                                                 t-att-src="image_data_uri(doc.elevation_png)"
-                                                                 t-att-style="'max-width:100%%%%; max-height:%.1fmm;' % layout['draw_box'][1]"/>
-                                                            <span t-else="" style="color:#888;">No drawing</span>
-                                                            <div t-if="(printed or doc.elevation_png) and not doc.elevation_is_current"
-                                                                 style="color:#a00; font-weight:bold; font-size:8px;">
-                                                                Drawing out of date
-                                                            </div>
-                                                        </td>
-                                                        <td style="vertical-align:top; padding-left:1.5mm;">
-                                                            <t t-call="aw_fenestration_design.report_elevation_details"/>
-                                                        </td>
-                                                    </tr>
-                                                </table>
-                                            </t>
-                                        </td>
+                        <!-- The grid is six boxes placed by their coordinates, each a fixed size
+                             and clipped, inside a box of fixed height. It was a table, and a table
+                             row that held a nested table, a picture and a taller block of text was
+                             split across the page edge by wkhtmltopdf (4 pages became 7) however
+                             much slack it was given. The sticker sheets are placed the same way. -->
+                        <div t-attf-style="position:relative; width:#{'%.1f' % layout['page_w']}mm; height:#{'%.1f' % (2 * layout['cell_h'])}mm;">
+                            <t t-foreach="[0, 1, 2, 3, 4, 5]" t-as="slot">
+                                <t t-set="doc" t-value="page[slot] if slot &lt; len(page) else False"/>
+                                <div t-att-style="'position:absolute; box-sizing:border-box; overflow:hidden; left:%.2fmm; top:%.2fmm; width:%.2fmm; height:%.2fmm; padding:%.1fmm; border-left:1px solid #444; border-top:1px solid #444;%s%s' % ((slot % 3) * layout['cell_w'], (slot // 3) * layout['cell_h'], layout['cell_w'], layout['cell_h'], layout['pad'], ' border-right:1px solid #444;' if slot % 3 == 2 else '', ' border-bottom:1px solid #444;' if slot // 3 == 1 else '')">
+                                    <t t-if="doc">
+                                        <t t-set="cell" t-value="doc._schedule_cell(layout)"/>
+                                        <t t-set="printed" t-value="cell['printed']"/>
+                                        <t t-set="details" t-value="cell['details']"/>
+                                        <div t-att-style="'text-align:center; font-weight:bold; font-size:9px; height:%.1fmm;' % layout['title_h']">
+                                            View From Inside
+                                        </div>
+                                        <table style="width:100%; table-layout:fixed;">
+                                            <tr>
+                                                <td t-att-style="'width:%.1f%%%%; vertical-align:top; text-align:center;' % layout['draw_w_pct']">
+                                                    <img t-if="printed"
+                                                         t-att-src="printed['src']"
+                                                         t-att-style="'width:%.2fmm; height:%.2fmm;' % (printed['width_mm'], printed['height_mm'])"/>
+                                                    <img t-elif="doc.elevation_png"
+                                                         t-att-src="image_data_uri(doc.elevation_png)"
+                                                         t-att-style="'max-width:100%%%%; max-height:%.1fmm;' % layout['draw_box'][1]"/>
+                                                    <span t-else="" style="color:#888;">No drawing</span>
+                                                    <div t-if="(printed or doc.elevation_png) and not doc.elevation_is_current"
+                                                         style="color:#a00; font-weight:bold; font-size:8px;">
+                                                        Drawing out of date
+                                                    </div>
+                                                </td>
+                                                <td style="vertical-align:top; padding-left:1.5mm;">
+                                                    <t t-call="aw_fenestration_design.report_elevation_details"/>
+                                                </td>
+                                            </tr>
+                                        </table>
                                     </t>
-                                </tr>
+                                </div>
                             </t>
-                        </table>
+                        </div>
                     </div>
                 </t>
             </t>

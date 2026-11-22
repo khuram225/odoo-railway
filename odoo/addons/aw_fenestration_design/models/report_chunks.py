@@ -13,12 +13,20 @@ import logging
 from odoo import models
 from odoo.tools.pdf import merge_pdf
 
-from . import print_chunks
+from . import pdf_watermark, print_chunks
 
 _logger = logging.getLogger(__name__)
 
 PARAM = 'aw_fenestration.print_chunk'
 OURS = 'aw_fenestration_design.'
+# The reports that get a watermark, and the switch (Settings > Watermark) of each. The
+# stickers, the cut list and the cut summary are not here and never get one.
+WATERMARKED = {
+    'aw_fenestration_design.report_elevation_sheet': 'sheet',
+    'aw_fenestration_design.report_elevation_sheet_order': 'sheet',
+    'aw_fenestration_design.report_elevation_schedule': 'schedule',
+    'sale.report_saleorder': 'quotation',
+}
 
 
 class IrActionsReport(models.Model):
@@ -39,6 +47,29 @@ class IrActionsReport(models.Model):
                          footer=None, landscape=False,
                          specific_paperformat_args=None,
                          set_viewport_size=False):
+        pdf = self._aw_run_in_groups(
+            bodies, report_ref=report_ref, header=header, footer=footer,
+            landscape=landscape,
+            specific_paperformat_args=specific_paperformat_args,
+            set_viewport_size=set_viewport_size)
+        report = self._get_report(report_ref) if report_ref else self
+        key = WATERMARKED.get(report.report_name)
+        if not key:
+            return pdf
+        company = self.env.company
+        try:
+            return pdf_watermark.stamp(
+                pdf, lambda w, h: company._aw_watermark_png(key, w, h))
+        except Exception:
+            # a watermark is never worth losing the document for
+            _logger.exception("%s: the watermark could not be put on",
+                              report.report_name)
+            return pdf
+
+    def _aw_run_in_groups(self, bodies, report_ref=False, header=None,
+                          footer=None, landscape=False,
+                          specific_paperformat_args=None,
+                          set_viewport_size=False):
         report = self._get_report(report_ref) if report_ref else self
         per_run = self._aw_print_per_run()
         if per_run <= 0 or not (report.report_name or '').startswith(OURS):

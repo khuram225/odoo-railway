@@ -25,6 +25,23 @@
                         </div>
                     </setting>
                 </block>
+                <block title="Watermark" name="aw_fenestration_watermark_setting_container">
+                    <setting id="aw_watermark_sheet_setting"
+                             string="Elevation Sheet"
+                             help="The company logo behind every page, faded. With no logo there is no watermark.">
+                        <field name="aw_watermark_sheet"/>
+                    </setting>
+                    <setting id="aw_watermark_schedule_setting"
+                             string="Elevation Schedule"
+                             help="The company logo behind every page, faded. With no logo there is no watermark.">
+                        <field name="aw_watermark_schedule"/>
+                    </setting>
+                    <setting id="aw_watermark_quotation_setting"
+                             string="Quotation"
+                             help="The company logo behind every page, faded. With no logo there is no watermark.">
+                        <field name="aw_watermark_quotation"/>
+                    </setting>
+                </block>
                 <block title="Receiving Bars" name="aw_fenestration_receive_setting_container">
                     <setting id="aw_receive_hide_prices_setting"
                              string="Hide prices on the receive screen"
