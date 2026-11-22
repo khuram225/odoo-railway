@@ -116,6 +116,20 @@ class TestElevationDetails(TransactionCase):
         used = layout['header_h'] + 2 * layout['cell_h']
         self.assertLess(used, 194.0 / 0.851)
 
+    def test_the_logo_is_twice_the_old_size_on_the_schedule_and_the_sheet(self):
+        from odoo.addons.aw_fenestration_design.models import (
+            elevation_schedule as sched)
+        self.assertEqual(sched.LOGO_FACTOR, 2.0)
+        self.assertEqual(sched.SCHEDULE_LOGO_H_MM, 32.0)
+        self.assertEqual(sched.SCHEDULE_LOGO_W_MM, 120.0)
+        self.assertEqual(sched.SHEET_LOGO_H_MM, 56.0)
+        self.assertEqual(sched.SHEET_LOGO_W_MM, 180.0)
+        layout = self.order._aw_schedule_layout()
+        self.assertEqual(layout['logo_h'], 32.0)
+        # the bigger logo takes room from the cells, never from the page
+        self.assertLess(layout['header_h'] + 2 * layout['cell_h'],
+                        194.0 / 0.851 - 10.0)
+
     # -- Checks ------------------------------------------------------------------
     def _bar_notes(self, design):
         design.action_explode()

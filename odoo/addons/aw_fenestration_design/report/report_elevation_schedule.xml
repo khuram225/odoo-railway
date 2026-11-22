@@ -42,7 +42,7 @@
                                 <td style="width:34%; vertical-align:middle;">
                                     <img t-if="order.company_id.logo"
                                          t-att-src="image_data_uri(order.company_id.logo)"
-                                         t-att-style="'max-height:%.1fmm; max-width:%.1fmm;' % (layout['logo_h'], layout['logo_w'])"/>
+                                         t-att-style="'display:block; max-height:%.1fmm; max-width:%.1fmm;' % (layout['logo_h'], layout['logo_w'])"/>
                                 </td>
                                 <td style="width:30%; text-align:center; vertical-align:middle;">
                                     <span style="font-size:20px; font-weight:bold;">Elevation Diagram</span>
@@ -64,7 +64,7 @@
                                 <tr>
                                     <t t-foreach="[0, 1, 2]" t-as="col">
                                         <t t-set="doc" t-value="page[start + col] if start + col &lt; len(page) else False"/>
-                                        <td t-att-style="'width:33.33%%; height:%.1fmm; border:1px solid #444; vertical-align:top; padding:%.1fmm; overflow:hidden;' % (layout['cell_h'] - 2 * layout['pad'], layout['pad'])">
+                                        <td t-att-style="'width:33.33%%%%; height:%.1fmm; border:1px solid #444; vertical-align:top; padding:%.1fmm; overflow:hidden;' % (layout['cell_h'] - 2 * layout['pad'], layout['pad'])">
                                             <t t-if="doc">
                                                 <t t-set="cell" t-value="doc._schedule_cell(layout)"/>
                                                 <t t-set="printed" t-value="cell['printed']"/>
@@ -74,13 +74,13 @@
                                                 </div>
                                                 <table style="width:100%; table-layout:fixed;">
                                                     <tr>
-                                                        <td t-att-style="'width:%.1f%%; vertical-align:top; text-align:center;' % layout['draw_w_pct']">
+                                                        <td t-att-style="'width:%.1f%%%%; vertical-align:top; text-align:center;' % layout['draw_w_pct']">
                                                             <img t-if="printed"
                                                                  t-att-src="printed['src']"
                                                                  t-att-style="'width:%.2fmm; height:%.2fmm;' % (printed['width_mm'], printed['height_mm'])"/>
                                                             <img t-elif="doc.elevation_png"
                                                                  t-att-src="image_data_uri(doc.elevation_png)"
-                                                                 t-att-style="'max-width:100%%; max-height:%.1fmm;' % layout['draw_box'][1]"/>
+                                                                 t-att-style="'max-width:100%%%%; max-height:%.1fmm;' % layout['draw_box'][1]"/>
                                                             <span t-else="" style="color:#888;">No drawing</span>
                                                             <div t-if="(printed or doc.elevation_png) and not doc.elevation_is_current"
                                                                  style="color:#a00; font-weight:bold; font-size:8px;">
@@ -109,10 +109,10 @@
          heights add up to the frame's height. -->
     <template id="report_elevation_details">
         <div t-att-style="'height:%.2fmm;' % details['top_mm']"/>
-        <table t-att-style="'width:100%%; table-layout:fixed; border-collapse:collapse; font-size:%spx; line-height:1.2;%s' % (int(details['font_px']), ('height:%.2fmm;' % details['height_mm']) if details['height_mm'] else '')">
+        <table t-att-style="'width:100%%%%; table-layout:fixed; border-collapse:collapse; font-size:%spx; line-height:1.2;%s' % (int(details['font_px']), ('height:%.2fmm;' % details['height_mm']) if details['height_mm'] else '')">
             <tr t-foreach="details['rows']" t-as="row" t-key="row_index"
                 t-att-style="('height:%.2fmm;' % row['height_mm']) if row['height_mm'] else ''">
-                <td t-att-style="'width:%.0f%%; vertical-align:middle; padding:0; overflow:hidden;' % details['label_fraction']">
+                <td t-att-style="'width:%.0f%%%%; vertical-align:middle; padding:0; overflow:hidden;' % details['label_fraction']">
                     <strong t-esc="row['label']"/>
                 </td>
                 <td style="vertical-align:middle; padding:0; overflow:hidden;">
