@@ -11,6 +11,7 @@
         <t t-call="web.external_layout">
             <div class="page">
 
+                <div class="o_aw_split" data-weight="0.125"/>
                 <h2 class="mt-0">
                     Cutting Sheet
                     <span class="float-end"
@@ -52,6 +53,7 @@
                 </div>
 
                 <t t-foreach="doc.group_ids" t-as="group" t-key="group.id">
+                    <div t-if="not group_first" class="o_aw_split" data-weight="0.125"/>
                     <h4 class="mt-4">
                         <span t-field="group.product_id"/>
                         <span class="float-end small text-muted">
@@ -62,6 +64,7 @@
                     </h4>
 
                     <t t-foreach="group.bar_ids" t-as="bar" t-key="bar.id">
+                        <div t-if="not bar_first" class="o_aw_split" data-weight="0.125"/>
                         <table class="table table-sm o_main_table mb-2">
                             <thead>
                                 <tr>
@@ -110,6 +113,7 @@
                     </t>
                 </t>
 
+                <div class="o_aw_split" data-weight="0.25"/>
                 <h4 class="mt-4">Bars to buy</h4>
                 <table class="table table-sm o_main_table">
                     <thead>
@@ -145,6 +149,7 @@
                     <span t-esc="'%.1f' % doc.assumed_wastage_pct"/>%
                     assumed by the price structure.
                 </p>
+                <div class="o_aw_split_end"/>
 
             </div>
         </t>

@@ -659,6 +659,25 @@ and never stored as 0. A copy of the window (Duplicate, Make copies) keeps its a
 spec leaves them dormant (the keys name the old spec's lines). Not in this PR: the series default and the
 snapshot at confirmation (PR 3).
 
+**Big quotes print in groups (`models/print_chunks.py`, `report_chunks.py`).** A quote of 100 windows died with -11 even after
+the QR fix: wkhtmltopdf's address space grows with the document (about 31 MB per window sheet; 1.28 GB at 100 windows against
+the 1.25 GiB limit). `_run_wkhtmltopdf` is overridden for OUR reports: the bodies are dealt out in runs of at most
+`aw_fenestration.print_chunk` weight (default 10, 0 = one run) and the PDFs merged. A window sheet is one body per
+window, so each window keeps its own "Page 1 / 6" footer as before. A report that is ONE body (Elevation Sheets, Cutting
+sheet) is cut where its template put `<div class="o_aw_split" data-weight="w"/>` in front of a unit and
+`<div class="o_aw_split_end"/>` after the last; the header and footer children are sliced to follow their bodies, a
+page break is taken off the last unit of a part, and the cutting sheet's footer reads "Part 2 of 9, Page 3 / 12" (each
+part counts its own pages). Weights: window sheet 1, elevation sheet 0.5, cutting-sheet bar 0.125. Measured at 100
+windows in production, rolled back: window sheets (calc) 1,276 MB (failed) to 652 MB, 57 s; cutting sheet 1,095 to 464 MB,
+26 s, 148 pages (144 unsplit: each part ends on a partial page); elevation sheets 798 to 427 MB, 14 s. Chunk 5/10/20 for
+window sheets: 78 s/498 MB, 57 s/652 MB, 47 s/987 MB; 10 is the balance. **`str(body)` first, always: a rendered body is a
+`Markup`, which ESCAPES any plain string added to it, so a part put back together printed its own tags as text.** The
+stickers are NOT cut: the label format is 300 dpi, where one sticker "sheet" (a `div.page`) prints at about a third of the
+paper page (four sheets stacked in a corner of one A4 page, measured), so a cut would move labels; they still print
+whole (119 s, 1.02 GB at 100 windows, over the limit at about 110). `scripts/check_print_chunks.py`,
+`tests/test_print_chunks.py` (wkhtmltopdf mocked: CI has none). Page counts must be read with a PDF reader, not a regex
+over the file: single wkhtmltopdf output hides its page objects.
+
 **Printing the window sheets of a whole quote: "Thread creation error", wkhtmltopdf -11 (found 2026-11-22).**
 "Window Sheets (with calculation)" for a quote of 21 windows died in 0.4 s with `QThread::start: Thread creation
 error: Resource temporarily unavailable`; one window printed fine. It was NOT the container's process limit (the
