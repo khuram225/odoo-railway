@@ -676,17 +676,29 @@ headroom against a runaway, not RAM) or a wrapper that raises the soft limit for
 unlimited). Check an embedded image before blaming memory: `grep -c '/report/barcode' ` on the rendered HTML.
 
 **Elevation drawings at print size (`models/elevation_print.py`).** The stored PNG is made at screen size; its
-dimension labels are 10 drawing units, which is 3.3 pt once the picture is scaled into a schedule cell. The print
-code redraws them from the stored SVG against the PRINTED size: it finds each dimension (five consecutive elements:
-line, two ticks, white box, text; found by their look, so drawings stored before the `o_aw_hair` class existed work
-too), takes them out, and draws them again at the requested size in points on the page (heavier lines, 0.3 mm; boxes
-that do not touch), with the viewBox grown to fit. The drawing itself is untouched. As an `<img>` with a data URI,
-because wkhtmltopdf draws that and not an inline `<svg>`; it ignores `dominant-baseline`, so the text is shifted to
-match. Labels: the schedule's six-per-page cell gets about 6 pt (5.1 to 6.0 on the 29 stored drawings, where a narrow
-window leaves no room), the one-window layouts 10 pt. A stored drawing that cannot be read falls back to the PNG.
-Vector is also smaller: the 21-window schedule went from 2.27 MB of HTML, a 610 KB PDF and 181 MB peak to 0.52 MB, 68 KB
-and 49 MB. Area ("28.33 sqft · 2.63 sqm") is `_schedule_area()`, in the schedule and the window sheet's header.
-`scripts/check_elevation_print.py` runs the real code on four stored drawings (`tests/data/elevation_*.svg`).
+dimension labels are 10 drawing units, which is 2.8 pt ON THE PAPER once the picture is scaled into a schedule cell.
+The print code redraws them from the stored SVG against the PRINTED size: it finds each dimension (five consecutive
+elements: line, two ticks, white box, text; found by their look, so drawings stored before the `o_aw_hair` class
+existed work too), takes them out, and draws them again at the requested size (heavier lines, 0.3 mm; boxes that do
+not touch), with the viewBox grown to fit. The drawing itself is untouched. As an `<img>` with a data URI, because
+wkhtmltopdf draws that and not an inline `<svg>`; it ignores `dominant-baseline`, so the text is shifted to match.
+**Four things about wkhtmltopdf here, each found by rendering in the production container (`railway ssh`):**
+(1) **Odoo's PDFs print at 0.851 of their CSS size** (`--dpi 90 --zoom 1.0667`: a 100 mm box is 85.1 mm on the paper,
+a 12 px text is 7.7 pt), so `print_for_paper()` asks for the label size that lands ON THE PAPER (`PAPER_SCALE`).
+(2) An SVG that states its size in **mm** is drawn at that size inside an `<img>` the zoom has made smaller (cut off,
+with scroll bars), and one with `100%` is stretched (squashed): the drawing states its size in **CSS px**, the box's size.
+(3) A report with no external layout reaches wkhtmltopdf as the BODY only, **without a charset**, and a raw "·" prints as
+"Â·" (a customer name with an accent would too): `report_charset.py` puts the declaration in front of a body that
+carries the class `o_aw_utf8`. (4) The editor's SELECTION was saved in the drawing (the selected panel's badge purple,
+a selected divider dashed): `neutralise_selection()` prints every panel the same, for drawings already stored (13 of
+the first 29), and the configurator no longer stores a selection in new ones (`DesignConfigurator.neutraliseSelection`).
+Labels on the paper: the six-per-page schedule cell gets 6 pt where it fits (22 of the 29 stored drawings; the narrow
+ones, down to 4.1 pt), the one-window **Elevation Sheet** (`report_elevation_sheet.xml`: "View From Inside", the drawing
+left, the details right incl. Area, one page per window; printed from a window, or one per window for a quote) 10.0 pt on
+all 29. A stored drawing that cannot be read falls back to the PNG. Vector is also smaller: the 21-window schedule went
+from 2.27 MB of HTML, a 610 KB PDF and 181 MB peak to 0.52 MB, 68 KB and 49 MB. Area ("28.33 sqft · 2.63 sqm") is
+`_schedule_area()`, in the schedule, the sheet and the window sheet's header. `scripts/check_elevation_print.py` runs the
+real code on four stored drawings (`tests/data/elevation_*.svg`).
 
 **Configurator on a phone (under 768 px, mobile PR a).** `state.phone` follows one media query
 (`PHONE_QUERY` in `design_configurator.js`, Bootstrap's md break), read once at setup and followed by

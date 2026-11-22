@@ -28,7 +28,7 @@
                     No windows on this quote
                 </div>
                 <t t-foreach="pages" t-as="page">
-                    <div t-attf-style="font-size:11px; #{'page-break-after: always;' if not page_last else ''}">
+                    <div class="o_aw_utf8" t-attf-style="font-size:11px; #{'page-break-after: always;' if not page_last else ''}">
 
                         <table style="width:100%; table-layout:fixed; margin-bottom:3mm;">
                             <tr>

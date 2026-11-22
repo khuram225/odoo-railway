@@ -32,6 +32,13 @@ from lxml import etree
 
 SVG_NS = 'http://www.w3.org/2000/svg'
 PT_MM = 25.4 / 72.0                 # one point, in millimetres
+# What reaches the paper. Odoo gives wkhtmltopdf `--dpi 90 --zoom 1.0667`, and the
+# page then prints at 0.851 of its CSS size: a box laid out as 100 mm is 85.1 mm on
+# the paper and a 12 px text is 7.7 pt, not 9. Measured on the PDFs the production
+# container makes (the orange 100 mm bar and the text size in a test page, 0.8514
+# and 0.8535). A "10 pt" label in CSS terms is therefore 8.5 pt on the page;
+# print_for_paper() asks for the size that lands on the paper.
+PAPER_SCALE = 0.851
 CHAR_EM = 0.602                     # DejaVu Sans Mono: advance per em
 DIM_STROKE = 'rgb(74, 83, 88)'
 DIM_COLOUR = '#4a5358'
@@ -144,6 +151,52 @@ def content_bounds(root, skip=()):
     return min(xs), min(ys), max(xs), max(ys)
 
 
+SELECTED = 'rgb(107, 74, 99)'            # the selection colour, #6b4a63
+BADGE_FILL, BADGE_STROKE, BADGE_TEXT = (       # as the browser wrote the plain badge
+    'rgb(255, 255, 255)', 'rgb(106, 112, 117)', 'rgb(20, 24, 27)')
+
+
+def neutralise_selection(root):
+    """Print every panel the same: take the editor's selection out.
+
+    The configurator saves the drawing as it looked on screen, including
+    whichever panel was selected: its number badge is purple with white text,
+    a selected divider is a dashed purple line. None of that means anything
+    on paper (it looks as if one panel were special), so every badge goes
+    back to the plain one, and a selected divider to the plain divider. Done
+    for drawings already stored (13 of the 29 first ones had a purple
+    badge); the configurator no longer stores a selection in new ones.
+    Returns how many things were changed.
+    """
+    changed = 0
+    for circle in list(root.iter(_q('circle'))):
+        if 'o_aw_panel_badge' not in (circle.get('class') or ''):
+            continue
+        if SELECTED not in (circle.get('fill'), circle.get('stroke')):
+            continue
+        circle.set('fill', BADGE_FILL)
+        circle.set('stroke', BADGE_STROKE)
+        changed += 1
+        label = circle.getnext()
+        if label is not None and _local(label) == 'text' and \
+                'o_aw_panel_badge_text' in (label.get('class') or ''):
+            label.set('fill', BADGE_TEXT)
+    for group in list(root.iter()):
+        classes = (group.get('class') or '').split()
+        if 'o_aw_divider_selected' in classes:
+            classes.remove('o_aw_divider_selected')
+            group.set('class', ' '.join(classes))
+            for line in group.iter(_q('line')):
+                if 'o_aw_divider_line' in (line.get('class') or ''):
+                    line.set('stroke-opacity', '0.55')
+                    line.set('stroke-dasharray', 'none')
+            changed += 1
+        if 'o_aw_selection' in classes:
+            group.getparent().remove(group)
+            changed += 1
+    return changed
+
+
 def _fix_text_baselines(root, skip):
     """The print engine ignores dominant-baseline, so a text meant to be
     centred on y sits a third of an em too low. Shift it, and drop the
@@ -168,6 +221,7 @@ def print_svg(svg, box_mm, label_pt, min_pt=None):
     only fitted to the box).
     """
     root = etree.fromstring(svg.encode('utf-8') if isinstance(svg, str) else svg)
+    neutralise_selection(root)
     box_w, box_h = float(box_mm[0]), float(box_mm[1])
     vb = [float(n) for n in root.get('viewBox').split()]
     dims = find_dimensions(root)
@@ -315,10 +369,32 @@ def print_svg(svg, box_mm, label_pt, min_pt=None):
     return result
 
 
+CSS_PX_PER_MM = 96.0 / 25.4
+
+
+def print_for_paper(svg, box_mm, paper_pt, min_paper_pt=None):
+    """print_svg asked for a label size ON THE PAPER, not in CSS terms.
+
+    box_mm is the box in CSS mm, as the template lays it out. label_pt in
+    the result is the size on the paper."""
+    out = print_svg(
+        svg, box_mm, paper_pt / PAPER_SCALE,
+        min_pt=(min_paper_pt / PAPER_SCALE) if min_paper_pt else None)
+    out['css_label_pt'] = out['label_pt']
+    out['label_pt'] = out['label_pt'] * PAPER_SCALE
+    return out
+
+
 def _finish(root, vb, box_w, box_h, scale):
     root.set('viewBox', ' '.join(repr(round(v, 4)) for v in vb))
-    root.set('width', '%.3fmm' % (vb[2] * scale))
-    root.set('height', '%.3fmm' % (vb[3] * scale))
+    # The drawing states its own size in CSS px (the box's size, which is also the
+    # size the <img> is given in mm). Not in mm and not 100%: wkhtmltopdf draws an
+    # SVG whose size is in mm at its true size inside an <img> that the page zoom
+    # has made smaller (cut off, with scroll bars), and one with a percentage
+    # at a default size stretched into the box (squashed). Tried both in the
+    # production container; px matches the zoom.
+    root.set('width', '%.2fpx' % (vb[2] * scale * CSS_PX_PER_MM))
+    root.set('height', '%.2fpx' % (vb[3] * scale * CSS_PX_PER_MM))
     root.set('font-family', FONT)
     for key in ('style', 'class'):
         root.attrib.pop(key, None)
