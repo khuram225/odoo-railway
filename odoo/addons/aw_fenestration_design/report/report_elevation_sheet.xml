@@ -14,7 +14,9 @@
          wkhtmltopdf has no flexbox. -->
 
     <template id="report_elevation_sheet_document">
-        <t t-set="printed" t-value="doc._elevation_sheet_print()"/>
+        <t t-set="cell" t-value="doc._sheet_cell()"/>
+        <t t-set="printed" t-value="cell['printed']"/>
+        <t t-set="details" t-value="cell['details']"/>
         <div class="o_aw_elevation_sheet o_aw_utf8"
              t-attf-style="font-size:13px; #{'page-break-after: always;' if not is_last else ''}">
 
@@ -23,7 +25,7 @@
                     <td style="width:34%; vertical-align:middle;">
                         <img t-if="doc.sale_order_id.company_id.logo"
                              t-att-src="image_data_uri(doc.sale_order_id.company_id.logo)"
-                             style="max-height:28mm; max-width:90mm;"/>
+                             t-att-style="'max-height:%.1fmm; max-width:%.1fmm;' % (sheet_logo[0], sheet_logo[1])"/>
                     </td>
                     <td style="width:32%; text-align:center; vertical-align:middle;">
                         <span style="font-size:24px; font-weight:bold;">View From Inside</span>
@@ -57,40 +59,7 @@
                         </div>
                     </td>
                     <td style="vertical-align:top; padding-left:8mm;">
-                        <table style="width:100%; font-size:15px;">
-                            <tr>
-                                <td style="width:30%; padding:2mm 0;"><strong>Design Ref</strong></td>
-                                <td><span t-esc="doc.name"/></td>
-                            </tr>
-                            <tr>
-                                <td style="padding:2mm 0;"><strong>Qty</strong></td>
-                                <td><span t-esc="doc.qty"/></td>
-                            </tr>
-                            <tr>
-                                <td style="padding:2mm 0;"><strong>Location</strong></td>
-                                <td><span t-esc="doc.location or '-'"/></td>
-                            </tr>
-                            <tr>
-                                <td style="padding:2mm 0;"><strong>W</strong></td>
-                                <td><span t-esc="doc._schedule_dimension(doc.width_mm)"/></td>
-                            </tr>
-                            <tr>
-                                <td style="padding:2mm 0;"><strong>H</strong></td>
-                                <td><span t-esc="doc._schedule_dimension(doc.height_mm)"/></td>
-                            </tr>
-                            <tr>
-                                <td style="padding:2mm 0;"><strong>Area</strong></td>
-                                <td><span t-esc="doc._schedule_area()"/></td>
-                            </tr>
-                            <tr>
-                                <td style="padding:2mm 0; vertical-align:top;"><strong>Glass</strong></td>
-                                <td><span t-esc="doc._schedule_glass() or '-'"/></td>
-                            </tr>
-                            <tr>
-                                <td style="padding:2mm 0;"><strong>Finish</strong></td>
-                                <td><span t-esc="doc.finish_id.aw_doc_name() if doc.finish_id else '-'"/></td>
-                            </tr>
-                        </table>
+                        <t t-call="aw_fenestration_design.report_elevation_details"/>
                     </td>
                 </tr>
             </table>
@@ -102,6 +71,7 @@
         <t t-call="web.html_container">
             <t t-foreach="docs" t-as="doc">
                 <t t-set="is_last" t-value="doc_last"/>
+                <t t-set="sheet_logo" t-value="doc._sheet_logo_mm()"/>
                 <t t-call="aw_fenestration_design.report_elevation_sheet_document"/>
             </t>
         </t>
@@ -113,6 +83,7 @@
             <t t-foreach="docs" t-as="order">
                 <t t-foreach="order._aw_elevation_designs()" t-as="doc" t-key="doc.id">
                     <t t-set="is_last" t-value="doc_last and order_last"/>
+                    <t t-set="sheet_logo" t-value="doc._sheet_logo_mm()"/>
                     <t t-call="aw_fenestration_design.report_elevation_sheet_document"/>
                 </t>
             </t>

@@ -700,6 +700,21 @@ from 2.27 MB of HTML, a 610 KB PDF and 181 MB peak to 0.52 MB, 68 KB and 49 MB. 
 `_schedule_area()`, in the schedule, the sheet and the window sheet's header. `scripts/check_elevation_print.py` runs the
 real code on four stored drawings (`tests/data/elevation_*.svg`).
 
+**Elevation Schedule layout A (`models/elevation_schedule.py`, `report_elevation_schedule.xml`).** Six to a page, 3 x 2:
+each cell the drawing LEFT (56%) and the details right (Design Ref, Qty, Location, W x H in inches and mm, Area, Glass,
+and Georgian bars only when the window has them), the cell as tall as the page allows (`_aw_schedule_layout`; a bigger
+logo takes room from the cells, not from the page; 7 mm slack because borders and padding add to a cell). Labels ask
+for 6.0 pt and print 6.40: the print engine draws text in whole device pixels (0.64 pt each, `PRINT_STEP_PT`), so
+`print_for_paper` steps the request UP to the next step; read from the PDF, all 21 windows of S00003 print 6.40 pt.
+**The details block is exactly as tall as the window's frame** (`print_svg` reports `frame_top_mm`/`frame_h_mm`;
+`_elevation_details` puts a spacer to the frame top and shares the frame's height among the rows by the lines each
+needs); the same block serves the sheet (`report_elevation_details`). Glass of a panel with no product says "not
+chosen". Georgian bars are grouped by identical spec ("P1, P2, P3: Georgian bars, rectangular, 4 x 2"); the data is
+only the pattern and rows x columns (no width, profile or spacing is stored, none is printed). Checks gets an info line
+for panels with bars and no priced pattern line ("Georgian bars have no cost in this quote"). The logo is
+`LOGO_FACTOR = 1.5` x its old size; at 2x the schedule needs 7 pages and labels cannot reach 6.40 pt on 9 windows, so
+2x does not fit six per page. `tests/test_elevation_details.py`.
+
 **Configurator on a phone (under 768 px, mobile PR a).** `state.phone` follows one media query
 (`PHONE_QUERY` in `design_configurator.js`, Bootstrap's md break), read once at setup and followed by
 `onPhoneChange`; the root then carries `o_aw_phone` and every phone rule in the stylesheet is nested under

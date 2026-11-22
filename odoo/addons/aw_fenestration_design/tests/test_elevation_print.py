@@ -69,11 +69,11 @@ class TestElevationPrint(TransactionCase):
         self.assertEqual(dict(self.w21._sheet_header())['Area'],
                          '28.33 sqft · 2.63 sqm')
 
-    def test_the_schedule_prints_the_area_row_under_h(self):
+    def test_the_schedule_prints_the_area_row_under_w_x_h(self):
         html = self._html(SCHEDULE)
         self.assertIn('28.33 sqft · 2.63 sqm', html)
         self.assertIn('70.13 sqft · 6.51 sqm', html)
-        self.assertLess(html.index('<strong>H</strong>'),
+        self.assertLess(html.index('<strong>W x H</strong>'),
                         html.index('<strong>Area</strong>'))
 
     # -- the drawing at print size --------------------------------------------
@@ -147,8 +147,7 @@ class TestElevationPrint(TransactionCase):
                          len(self.order.aw_design_ids))
         for label in ('Design Ref', 'Qty', 'Location', 'Area', 'Glass', 'Finish'):
             self.assertIn('<strong>%s</strong>' % label, html)
-        self.assertIn('48 in (1219.2 mm)', html)
-        self.assertIn('85 in (2159.0 mm)', html)
+        self.assertIn('48 x 85 in (1219.2 x 2159.0 mm)', html)
         self.assertIn('28.33 sqft · 2.63 sqm', html)
         self.assertIn('70.13 sqft · 6.51 sqm', html)
 
