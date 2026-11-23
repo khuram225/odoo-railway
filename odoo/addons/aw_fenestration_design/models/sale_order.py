@@ -2,6 +2,7 @@
 import logging
 
 from odoo import _, api, fields, models
+from markupsafe import Markup
 from odoo.exceptions import UserError
 from odoo.tools.misc import formatLang
 
@@ -15,6 +16,52 @@ class SaleOrder(models.Model):
     # so it's a real column and can carry this One2many.
     aw_design_ids = fields.One2many(
         'aw.design', 'sale_order_id', string='Fenestration Designs')
+
+    # The quote's drawing check: windows whose picture the quotation will leave
+    # out. Not stored (no column); only read on a quotation still being made.
+    aw_drawing_issue_count = fields.Integer(
+        compute='_compute_aw_drawing_issues')
+    aw_drawing_issue_html = fields.Html(
+        compute='_compute_aw_drawing_issues', sanitize=False)
+
+    DRAWING_LIST_MAX = 30
+
+    @api.depends('aw_design_ids.elevation_is_current',
+                 'aw_design_ids.elevation_svg', 'aw_design_ids.elevation_png',
+                 'aw_design_ids.width_mm', 'aw_design_ids.height_mm', 'state')
+    def _compute_aw_drawing_issues(self):
+        for order in self:
+            issues = []
+            if order.state in ('draft', 'sent'):
+                for design in order._aw_elevation_designs():
+                    kind = design._elevation_state()
+                    if kind == 'ok':
+                        continue
+                    where = ' (%s)' % design.location if design.location else ''
+                    if kind == 'none':
+                        why = _("no drawing yet, not opened in the configurator")
+                    elif kind == 'stale':
+                        why = _("drawing out of date")
+                    else:
+                        why = design._elevation_print_note()
+                    issues.append((design.name or '', where, why))
+            order.aw_drawing_issue_count = len(issues)
+            if not issues:
+                order.aw_drawing_issue_html = False
+                continue
+            shown = issues[:self.DRAWING_LIST_MAX]
+            items = Markup('').join(
+                Markup('<li>%s%s: %s</li>') % (name, where, why)
+                for name, where, why in shown)
+            more = (Markup('<li>%s</li>') % _("and %s more", len(issues) - len(shown))
+                    if len(issues) > len(shown) else Markup(''))
+            order.aw_drawing_issue_html = Markup(
+                '<strong>%s</strong> %s<ul class="mb-0">%s%s</ul>') % (
+                    _("%s window(s) have no current drawing.", len(issues)),
+                    _("The quotation prints a grey note instead of their "
+                      "picture, so it should not go out like this. Open each "
+                      "in the configurator and save:"),
+                    items, more)
 
     def _aw_site_address(self):
         """Where the window is going, on one line.
