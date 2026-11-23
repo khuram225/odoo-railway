@@ -238,6 +238,37 @@ class TestCopyDrawing(TransactionCase):
                  if d == old]
         self.assertFalse(again)
 
+    def test_the_backfill_count_says_why_a_window_is_skipped(self):
+        Design = self.env['aw.design']
+        finish = self.env.ref('aw_fenestration_core.aw_attribute_finish')
+        spare = self.env['product.attribute.value'].create(
+            {'name': 'ZT skip finish', 'attribute_id': finish.id})
+        fills = self._window(self.order, 'Fills', 1219.2, 2159.0, 2)
+        other_finish = self._window(self.order, 'Other finish', 1219.2, 2159.0, 2)
+        other_finish.finish_id = spare
+        wider = self._window(self.order, 'Wider', 1500.0, 2159.0, 2)
+        stale = self._window(self.order, 'Stale source', 900.0, 1200.0, 1)
+        self._draw(stale)
+        stale_twin = self._window(self.order, 'Stale twin', 900.0, 1200.0, 1)
+        stale.width_mm = 950.0          # its drawing is now out of date
+        lonely_order = self.env['sale.order'].create({
+            'partner_id': self.order.partner_id.id,
+            'aw_default_series_id': self.series.id})
+        lonely = self._window(lonely_order, 'Lonely', 1000.0, 1000.0, 1)
+        skipped = Design._aw_twin_drawing_skips()
+        where = {d.id: reason for reason, rows in skipped.items()
+                 for _q, d in rows}
+        self.assertNotIn(fills.id, where)       # it is filled, not skipped
+        self.assertEqual(where[other_finish.id], 'finish_differs')
+        self.assertEqual(where[wider.id], 'size_or_layout_differs')
+        self.assertEqual(where[stale_twin.id], 'source_not_current')
+        self.assertEqual(where[lonely.id], 'no_twin')
+        # each window is in one group only, and counting wrote nothing
+        listed = [d.id for rows in skipped.values() for _q, d in rows]
+        self.assertEqual(len(listed), len(set(listed)))
+        self.assertFalse(fills.elevation_svg)
+        self.assertFalse(lonely.elevation_svg)
+
     # -- the quote's drawing check ----------------------------------------------------
     def test_each_window_has_one_drawing_state(self):
         copy = self.source.copy_position()

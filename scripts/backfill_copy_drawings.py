@@ -9,7 +9,8 @@ Run through `odoo shell` on the service, NEVER as a deploy step, and take a dump
         -d odoo --no-http' < scripts/backfill_copy_drawings.py
 
 AW_MODE=count   (default) read only: how many windows it would touch, each with the
-                window it would take the drawing from. Writes nothing, rolls back.
+                window it would take the drawing from, then the windows it would
+                SKIP, grouped by reason, with their quotes. Writes nothing, rolls back.
 AW_MODE=apply   copies the drawings. Without AW_CONFIRM=yes it says what it would do
                 and rolls back; with it, it writes and commits. A second run finds
                 nothing (the windows now have a drawing).
@@ -33,6 +34,18 @@ print('RESULT %s of them match a current drawing on the same quote and finish:' 
 for quote, design, source in found:
     print('RESULT   %s: %s (%s) <- %s' % (
         quote, design.name, design.location or '-', source.name))
+
+skipped = Design._aw_twin_drawing_skips()
+print('RESULT %s skipped (no drawing, nothing to copy from):' % sum(
+    len(rows) for rows in skipped.values()))
+for key, label in Design.TWIN_SKIP_REASONS:
+    rows = skipped[key]
+    print('RESULT   %s: %s -- %s' % (key, len(rows), label))
+    quotes = {}
+    for quote, design in rows:
+        quotes.setdefault(quote, []).append(design.name)
+    for quote, names in sorted(quotes.items()):
+        print('RESULT       %s: %s' % (quote, ', '.join(names)))
 
 if MODE == 'apply':
     if os.environ.get('AW_CONFIRM') == 'yes':
