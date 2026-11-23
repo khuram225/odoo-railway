@@ -278,6 +278,54 @@ class AwDesign(models.Model):
                 design._copy_drawing_from(source)
         return found
 
+    # why a window with no drawing is NOT filled, one reason each, in this order
+    TWIN_SKIP_REASONS = (
+        ('no_quote', "not on a quote"),
+        ('source_not_current',
+         "a window on the quote has this layout and finish, but its drawing is "
+         "not current"),
+        ('finish_differs',
+         "a window on the quote has this layout, but in another finish"),
+        ('size_or_layout_differs',
+         "the quote has drawings, none of this size and layout (the fingerprint "
+         "covers size and layout together)"),
+        ('no_twin',
+         "no other window on the quote has a drawing"),
+    )
+
+    @api.model
+    def _aw_twin_drawing_skips(self):
+        """READ ONLY. {reason: [(quote name, window)]} for every window with no
+        drawing that `_aw_twin_drawing_report` would not fill. Each window is in
+        exactly one group (the first reason in TWIN_SKIP_REASONS that holds), so
+        the groups add up to windows-with-no-drawing less the ones it fills.
+        Read by scripts/backfill_copy_drawings.py."""
+        filled = {d.id for _q, d, _s in self._aw_twin_drawing_report()}
+        designs = self.search([])
+        drawn = {}
+        for design in designs.filtered('elevation_svg'):
+            drawn.setdefault(design.sale_order_id.id, []).append(design)
+        out = {key: [] for key, _label in self.TWIN_SKIP_REASONS}
+        for design in designs.filtered(lambda d: not d.elevation_svg):
+            if design.id in filled:
+                continue
+            quote = design.sale_order_id
+            others = drawn.get(quote.id, [])
+            fingerprint = design._layout_fingerprint() if others else None
+            same_layout = [o for o in others if o.elevation_hash == fingerprint]
+            if not quote:
+                reason = 'no_quote'
+            elif any(o.finish_id == design.finish_id for o in same_layout):
+                reason = 'source_not_current'
+            elif same_layout:
+                reason = 'finish_differs'
+            elif others:
+                reason = 'size_or_layout_differs'
+            else:
+                reason = 'no_twin'
+            out[reason].append((quote.name or '-', design))
+        return out
+
     def _report_panels(self):
         """The panel schedule: every real panel, containers skipped."""
         self.ensure_one()
