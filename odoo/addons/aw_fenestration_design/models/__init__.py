@@ -26,6 +26,8 @@ from . import glass_default_stack
 from . import glass_suggestion
 from . import override
 from . import piece_adjust
+from . import size_rule
+from . import size_rule_setup
 from . import part_choice
 from . import explosion
 from . import snapshot

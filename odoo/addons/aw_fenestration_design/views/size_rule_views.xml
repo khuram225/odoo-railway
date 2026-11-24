@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Setup > Size Rules. One page per series: a line per piece kind, and a
+         sample window to try the values on before anything is saved. -->
+    <record id="view_aw_size_rule_setup_form" model="ir.ui.view">
+        <field name="name">aw.size.rule.setup.form</field>
+        <field name="model">aw.size.rule.setup</field>
+        <field name="arch" type="xml">
+            <form string="Size Rules">
+                <header>
+                    <button name="action_preview" type="object"
+                            string="Try on the sample window"
+                            class="btn-primary"/>
+                    <button name="action_save" type="object"
+                            string="Save rules"/>
+                </header>
+                <sheet>
+                    <div class="text-muted mb-2">
+                        Each piece starts from the final length of the piece
+                        before it: window, frame, divider, sash side. A line
+                        with nothing in "Starts from" does nothing: that piece
+                        keeps the length its specification gives. A rule is
+                        picked up by a window the next time it is recomputed.
+                    </div>
+                    <group>
+                        <group>
+                            <field name="series_id"/>
+                            <field name="series_leaf_type_ids" invisible="1"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not warnings">
+                        <field name="warnings" nolabel="1"/>
+                    </div>
+                    <group string="Sample window (preview only, nothing is saved)">
+                        <group>
+                            <field name="sample_width_in"/>
+                            <field name="sample_height_in"/>
+                        </group>
+                        <group>
+                            <field name="panels_across"/>
+                            <field name="leaf_type_id"
+                                   domain="[('id', 'in', series_leaf_type_ids)]"
+                                   options="{'no_create': True}"/>
+                        </group>
+                    </group>
+                    <div class="text-muted" invisible="not sample_note">
+                        <field name="sample_note" nolabel="1"/>
+                    </div>
+                    <field name="line_ids">
+                        <list editable="bottom" create="false" delete="false">
+                            <field name="kind" readonly="1"/>
+                            <field name="starts_from"/>
+                            <field name="offset_in"/>
+                            <field name="offset_mm"/>
+                            <field name="note"/>
+                            <field name="sample_text"/>
+                            <field name="sample_source"/>
+                            <field name="warning" decoration-danger="1"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_aw_size_rule_setup" model="ir.actions.act_window">
+        <field name="name">Size Rules</field>
+        <field name="res_model">aw.size.rule.setup</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+    </record>
+</odoo>

@@ -23,7 +23,7 @@ from .family import OPENING_LEAF_CODES
 CHECK_ONLY_KEYS = frozenset({
     'missing_product', 'missing_product_reason', 'position_id',
     'missing_glass',
-    '_order',
+    '_order', '_orient', '_edge',
 })
 
 # How to say "the layout needs this" in the checks, per scope. Phrased
@@ -387,6 +387,8 @@ class AwDesign(models.Model):
                   else self._profile_variant_problem(
                       line, product_tmpl=product_tmpl))
         pieces = []
+        scope_orient = {'junction_mullion': 'v', 'junction_meeting': 'v',
+                        'junction_interlock': 'v', 'transom': 'h'}
         # ONE DICT PER PHYSICAL PIECE, not one per formula. Four frame
         # members cannot share a BOM line and still carry four distinct
         # references (spec B), and the cut list wants them separate
@@ -402,7 +404,15 @@ class AwDesign(models.Model):
             worked = ('' if cut_on_site
                       else substitute_formula(formula, context))
             for index in range(count * qty):
+                edge_no = edges[index % len(edges)] if edges else 0
                 pieces.append({
+                    # Which way the piece runs, for the size rules: top and
+                    # bottom run across (h), the sides up (v); a piece with
+                    # no edge takes it from its scope.
+                    '_orient': ('h' if edge_no in (1, 3) else
+                                'v' if edge_no in (2, 4) else
+                                scope_orient.get(position.scope)),
+                    '_edge': edge_no,
                     'kind': 'profile',
                     'product_id': product.id,
                     'length_mm': length,
@@ -798,6 +808,8 @@ class AwDesign(models.Model):
         for line in lines:
             pieces.extend(self._profile_pieces(
                 line, lock_context, label, leaf.panel_no))
+        for piece in pieces:       # which way the lock bar runs
+            piece['_orient'] = 'v' if edge in ('left', 'right') else 'h'
         return pieces
 
     def _explode_junction(self, leaf, by_scope, context, out, demand,
@@ -979,8 +991,22 @@ class AwDesign(models.Model):
         others = [v for v in out if v.get('kind') != 'profile']
 
         sequence = 0
-        ordinal = {}
         adjustments = self._piece_adjustments()
+        # A piece's key: its spec line, panel, unit and which of those it is.
+        keys, counter = {}, {}
+        for unit in range(1, multiplier + 1):
+            for index, values in enumerate(profiles, start=1):
+                key = (values.get('template_line_id'),
+                       values.get('panel_no') or 0, unit)
+                counter[key] = counter.get(key, 0) + 1
+                keys[(unit, index)] = '%s|%s|%s|%s' % (key + (counter[key],))
+        # Size rules (PR 3): with none filled this is skipped and every
+        # length is exactly what the spec's formula gives.
+        rules = self._size_rules()
+        ruled, size_problems = (
+            self._size_rule_pass(profiles, keys, adjustments, rules,
+                                 multiplier)
+            if rules else ({}, []))
         for unit in range(1, multiplier + 1):
             for index, values in enumerate(profiles, start=1):
                 sequence += 10
@@ -994,10 +1020,15 @@ class AwDesign(models.Model):
                     'piece_ref': self._piece_reference(unit, index,
                                                        multiplier),
                 })
-                key = (values.get('template_line_id'),
-                       values.get('panel_no') or 0, unit)
-                ordinal[key] = ordinal.get(key, 0) + 1
-                piece_key = '%s|%s|%s|%s' % (key + (ordinal[key],))
+                piece_key = keys[(unit, index)]
+                size = ruled.get((unit, index))
+                if size:
+                    values.update({
+                        'length_mm': size['length'],
+                        'calc_rule': _('Size rule'),
+                        'calc_source': size['note'],
+                        'calc_worked': '',
+                    })
                 # Rule length, then this piece's own adjustment (or the
                 # series default), after the rule and before anything typed
                 # on the piece, which is applied further down and wins.
@@ -1036,7 +1067,8 @@ class AwDesign(models.Model):
 
         # Cost before the checks run, so the checks can report on it.
         self._cost_bom_lines()
-        self._run_checks(exploded=out, demand=demand, spans=spans)
+        self._run_checks(exploded=out, demand=demand, spans=spans,
+                         size_problems=size_problems)
 
     def _manual_cut_lines(self):
         """The generated cut lines somebody edited, keyed by piece, with
@@ -1083,7 +1115,8 @@ class AwDesign(models.Model):
                     saved['data'], design_id=self.id, is_manual=True,
                     is_orphan=True))
 
-    def _run_checks(self, exploded=None, demand=None, spans=None):
+    def _run_checks(self, exploded=None, demand=None, spans=None,
+                    size_problems=None):
         """Spec 6.6. Warnings are things to look at; errors are things
         that cannot be made as drawn."""
         self.ensure_one()
@@ -1114,6 +1147,7 @@ class AwDesign(models.Model):
                     self._record_target(position)))
 
         problems.extend(self._missing_section_line_problems(demand or {}))
+        problems.extend(size_problems or [])
 
         # Deduplicated on the REASON, not the label: one wrong thickness
         # on one section line produces a piece per frame member per

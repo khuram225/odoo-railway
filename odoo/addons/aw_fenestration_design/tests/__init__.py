@@ -53,3 +53,4 @@ from . import test_elevation_details
 from . import test_print_chunks
 from . import test_elevation_watermark
 from . import test_copy_drawing
+from . import test_size_rules

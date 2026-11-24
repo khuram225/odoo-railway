@@ -71,3 +71,7 @@ access_aw_hardware_kit_user,aw.hardware.kit.user,model_aw_hardware_kit,base.grou
 access_aw_hardware_kit_manager,aw.hardware.kit.manager,model_aw_hardware_kit,aw_fenestration_core.group_fenestration_manager,1,1,1,1
 access_aw_hardware_kit_line_user,aw.hardware.kit.line.user,model_aw_hardware_kit_line,base.group_user,1,0,0,0
 access_aw_hardware_kit_line_manager,aw.hardware.kit.line.manager,model_aw_hardware_kit_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_size_rule_user,aw.size.rule.user,model_aw_size_rule,base.group_user,1,0,0,0
+access_aw_size_rule_manager,aw.size.rule.manager,model_aw_size_rule,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_size_rule_setup,aw.size.rule.setup,model_aw_size_rule_setup,aw_fenestration_core.group_fenestration_manager,1,1,1,1
+access_aw_size_rule_setup_line,aw.size.rule.setup.line,model_aw_size_rule_setup_line,aw_fenestration_core.group_fenestration_manager,1,1,1,1
