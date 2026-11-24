@@ -235,3 +235,75 @@ class TestPieceAdjust(TransactionCase):
         mine = self._line(key).length_mm
         theirs = copy.bom_line_ids.filtered(lambda l: l.piece_key == key)
         self.assertAlmostEqual(theirs.length_mm, mine)
+
+    # -- copy adjustments from another panel -----------------------------------
+    def _pair(self):
+        """(piece key on panel 1, key of the piece in the same position on
+        panel 2), for the first position the two panels share."""
+        position = self.design._position_of_key
+        second = {position(l.piece_key): l.piece_key
+                  for l in self._adjustable() if (l.panel_no or 0) == 2}
+        for line in self._adjustable().filtered(
+                lambda l: (l.panel_no or 0) == 1):
+            if position(line.piece_key) in second:
+                return line.piece_key, second[position(line.piece_key)]
+        self.fail("the two test panels share no piece position")
+
+    def test_copy_takes_the_adjustment_to_the_piece_in_the_same_position(self):
+        one, two = self._pair()
+        before = self._line(two).length_mm
+        self.design.set_piece_adjustment(one, 7.0)
+        result = self.design.copy_piece_adjustments(1, 2)
+        self.assertEqual(result['copied'], 1)
+        self.assertEqual(result['skipped'], 0)
+        self.assertEqual(result['refused'], 0)
+        self.assertAlmostEqual(self._line(two).length_mm, before + 7.0)
+        self.assertEqual(self._payload_piece(two)['adjust_mm'], 7.0)
+        self.assertIn('copied the adjustments of panel 1',
+                      self.design.message_ids[0].body)
+
+    def test_copy_replaces_the_targets_own_and_leaves_its_other_pieces(self):
+        one, two = self._pair()
+        others = [k for k in self._lengths() if k not in (one, two)]
+        self.design.set_piece_adjustment(two, 20.0)
+        self.design.set_piece_adjustment(one, 3.0)
+        other = next(k for k in others
+                     if (self._line(k).panel_no or 0) == 2)
+        self.design.set_piece_adjustment(other, 5.0)
+        self.design.copy_piece_adjustments(1, 2)
+        adjustments = self.design._piece_adjustments()
+        self.assertEqual(adjustments[two], 3.0)         # replaced
+        self.assertEqual(adjustments[other], 5.0)       # left alone
+
+    def test_copy_counts_what_has_no_piece_in_the_same_position(self):
+        one, two = self._pair()
+        self.design.set_piece_adjustment(one, 2.0)
+        self.env['aw.design.piece.adjust'].create({
+            'design_id': self.design.id, 'piece_key': '0|1|99|1',
+            'adjust_mm': 4.0})
+        result = self.design.copy_piece_adjustments(1, 2)
+        self.assertEqual((result['copied'], result['skipped']), (1, 1))
+        self.assertIn('skipped 1 (no piece in the same position)',
+                      self.design.message_ids[0].body)
+
+    def test_copy_with_nothing_to_copy_writes_nothing(self):
+        before = len(self.design.message_ids)
+        result = self.design.copy_piece_adjustments(1, 2)
+        self.assertEqual(result['copied'], 0)
+        self.assertFalse(self.design.piece_adjust_ids)
+        self.assertEqual(len(self.design.message_ids), before)
+
+    def test_copy_refuses_an_adjustment_that_cannot_hold_and_counts_it(self):
+        one, two = self._pair()
+        self.env['aw.design.piece.adjust'].create({
+            'design_id': self.design.id, 'piece_key': one,
+            'adjust_mm': -5000.0})
+        result = self.design.copy_piece_adjustments(1, 2)
+        self.assertEqual((result['copied'], result['refused']), (0, 1))
+        self.assertNotIn(two, self.design._piece_adjustments())
+
+    def test_copy_needs_another_panel(self):
+        with self.assertRaises(UserError):
+            self.design.copy_piece_adjustments(1, 1)
+        with self.assertRaises(UserError):
+            self.design.copy_piece_adjustments(0, 2)

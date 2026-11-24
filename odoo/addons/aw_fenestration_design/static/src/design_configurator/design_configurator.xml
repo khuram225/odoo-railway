@@ -1451,6 +1451,17 @@
                                                 t-on-click="recomputePieces">Recompute</button>
                                     </div>
                                 </div>
+                                <div t-if="piecesPanelNo and otherAdjustPanels.length" class="d-flex gap-1 align-items-center mb-2">
+                                    <span class="text-muted small">Copy adjustments from panel</span>
+                                    <select class="form-select form-select-sm" style="width: 5rem;"
+                                            t-on-change="(ev) => this.copyAdjustFromPanel(ev)">
+                                        <option value="">...</option>
+                                        <option t-foreach="otherAdjustPanels" t-as="op" t-key="op"
+                                                t-att-value="op" t-esc="op"/>
+                                    </select>
+                                </div>
+                                <div t-if="adjustCopyMessage" class="alert alert-info small py-1 px-2 mb-2"
+                                     t-esc="adjustCopyMessage"/>
                                 <div t-if="cutListStale" class="alert alert-warning small py-1 px-2 mb-2">
                                     The window's size changed after this cut list was
                                     made, so it still shows the old lengths. Press Recompute.

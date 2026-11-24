@@ -146,3 +146,75 @@ class AwDesign(models.Model):
                 "%(who)s reset the adjustment of piece %(ref)s to the "
                 "series default.", who=self.env.user.name, ref=ref))
         return self.get_configurator_data()
+
+    @staticmethod
+    def _position_of_key(piece_key):
+        """(spec line, unit, ordinal) of a piece key, which is spec line |
+        panel | unit | ordinal: the piece's place WITHOUT the panel, so the
+        same piece of two panels has the same position. None if unreadable."""
+        parts = (piece_key or '').split('|')
+        if len(parts) != 4:
+            return None
+        return (parts[0], parts[2], parts[3])
+
+    def copy_piece_adjustments(self, from_panel, to_panel):
+        """Copy panel `from_panel`'s adjustments onto panel `to_panel`, piece
+        by piece, where the other panel has a piece in the SAME position (same
+        spec line, unit and ordinal; the panel type is not looked at). A
+        matched piece takes the source's adjustment and replaces its own; the
+        target's other pieces are left alone. A source adjustment with no
+        matching piece is skipped; one that would make its piece 0 long, or is
+        over the limit, is refused and counted apart. Nothing is written when
+        nothing can be copied. Returns the configurator data and the counts."""
+        self.ensure_one()
+        from_panel, to_panel = int(from_panel or 0), int(to_panel or 0)
+        if not from_panel or not to_panel or from_panel == to_panel:
+            raise UserError(_("Choose another panel to copy from."))
+        adjustments = self._piece_adjustments()
+        source = {}
+        for key, mm in adjustments.items():
+            parts = key.split('|')
+            if len(parts) == 4 and parts[1] == str(from_panel):
+                source[self._position_of_key(key)] = mm
+        targets = {}
+        for line in self.bom_line_ids:
+            if (line.panel_no or 0) != to_panel:
+                continue
+            if not self._adjustable_line(line.piece_key):
+                continue
+            targets[self._position_of_key(line.piece_key)] = line
+        copied = refused = 0
+        todo = []
+        for position, mm in source.items():
+            line = targets.get(position)
+            if line is None:
+                continue
+            if abs(mm) > MAX_ADJUST_MM or self._rule_length(
+                    line, adjustments) + mm <= 0:
+                refused += 1
+                continue
+            todo.append((line.piece_key, mm))
+            copied += 1
+        skipped = len(source) - copied - refused
+        result = {'copied': copied, 'skipped': skipped, 'refused': refused}
+        if copied:
+            Adjust = self.env['aw.design.piece.adjust']
+            for piece_key, mm in todo:
+                row = self.piece_adjust_ids.filtered(
+                    lambda a: a.piece_key == piece_key)
+                if row:
+                    row.adjust_mm = mm
+                else:
+                    Adjust.create({'design_id': self.id,
+                                   'piece_key': piece_key, 'adjust_mm': mm})
+            self._explode()
+            self.message_post(body=_(
+                "%(who)s copied the adjustments of panel %(src)s to panel "
+                "%(dst)s: copied %(copied)s, skipped %(skipped)s (no piece in "
+                "the same position)%(refused)s.",
+                who=self.env.user.name, src=from_panel, dst=to_panel,
+                copied=copied, skipped=skipped,
+                refused=(_(", refused %s (would make the piece 0 long)",
+                           refused) if refused else '')))
+        result['data'] = self.get_configurator_data()
+        return result
