@@ -3,7 +3,7 @@
 following the window's size, under a typed absolute length, changing only its
 own piece."""
 from odoo.addons.aw_fenestration_design.tests.common import (
-    seeded_family_series)
+    first_thickness, seeded_family_series)
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
@@ -236,18 +236,72 @@ class TestPieceAdjust(TransactionCase):
         theirs = copy.bom_line_ids.filtered(lambda l: l.piece_key == key)
         self.assertAlmostEqual(theirs.length_mm, mine)
 
-    # -- copy adjustments from another panel -----------------------------------
+
+@tagged('post_install', '-at_install')
+class TestCopyAdjustments(TransactionCase):
+    """Copy a panel's adjustments to another panel. Builds its OWN window: a
+    spec with two profile lines of its own, on two Fixed panels, so the two
+    panels share piece positions whatever the database holds (a database
+    installed from scratch has no profile line on a panel at all)."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        env = cls.env
+        family, series = seeded_family_series(env)
+        fixed = env['aw.leaf.type'].search([('code', '=', 'FIXED')], limit=1)
+        profile = env['product.template'].search([
+            ('categ_id', 'child_of', env.ref(
+                'aw_fenestration_core.product_category_profiles').id)],
+            limit=1)
+        thickness = first_thickness(env, profile)
+        positions = [env['aw.profile.position'].create({
+            'name': name, 'scope': 'panel_fixed', 'is_required': False})
+            for name in ('CA Rail', 'CA Stile')]
+        spec = env['aw.window.template'].create({
+            'name': 'CA spec', 'window_type_id': series.id,
+            'profile_line_ids': [
+                (0, 0, {'position_id': pos.id, 'product_tmpl_id': profile.id,
+                        'thickness_id': thickness.id,
+                        'length_formula': formula, 'qty_formula': '1'})
+                for pos, formula in zip(positions, ('OW', 'OH'))]})
+        order = env['sale.order'].create({
+            'partner_id': env['res.partner'].create(
+                {'name': 'Copy adjust customer'}).id,
+            'aw_default_series_id': series.id})
+        cls.design = order._create_fenestration_position(
+            series, family=family, location='Hall')
+        cls.design.write({'width_mm': 2400.0, 'height_mm': 1800.0,
+                          'template_id': spec.id})
+        leaf = {'width_mm': 1200.0, 'leaf_type_id': fixed.id}
+        cls.design.save_layout({
+            'header': cls.design.get_configurator_data()['header'],
+            'rows': [{'height_mm': 1800.0,
+                      'leaves': [dict(leaf), dict(leaf)]}]})
+
+    def _pieces(self, panel):
+        return self.design.bom_line_ids.filtered(
+            lambda l: l.kind == 'profile' and l.piece_key
+            and (l.panel_no or 0) == panel and self.design._adjustable_line(
+                l.piece_key))
+
+    def _line(self, key):
+        return self.design.bom_line_ids.filtered(
+            lambda l: l.piece_key == key)
+
+    def _payload_piece(self, key):
+        pieces = self.design.get_configurator_data()['pieces']
+        return next(p for p in pieces if p['piece_key'] == key)
+
     def _pair(self):
         """(piece key on panel 1, key of the piece in the same position on
-        panel 2), for the first position the two panels share."""
+        panel 2): the two panels have two such positions."""
         position = self.design._position_of_key
-        second = {position(l.piece_key): l.piece_key
-                  for l in self._adjustable() if (l.panel_no or 0) == 2}
-        for line in self._adjustable().filtered(
-                lambda l: (l.panel_no or 0) == 1):
-            if position(line.piece_key) in second:
-                return line.piece_key, second[position(line.piece_key)]
-        self.fail("the two test panels share no piece position")
+        second = {position(l.piece_key): l.piece_key for l in self._pieces(2)}
+        pairs = [(l.piece_key, second[position(l.piece_key)])
+                 for l in self._pieces(1) if position(l.piece_key) in second]
+        self.assertEqual(len(pairs), 2, "the two panels share two positions")
+        return pairs[0]
 
     def test_copy_takes_the_adjustment_to_the_piece_in_the_same_position(self):
         one, two = self._pair()
@@ -264,11 +318,10 @@ class TestPieceAdjust(TransactionCase):
 
     def test_copy_replaces_the_targets_own_and_leaves_its_other_pieces(self):
         one, two = self._pair()
-        others = [k for k in self._lengths() if k not in (one, two)]
+        other = next(l.piece_key for l in self._pieces(2)
+                     if l.piece_key != two)
         self.design.set_piece_adjustment(two, 20.0)
         self.design.set_piece_adjustment(one, 3.0)
-        other = next(k for k in others
-                     if (self._line(k).panel_no or 0) == 2)
         self.design.set_piece_adjustment(other, 5.0)
         self.design.copy_piece_adjustments(1, 2)
         adjustments = self.design._piece_adjustments()
