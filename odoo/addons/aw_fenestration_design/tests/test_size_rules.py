@@ -102,6 +102,12 @@ class TestSizeRules(TransactionCase):
     def _lengths(self, position, design=None):
         return [round(l.length_mm, 1) for l in self._lines(position, design)]
 
+    def _line(self, key):
+        """The BOM line of a piece key, looked up NOW (a recompute rebuilds
+        every line, so a record held across one is gone)."""
+        return self.design.bom_line_ids.filtered(
+            lambda l: l.piece_key == key)
+
     def _recompute(self, design=None):
         (design or self.design)._explode()
 
@@ -191,36 +197,36 @@ class TestSizeRules(TransactionCase):
     def test_the_adjustment_stays_on_top_of_the_rule(self):
         self._rule('divider', 'frame', -2 * IN)
         self._recompute()
-        line = self._lines(self.p_div)[0]
-        self.design.set_piece_adjustment(line.piece_key, 5.0)
-        line = self._lines(self.p_div)[0]
+        # A recompute rebuilds the BOM lines: keep the KEY, and look the line
+        # up again after every set, reset or typed length.
+        key = self._lines(self.p_div)[0].piece_key
+        self.design.set_piece_adjustment(key, 5.0)
+        line = self._line(key)
         self.assertAlmostEqual(line.length_mm, 1454.2, places=1)
         self.assertAlmostEqual(
             self.design._rule_length(line), 1449.2, places=1)
-        self.design.reset_piece_adjustment(line.piece_key)
-        self.assertAlmostEqual(
-            self._lines(self.p_div)[0].length_mm, 1449.2, places=1)
+        self.design.reset_piece_adjustment(key)
+        self.assertAlmostEqual(self._line(key).length_mm, 1449.2, places=1)
 
     def test_a_typed_length_wins_over_the_rule(self):
         self._rule('divider', 'frame', -2 * IN)
         self._recompute()
-        line = self._lines(self.p_div)[0]
-        self.design.set_piece_length(line.id, 999.0)
-        self.assertAlmostEqual(self._lines(self.p_div)[0].length_mm, 999.0)
+        key = self._lines(self.p_div)[0].piece_key
+        self.design.set_piece_length(self._line(key).id, 999.0)
+        self.assertAlmostEqual(self._line(key).length_mm, 999.0)
         self._recompute()
-        self.assertAlmostEqual(self._lines(self.p_div)[0].length_mm, 999.0)
+        self.assertAlmostEqual(self._line(key).length_mm, 999.0)
 
     def test_a_frame_adjustment_moves_the_divider_but_a_typed_one_does_not(
             self):
         self._rule('divider', 'frame', -2 * IN)
         self._recompute()
-        frame = self._lines(self.p_side)[0]
-        self.design.set_piece_adjustment(frame.piece_key, 10.0)
+        key = self._lines(self.p_side)[0].piece_key
+        self.design.set_piece_adjustment(key, 10.0)
         self.assertEqual(self._lengths(self.p_div), [1459.2, 1459.2])
-        self.design.reset_piece_adjustment(frame.piece_key)
-        frame = self._lines(self.p_side)[0]
-        self.design.set_piece_length(frame.id, 1200.0)
-        self.assertAlmostEqual(self._lines(self.p_side)[0].length_mm, 1200.0)
+        self.design.reset_piece_adjustment(key)
+        self.design.set_piece_length(self._line(key).id, 1200.0)
+        self.assertAlmostEqual(self._line(key).length_mm, 1200.0)
         self.assertEqual(self._lengths(self.p_div), [1449.2, 1449.2])
 
     # -- the warnings -------------------------------------------------------
