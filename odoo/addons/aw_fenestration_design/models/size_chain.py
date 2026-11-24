@@ -44,6 +44,11 @@ KIND_BY_GROUP = {
     'lock': 'lock_bar',
 }
 
+# Groups that follow no size rule BY DESIGN: the checks do not name them. A
+# group that is in neither this set nor KIND_BY_GROUP (including none at all)
+# is an oversight and is named.
+NO_SIZE_KIND_BY_DESIGN = frozenset({'interlock_meeting', 'fly_screen'})
+
 SIDE = {1: 'top', 2: 'right side', 3: 'bottom', 4: 'left side'}
 MM_PER_INCH = 25.4
 

@@ -258,6 +258,24 @@ class TestSizeRules(TransactionCase):
         self.assertEqual(len(said), 1)
         self.assertIn('SZ Odd', said[0])
 
+    def test_interlock_and_fly_screen_positions_are_not_named(self):
+        # "no size kind by design": interlock & meeting and fly screen
+        first = self.spec.profile_line_ids[:1]
+        for name, group in (('SZ Interlock', 'interlock_meeting'),
+                            ('SZ Fly', 'fly_screen')):
+            pos = self.env['aw.profile.position'].create({
+                'name': name, 'scope': 'frame', 'edge': 'top',
+                'part_group': group, 'is_required': False})
+            self.spec.write({'profile_line_ids': [(0, 0, {
+                'position_id': pos.id,
+                'product_tmpl_id': first.product_tmpl_id.id,
+                'thickness_id': first.thickness_id.id,
+                'length_formula': 'W', 'qty_formula': '1'})]})
+        self._rule('divider', 'frame', -2 * IN)
+        self._recompute()
+        self.assertFalse([m for m in self._messages()
+                          if m.startswith('Size rule (position)')])
+
     # -- the model ----------------------------------------------------------
     def test_one_row_per_series_and_kind_and_a_start_before_the_piece(self):
         self._rule('divider', 'frame', 0.0)

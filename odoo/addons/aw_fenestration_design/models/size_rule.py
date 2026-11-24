@@ -10,8 +10,8 @@ from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
 from .size_chain import (
-    KIND_BY_GROUP, KIND_LABEL, KINDS, STARTS, allowed_starts, kind_for_group,
-    resolve)
+    KIND_LABEL, KINDS, NO_SIZE_KIND_BY_DESIGN, STARTS, allowed_starts,
+    kind_for_group, resolve)
 
 MM_PER_INCH = 25.4
 
@@ -112,7 +112,8 @@ class AwDesign(models.Model):
             for index, values in enumerate(profiles, start=1):
                 position = Position.browse(values.get('position_id') or 0)
                 kind = kind_for_group(position.part_group)
-                if not kind and position:
+                if (not kind and position and position.part_group
+                        not in NO_SIZE_KIND_BY_DESIGN):
                     say('warning', _(
                         "Size rule (position): '%(position)s' has the part "
                         "group '%(group)s', which is not tied to a size kind "

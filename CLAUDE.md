@@ -1469,10 +1469,11 @@ chain (a typed frame side does not move the divider).
 **Which piece is which kind comes from `aw.profile.position.part_group`** (outer_frame =
 frame, dividers = divider, sashes = sash side, beads = sash bead, lock = lock bar). That
 field used to be display only and is now load-bearing: its comment and help say so. A
-piece whose position has any other group (interlock & meeting, fly screen, none) never
-follows a rule, and once the series has a filled rule the window's Checks name each such
-position once ("Size rule (position): ..."); with no rules there is nothing to skip and
-no warning.
+piece whose position has any other group never follows a rule. Interlock & meeting and Fly
+screen are "no size kind by design" (`NO_SIZE_KIND_BY_DESIGN`, not named); any other
+group, including none, is named once per position in the window's Checks ("Size rule
+(position): ...") once the series has a filled rule; with no rules there is nothing to
+skip and no warning.
 
 Direction: top and bottom run across (`h`), sides up (`v`); a junction piece takes it
 from its scope (mullion/meeting/interlock `v`, transom `h`), a lock bar from its edge. A
