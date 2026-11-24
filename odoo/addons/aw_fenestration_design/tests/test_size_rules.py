@@ -4,7 +4,7 @@ piece before it. Builds its OWN series, positions and spec (a database
 installed from scratch has no profile lines on a panel), so nothing here
 depends on what the catalogue holds, and nothing skips."""
 from odoo.addons.aw_fenestration_design.models.family import (
-    OPENING_LEAF_CODES)
+    OPENING_LEAF_CODES, ROLE_BY_LEAF_CODE)
 from odoo.addons.aw_fenestration_design.tests.common import (
     first_thickness, seeded_family_series)
 from odoo.exceptions import ValidationError
@@ -28,6 +28,11 @@ class TestSizeRules(TransactionCase):
         assert cls.opening and cls.fixed, "the leaf types are seeded data"
         cls.series = env['aw.window.series'].create({
             'name': 'SZ series', 'family_id': cls.family.id,
+            # A design picks its system from the panels drawn, by role: with
+            # no role this series is never a candidate and the window moves
+            # to another system of the family (the seeded RE), which has none
+            # of this fixture's positions.
+            'system_role': ROLE_BY_LEAF_CODE[cls.opening.code.upper()],
             'leaf_type_ids': [(6, 0, (cls.opening | cls.fixed).ids)]})
         profile = env['product.template'].search([
             ('categ_id', 'child_of', env.ref(
@@ -288,7 +293,7 @@ class TestSizeRules(TransactionCase):
     def _wizard(self):
         wizard = self.env['aw.size.rule.setup'].create({
             'series_id': self.series.id,
-            'sample_width_in': 3000.0 / IN, 'sample_height_in': 1500.0 / IN,
+            'sample_width_mm': 3000.0, 'sample_height_mm': 1500.0,
             'panels_across': 3, 'leaf_type_id': self.opening.id})
         wizard.action_load()
         return wizard

@@ -27,16 +27,43 @@ class AwSizeRuleSetup(models.TransientModel):
     line_ids = fields.One2many('aw.size.rule.setup.line', 'setup_id')
     series_leaf_type_ids = fields.Many2many(
         related='series_id.leaf_type_ids')
+    # The sample size is stored in mm, EXACT: an inch field with two decimals
+    # rounds what it is given (a size taken from mm lost up to 0.13 mm), so the
+    # inch boxes are only another way to type the mm.
+    sample_width_mm = fields.Float(
+        string='Sample width (mm)', default=96.0 * MM_PER_INCH)
+    sample_height_mm = fields.Float(
+        string='Sample height (mm)', default=60.0 * MM_PER_INCH)
     sample_width_in = fields.Float(
-        string='Sample width (in)', default=96.0, digits=(16, 2))
+        string='Sample width (in)', compute='_compute_sample_in',
+        inverse='_inverse_sample_width_in', digits=(16, 2))
     sample_height_in = fields.Float(
-        string='Sample height (in)', default=60.0, digits=(16, 2))
+        string='Sample height (in)', compute='_compute_sample_in',
+        inverse='_inverse_sample_height_in', digits=(16, 2))
     panels_across = fields.Integer(string='Panels across', default=1)
     leaf_type_id = fields.Many2one(
         'aw.leaf.type', string='Panel type',
         help="What every panel of the sample window is.")
     warnings = fields.Text(readonly=True)
     sample_note = fields.Char(readonly=True)
+
+    @api.depends('sample_width_mm', 'sample_height_mm')
+    def _compute_sample_in(self):
+        for setup in self:
+            setup.sample_width_in = (setup.sample_width_mm or 0.0) / MM_PER_INCH
+            setup.sample_height_in = (
+                (setup.sample_height_mm or 0.0) / MM_PER_INCH)
+
+    # one inverse per box: editing the width must not rewrite the height from
+    # its two-decimal inch value
+    def _inverse_sample_width_in(self):
+        for setup in self:
+            setup.sample_width_mm = (setup.sample_width_in or 0.0) * MM_PER_INCH
+
+    def _inverse_sample_height_in(self):
+        for setup in self:
+            setup.sample_height_mm = (
+                (setup.sample_height_in or 0.0) * MM_PER_INCH)
 
     # -- loading -------------------------------------------------------------
     def _line_commands(self):
@@ -96,8 +123,8 @@ class AwSizeRuleSetup(models.TransientModel):
         self.ensure_one()
         series = self.series_id
         count = max(1, int(self.panels_across or 1))
-        width = (self.sample_width_in or 0.0) * MM_PER_INCH
-        height = (self.sample_height_in or 0.0) * MM_PER_INCH
+        width = self.sample_width_mm or 0.0
+        height = self.sample_height_mm or 0.0
         if width <= 0 or height <= 0:
             raise UserError(_("Give the sample a width and a height."))
         leaf_type = self.leaf_type_id or self._default_leaf_type()
@@ -109,8 +136,11 @@ class AwSizeRuleSetup(models.TransientModel):
             order = self.env['sale.order'].sudo().create({
                 'partner_id': self.env.company.partner_id.id,
                 'aw_default_series_id': series.id})
+            # Locked to the chosen series: left free, the panels drawn can
+            # move the window to another system of the family, and the
+            # sample would then show that system's lengths, not this one's.
             design = order._create_fenestration_position(
-                series, location=_('Sample'))
+                series, location=_('Sample'), lock_system=True)
             design.write({'width_mm': width, 'height_mm': height})
             leaf = {'width_mm': width / count, 'leaf_type_id': leaf_type.id}
             design = design.with_context(aw_size_rules=rules)
@@ -165,7 +195,8 @@ class AwSizeRuleSetup(models.TransientModel):
             'sample_note': _(
                 "%(w)s x %(h)s in, %(n)s panel(s) across, %(type)s. Nothing "
                 "was saved.",
-                w=self.sample_width_in, h=self.sample_height_in,
+                w=round(self.sample_width_in, 2),
+                h=round(self.sample_height_in, 2),
                 n=max(1, self.panels_across or 1),
                 type=(self.leaf_type_id or self._default_leaf_type()
                       ).display_name or '')})

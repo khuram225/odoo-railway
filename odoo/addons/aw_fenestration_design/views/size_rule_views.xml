@@ -35,7 +35,9 @@
                     <group string="Sample window (preview only, nothing is saved)">
                         <group>
                             <field name="sample_width_in"/>
+                            <field name="sample_width_mm"/>
                             <field name="sample_height_in"/>
+                            <field name="sample_height_mm"/>
                         </group>
                         <group>
                             <field name="panels_across"/>
