@@ -428,6 +428,7 @@ export class DesignConfigurator extends Component {
             phone: this.readPhone(),
             phoneLibrary: false,
             phoneDetails: false,
+            adjustCopyNote: null,
             // The other box of a Width/Height pair, shown live while one
             // is being typed into: { field, source, text }.
             sizeDraft: null,
@@ -1149,6 +1150,57 @@ export class DesignConfigurator extends Component {
         this.state.data = await this.orm.call(
             "aw.design", "reset_piece_adjustment",
             [[this.designId], piece.piece_key]);
+        this.surfaceCheckErrors();
+    }
+
+    /** The other panels that have a piece which can be adjusted: where
+     *  "Copy adjustments from" can take them from. The frame is not one. */
+    get otherAdjustPanels() {
+        const here = this.piecesPanelNo;
+        const numbers = new Set();
+        for (const piece of this.state.data?.pieces || []) {
+            if (piece.adjustable && piece.panel_no && piece.panel_no !== here) {
+                numbers.add(piece.panel_no);
+            }
+        }
+        return [...numbers].sort((a, b) => a - b);
+    }
+
+    /** What the last copy did, said on the screen, only while the panel it
+     *  was made for is the one showing. */
+    get adjustCopyMessage() {
+        const note = this.state.adjustCopyNote;
+        return note && note.to === this.piecesPanelNo ? note.text : "";
+    }
+
+    adjustCopyText(from, result) {
+        if (!result.copied && !result.refused) {
+            return `Nothing to copy from panel ${from}: it has no adjustment of its own, or none for a piece in the same position here.`;
+        }
+        let text = `Copied ${result.copied}, skipped ${result.skipped} (no piece in the same position)`;
+        if (result.refused) {
+            text += `, refused ${result.refused} (would make the piece 0 long)`;
+        }
+        return `${text}. Panel ${from} to panel ${this.piecesPanelNo}.`;
+    }
+
+    /** Take another panel's adjustments onto this one, piece by piece where
+     *  the position matches. The server writes nothing when none can go. */
+    async copyAdjustFromPanel(ev) {
+        const from = Number(ev.target.value);
+        ev.target.value = "";
+        const to = this.piecesPanelNo;
+        if (!from || !to || from === to) {
+            return;
+        }
+        if (this.state.dirty) {
+            await this.save();
+        }
+        const result = await this.orm.call(
+            "aw.design", "copy_piece_adjustments",
+            [[this.designId], from, to]);
+        this.state.data = result.data;
+        this.state.adjustCopyNote = { to, text: this.adjustCopyText(from, result) };
         this.surfaceCheckErrors();
     }
 
