@@ -1451,6 +1451,48 @@ Settings added in Settings > Fenestration > Cutting (`ir.config_parameter`, no s
 limit 102 mm, keep from 1219 mm, handy leftover 1800 mm, last-bar extra-feet cap 4 ft, and the
 Last-bar rule switch (OFF). The planner does not read them yet.
 
+## Size rules (PR 3, part A)
+
+A piece starts from the FINAL length of the piece before it: window -> frame ->
+divider -> sash side -> sash bead / lock bar. `aw.size.rule` (design module, one row
+per series and piece kind: `starts_from` window/frame/divider/sash side, `offset_mm`,
+note) says so; **a row does nothing until `starts_from` is set** (an offset of 0 is a
+real value, so it cannot be the signal), and **no row anywhere means every length is
+exactly what the spec's formula gives** (`_size_rules()` is empty and the pass is
+skipped; `test_with_no_rows_every_length_is_what_the_formulas_give`). **Nothing is
+seeded.** The chain is `models/size_chain.py` (Odoo-free, `scripts/check_size_chain.py`);
+the hook is one pass in `_explode` (`size_rule.py:_size_rule_pass`) between the formula
+and the +/- adjustment, so `final = rule + adjustment` and the NEXT piece starts from
+that final; a length typed by hand is applied later, wins, and is NOT followed by the
+chain (a typed frame side does not move the divider).
+
+**Which piece is which kind comes from `aw.profile.position.part_group`** (outer_frame =
+frame, dividers = divider, sashes = sash side, beads = sash bead, lock = lock bar). That
+field used to be display only and is now load-bearing: its comment and help say so. A
+piece whose position has any other group never follows a rule. Interlock & meeting and Fly
+screen are "no size kind by design" (`NO_SIZE_KIND_BY_DESIGN`, not named); any other
+group, including none, is named once per position in the window's Checks ("Size rule
+(position): ...") once the series has a filled rule; with no rules there is nothing to
+skip and no warning.
+
+Direction: top and bottom run across (`h`), sides up (`v`); a junction piece takes it
+from its scope (mullion/meeting/interlock `v`, transom `h`), a lock bar from its edge. A
+piece starts from the FIRST piece of the starting kind with the same direction (the
+same panel's when it has one); when there is none (a divider rule on a window with no
+divider) it starts from the next one down the chain, and says so in its source text
+("divider: frame right side 59.06 in - 2 in", plus "(no divider piece here)"). A rule
+that gives 0 or less keeps the formula and warns. A ruled divider as long as or longer
+than the frame opening warns (only a ruled one: the spec's own `CH` divider is often
+exactly that long). Pieces are `calc_rule = 'Size rule'` with the text in `calc_source`.
+
+Rules take effect the next time a window is recomputed; saving the Setup page does not
+recompute anything. **Setup > Size Rules** (`aw.size.rule.setup`, transient) is one
+page per series, a line per kind, edited in inches or mm (stored mm). "Try on the sample
+window" explodes a scratch quote and window in a savepoint that is always rolled back,
+with the lines AS TYPED (context `aw_size_rules`), so it writes nothing and shows what a
+real window would get. Part B (a confirmed order keeps its lengths) is NOT built yet:
+do not type a rule on real data before it is.
+
 ## Odoo tests (the `odoo tests` job)
 
 `odoo tests` in `.github/workflows/checks.yml` installs the aluminum modules

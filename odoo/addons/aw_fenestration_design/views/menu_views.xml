@@ -29,4 +29,10 @@
               parent="aw_fenestration_core.menu_aw_fenestration_config"
               action="action_aw_hardware_kit"
               sequence="35"/>
+
+    <menuitem id="menu_aw_size_rule"
+              name="Size Rules"
+              parent="aw_fenestration_core.menu_aw_fenestration_config"
+              action="action_aw_size_rule_setup"
+              sequence="36"/>
 </odoo>

@@ -10,7 +10,13 @@ _logger = logging.getLogger(__name__)
 
 
 # The window parts a spec is read by, in the order they are shown.
-# Display only: nothing in the BOM, the formulas or the cut list reads it.
+# NOT display only any more: the size rules (aw_fenestration_design,
+# `size_chain.KIND_BY_GROUP`) read a position's part group to decide which
+# piece kind it is -- outer_frame = frame, dividers = divider, sashes = sash
+# side, beads = sash bead, lock = lock bar -- so changing a group CHANGES
+# LENGTHS wherever a size rule is filled. A group that maps to no kind
+# (interlock_meeting, fly_screen, empty) never follows a rule, and the
+# window's Checks say so.
 PART_GROUPS = [
     ('outer_frame', 'Outer frame'),
     ('sashes', 'Sashes'),
@@ -79,9 +85,13 @@ class AwProfilePosition(models.Model):
             "ignored by the BOM, and the checks report it.")
     part_group = fields.Selection(
         PART_GROUPS, string='Part Group',
-        help="Which part of the window this position belongs to. Only "
-             "how a specification lists its profiles; it changes no "
-             "length, quantity or price.")
+        # Drives lengths through the size rules: see PART_GROUPS above.
+        help="Which part of the window this position belongs to. It lists "
+             "the profiles in a specification, and it decides which size "
+             "rule applies to the piece (frame, divider, sash side, sash "
+             "bead, lock bar), so changing it can change cut lengths for a "
+             "series that has size rules. Interlock & meeting, Fly screen "
+             "and empty follow no size rule.")
     edge = fields.Selection([
         ('top', 'Top'),
         ('bottom', 'Bottom'),
